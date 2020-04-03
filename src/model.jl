@@ -56,9 +56,12 @@ struct Model
     i_current_exogenous
     i_lagged_exogenous
     serially_correlated_exogenous
+    dynamic!
+    static!
+    steady_state!
 end
 
-function Model(endo_nbr, lead_lag_incidence, current_exogenous_nbr, lagged_exogenous_nbr)
+function Model(modfilename, endo_nbr, lead_lag_incidence, current_exogenous_nbr, lagged_exogenous_nbr)
     i_static = findall((lead_lag_incidence[1,:] .== 0) .& (lead_lag_incidence[3,:] .== 0))
     p_static = lead_lag_incidence[2,i_static]
     i_dyn = findall((lead_lag_incidence[1,:] .> 0) .| (lead_lag_incidence[3,:] .> 0))
@@ -111,6 +114,9 @@ function Model(endo_nbr, lead_lag_incidence, current_exogenous_nbr, lagged_exoge
     i_current_exogenous = maximum(lead_lag_incidence) .+ (1:current_exogenous_nbr)
     i_lagged_exogenous = 0:-1
     serially_correlated_exogenous = false
+    dynamic! = load_dynare_function(modfilename*"Dynamic.jl")
+    static! = load_dynare_function(modfilename*"Static.jl")
+    steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
     Model(endo_nbr, current_exogenous_nbr, lagged_exogenous_nbr,
           lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
           n_states, DErows1, DErows2, n_dyn, i_static, i_dyn, i_bkwrd,
@@ -122,10 +128,12 @@ function Model(endo_nbr, lead_lag_incidence, current_exogenous_nbr, lagged_exoge
           i_cur_bkwrd, n_cur_bkwrd, p_cur_bkwrd, i_cur_both,
           n_cur_both, p_cur_both, gx_rows, hx_rows,
           i_current_exogenous, i_lagged_exogenous,
-          serially_correlated_exogenous)   
+          serially_correlated_exogenous, dynamic!, static!,
+          steady_state!)   
 end
 
-Model(endo_nbr, lli, current_exogenous_nbr) = Model(endo_nbr, lli, current_exogenous_nbr, 0)
+Model(modfilename, endo_nbr, lli, current_exogenous_nbr) =
+    Model(modfilename, endo_nbr, lli, current_exogenous_nbr, 0)
     
 function get_de(jacobian,model)
     n1 = size(model.DErows1,1)
@@ -178,4 +186,11 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
+function load_dynare_function(filename)
+    file = readlines(filename)
+    # drop using Utils
+    deleteat!(file, 6)
+    str = join(file, "\n")
+    return eval(Meta.parse(str))
+end
 
