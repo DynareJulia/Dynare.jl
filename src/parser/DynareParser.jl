@@ -18,15 +18,26 @@ end
 struct Context
     symboltable::Dict{String, Symbol}
     models::Vector{Model}
-    options::Options
+    options::Dict{String, Any}
     results::Results
     function Context()
         symboltable = Dict()
-        models = Vector{Model}(undef,0)
-        options = Options()
+        models = Vector{Model}(undef,1)
+        options = Dict()
         results = Results()
         new(symboltable, models, options, results)
     end
+end
+
+struct ModelInfo
+    lead_lag_incidence::Array{Int64}
+    nstatic
+    nfwrd
+    npred
+    nboth
+    nsfwrd
+    nspred
+    ndynamic
 end
 
 function parser(modfilename, context::Context)
@@ -39,6 +50,11 @@ function parser(modfilename, context::Context)
     param_nbr = set_symbol_table!(context.symboltable, modeljson["parameters"], Parameter)
     params = Vector{Float64}(undef, param_nbr)
     Sigma_e = zeros(exo_nbr, exo_nbr)
+    model_info = get_model_info(modeljson["model_info"])
+    context.models[1] = Model(modfilename,
+                              endo_nbr,
+                              model_info.lead_lag_incidence,
+                              exo_nbr)
     for field in modeljson["statements"]
         if field["statementName"] == "param_init"
             initialize_parameter!(params, field, context.symboltable)
@@ -48,14 +64,17 @@ function parser(modfilename, context::Context)
             initval(field)
         elseif field["statementName"] == "shocks"
             shocks!(Sigma_e, field, context.symboltable)
-        elseif field["statementName"] == "stoch_simul"
-            stoch_simul(field)
         elseif field["statementName"] == "verbatim"
             verbatim(field)
         elseif field["statementName"] == "check"
             check(field)
         elseif field["statementName"] == "stoch_simul"
-            check(field)
+            println(field)
+            stoch_simul!(context, field)
+        elseif field["statementName"] == "perfect_foresight_setup"
+            perfect_foresight_setup!(options, field)
+        elseif field["statementName"] == "perfect_foresight_solver"
+            perfect_foresight_solver!(context, field)
         else
             error("Unrecognized statement $(field["statementName"])")
         end
@@ -78,6 +97,15 @@ function set_symbol_table!(table::Dict{String, Dynare.Symbol},
     return count
 end
 
+get_model_info(field) = ModelInfo(hcat(field["lead_lag_incidence"]...),
+                                  field["nstatic"],
+                                  field["nfwrd"],
+                                  field["npred"],
+                                  field["nboth"],
+                                  field["nsfwrd"],
+                                  field["nspred"],
+                                  field["ndynamic"])
+                   
 function initialize_parameter!(params, field, symboltable)
     s = symboltable[field["name"]]
     k = s.orderintype
@@ -130,8 +158,24 @@ function set_correlation!(Sigma, correlation, symboltable)
     end
 end
 
-function stoch_simul(field)
+function stoch_simul!(context, field)
+    context.options["stoch_simul"] = Dict()
+    copy!(context.options["stoch_simul"], field["options"])
+    compute_stoch_simul(context)
 end
+
+function perfect_foresight_setup(context, field)
+    context.options["perfect_foresight_setup"] = Dict()
+    copy!(context.options["perfect_foresight_setup"], field["options"])
+    compute_perfect_foresight_setup(context)
+end
+
+function perfect_foresight_solver(context, field)
+    context.options["perfect_foresight_solver"] = Dict()
+    copy!(context.options["perfect_foresight_solver"], field["options"])
+    compute_perfect_foresight_solver(context)
+end
+
 
 function verbatim(field)
     println("VERBATIM: $field")
@@ -139,3 +183,10 @@ end
 
 function check(field)
 end
+
+function compute_stoch_simul(context); end;
+function compute_prefect_foresight_setup(context); end;
+function compute_perfect_foresight_solver(context); end;
+
+
+
