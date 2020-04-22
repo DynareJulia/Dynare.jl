@@ -2,9 +2,11 @@ using LinearAlgebra
 export Model, get_de, get_abc, inverse_order_of_dynare_decision_rule
 
 struct Model
-    endo_nbr
-    current_exogenous_nbr
+    endogenous_nbr
+    exogenous_nbr
     lagged_exogenous_nbr
+    exogenous_deterministic_nbr
+    parameter_nbr
     lead_lag_incidence
     n_static
     n_fwrd
@@ -61,7 +63,7 @@ struct Model
     steady_state!
 end
 
-function Model(modfilename, endo_nbr, lead_lag_incidence, current_exogenous_nbr, lagged_exogenous_nbr)
+function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr, parameter_nbr)
     i_static = findall((lead_lag_incidence[1,:] .== 0) .& (lead_lag_incidence[3,:] .== 0))
     p_static = lead_lag_incidence[2,i_static]
     i_dyn = findall((lead_lag_incidence[1,:] .> 0) .| (lead_lag_incidence[3,:] .> 0))
@@ -98,7 +100,7 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, current_exogenous_nbr,
     i_cur_both = findall(lead_lag_incidence[2,i_both] .> 0)
     n_cur_both = length(i_cur_both)
     p_cur_both = lead_lag_incidence[2,i_both[i_cur_both]]
-    icolsD = [1:n_cur_bkwrd; n_bkwrd+n_both .+ (1:(n_fwrd+n_both))]
+    icolsD = [1:n_cur_bkwrd; n_bkwrd + n_both .+ (1:(n_fwrd+n_both))]
     jcolsD = [p_cur_bkwrd; p_fwrd; p_both_f]
     # derivatives of current values of variables that are both
     # forward and backward are included in the E matrix
@@ -111,14 +113,18 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, current_exogenous_nbr,
     DErows2 = (n_dyn-n_both) .+ (1:n_both)
     gx_rows = n_bkwrd .+ (1:(n_fwrd+n_both))
     hx_rows = 1:(n_bkwrd + n_both)
-    i_current_exogenous = maximum(lead_lag_incidence) .+ (1:current_exogenous_nbr)
+    i_current_exogenous = maximum(lead_lag_incidence) .+ (1:exogenous_nbr)
     i_lagged_exogenous = 0:-1
     serially_correlated_exogenous = false
     dynamic! = load_dynare_function(modfilename*"Dynamic.jl")
     static! = load_dynare_function(modfilename*"Static.jl")
-    steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
-    Model(endo_nbr, current_exogenous_nbr, lagged_exogenous_nbr,
-          lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
+    if isfile(modfilename*"SteadyState2.jl")
+        steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
+    else
+        steady_state! = Nothing
+    end
+    Model(endo_nbr, exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr,
+          parameter_nbr, lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
           n_states, DErows1, DErows2, n_dyn, i_static, i_dyn, i_bkwrd,
           i_bkwrd_b, i_bkwrd_ns, i_fwrd, i_fwrd_b, i_fwrd_ns, i_both,
           p_static, p_bkwrd, p_bkwrd_b, p_fwrd, p_fwrd_b, p_both_b,
@@ -130,34 +136,6 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, current_exogenous_nbr,
           i_current_exogenous, i_lagged_exogenous,
           serially_correlated_exogenous, dynamic!, static!,
           steady_state!)   
-end
-
-Model(modfilename, endo_nbr, lli, current_exogenous_nbr) =
-    Model(modfilename, endo_nbr, lli, current_exogenous_nbr, 0)
-    
-function get_de(jacobian,model)
-    n1 = size(model.DErows1,1)
-    n2 = model.n_dyn - n1;
-    d = zeros(model.n_dyn,model.n_dyn)
-    e = zeros(model.n_dyn,model.n_dyn)
-    d[1:n1,model.icolsD] = jacobian[:,model.jcolsD]
-    e[1:n1,model.icolsE] = -jacobian[:,model.jcolsE]
-    u = Matrix{Float64}(I, n2, n2)                                    
-    d[model.DErows2,model.colsUD] = u
-    e[model.DErows2,model.colsUE] = u
-    return d, e
-end
-
-function get_abc(model::Model,jacobian::Array{Float64})
-    i_rows = model.n_static+1:model.endo_nbr
-    n = length(i_rows)
-    a = zeros(Float64,n,n)
-    b = zeros(Float64,n,n)
-    c = zeros(Float64,n,n)
-    a[:,model.i_bkwrd_ns] = view(jacobian,i_rows,model.p_bkwrd_b)
-    b[:,model.i_current_ns]  = view(jacobian,i_rows,model.p_current_ns)
-    c[:,model.i_fwrd_ns]  = view(jacobian,i_rows,model.p_fwrd_b)
-    return a, b, c
 end
 
 function inverse_order_of_dynare_decision_rule(m::Model)
@@ -189,8 +167,7 @@ end
 function load_dynare_function(filename)
     file = readlines(filename)
     # drop using Utils
-    deleteat!(file, 6)
-    str = join(file, "\n")
-    return eval(Meta.parse(str))
+    file[6] = "using Dynare: get_power_deriv"
+    return eval(Meta.parse(join(file, "\n")))
 end
 

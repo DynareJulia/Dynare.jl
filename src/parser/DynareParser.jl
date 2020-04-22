@@ -1,4 +1,7 @@
+using FastLapackInterface
+using FastLapackInterface.LinSolveAlgo
 using JSON
+using LinearRationalExpectations
 
 @enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
 
@@ -12,20 +15,61 @@ end
 struct Options
 end
 
-struct Results
+struct ModelResults
+    endogenous_steady_state::Vector{Float64}
+    exogenous_steady_state::Vector{Float64}
+    exogenous_deterministic_steady_state::Vector{Float64}
 end
 
-struct Context
+struct Results
+    model_results::Vector{ModelResults}
+end
+
+mutable struct Work
+    params::Vector{Float64}
+    residuals::Vector{Float64}
+    temporary_values::Vector{Float64}
+    dynamic_variables::Vector{Float64}
+    jacobian::Matrix{Float64}
+    qr_jacobian::Matrix{Float64}
+end
+
+function work_allocate(w::Work, m::Model)
+    if length(w.params) == 0
+        resize!(w.params, m.parameter_nbr)
+    end
+    if length(w.residuals) == 0
+        resize!(w.residuals, m.endogenous_nbr)
+    end
+    if length(w.temporary_values) == 0
+        resize!(w.temporary_values, sum(m.dynamic!.tmp_nbr))
+    end
+    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
+    if length(w.dynamic_variables) == 0
+        resize!(w.dynamic_variables, ncol)
+    end
+    ncol1 = ncol + m.exogenous_nbr
+    if length(w.jacobian) == 0
+        w.jacobian = Matrix{Float64}(undef, m.endogenous_nbr, ncol1)
+    end
+    if length(w.qr_jacobian) == 0
+        w.qr_jacobian = Matrix{Float64}(undef, m.endogenous_nbr, ncol1)
+    end
+end          
+
+mutable struct Context
     symboltable::Dict{String, Symbol}
     models::Vector{Model}
     options::Dict{String, Any}
     results::Results
+    work::Work
     function Context()
         symboltable = Dict()
         models = Vector{Model}(undef,1)
         options = Dict()
-        results = Results()
-        new(symboltable, models, options, results)
+        results = Results([ModelResults([],[],[])])
+        work = Work([], [], [], [], Matrix{Float64}(undef, 0, 0), Matrix{Float64}(undef, 0, 0))
+        new(symboltable, models, options, results, work)
     end
 end
 
@@ -48,16 +92,22 @@ function parser(modfilename, context::Context)
     exo_nbr = set_symbol_table!(context.symboltable, modeljson["exogenous"], Exogenous)
     exo_det_nbr = set_symbol_table!(context.symboltable, modeljson["exogenous_deterministic"], ExogenousDeterministic)
     param_nbr = set_symbol_table!(context.symboltable, modeljson["parameters"], Parameter)
-    params = Vector{Float64}(undef, param_nbr)
     Sigma_e = zeros(exo_nbr, exo_nbr)
     model_info = get_model_info(modeljson["model_info"])
     context.models[1] = Model(modfilename,
                               endo_nbr,
                               model_info.lead_lag_incidence,
-                              exo_nbr)
+                              exo_nbr,
+                              0,
+                              exo_det_nbr,
+                              param_nbr)
+    context.results = Results([ModelResults(Vector{Float64}(undef, endo_nbr),
+                                    Vector{Float64}(undef, exo_nbr),
+                                            Vector{Float64}(undef, exo_det_nbr))])
+    work_allocate(context.work, context.models[1])
     for field in modeljson["statements"]
         if field["statementName"] == "param_init"
-            initialize_parameter!(params, field, context.symboltable)
+            initialize_parameter!(context.work.params, field, context.symboltable)
         elseif field["statementName"] == "native"
             native_statement(field)
         elseif field["statementName"] == "initval"
@@ -184,9 +234,57 @@ end
 function check(field)
 end
 
-function compute_stoch_simul(context); end;
-function compute_prefect_foresight_setup(context); end;
-function compute_perfect_foresight_solver(context); end;
+function compute_stoch_simul(context)
+    m = context.models[1]
+    results = context.results
+    if context.options["stoch_simul"]["dr_cycle_reduction"]
+        algo = "CR"
+    else
+        algo = "GS"
+    end
+    ws = LinearRationalExpectationsWs(algo,
+                                      m.endogenous_nbr,
+                                      m.exogenous_nbr,
+                                      m.exogenous_deterministic_nbr,
+                                      m.i_fwrd_b,
+                                      m.i_current,
+                                      m.i_bkwrd_b,
+                                      m.i_both,
+                                      m.i_static)
+    LinearRationalExpectations.remove_static!(jacobian, ws)
+    if algo == "GS"
+        LinearRationalExpectations.get_de!(ws, jacobian)
+    else
+        LinearRationalExpectations.get_abc!(ws, jacobian)
+    end
+    LinearRationalExpectations.first_order_solver!(results, algo, jacobian, options, ws)
+    println(results)
+end
 
+function compute_prefect_foresight_setup(context); end
+function compute_perfect_foresight_solver(context); end
 
+function get_dynamic_variables!(y::Vector{Float64}, steadystate::Vector{Float64}, lli::Matrix{Int64})
+    for i = 1:size(lli,2)
+        value = steadystate[i]
+        for j = 1:size(lli,1)
+            k = lli[j, i]
+            if k > 0
+                y[k] = value
+            end
+        end
+    end
+end
 
+function get_jacobian_at_steadystate!(work::Work, steadystate, exogenous, m::Model, period::Int64)
+    lli = m.lead_lag_incidence
+    get_dynamic_variables!(work.dynamic_variables, steadystate, lli)
+    m.dynamic!.dynamic!(work.temporary_values,
+                        work.residuals,
+                        work.jacobian,
+                        work.dynamic_variables,
+                        exogenous,
+                        work.params,
+                        steadystate,
+                        period)  
+end
