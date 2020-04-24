@@ -2,7 +2,7 @@ using FastLapackInterface
 using FastLapackInterface.LinSolveAlgo
 using JSON
 using LinearRationalExpectations
-
+using Perturbation
 @enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
 
 struct Symbol
@@ -12,13 +12,11 @@ struct Symbol
     orderintype::Integer
 end
 
-struct Options
-end
-
 struct ModelResults
     endogenous_steady_state::Vector{Float64}
     exogenous_steady_state::Vector{Float64}
     exogenous_deterministic_steady_state::Vector{Float64}
+    perturbation::ResultsPerturbationWs
 end
 
 struct Results
@@ -34,43 +32,12 @@ mutable struct Work
     qr_jacobian::Matrix{Float64}
 end
 
-function work_allocate(w::Work, m::Model)
-    if length(w.params) == 0
-        resize!(w.params, m.parameter_nbr)
-    end
-    if length(w.residuals) == 0
-        resize!(w.residuals, m.endogenous_nbr)
-    end
-    if length(w.temporary_values) == 0
-        resize!(w.temporary_values, sum(m.dynamic!.tmp_nbr))
-    end
-    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
-    if length(w.dynamic_variables) == 0
-        resize!(w.dynamic_variables, ncol)
-    end
-    ncol1 = ncol + m.exogenous_nbr
-    if length(w.jacobian) == 0
-        w.jacobian = Matrix{Float64}(undef, m.endogenous_nbr, ncol1)
-    end
-    if length(w.qr_jacobian) == 0
-        w.qr_jacobian = Matrix{Float64}(undef, m.endogenous_nbr, ncol1)
-    end
-end          
-
 mutable struct Context
     symboltable::Dict{String, Symbol}
     models::Vector{Model}
-    options::Dict{String, Any}
+    options::Dict
     results::Results
     work::Work
-    function Context()
-        symboltable = Dict()
-        models = Vector{Model}(undef,1)
-        options = Dict()
-        results = Results([ModelResults([],[],[])])
-        work = Work([], [], [], [], Matrix{Float64}(undef, 0, 0), Matrix{Float64}(undef, 0, 0))
-        new(symboltable, models, options, results, work)
-    end
 end
 
 struct ModelInfo
@@ -84,36 +51,48 @@ struct ModelInfo
     ndynamic
 end
 
-function parser(modfilename, context::Context)
+function parser(modfilename)
     modelstring = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
 
-    endo_nbr = set_symbol_table!(context.symboltable, modeljson["endogenous"], Endogenous)
-    exo_nbr = set_symbol_table!(context.symboltable, modeljson["exogenous"], Exogenous)
-    exo_det_nbr = set_symbol_table!(context.symboltable, modeljson["exogenous_deterministic"], ExogenousDeterministic)
-    param_nbr = set_symbol_table!(context.symboltable, modeljson["parameters"], Parameter)
+    symboltable = Dict{String, Dynare.Symbol}()
+    endo_nbr = set_symbol_table!(symboltable, modeljson["endogenous"], Endogenous)
+    exo_nbr = set_symbol_table!(symboltable, modeljson["exogenous"], Exogenous)
+    exo_det_nbr = set_symbol_table!(symboltable, modeljson["exogenous_deterministic"], ExogenousDeterministic)
+    param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
     Sigma_e = zeros(exo_nbr, exo_nbr)
     model_info = get_model_info(modeljson["model_info"])
-    context.models[1] = Model(modfilename,
-                              endo_nbr,
-                              model_info.lead_lag_incidence,
-                              exo_nbr,
-                              0,
-                              exo_det_nbr,
-                              param_nbr)
-    context.results = Results([ModelResults(Vector{Float64}(undef, endo_nbr),
-                                    Vector{Float64}(undef, exo_nbr),
-                                            Vector{Float64}(undef, exo_det_nbr))])
-    work_allocate(context.work, context.models[1])
+    model = Model(modfilename,
+                  endo_nbr,
+                  model_info.lead_lag_incidence,
+                  exo_nbr,
+                  0,
+                  exo_det_nbr,
+                  param_nbr)
+    order = 1
+    modelresults = ModelResults(Vector{Float64}(undef, endo_nbr),
+                                Vector{Float64}(undef, exo_nbr),
+                                Vector{Float64}(undef, exo_det_nbr),
+                                ResultsPerturbationWs(order, endo_nbr, exo_nbr, model.n_states))
+    ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
+    ncol1 = ncol + model.exogenous_nbr
+    work = Work(Vector{Float64}(undef, model.parameter_nbr),
+                Vector{Float64}(undef, model.endogenous_nbr),
+                Vector{Float64}(undef, sum(model.dynamic!.tmp_nbr[1:2])),
+                Vector{Float64}(undef, ncol),
+                Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
+                Matrix{Float64}(undef, model.endogenous_nbr, ncol1))
+    results = Results([modelresults])
+    context = Context(symboltable, [model], Dict(), results, work)
     for field in modeljson["statements"]
         if field["statementName"] == "param_init"
-            initialize_parameter!(context.work.params, field, context.symboltable)
+            initialize_parameter!(work.params, field, symboltable)
         elseif field["statementName"] == "native"
             native_statement(field)
         elseif field["statementName"] == "initval"
             initval(field)
         elseif field["statementName"] == "shocks"
-            shocks!(Sigma_e, field, context.symboltable)
+            shocks!(Sigma_e, field, symboltable)
         elseif field["statementName"] == "verbatim"
             verbatim(field)
         elseif field["statementName"] == "check"
@@ -236,8 +215,20 @@ end
 
 function compute_stoch_simul(context)
     m = context.models[1]
-    results = context.results
-    if context.options["stoch_simul"]["dr_cycle_reduction"]
+    results = context.results.model_results[1]
+    options = context.options["stoch_simul"]
+    println(options)
+    options["cyclic_reduction"] = Dict()
+    options["generalized_schur"] = Dict()
+    work = context.work
+    Base.invokelatest(steady_state!, context)
+    fill!(results.exogenous_steady_state, 0.0)
+    get_jacobian_at_steadystate!(work,
+                                 results.endogenous_steady_state,
+                                 results.exogenous_steady_state, 
+                                 m,
+                                 2)
+    if options["dr_cycle_reduction"]
         algo = "CR"
     else
         algo = "GS"
@@ -251,13 +242,15 @@ function compute_stoch_simul(context)
                                       m.i_bkwrd_b,
                                       m.i_both,
                                       m.i_static)
-    LinearRationalExpectations.remove_static!(jacobian, ws)
+    LinearRationalExpectations.remove_static!(work.jacobian, ws)
     if algo == "GS"
-        LinearRationalExpectations.get_de!(ws, jacobian)
+        LinearRationalExpectations.get_de!(ws, work.jacobian)
+        options["generalized_schur"]["criterium"] = 1 + 1e-6
     else
-        LinearRationalExpectations.get_abc!(ws, jacobian)
+        LinearRationalExpectations.get_abc!(ws, work.jacobian)
+        options["cyclic_reduction"]["tol"] = 1e-8
     end
-    LinearRationalExpectations.first_order_solver!(results, algo, jacobian, options, ws)
+    LinearRationalExpectations.first_order_solver!(results.perturbation, algo, work.jacobian, options, ws)
     println(results)
 end
 
@@ -279,12 +272,14 @@ end
 function get_jacobian_at_steadystate!(work::Work, steadystate, exogenous, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_variables!(work.dynamic_variables, steadystate, lli)
-    m.dynamic!.dynamic!(work.temporary_values,
-                        work.residuals,
-                        work.jacobian,
-                        work.dynamic_variables,
-                        exogenous,
-                        work.params,
-                        steadystate,
-                        period)  
+    println(work.dynamic_variables)
+    Base.invokelatest(m.dynamic!.dynamic!,
+                      work.temporary_values,
+                      work.residuals,
+                      work.jacobian,
+                      work.dynamic_variables,
+                      repeat(exogenous', 3, 1),
+                      work.params,
+                      steadystate,
+                      period)  
 end

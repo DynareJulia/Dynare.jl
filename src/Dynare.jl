@@ -20,8 +20,7 @@ macro dynare(modfilename, args...)
         modname = modfilename
     end
     dynare_preprocess(modname*".mod", args)
-    context = Dynare.Context()
-    parser(modname, context)
+    context = parser(modname)
     return context
 end
 
