@@ -2,6 +2,7 @@ module Dynare
 
 include("model.jl")
 export get_abc, get_de
+include("symboltable.jl")
 include("parser/DynareParser.jl")
 export parser, get_jacobian_at_steadystate!
 include("parser/DynarePreprocessor.jl")
@@ -10,7 +11,8 @@ include("steady_state/SteadyState.jl")
 export steady_state!
 include("Utils.jl")
 export get_power_deriv
-
+include("dynare_table.jl")
+        
 export @dynare
 
 macro dynare(modfilename, args...)

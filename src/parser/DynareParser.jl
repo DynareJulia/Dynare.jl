@@ -3,14 +3,6 @@ using FastLapackInterface.LinSolveAlgo
 using JSON
 using LinearRationalExpectations
 using Perturbation
-@enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
-
-struct Symbol
-    longname::String
-    texname::String
-    type::SymbolType
-    orderintype::Integer
-end
 
 struct ModelResults
     endogenous_steady_state::Vector{Float64}
@@ -33,7 +25,7 @@ mutable struct Work
 end
 
 mutable struct Context
-    symboltable::Dict{String, Symbol}
+    symboltable::Dict{String, DynareSymbol}
     models::Vector{Model}
     options::Dict
     results::Results
@@ -55,7 +47,7 @@ function parser(modfilename)
     modelstring = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
 
-    symboltable = Dict{String, Dynare.Symbol}()
+    symboltable = SymbolTable()
     endo_nbr = set_symbol_table!(symboltable, modeljson["endogenous"], Endogenous)
     exo_nbr = set_symbol_table!(symboltable, modeljson["exogenous"], Exogenous)
     exo_det_nbr = set_symbol_table!(symboltable, modeljson["exogenous_deterministic"], ExogenousDeterministic)
@@ -98,7 +90,6 @@ function parser(modfilename)
         elseif field["statementName"] == "check"
             check(field)
         elseif field["statementName"] == "stoch_simul"
-            println(field)
             stoch_simul!(context, field)
         elseif field["statementName"] == "perfect_foresight_setup"
             perfect_foresight_setup!(options, field)
@@ -108,15 +99,16 @@ function parser(modfilename)
             error("Unrecognized statement $(field["statementName"])")
         end
     end
+    return context
 end
 
-function set_symbol_table!(table::Dict{String, Dynare.Symbol},
+function set_symbol_table!(table::Dict{String, DynareSymbol},
                      modelfile,
                      type::SymbolType)
     count = 0
     for entry in modelfile
         count += 1
-        symbol = Dynare.Symbol(entry["longName"],
+        symbol = DynareSymbol(entry["longName"],
                         entry["texName"],
                         type,
                         count)
@@ -142,7 +134,7 @@ function initialize_parameter!(params, field, symboltable)
 end
 
 function native_statement(field)
-    println("NATIVE: $field")
+#    println("NATIVE: $field")
 end
 
 function initval(field)
@@ -187,10 +179,30 @@ function set_correlation!(Sigma, correlation, symboltable)
     end
 end
 
+function display_stoch_simul(x, title, context)
+    endogenous_names = get_endogenous_longname(context.symboltable)
+    emptyrow = ["" for _= 1:size(x,1)]
+    column_header = []
+    map(x -> push!(column_header, string(x, "\U0209C")), endogenous_names)
+    row_header = [""]
+    map(x -> push!(row_header, "ϕ($x)"), endogenous_names[context.models[1].i_bkwrd_b])
+    map(x -> push!(row_header, "$x\U0209C"), get_exogenous_longname(context.symboltable))
+    data = hcat(row_header,
+                vcat(reshape(column_header, 1, length(column_header)),
+                     x))
+    # Note: ϕ(x) = x_{t-1} - \bar x
+    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
+    println("\n")
+    dynare_table(data, title, column_header, row_header, note)
+end
+
 function stoch_simul!(context, field)
     context.options["stoch_simul"] = Dict()
     copy!(context.options["stoch_simul"], field["options"])
     compute_stoch_simul(context)
+    x = context.results.model_results[1].perturbation.g[1]
+    vx = view(x, :, 1:size(x, 2) - 1)
+    display_stoch_simul(vx', "Coefficients of approximate solution function", context)
 end
 
 function perfect_foresight_setup(context, field)
@@ -207,7 +219,7 @@ end
 
 
 function verbatim(field)
-    println("VERBATIM: $field")
+#    println("VERBATIM: $field")
 end
 
 function check(field)
@@ -217,7 +229,6 @@ function compute_stoch_simul(context)
     m = context.models[1]
     results = context.results.model_results[1]
     options = context.options["stoch_simul"]
-    println(options)
     options["cyclic_reduction"] = Dict()
     options["generalized_schur"] = Dict()
     work = context.work
@@ -251,7 +262,6 @@ function compute_stoch_simul(context)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
     LinearRationalExpectations.first_order_solver!(results.perturbation, algo, work.jacobian, options, ws)
-    println(results)
 end
 
 function compute_prefect_foresight_setup(context); end
@@ -272,7 +282,6 @@ end
 function get_jacobian_at_steadystate!(work::Work, steadystate, exogenous, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_variables!(work.dynamic_variables, steadystate, lli)
-    println(work.dynamic_variables)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,
                       work.residuals,
