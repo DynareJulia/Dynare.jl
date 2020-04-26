@@ -263,7 +263,7 @@ function compute_stoch_simul(context)
         LinearRationalExpectations.get_abc!(ws, work.jacobian)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
-    LinearRationalExpectations.first_order_solver!(results.linearrationalexpecations,
+    LinearRationalExpectations.first_order_solver!(results.linearrationalexpectations,
                                                    algo,
                                                    work.jacobian,
                                                    options,
