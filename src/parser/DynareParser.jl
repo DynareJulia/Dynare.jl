@@ -1,14 +1,11 @@
-using FastLapackInterface
-using FastLapackInterface.LinSolveAlgo
 using JSON
 using LinearRationalExpectations
-using Perturbation
 
 struct ModelResults
     endogenous_steady_state::Vector{Float64}
     exogenous_steady_state::Vector{Float64}
     exogenous_deterministic_steady_state::Vector{Float64}
-    perturbation::ResultsPerturbationWs
+    linearrationalexpectations::LinearRationalExpectationsResults
 end
 
 struct Results
@@ -50,7 +47,9 @@ function parser(modfilename)
     symboltable = SymbolTable()
     endo_nbr = set_symbol_table!(symboltable, modeljson["endogenous"], Endogenous)
     exo_nbr = set_symbol_table!(symboltable, modeljson["exogenous"], Exogenous)
-    exo_det_nbr = set_symbol_table!(symboltable, modeljson["exogenous_deterministic"], ExogenousDeterministic)
+    exo_det_nbr = set_symbol_table!(symboltable,
+                                    modeljson["exogenous_deterministic"],
+                                    ExogenousDeterministic)
     param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
     Sigma_e = zeros(exo_nbr, exo_nbr)
     model_info = get_model_info(modeljson["model_info"])
@@ -65,7 +64,10 @@ function parser(modfilename)
     modelresults = ModelResults(Vector{Float64}(undef, endo_nbr),
                                 Vector{Float64}(undef, exo_nbr),
                                 Vector{Float64}(undef, exo_det_nbr),
-                                ResultsPerturbationWs(order, endo_nbr, exo_nbr, model.n_states))
+                                LinearRationalExpectationsResults(order,
+                                                                  endo_nbr,
+                                                                  exo_nbr,
+                                                                  model.n_states))
     ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
     ncol1 = ncol + model.exogenous_nbr
     work = Work(Vector{Float64}(undef, model.parameter_nbr),
@@ -200,7 +202,7 @@ function stoch_simul!(context, field)
     context.options["stoch_simul"] = Dict()
     copy!(context.options["stoch_simul"], field["options"])
     compute_stoch_simul(context)
-    x = context.results.model_results[1].perturbation.g[1]
+    x = context.results.model_results[1].linearrationalexpectations.g1
     vx = view(x, :, 1:size(x, 2) - 1)
     display_stoch_simul(vx', "Coefficients of approximate solution function", context)
 end
@@ -261,7 +263,11 @@ function compute_stoch_simul(context)
         LinearRationalExpectations.get_abc!(ws, work.jacobian)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
-    LinearRationalExpectations.first_order_solver!(results.perturbation, algo, work.jacobian, options, ws)
+    LinearRationalExpectations.first_order_solver!(results.linearrationalexpecations,
+                                                   algo,
+                                                   work.jacobian,
+                                                   options,
+                                                   ws)
 end
 
 function compute_prefect_foresight_setup(context); end
