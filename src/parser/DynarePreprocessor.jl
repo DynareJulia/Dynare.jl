@@ -13,9 +13,17 @@ function dynare_preprocess(modfilename, args)
     end
     append!(dynare_args, args)
     println(dynare_args)
-    current_directory = pwd()
-    directory = dirname(modfilename)
-    cd(directory)
-    run(`$DYNARE_BINARY $dynare_args`)
-    cd(current_directory)
+    run_dynare(modfilename, dynare_args)
 end
+
+function run_dynare(modfilename, dynare_args)
+    directory = dirname(modfilename)
+    if length(directory) > 0
+        current_directory = pwd()
+        cd(directory)
+    end
+    run(`$DYNARE_BINARY $dynare_args`)
+    if length(directory) > 0
+        cd(current_directory)
+    end
+end    
