@@ -121,7 +121,7 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_
     if isfile(modfilename*"SteadyState2.jl")
         steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
     else
-        steady_state! = Nothing
+        steady_state! = nothing
     end
     Model(endo_nbr, exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr,
           parameter_nbr, lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
