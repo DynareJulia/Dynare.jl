@@ -1,4 +1,4 @@
-// Example 1 from Collard's guide to Dynare
+// cyclic reduction algorithm
 var y, c, k, a, h, b;
 varexo e, u;
 
@@ -52,6 +52,6 @@ end;
 
 check;
 
-options_.debug = true;
-stoch_simul(dr=cycle_reduction,order=1);
+stoch_simul(dr=cycle_reduction, order=1);
+
 
