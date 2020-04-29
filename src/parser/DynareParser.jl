@@ -241,10 +241,10 @@ function compute_stoch_simul(context)
                                  results.exogenous_steady_state, 
                                  m,
                                  2)
-    if options["dr_cycle_reduction"]
-        algo = "CR"
-    else
+    if isnothing(get(options,"dr_cycle_reduction", nothing))
         algo = "GS"
+    else
+        algo = "CR"
     end
     ws = LinearRationalExpectationsWs(algo,
                                       m.endogenous_nbr,
@@ -298,3 +298,4 @@ function get_jacobian_at_steadystate!(work::Work, steadystate, exogenous, m::Mod
                       steadystate,
                       period)  
 end
+
