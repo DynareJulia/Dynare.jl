@@ -16,6 +16,7 @@ include("dynare_table.jl")
 export @dynare
 
 macro dynare(modfilename, args...)
+    modfilename = string(modfilename)
     if  occursin(r"\.mod$", modfilename)
         modname = modfilename[1:length(modfilename)-4]
     else
