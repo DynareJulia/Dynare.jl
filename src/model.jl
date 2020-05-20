@@ -58,6 +58,7 @@ struct Model
     i_current_exogenous
     i_lagged_exogenous
     serially_correlated_exogenous
+    Sigma_e
     dynamic!
     static!
     steady_state!
@@ -115,6 +116,7 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_
     hx_rows = 1:(n_bkwrd + n_both)
     i_current_exogenous = maximum(lead_lag_incidence) .+ (1:exogenous_nbr)
     i_lagged_exogenous = 0:-1
+    Sigma_e = zeros(exogenous_nbr, exogenous_nbr)
     serially_correlated_exogenous = false
     dynamic! = load_dynare_function(modfilename*"Dynamic.jl")
     static! = load_dynare_function(modfilename*"Static.jl")
@@ -134,7 +136,7 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_
           i_cur_bkwrd, n_cur_bkwrd, p_cur_bkwrd, i_cur_both,
           n_cur_both, p_cur_both, gx_rows, hx_rows,
           i_current_exogenous, i_lagged_exogenous,
-          serially_correlated_exogenous, dynamic!, static!,
+          serially_correlated_exogenous, Sigma_e, dynamic!, static!,
           steady_state!)   
 end
 

@@ -4,9 +4,9 @@
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[Crayons]]
-git-tree-sha1 = "cb7a62895da739fe5bb43f1a26d4292baf4b3dc0"
+git-tree-sha1 = "9f3adcb26c79d6270eb678f3c61bf44cc6b7077e"
 uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
-version = "4.0.1"
+version = "4.0.2"
 
 [[DataAPI]]
 git-tree-sha1 = "176e23402d80e7743fc26c19c681bfb11246af32"
@@ -28,7 +28,7 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[FastLapackInterface]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "924b02d08308717e0a71be06f23441fa2375ebf2"
+git-tree-sha1 = "7e5ea6ccb6382088c4dfda745af75b3bc01a4bee"
 repo-rev = "master"
 repo-url = "https://git.dynare.org/julia-packages/fastlapackinterface.jl.git"
 uuid = "29a986be-02c6-4525-aec4-84b980013641"
@@ -68,7 +68,7 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[LinearRationalExpectations]]
 deps = ["FastLapackInterface", "LinearAlgebra", "PolynomialMatrixEquations"]
-git-tree-sha1 = "f73d8b3d56f5fe4d213d30c381781a4cefb48775"
+git-tree-sha1 = "c172ef0003ac5c0a357b45cc7061a948b6bf23f8"
 repo-rev = "master"
 repo-url = "https://git.dynare.org/julia-packages/linearrationalexpectations.jl.git"
 uuid = "45f42fbc-210c-4ecc-9452-59ec793b9bfd"
@@ -85,22 +85,21 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[OrderedCollections]]
-deps = ["Random", "Serialization", "Test"]
-git-tree-sha1 = "c4c13474d23c60d20a67b217f1d7f22a40edf8f1"
+git-tree-sha1 = "12ce190210d278e12644bcadf5b21cbdcf225cd3"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.1.0"
+version = "1.2.0"
 
 [[Parameters]]
-deps = ["OrderedCollections"]
-git-tree-sha1 = "b62b2558efb1eef1fa44e4be5ff58a515c287e38"
+deps = ["OrderedCollections", "UnPack"]
+git-tree-sha1 = "38b2e970043613c187bd56a995fe2e551821eb4a"
 uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.0"
+version = "0.12.1"
 
 [[Parsers]]
 deps = ["Dates", "Test"]
-git-tree-sha1 = "75d07cb840c300084634b4991761886d0d762724"
+git-tree-sha1 = "f0abb338b4d00306500056a3fd44c221b8473ef2"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "1.0.1"
+version = "1.0.4"
 
 [[Pkg]]
 deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
@@ -108,7 +107,7 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PolynomialMatrixEquations]]
 deps = ["FastLapackInterface", "LinearAlgebra"]
-git-tree-sha1 = "2dff425d84418003dee3d5fa5286b5cd965fa98e"
+git-tree-sha1 = "c402e009baf88774f76d770a2640ee67959d3a4b"
 repo-rev = "master"
 repo-url = "https://git.dynare.org/julia-packages/polynomialmatrixequations.jl.git"
 uuid = "4f9d485d-518f-41ed-81c8-372cd804c93b"
@@ -166,6 +165,11 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [[UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+
+[[UnPack]]
+git-tree-sha1 = "d4bfa022cd30df012700cf380af2141961bb3bfb"
+uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
+version = "1.0.1"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"

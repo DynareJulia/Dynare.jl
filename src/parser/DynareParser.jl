@@ -51,7 +51,6 @@ function parser(modfilename)
                                     modeljson["exogenous_deterministic"],
                                     ExogenousDeterministic)
     param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
-    Sigma_e = zeros(exo_nbr, exo_nbr)
     model_info = get_model_info(modeljson["model_info"])
     model = Model(modfilename,
                   endo_nbr,
@@ -86,7 +85,7 @@ function parser(modfilename)
         elseif field["statementName"] == "initval"
             initval(field)
         elseif field["statementName"] == "shocks"
-            shocks!(Sigma_e, field, symboltable)
+            shocks!(model.Sigma_e, field, symboltable)
         elseif field["statementName"] == "verbatim"
             verbatim(field)
         elseif field["statementName"] == "check"
@@ -198,13 +197,34 @@ function display_stoch_simul(x, title, context)
     dynare_table(data, title, column_header, row_header, note)
 end
 
+function make_A_B!(A, B, model, results)
+    vA = view(A, :, model.i_bkwrd_b)
+    vA .= results.linearrationalexpectations.g1_1
+    B = results.linearrationalexpectations.g1_2
+end
+
 function stoch_simul!(context, field)
-    context.options["stoch_simul"] = Dict()
-    copy!(context.options["stoch_simul"], field["options"])
-    compute_stoch_simul(context)
-    x = context.results.model_results[1].linearrationalexpectations.g1
+    model = context.models[1]
+    options = context.options
+    results = context.results.model_results[1]
+    options["stoch_simul"] = Dict()
+    copy!(options["stoch_simul"], field["options"])
+    compute_stoch_simul!(context)
+    x = results.linearrationalexpectations.g1
     vx = view(x, :, 1:size(x, 2) - 1)
     display_stoch_simul(vx', "Coefficients of approximate solution function", context)
+    if (periods = get(options["stoch_simul"], "periods", 0)) > 0
+        simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
+        y0 = results.endogenous_steady_state
+        C = cholesky(model.Sigma_e)
+        x = randn(periods, model.exogenous_nbr)*C.U
+        c = results.endogenous_steady_state
+        A = zeros(model.endogenous_nbr, model.endogenous_nbr)
+        B = zeros(model.endogenous_nbr, model.exogenous_nbr)
+        make_A_B!(A, B, model, results)
+        simul_first_order!(simulresults, y0, x, c, A, B, periods)
+        @show simulresults
+    end
 end
 
 function perfect_foresight_setup(context, field)
@@ -227,7 +247,7 @@ end
 function check(field)
 end
 
-function compute_stoch_simul(context)
+function compute_stoch_simul!(context)
     m = context.models[1]
     results = context.results.model_results[1]
     options = context.options["stoch_simul"]
