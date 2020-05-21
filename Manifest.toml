@@ -28,7 +28,7 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[FastLapackInterface]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "7e5ea6ccb6382088c4dfda745af75b3bc01a4bee"
+git-tree-sha1 = "cad700dc8cbbe2fe512fa73eb7036787285c6349"
 repo-rev = "master"
 repo-url = "https://git.dynare.org/julia-packages/fastlapackinterface.jl.git"
 uuid = "29a986be-02c6-4525-aec4-84b980013641"

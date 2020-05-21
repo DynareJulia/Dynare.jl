@@ -200,7 +200,7 @@ end
 function make_A_B!(A, B, model, results)
     vA = view(A, :, model.i_bkwrd_b)
     vA .= results.linearrationalexpectations.g1_1
-    B = results.linearrationalexpectations.g1_2
+    B .= results.linearrationalexpectations.g1_2
 end
 
 function stoch_simul!(context, field)

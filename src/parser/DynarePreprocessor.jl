@@ -1,4 +1,4 @@
-DYNARE_BINARY = "/data/projects/dynare/git/preprocessor/src/dynare_m"
+DYNARE_BINARY = "/home/michel/projects/dynare/git/preprocessor/src/dynare_m"
 
 function dynare_preprocess(modfilename, args)
     dynare_args = [basename(modfilename), "language=julia", "output=third", "json=compute"]
