@@ -25,6 +25,7 @@ struct Model
     i_fwrd_b
     i_fwrd_ns
     i_both
+    i_non_states
     p_static
     p_bkwrd
     p_bkwrd_b
@@ -59,12 +60,37 @@ struct Model
     i_lagged_exogenous
     serially_correlated_exogenous
     Sigma_e
+    maximum_endo_lag
+    maximum_endo_lead
+    maximum_exo_lag
+    maximum_exo_lead
+    maximum_exo_det_lag
+    maximum_exo_det_lead
+    maximum_lag
+    maximum_lead
+    orig_maximum_endo_lag
+    orig_maximum_endo_lead
+    orig_maximum_exo_lag
+    orig_maximum_exo_lead
+    orig_maximum_exo_det_lag
+    orig_maximum_exo_det_lead
+    orig_maximum_lag
+    orig_maximum_lead
     dynamic!
     static!
     steady_state!
 end
 
-function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr, parameter_nbr)
+function Model(modfilename, endo_nbr, lead_lag_incidence,
+               exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr,
+               parameter_nbr, maximum_endo_lag, maximum_endo_lead,
+               maximum_exo_lag, maximum_exo_lead, maximum_exo_det_lag,
+               maximum_exo_det_lead, maximum_lag, maximum_lead,
+               orig_maximum_endo_lag, orig_maximum_endo_lead,
+               orig_maximum_exo_lag, orig_maximum_exo_lead,
+               orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
+               orig_maximum_lag, orig_maximum_lead )
+    
     i_static = findall((lead_lag_incidence[1,:] .== 0) .& (lead_lag_incidence[3,:] .== 0))
     p_static = lead_lag_incidence[2,i_static]
     i_dyn = findall((lead_lag_incidence[1,:] .> 0) .| (lead_lag_incidence[3,:] .> 0))
@@ -81,7 +107,8 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_
     p_fwrd = lead_lag_incidence[3,i_fwrd]
     p_fwrd_b = lead_lag_incidence[3,i_dyn[i_fwrd_ns]]
     n_fwrd = length(i_fwrd)
-    i_both = findall((lead_lag_incidence[1,:] .> 0) .& (lead_lag_incidence[3,:] .> 0)) 
+    i_both = findall((lead_lag_incidence[1,:] .> 0) .& (lead_lag_incidence[3,:] .> 0))
+    i_non_states = union(i_fwrd, i_static)
     p_both_b = lead_lag_incidence[1,i_both]
     p_both_f = lead_lag_incidence[3,i_both]
     n_both = length(i_both)
@@ -125,19 +152,26 @@ function Model(modfilename, endo_nbr, lead_lag_incidence, exogenous_nbr, lagged_
     else
         steady_state! = nothing
     end
-    Model(endo_nbr, exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr,
-          parameter_nbr, lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
+    Model(endo_nbr, exogenous_nbr, lagged_exogenous_nbr,
+          exogenous_deterministic_nbr, parameter_nbr,
+          lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
           n_states, DErows1, DErows2, n_dyn, i_static, i_dyn, i_bkwrd,
           i_bkwrd_b, i_bkwrd_ns, i_fwrd, i_fwrd_b, i_fwrd_ns, i_both,
-          p_static, p_bkwrd, p_bkwrd_b, p_fwrd, p_fwrd_b, p_both_b,
-          p_both_f, i_current, p_current, n_current, i_current_ns,
-          p_current_ns, n_current_ns, icolsD, jcolsD, icolsE, jcolsE,
-          colsUD, colsUE, i_cur_fwrd, n_cur_fwrd, p_cur_fwrd,
-          i_cur_bkwrd, n_cur_bkwrd, p_cur_bkwrd, i_cur_both,
-          n_cur_both, p_cur_both, gx_rows, hx_rows,
-          i_current_exogenous, i_lagged_exogenous,
-          serially_correlated_exogenous, Sigma_e, dynamic!, static!,
-          steady_state!)   
+          i_non_states, p_static, p_bkwrd, p_bkwrd_b, p_fwrd,
+          p_fwrd_b, p_both_b, p_both_f, i_current, p_current,
+          n_current, i_current_ns, p_current_ns, n_current_ns, icolsD,
+          jcolsD, icolsE, jcolsE, colsUD, colsUE, i_cur_fwrd,
+          n_cur_fwrd, p_cur_fwrd, i_cur_bkwrd, n_cur_bkwrd,
+          p_cur_bkwrd, i_cur_both, n_cur_both, p_cur_both, gx_rows,
+          hx_rows, i_current_exogenous, i_lagged_exogenous,
+          serially_correlated_exogenous, Sigma_e, maximum_endo_lag,
+          maximum_endo_lead, maximum_exo_lag, maximum_exo_lead,
+          maximum_exo_det_lag, maximum_exo_det_lead, maximum_lag,
+          maximum_lead, orig_maximum_endo_lag, orig_maximum_endo_lead,
+          orig_maximum_exo_lag, orig_maximum_exo_lead,
+          orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
+          orig_maximum_lag, orig_maximum_lead, dynamic!, static!,
+          steady_state!)
 end
 
 function inverse_order_of_dynare_decision_rule(m::Model)

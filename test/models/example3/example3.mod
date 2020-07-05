@@ -1,5 +1,6 @@
 // one auxiliary variable
 // Generalized Schur algorithm
+using CSV
 
 var y, c, k, a, h, b;
 varexo e, u;
@@ -49,13 +50,15 @@ shocks;
 var e; stderr 0.009;
 var u; stderr 0.009;
 //var e, u = phi*0.009*0.009;
-var e, u = 0.009*0.009;
+var e, u = 0.1*0.009*0.009;
 end;
 
 check;
 
 stoch_simul(order=1, periods=100);
+CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data))
 
-//calib_smoother(datafile=data, diffuse_filter, filtered_vars);
+varobs y;
+calib_smoother(datafile='data.csv', diffuse_filter, filtered_vars);
 
 
