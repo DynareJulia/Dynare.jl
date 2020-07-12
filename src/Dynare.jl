@@ -3,6 +3,7 @@ module Dynare
 include("model.jl")
 export get_abc, get_de
 include("symboltable.jl")
+include("parser/deterministic_trends.jl")
 include("first_order/simul_first_order.jl")
 include("parser/DynareParser.jl")
 export parser, get_jacobian_at_steadystate!

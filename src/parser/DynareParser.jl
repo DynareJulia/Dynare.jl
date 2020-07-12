@@ -15,10 +15,11 @@ struct Simulation
     data::TimeDataFrame
 end
 
-struct ModelResults
+mutable struct ModelResults
     endogenous_steady_state::Vector{Float64}
-    endogenous_trend::Matrix{Float64}
+    trends::Trends
     endogenous_variance::Matrix{Float64}
+    stationary_variables::Vector{Bool}
     exogenous_steady_state::Vector{Float64}
     exogenous_deterministic_steady_state::Vector{Float64}
     linearrationalexpectations::LinearRationalExpectationsResults
@@ -146,8 +147,9 @@ function parser(modfilename)
 
     order = 1
     modelresults = ModelResults(Vector{Float64}(undef, endo_nbr),
-                                Matrix{Float64}(undef, endo_nbr, 2),
+                                Trends(endo_nbr, exo_nbr, exo_det_nbr),
                                 Matrix{Float64}(undef, endo_nbr, endo_nbr),
+                                Vector{Bool}(undef, endo_nbr),
                                 Vector{Float64}(undef, exo_nbr),
                                 Vector{Float64}(undef, exo_det_nbr),
                                 LinearRationalExpectationsResults(order,
@@ -404,7 +406,7 @@ function compute_stoch_simul!(context)
     options["generalized_schur"] = Dict()
     work = context.work
     Base.invokelatest(steady_state!, context)
-    fill!(results.exogenous_steady_state, 0.0)
+    fill!(results.trends.exogenous_steady_state, 0.0)
     get_jacobian_at_steadystate!(work,
                                  results.endogenous_steady_state,
                                  results.exogenous_steady_state, 
@@ -485,28 +487,63 @@ function compute_variance!(context)
     B = zeros(m.n_states, m.n_states)
     mul!(B, tmp, B1')
     extended_lyapd!(Σ, A, B, ws)
-    vΣy = view(Σy, m.i_bkwrd_b, m.i_bkwrd_b)
-    vΣy .= Σ
+    stationary_variables = results.stationary_variables
+    fill!(stationary_variables, true)
+    state_stationary_variables = view(stationary_variables, m.i_bkwrd_b)
+    nonstate_stationary_variables = view(stationary_variables, m.i_non_states)
+    if any(ws.nonstationary_variables)
+        fill!(Σy, NaN)
+        state_stationary_variables .= .!ws.nonstationary_variables
+        state_stationary_nbr = count(state_stationary_variables)
+        vr3 = view(results.linearrationalexpectations.g1_1, m.i_non_states, :)
+        for i = 1:(m.endogenous_nbr - m.n_states)
+            for j = 1:m.n_states
+                if ws.nonstationary_variables[j] && abs(vr3[i, j]) > 1e-10
+                    nonstate_stationary_variables[j] = false
+                    break
+                end
+            end
+        end
+        nonstate_stationary_nbr = count(nonstate_stationary_variables)
+    else
+        state_stationary_nbr = m.n_states 
+        nonstate_stationary_nbr = m.endogenous_nbr - m.n_states
+    end
+    # state / state
+    stationary_nbr = state_stationary_nbr + nonstate_stationary_nbr
+    A2 = zeros(nonstate_stationary_nbr, state_stationary_nbr)
+    vtmp = view(results.linearrationalexpectations.g1_1, m.i_non_states, :)
+    A2 .= view(vtmp, nonstate_stationary_variables, state_stationary_variables)
+    vtmp = view(Σy, m.i_bkwrd_b, m.i_bkwrd_b)
+    vΣy = view(vtmp, state_stationary_variables, state_stationary_variables)
+    vΣ = view(Σ, state_stationary_variables, state_stationary_variables) 
+    vΣy .= vΣ
+    # endogenous / nonstate
     n_non_states = m.endogenous_nbr - m.n_states
-    B2 = zeros(n_non_states, m.exogenous_nbr)
-    vr2 = view(results.linearrationalexpectations.g1_2, m.i_non_states, :)
+    B2 = zeros(nonstate_stationary_nbr, m.exogenous_nbr)
+    vtmp = view(results.linearrationalexpectations.g1_2, m.i_non_states, :)
+    vr2 = view(vtmp, nonstate_stationary_variables, :)
     B2 .= vr2
-    Σ = zeros(m.endogenous_nbr, n_non_states)
-    A2 = zeros(n_non_states, m.n_states)
-    vr3 = view(results.linearrationalexpectations.g1_1, m.i_non_states, :)
-    A2 .= vr3
-    tmp1 = zeros(m.endogenous_nbr, m.n_states)
-    mul!(tmp1, g1_1, vΣy)
-    mul!(Σ, tmp1, A2')
-    tmp2 = zeros(m.endogenous_nbr, m.exogenous_nbr)
-    mul!(tmp2, g1_2, m.Sigma_e)
-    mul!(Σ, tmp2, B2', 1.0, 1.0)
-    display(Σ)
-    vΣy = view(Σy, :, m.i_non_states)
+    Σ = zeros(stationary_nbr, nonstate_stationary_nbr)
+    vg1 = view(results.linearrationalexpectations.g1_1, stationary_variables, state_stationary_variables)
+    tmp1 = zeros(stationary_nbr, state_stationary_nbr)
+    mul!(tmp1, vg1, vΣy)
+    vg1 = view(results.linearrationalexpectations.g1_1, m.i_non_states, :)
+    vg11 = view(vg1, nonstate_stationary_variables, state_stationary_variables)
+    mul!(Σ, tmp1, transpose(vg11))
+    tmp2 = zeros(stationary_nbr, m.exogenous_nbr)
+    vg2 = view(results.linearrationalexpectations.g1_2, stationary_variables, :)
+    mul!(tmp2, vg2, m.Sigma_e)
+    mul!(Σ, tmp2, transpose(B2), 1.0, 1.0)
+    vtmp = view(Σy, :, m.i_non_states) 
+    vΣy = view(vtmp, stationary_variables, nonstate_stationary_variables)
     vΣy .= Σ
-    vΣy = view(Σy, m.i_non_states, m.i_bkwrd_b)
-    vΣ = view(Σ, m.i_bkwrd_b, :)
-    vΣy .= vΣ'
+    # nonstate / state
+    vtmp1 = view(Σy, m.i_non_states, m.i_bkwrd_b)
+    vΣy1 = view(vtmp1, nonstate_stationary_variables, state_stationary_variables)
+    vtmp2 = view(Σy, m.i_bkwrd_b, m.i_non_states)
+    vΣy2 = view(vtmp2, state_stationary_variables, nonstate_stationary_variables)
+    vΣy1 .= transpose(vΣy2)
 end
     
 function calib_smoother!(context, field, varobs, varobs_ids)
@@ -516,39 +553,25 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     options["calib_smoother"] = Dict()
     copy!(options["calib_smoother"], field["options"])
     file = get(options["calib_smoother"], "datafile", "")
-    if (file = get(options["calib_smoother"], "datafile", "")) != ""
-        df = DataFrame(CSV.File(file))
-        if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES",
-                                      "PERIOD", "PERIODS"]
-            frequency = identify_period_frequency(uppercase(df[1, 1]))
-        else
-            frequency = Periods.Undated
-            firstperiod = 1
-        end
-
-        timedataframe = TimeDataFrame(df, frequency, firstperiod)
+    if (filename = get(options["calib_smoother"], "datafile", "")) != ""
+        Yorig = get_data(filename, varobs)
+    else
+        error("calib_smoother needs a data file or a TimeDataFrame!")
     end
-
-    ny = length(varobs)
-    nobs = size(df, 1) - 1
-    start = 1
-    last = nobs
-    Y = Matrix{Float64}(undef, ny, nobs)
-    for (i, v) in enumerate(varobs)
-        Y[i, :] .= df[start + 1:last + 1, v] .- results.endogenous_steady_state[varobs_ids[i]]
-    end
-
+    Y = Matrix{Float64}(undef, size(Yorig))
+    remove_linear_trend!(Y, Yorig, results.trends.endogenous_steady_state[varobs_ids],
+                         results.trends.endogenous_linear_trend[varobs_ids])
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)
     np = model.exogenous_nbr
-    kws = KalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
+    ny, nobs = size(Y)
     c = zeros(ny)
     k1 = findall(in(varobs_ids), kalman_statevar_ids)
     k2 = findall(in(statevar_ids), kalman_statevar_ids)
     Z = zeros(ny, ns)
-    for i in varobs_ids
-        Z[i, varobs_ids[1]] = 1.0
+    for i in 1:ny
+        Z[i, varobs_ids[i]] = 1.0
     end
     H = zeros(ny, ny)
     d = zeros(ns)
@@ -559,25 +582,42 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     vg2 = view(context.results.model_results[1].linearrationalexpectations.g1_2, kalman_statevar_ids, :)
     R .= vg2
     Q = model.Sigma_e
-    a0 = zeros(ns)
-    alphah = zeros(ns, nobs)
+    a0 = zeros(ns, nobs + 1)
+    alphah = zeros(ns, nobs + 1)
+    att = zeros(ns, nobs)
     epsilonh = zeros(ny, nobs)
     etah = zeros(np, nobs)
-    P = zeros(ns, ns)
+    P = zeros(ns, ns, nobs + 1)
+    Ptt = zeros(ns, ns, nobs + 1)            
     vv = view(context.results.model_results[1].endogenous_variance, kalman_statevar_ids, kalman_statevar_ids)
-    P .= vv 
+    P[:, :, 1] .= vv 
     Valpha = zeros(ns, ns, nobs)
     Vepsilon = zeros(ny, ny, nobs)
     Veta = zeros(np, np, nobs)
     presample = 0
-    data_pattern = Vector{Vector{Integer}}(undef, 0)
+    data_pattern = Vector{Vector{Int64}}(undef, 0)
     for i = 1:nobs
         push!(data_pattern, findall(Y[:, i] .!= NaN))
     end
-
-    kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  P, alphah, epsilonh, etah,
-                     Valpha, Vepsilon, Veta, start, last, presample,
-                     kws, data_pattern)
+    if count(results.stationary_variables) == 0
+        kws = KalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
+        kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  att, P, Ptt, alphah, epsilonh, etah,
+                         Valpha, Vepsilon, Veta, start, last, presample,
+                         kws, data_pattern)
+    else
+        P[:, :, 1] = map(x -> isnan(x) ? 0 : x, vv)
+        Pinf = zeros(ns, ns, nobs + 1)
+        for k in findall(results.stationary_variables .== 0)
+            Pinf[k, k, 1] = 1.0
+        end
+        Pinftt = zeros(ns, ns, nobs + 1)
+        kws = DiffuseKalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
+        start = 1
+        last = nobs
+        diffuse_kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  att, Pinf, Pinftt, P, Ptt, alphah, epsilonh, etah,
+                                 Valpha, Vepsilon, Veta, start, last, presample, 1e-8,
+                                 kws, data_pattern)
+    end
 
     alphah .+= results.endogenous_steady_state
     results.smoother["alphah"] = alphah
@@ -617,11 +657,32 @@ end
 function deterministic_trends!(context, field)
     model = context.models[1]
     work = context.work
-    trend = context.results.model_results[1].endogenous_trend
+    trend = context.results.model_results[1].trends.endogenous_linear_trend
     symboltable = context.symboltable
     work.model_has_trend = true
     fill!(trend, 0.0)
     for (key, value) in field["trends"]
-        trend[symboltable[key].orderintype,2] = work.params[symboltable[value].orderintype]
+        trend[symboltable[key].orderintype] = work.params[symboltable[value].orderintype]
     end
+end
+
+function get_data(filename, variables)
+    df = DataFrame(CSV.File(filename))
+    if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES",
+                                   "PERIOD", "PERIODS"]
+        frequency = identify_period_frequency(uppercase(df[1, 1]))
+    else
+        frequency = Periods.Undated
+        firstperiod = 1
+    end
+    
+    ny = length(variables)
+    nobs = size(df, 1) - 1
+    start = 1
+    last = nobs
+    Y = Matrix{Float64}(undef, ny, nobs)
+    for (i, v) in enumerate(variables)
+        Y[i, :] .= df[start + 1:last + 1, v]
+    end
+    return Y
 end
