@@ -182,7 +182,6 @@ function parser(modfilename)
         elseif field["statementName"] == "initval"
             initval!(field)
         elseif field["statementName"] == "native"
-            @show field["string"]
             expr = Meta.parse(field["string"])
             eval(expr)
             native_statement(field)
@@ -269,9 +268,7 @@ function histval!(context, field, symboltable)
         l = m.orig_maximum_lag - v["lag"]
         histval[l, k] = Meta.parse(v["value"])
     end
-    @show histval
     context.work.histval = histval
-    @show context.work.histval
 end
 
 function initval!(field)
@@ -368,9 +365,11 @@ function stoch_simul!(context, field)
         B = zeros(model.endogenous_nbr, model.exogenous_nbr)
         make_A_B!(A, B, model, results)
         simul_first_order!(simulresults, y0, x, c, A, B, periods)
+        @show simulresults
         if work.model_has_trend
             simulresults .+= transpose(results.endogenous_trend[:,1]) .+ collect(0:size(simulresults, 1)-1) * transpose(results.endogenous_trend[:, 2]) 
         end
+        @show simulresults
         first_period = get(options["stoch_simul"], "first_periods", 1)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
         data = TimeDataFrame(simulresults, Periods.Undated, first_period, endogenous_names)
@@ -554,7 +553,7 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     copy!(options["calib_smoother"], field["options"])
     file = get(options["calib_smoother"], "datafile", "")
     if (filename = get(options["calib_smoother"], "datafile", "")) != ""
-        Yorig = get_data(filename, varobs)
+        Yorig = get_data(filename, varobs, options["calib_smoother"])
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
@@ -599,7 +598,7 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     for i = 1:nobs
         push!(data_pattern, findall(Y[:, i] .!= NaN))
     end
-    if count(results.stationary_variables) == 0
+    if count(results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  att, P, Ptt, alphah, epsilonh, etah,
                          Valpha, Vepsilon, Veta, start, last, presample,
@@ -666,23 +665,23 @@ function deterministic_trends!(context, field)
     end
 end
 
-function get_data(filename, variables)
+function get_data(filename, variables, options)
     df = DataFrame(CSV.File(filename))
     if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES",
                                    "PERIOD", "PERIODS"]
         frequency = identify_period_frequency(uppercase(df[1, 1]))
     else
         frequency = Periods.Undated
-        firstperiod = 1
     end
     
     ny = length(variables)
-    nobs = size(df, 1) - 1
-    start = 1
-    last = nobs
+
+    start = get(options, "first_obs", 1)
+    last = get(options, "last_obs", size(df, 1) - start + 1) 
+    nobs = last - start + 1
     Y = Matrix{Float64}(undef, ny, nobs)
     for (i, v) in enumerate(variables)
-        Y[i, :] .= df[start + 1:last + 1, v]
+        Y[i, :] .= df[start:last, v]
     end
     return Y
 end
