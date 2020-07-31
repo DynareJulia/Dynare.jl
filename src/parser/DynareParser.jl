@@ -1,5 +1,7 @@
 using CSV
 using DataFrames
+using FastLapackInterface
+using FastLapackInterface.SchurAlgo
 using GR
 using JSON
 using KalmanFilterTools
@@ -365,11 +367,9 @@ function stoch_simul!(context, field)
         B = zeros(model.endogenous_nbr, model.exogenous_nbr)
         make_A_B!(A, B, model, results)
         simul_first_order!(simulresults, y0, x, c, A, B, periods)
-        @show simulresults
         if work.model_has_trend
             simulresults .+= transpose(results.endogenous_trend[:,1]) .+ collect(0:size(simulresults, 1)-1) * transpose(results.endogenous_trend[:, 2]) 
         end
-        @show simulresults
         first_period = get(options["stoch_simul"], "first_periods", 1)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
         data = TimeDataFrame(simulresults, Periods.Undated, first_period, endogenous_names)
@@ -604,18 +604,32 @@ function calib_smoother!(context, field, varobs, varobs_ids)
                          Valpha, Vepsilon, Veta, start, last, presample,
                          kws, data_pattern)
     else
-        P[:, :, 1] = map(x -> isnan(x) ? 0 : x, vv)
+        dgees_ws = DgeesWs(ns)
+        dgees!(dgees_ws, T, >, 1-1e-6)
+        td = transpose(dgees_ws.vs)*d
+        tR = transpose(dgees_ws.vs)*R
+        tZ = Z*dgees_ws.vs
+
+        P = zeros(ns, ns, nobs + 1)
+        k = count(abs.(dgees_ws.eigen_values) .> 1-1e-6)
+        vT = view(T, (k + 1):ns, (k + 1):ns)
+        vP = view(P, (k + 1):ns, (k + 1):ns, 1)
+        vtR = view(tR, (k + 1):ns, :)
+        k1 = ns - k
+        lyapd_ws = LyapdWs(k1)
+        LinearRationalExpectations.extended_lyapd_core!(vP, vT, vtR*Q*transpose(vtR), lyapd_ws)
         Pinf = zeros(ns, ns, nobs + 1)
-        for k in findall(results.stationary_variables .== 0)
-            Pinf[k, k, 1] = 1.0
+        for i = 1:k
+            Pinf[i, i, 1] = 1.0
         end
         Pinftt = zeros(ns, ns, nobs + 1)
         kws = DiffuseKalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
         start = 1
         last = nobs
-        diffuse_kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  att, Pinf, Pinftt, P, Ptt, alphah, epsilonh, etah,
+        diffuse_kalman_smoother!(Y, c, tZ, H, td, T, tR, Q, a0,  att, Pinf, Pinftt, P, Ptt, alphah, epsilonh, etah,
                                  Valpha, Vepsilon, Veta, start, last, presample, 1e-8,
                                  kws, data_pattern)
+        alphah = dgees_ws.vs*alphah
     end
 
     alphah .+= results.endogenous_steady_state
