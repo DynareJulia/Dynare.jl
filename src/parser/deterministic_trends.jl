@@ -35,7 +35,7 @@ end
 function add_linear_trend!(data_out, data_in, steady_state, linear_trend_coeffs; row = 1)
     n = size(data_in, 2)
     linear_trend = collect(row - 1 .+ (1:n))
-    data_out = data_in .+ steady_state .+ linear_trend_coeffs.*transpose(linear_trend)
+    data_out .= data_in .+ steady_state .+ linear_trend_coeffs.*transpose(linear_trend)
 end
     
 function remove_quadratic_trend!(data_out, data_in, steady_state, linear_trend_coeffs,

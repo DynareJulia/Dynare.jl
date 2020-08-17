@@ -1,4 +1,8 @@
 module Dynare
+using Plots
+using GR
+
+gr()
 
 include("model.jl")
 export get_abc, get_de

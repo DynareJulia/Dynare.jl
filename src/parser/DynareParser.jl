@@ -2,12 +2,10 @@ using CSV
 using DataFrames
 using FastLapackInterface
 using FastLapackInterface.SchurAlgo
-using GR
 using JSON
 using KalmanFilterTools
 using LinearRationalExpectations
 using Periods
-using Plots
 using TimeDataFrames
 
 struct Simulation
@@ -407,8 +405,8 @@ function compute_stoch_simul!(context)
     Base.invokelatest(steady_state!, context)
     fill!(results.trends.exogenous_steady_state, 0.0)
     get_jacobian_at_steadystate!(work,
-                                 results.endogenous_steady_state,
-                                 results.exogenous_steady_state, 
+                                 results.trends.endogenous_steady_state,
+                                 results.trends.exogenous_steady_state, 
                                  m,
                                  2)
     if isnothing(get(options,"dr_cycle_reduction", nothing))
@@ -557,7 +555,7 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
-    Y = Matrix{Float64}(undef, size(Yorig))
+    Y = Matrix{Union{Float64, Missing}}(undef, size(Yorig))
     remove_linear_trend!(Y, Yorig, results.trends.endogenous_steady_state[varobs_ids],
                          results.trends.endogenous_linear_trend[varobs_ids])
     statevar_ids = model.i_bkwrd_b
@@ -582,7 +580,7 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     R .= vg2
     Q = model.Sigma_e
     a0 = zeros(ns, nobs + 1)
-    alphah = zeros(ns, nobs + 1)
+    alphah = zeros(ns, nobs)
     att = zeros(ns, nobs)
     epsilonh = zeros(ny, nobs)
     etah = zeros(np, nobs)
@@ -596,7 +594,7 @@ function calib_smoother!(context, field, varobs, varobs_ids)
     presample = 0
     data_pattern = Vector{Vector{Int64}}(undef, 0)
     for i = 1:nobs
-        push!(data_pattern, findall(Y[:, i] .!= NaN))
+        push!(data_pattern, findall(.!ismissing.(Y[:, i])))
     end
     if count(results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
@@ -626,22 +624,22 @@ function calib_smoother!(context, field, varobs, varobs_ids)
         kws = DiffuseKalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
         start = 1
         last = nobs
-        diffuse_kalman_smoother!(Y, c, tZ, H, td, T, tR, Q, a0,  att, Pinf, Pinftt, P, Ptt, alphah, epsilonh, etah,
-                                 Valpha, Vepsilon, Veta, start, last, presample, 1e-8,
+        diffuse_kalman_smoother!(Y, c, tZ, H, td, T, tR, Q, a0, att,
+                                 Pinf, Pinftt, P, Ptt, alphah,
+                                 epsilonh, etah, Valpha, Vepsilon,
+                                 Veta, start, last, presample, 1e-8,
                                  kws, data_pattern)
         alphah = dgees_ws.vs*alphah
     end
 
-    alphah .+= results.endogenous_steady_state
-    results.smoother["alphah"] = alphah
-
-    Plots.plot(alphah, layout = 7)
+    results.smoother["alphah"] = Matrix{Float64}(undef, ns, nobs) 
+    add_linear_trend!(results.smoother["alphah"], alphah,
+                      results.trends.endogenous_steady_state,
+                      results.trends.endogenous_linear_trend)
 end
 
 function identify_period_frequency(period)::Periods.Frequency
-    if !isuppercase(period)
-        period = uppercase(period)
-    end
+    period = uppercase(period)
     if 'Y' in period
         frequency = Periods.Year
     elseif 'A' in period
@@ -693,9 +691,45 @@ function get_data(filename, variables, options)
     start = get(options, "first_obs", 1)
     last = get(options, "last_obs", size(df, 1) - start + 1) 
     nobs = last - start + 1
-    Y = Matrix{Float64}(undef, ny, nobs)
+    Y = Matrix{Union{Missing,Float64}}(undef, ny, nobs)
     for (i, v) in enumerate(variables)
         Y[i, :] .= df[start:last, v]
     end
     return Y
+end
+
+function get_smoothed_values(variable_name::String;
+                             context=context)
+    k = context.symboltable[variable_name].orderintype
+    return context.results.model_results[1].smoother["alphah"][k,:]
+end
+    
+function plot(variables;
+              first_period=1,
+              plot_title = "Smoothed value",
+              plot_legend = (),
+              plot_filename = "",
+              plot_legend_position = :topright)
+    local myplot
+    for (i, v) in enumerate(variables)
+        if length(plot_legend) > 0
+            thislabel = plot_legend[i]
+        else
+            thislabel = ""
+            plot_legend_position = false
+        end
+        if i == 1
+            x = collect(range(first_period, length=length(v)))
+            myplot = Plots.plot(x, v, label = thislabel,
+                                legend=plot_legend_position,
+                                title = plot_title)
+        else            
+            x = collect(range(first_period, length=length(v)))
+            myplot = Plots.plot!(x, v, label = thislabel)
+        end
+    end
+    Plots.display(myplot)
+    if length(plot_filename) > 0
+        Plots.savefig(plot_filename)
+    end
 end
