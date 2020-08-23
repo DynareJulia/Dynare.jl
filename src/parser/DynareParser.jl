@@ -318,15 +318,17 @@ function display_stoch_simul(x, title, context)
     endogenous_names = get_endogenous_longname(context.symboltable)
     emptyrow = ["" for _= 1:size(x,1)]
     column_header = []
-    map(x -> push!(column_header, string(x, "\U0209C")), endogenous_names)
+    #    map(x -> push!(column_header, string(x, "\U0209C")), endogenous_names)
+    map(x -> push!(column_header, "$(x)_t"), endogenous_names)
     row_header = [""]
     map(x -> push!(row_header, "ϕ($x)"), endogenous_names[context.models[1].i_bkwrd_b])
-    map(x -> push!(row_header, "$x\U0209C"), get_exogenous_longname(context.symboltable))
+    map(x -> push!(row_header, "$(x)_t"), get_exogenous_longname(context.symboltable))
     data = hcat(row_header,
                 vcat(reshape(column_header, 1, length(column_header)),
                      x))
     # Note: ϕ(x) = x_{t-1} - \bar x
-    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
+    #    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
+    note = string("Note: ϕ(x) = x_{t-1} - steady_state(x)")
     println("\n")
     dynare_table(data, title, column_header, row_header, note)
 end

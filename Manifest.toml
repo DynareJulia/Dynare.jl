@@ -176,7 +176,7 @@ version = "0.8.2"
 
 [[Dynare_preprocessor_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "c2209bc125e73cf5e15214f034275f54ff91a9fd"
+git-tree-sha1 = "3c9228a0b7ec0248f4cd8e47a3de0fa191b1518f"
 repo-rev = "master"
 repo-url = "https://github.com/MichelJuillard/Dynare_preprocessor_jll.jl"
 uuid = "8bf4d177-eddb-5a20-998e-55ecc2283fe8"
