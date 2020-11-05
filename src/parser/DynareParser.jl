@@ -1,5 +1,6 @@
 using CSV
 using DataFrames
+#using .DynareContainers
 using FastLapackInterface
 using FastLapackInterface.SchurAlgo
 using JSON
@@ -7,75 +8,6 @@ using KalmanFilterTools
 using LinearRationalExpectations
 using Periods
 using TimeDataFrames
-
-struct Simulation
-    name::String
-    statement::String
-    options::Dict{String, Any}
-    data::TimeDataFrame
-end
-
-mutable struct ModelResults
-    endogenous_steady_state::Vector{Float64}
-    trends::Trends
-    endogenous_variance::Matrix{Float64}
-    stationary_variables::Vector{Bool}
-    exogenous_steady_state::Vector{Float64}
-    exogenous_deterministic_steady_state::Vector{Float64}
-    linearrationalexpectations::LinearRationalExpectationsResults
-    simulations::Vector{Simulation}
-    smoother::Dict{String, Any}
-end
-
-struct Results
-    model_results::Vector{ModelResults}
-end
-
-mutable struct Work
-    params::Vector{Float64}
-    residuals::Vector{Float64}
-    temporary_values::Vector{Float64}
-    dynamic_variables::Vector{Float64}
-    jacobian::Matrix{Float64}
-    qr_jacobian::Matrix{Float64}
-    model_has_trend::Bool
-    histval::Matrix{Float64}
-end
-
-mutable struct Context
-    symboltable::Dict{String, DynareSymbol}
-    models::Vector{Model}
-    options::Dict
-    results::Results
-    work::Work
-end
-
-struct ModelInfo
-    lead_lag_incidence::Array{Int64}
-    nstatic
-    nfwrd
-    npred
-    nboth
-    nsfwrd
-    nspred
-    ndynamic
-    maximum_endo_lag
-    maximum_endo_lead
-    maximum_exo_lag
-    maximum_exo_lead
-    maximum_exo_det_lag
-    maximum_exo_det_lead
-    maximum_lag
-    maximum_lead
-    orig_maximum_endo_lag
-    orig_maximum_endo_lead
-    orig_maximum_exo_lag
-    orig_maximum_exo_lead
-    orig_maximum_exo_det_lag
-    orig_maximum_exo_det_lead
-    orig_maximum_lag
-    orig_maximum_lead
-end
 
 context = Context(Dict{String, DynareSymbol}(),
                   Vector{Model}(undef, 0),
@@ -85,6 +17,7 @@ context = Context(Dict{String, DynareSymbol}(),
                        Vector{Float64}(undef, 0),
                        Vector{Float64}(undef, 0),
                        Vector{Float64}(undef, 0),
+                       Matrix{Float64}(undef, 0, 0),
                        Matrix{Float64}(undef, 0, 0),
                        Matrix{Float64}(undef, 0, 0),
                        false,
@@ -128,7 +61,6 @@ function parser(modfilename)
                   model_info.orig_maximum_lag,
                   model_info.orig_maximum_lead
                   )
-
     if "varobs" in keys(modeljson)
         varobs = modeljson["varobs"]
         varobs_ids = modeljson["varobs_ids"]
@@ -160,10 +92,12 @@ function parser(modfilename)
                                 Dict{String, Any}())
     ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
     ncol1 = ncol + model.exogenous_nbr
+    nrow = model.maximum_exo_lag + model.maximum_exo_lead + 1
     work = Work(Vector{Float64}(undef, model.parameter_nbr),
                 Vector{Float64}(undef, model.endogenous_nbr),
                 Vector{Float64}(undef, sum(model.dynamic!.tmp_nbr[1:2])),
                 Vector{Float64}(undef, ncol),
+                Matrix{Float64}(undef, nrow, model.exogenous_nbr),
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 false,
@@ -406,11 +340,12 @@ function compute_stoch_simul!(context)
     work = context.work
     Base.invokelatest(steady_state!, context)
     fill!(results.trends.exogenous_steady_state, 0.0)
-    get_jacobian_at_steadystate!(work,
-                                 results.trends.endogenous_steady_state,
-                                 results.trends.exogenous_steady_state, 
-                                 m,
-                                 2)
+    get_jacobian!(work,
+                  results.trends.endogenous_steady_state,
+                  results.trends.exogenous_steady_state, 
+                  results.trends.endogenous_steady_state,
+                  m,
+                  2)
     if isnothing(get(options,"dr_cycle_reduction", nothing))
         algo = "GS"
     else
@@ -442,32 +377,6 @@ end
 
 function compute_prefect_foresight_setup(context); end
 function compute_perfect_foresight_solver(context); end
-
-function get_dynamic_variables!(y::Vector{Float64}, steadystate::Vector{Float64}, lli::Matrix{Int64})
-    for i = 1:size(lli,2)
-        value = steadystate[i]
-        for j = 1:size(lli,1)
-            k = lli[j, i]
-            if k > 0
-                y[k] = value
-            end
-        end
-    end
-end
-
-function get_jacobian_at_steadystate!(work::Work, steadystate, exogenous, m::Model, period::Int64)
-    lli = m.lead_lag_incidence
-    get_dynamic_variables!(work.dynamic_variables, steadystate, lli)
-    Base.invokelatest(m.dynamic!.dynamic!,
-                      work.temporary_values,
-                      work.residuals,
-                      work.jacobian,
-                      work.dynamic_variables,
-                      repeat(exogenous', 3, 1),
-                      work.params,
-                      steadystate,
-                      period)  
-end
 
 function compute_variance!(context)
     m = context.models[1]

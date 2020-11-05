@@ -1,12 +1,3 @@
-@enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
-
-struct DynareSymbol
-    longname::String
-    texname::String
-    type::SymbolType
-    orderintype::Integer
-end
-
 SymbolTable = Dict{String, DynareSymbol}
 
 for typ in instances(SymbolType)

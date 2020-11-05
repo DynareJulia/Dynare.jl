@@ -4,6 +4,7 @@ using GR
 
 gr()
 
+include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
 include("symboltable.jl")
@@ -18,7 +19,8 @@ export steady_state!
 include("Utils.jl")
 export get_power_deriv
 include("dynare_table.jl")
-        
+include("reporting/report.jl")
+
 export @dynare
 
 macro dynare(modfilename, args...)

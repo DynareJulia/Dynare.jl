@@ -1,181 +1,8 @@
 using LinearAlgebra
-export Model, get_de, get_abc, inverse_order_of_dynare_decision_rule
-
-struct Model
-    endogenous_nbr
-    exogenous_nbr
-    lagged_exogenous_nbr
-    exogenous_deterministic_nbr
-    parameter_nbr
-    lead_lag_incidence
-    n_static
-    n_fwrd
-    n_bkwrd
-    n_both
-    n_states
-    DErows1
-    DErows2
-    n_dyn
-    i_static
-    i_dyn::Array{Int64,1}
-    i_bkwrd
-    i_bkwrd_b
-    i_bkwrd_ns
-    i_fwrd
-    i_fwrd_b
-    i_fwrd_ns
-    i_both
-    i_non_states
-    p_static
-    p_bkwrd
-    p_bkwrd_b
-    p_fwrd
-    p_fwrd_b
-    p_both_b
-    p_both_f
-    i_current
-    p_current
-    n_current
-    i_current_ns
-    p_current_ns
-    n_current_ns
-    icolsD
-    jcolsD
-    icolsE
-    jcolsE
-    colsUD
-    colsUE
-    i_cur_fwrd
-    n_cur_fwrd
-    p_cur_fwrd
-    i_cur_bkwrd
-    n_cur_bkwrd
-    p_cur_bkwrd
-    i_cur_both
-    n_cur_both
-    p_cur_both
-    gx_rows
-    hx_rows
-    i_current_exogenous
-    i_lagged_exogenous
-    serially_correlated_exogenous
-    Sigma_e
-    maximum_endo_lag
-    maximum_endo_lead
-    maximum_exo_lag
-    maximum_exo_lead
-    maximum_exo_det_lag
-    maximum_exo_det_lead
-    maximum_lag
-    maximum_lead
-    orig_maximum_endo_lag
-    orig_maximum_endo_lead
-    orig_maximum_exo_lag
-    orig_maximum_exo_lead
-    orig_maximum_exo_det_lag
-    orig_maximum_exo_det_lead
-    orig_maximum_lag
-    orig_maximum_lead
-    dynamic!
-    static!
-    steady_state!
-end
-
-function Model(modfilename, endo_nbr, lead_lag_incidence,
-               exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr,
-               parameter_nbr, maximum_endo_lag, maximum_endo_lead,
-               maximum_exo_lag, maximum_exo_lead, maximum_exo_det_lag,
-               maximum_exo_det_lead, maximum_lag, maximum_lead,
-               orig_maximum_endo_lag, orig_maximum_endo_lead,
-               orig_maximum_exo_lag, orig_maximum_exo_lead,
-               orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
-               orig_maximum_lag, orig_maximum_lead )
-    
-    i_static = findall((lead_lag_incidence[1,:] .== 0) .& (lead_lag_incidence[3,:] .== 0))
-    p_static = lead_lag_incidence[2,i_static]
-    i_dyn = findall((lead_lag_incidence[1,:] .> 0) .| (lead_lag_incidence[3,:] .> 0))
-    n_static = length(i_static)
-    i_bkwrd = findall((lead_lag_incidence[1,:] .> 0) .& (lead_lag_incidence[3,:] .== 0))
-    i_bkwrd_b = findall((lead_lag_incidence[1,:] .> 0))
-    i_bkwrd_ns = findall(lead_lag_incidence[1,i_dyn] .> 0)
-    p_bkwrd = lead_lag_incidence[1,i_bkwrd]
-    p_bkwrd_b = lead_lag_incidence[1,i_bkwrd_b]
-    n_bkwrd = length(i_bkwrd)
-    i_fwrd = findall((lead_lag_incidence[3,:] .> 0) .& (lead_lag_incidence[1,:] .== 0)) 
-    i_fwrd_b = findall((lead_lag_incidence[3,:] .> 0)) 
-    i_fwrd_ns = findall(lead_lag_incidence[3,i_dyn] .> 0)
-    p_fwrd = lead_lag_incidence[3,i_fwrd]
-    p_fwrd_b = lead_lag_incidence[3,i_dyn[i_fwrd_ns]]
-    n_fwrd = length(i_fwrd)
-    i_both = findall((lead_lag_incidence[1,:] .> 0) .& (lead_lag_incidence[3,:] .> 0))
-    i_non_states = union(i_fwrd, i_static)
-    p_both_b = lead_lag_incidence[1,i_both]
-    p_both_f = lead_lag_incidence[3,i_both]
-    n_both = length(i_both)
-    n_states = n_bkwrd + n_both
-    i_current = findall(lead_lag_incidence[2,:] .> 0 )
-    p_current = lead_lag_incidence[2,i_current]
-    n_current = count(i->(i > 0),lead_lag_incidence[2,:])
-    i_current_ns = findall(lead_lag_incidence[2,i_dyn] .> 0 )
-    p_current_ns = lead_lag_incidence[2,i_dyn[i_current_ns]]
-    n_current_ns = count(i->(i > 0),lead_lag_incidence[2,i_dyn])
-    i_cur_fwrd = findall(lead_lag_incidence[2,i_fwrd] .> 0)
-    n_cur_fwrd = length(i_cur_fwrd)
-    p_cur_fwrd = lead_lag_incidence[2,i_fwrd[i_cur_fwrd]]
-    i_cur_bkwrd = findall(lead_lag_incidence[2,i_bkwrd] .> 0)
-    n_cur_bkwrd = length(i_cur_bkwrd)
-    p_cur_bkwrd = lead_lag_incidence[2,i_bkwrd[i_cur_bkwrd]]
-    i_cur_both = findall(lead_lag_incidence[2,i_both] .> 0)
-    n_cur_both = length(i_cur_both)
-    p_cur_both = lead_lag_incidence[2,i_both[i_cur_both]]
-    icolsD = [1:n_cur_bkwrd; n_bkwrd + n_both .+ (1:(n_fwrd+n_both))]
-    jcolsD = [p_cur_bkwrd; p_fwrd; p_both_f]
-    # derivatives of current values of variables that are both
-    # forward and backward are included in the E matrix
-    icolsE = [1:(n_bkwrd + n_both); n_bkwrd + n_both .+ (1:(n_fwrd+n_both))]
-    jcolsE = [p_bkwrd; p_both_b; p_cur_fwrd; p_cur_both]
-    colsUD = n_bkwrd .+ (1:n_both)
-    colsUE = n_both + n_fwrd .+ colsUD
-    n_dyn = endo_nbr - n_static + n_both
-    DErows1 = 1:(n_dyn-n_both)
-    DErows2 = (n_dyn-n_both) .+ (1:n_both)
-    gx_rows = n_bkwrd .+ (1:(n_fwrd+n_both))
-    hx_rows = 1:(n_bkwrd + n_both)
-    i_current_exogenous = maximum(lead_lag_incidence) .+ (1:exogenous_nbr)
-    i_lagged_exogenous = 0:-1
-    Sigma_e = zeros(exogenous_nbr, exogenous_nbr)
-    serially_correlated_exogenous = false
-    dynamic! = load_dynare_function(modfilename*"Dynamic.jl")
-    static! = load_dynare_function(modfilename*"Static.jl")
-    if isfile(modfilename*"SteadyState2.jl")
-        steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
-    else
-        steady_state! = nothing
-    end
-    Model(endo_nbr, exogenous_nbr, lagged_exogenous_nbr,
-          exogenous_deterministic_nbr, parameter_nbr,
-          lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
-          n_states, DErows1, DErows2, n_dyn, i_static, i_dyn, i_bkwrd,
-          i_bkwrd_b, i_bkwrd_ns, i_fwrd, i_fwrd_b, i_fwrd_ns, i_both,
-          i_non_states, p_static, p_bkwrd, p_bkwrd_b, p_fwrd,
-          p_fwrd_b, p_both_b, p_both_f, i_current, p_current,
-          n_current, i_current_ns, p_current_ns, n_current_ns, icolsD,
-          jcolsD, icolsE, jcolsE, colsUD, colsUE, i_cur_fwrd,
-          n_cur_fwrd, p_cur_fwrd, i_cur_bkwrd, n_cur_bkwrd,
-          p_cur_bkwrd, i_cur_both, n_cur_both, p_cur_both, gx_rows,
-          hx_rows, i_current_exogenous, i_lagged_exogenous,
-          serially_correlated_exogenous, Sigma_e, maximum_endo_lag,
-          maximum_endo_lead, maximum_exo_lag, maximum_exo_lead,
-          maximum_exo_det_lag, maximum_exo_det_lead, maximum_lag,
-          maximum_lead, orig_maximum_endo_lag, orig_maximum_endo_lead,
-          orig_maximum_exo_lag, orig_maximum_exo_lead,
-          orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
-          orig_maximum_lag, orig_maximum_lead, dynamic!, static!,
-          steady_state!)
-end
+export get_de, get_abc, inverse_order_of_dynare_decision_rule
 
 function inverse_order_of_dynare_decision_rule(m::Model)
-    inverse_order_var = Vector{Int64}(undef, m.endo_nbr)
+    inverse_order_var = Vector{Int64}(undef, m.endogenous_nbr)
     for i = 1:m.n_static
         inverse_order_var[m.i_static[i]] = i
     end
@@ -200,10 +27,116 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
-function load_dynare_function(filename)
+function load_dynare_function(filename::String)
     file = readlines(filename)
     # drop using Utils
     file[6] = "using Dynare: get_power_deriv"
     return eval(Meta.parse(join(file, "\n")))
 end
+
+"""
+get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64})
+
+sets the vector of dynamic variables ``y``, evaluated at the same values 
+for all leads and lags and taken in ``data`` vector 
+"""
+function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64})
+    for i = 1:size(lli,2)
+        value = data[i]
+        for j = 1:size(lli,1)
+            k = lli[j, i]
+            if k > 0
+                y[k] = value
+            end
+        end
+    end
+end
+
+"""
+get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64})
+
+sets the vector of dynamic variables ``y`` with values in as many rows of ``data`` matrix
+as there are leads and lags in the model. ``period`` is the current period.
+"""
+function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64}, period::Int64)
+    for i = 1:size(lli,2)
+        m = period - m.maximum_lag - 1
+        for j = 1:size(lli,1)
+            k = lli[j, i]
+            if k > 0
+                y[k] = data[m + j, i]
+            end
+        end
+    end
+end
+
+"""
+get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
+
+returns sets the Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
+"""
+function get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vector{Float64},
+                       steadystate::Vector{Float64}, m::Model, period::Int64)
+    lli = m.lead_lag_incidence
+    get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli)
+    work.exogenous_variables = repeat(transpose(exogenous), size(lli, 1), 1)
+    Base.invokelatest(m.dynamic!.dynamic!,
+                      work.temporary_values,
+                      work.residuals,
+                      work.jacobian,
+                      work.dynamic_variables,
+                      work.exogenous_variables,
+                      work.params,
+                      steadystate,
+                      period)  
+end
+
+"""
+get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
+
+returns sets the Jacobian matrix ``work.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
+around ``period`` 
+"""
+function get_jacobian!(work::Work, steadystate::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
+    lli = m.lead_lag_incidence
+    get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli, period)
+    Base.invokelatest(m.dynamic!.dynamic!,
+                      work.temporary_values,
+                      work.residuals,
+                      work.jacobian,
+                      work.dynamic_variables,
+                      exogenous,
+                      work.params,
+                      steadystate,
+                      period)  
+end
+
+function get_abc!(a::AbstractMatrix{Float64},
+                  b::AbstractMatrix{Float64},
+                  c::AbstractMatrix{Float64},
+                  jacobian::AbstractMatrix{Float64},
+                  m::Model)
+    i_rows = (m.n_static + 1):m.endogenous_nbr
+    fill!(a, 0.0)
+    fill!(b, 0.0)
+    fill!(c, 0.0)
+    ws.a[:, ws.forward_indices_d] .= view(jacobian, i_rows, ws.backward_nbr .+ ws.current_nbr .+ (1:ws.forward_nbr))
+    ws.b[:, ws.current_dynamic_indices_d] .= view(jacobian, i_rows, ws.backward_nbr .+ ws.current_dynamic_indices)
+    ws.c[:, ws.backward_indices_d] .= view(jacobian, i_rows, 1:ws.backward_nbr)
+end
+
+function get_de!(ws, jacobian::AbstractMatrix{Float64})
+    n1 = ws.backward_nbr + ws.forward_nbr - ws.both_nbr
+    fill!(ws.d, 0.0)
+    fill!(ws.e, 0.0)
+    i_rows = (ws.static_nbr + 1):ws.endogenous_nbr
+    ws.d[1:n1, ws.icolsD] .= jacobian[i_rows, ws.jcolsD]
+    ws.e[1:n1, ws.icolsE] .= -jacobian[i_rows, ws.jcolsE]
+    u = Matrix{Float64}(I, ws.both_nbr, ws.both_nbr)                                    
+    i_rows = n1 .+ (1:ws.both_nbr)
+    ws.d[i_rows, ws.colsUD] .= u
+    ws.e[i_rows, ws.colsUE] .= u
+end
+
+
 
