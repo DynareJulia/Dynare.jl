@@ -1,3 +1,4 @@
+using Pkg
 using Pkg.Artifacts
 
 # This is the path to the Artifacts.toml we will manipulate
