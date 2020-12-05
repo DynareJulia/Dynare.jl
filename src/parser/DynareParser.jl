@@ -616,12 +616,15 @@ function get_smoothed_values(variable_name::String;
 end
     
 function plot(variables;
-              first_period=1,
+              bar_variable = [],
+              first_period = 1,
               plot_title = "Smoothed value",
               plot_legend = (),
               plot_filename = "",
               plot_legend_position = :topright)
     local myplot
+    # deal first with bar variable
+    variables = pushfirst!(variables, bar_variable)
     for (i, v) in enumerate(variables)
         if length(plot_legend) > 0
             thislabel = plot_legend[i]
@@ -630,13 +633,25 @@ function plot(variables;
             plot_legend_position = false
         end
         if i == 1
+            if length(bar_variable) > 0
+                len = length(bar_variable)
+                xb = collect(range(first_period, length=len)) 
+                myplot = Plots.bar(xb, bar_variable, label = thislabel,
+                                   legend=plot_legend_position,
+                                   title = plot_title)
+                twinx()
+            else
+                x = collect(range(first_period, length=length(v)))
+                myplot = Plots.plot(x, v, label = thislabel,
+                                    legend=plot_legend_position,
+                                    title = plot_title,
+                                    linewidth = 3)
+            end
+        else
             x = collect(range(first_period, length=length(v)))
-            myplot = Plots.plot(x, v, label = thislabel,
-                                legend=plot_legend_position,
-                                title = plot_title)
-        else            
-            x = collect(range(first_period, length=length(v)))
-            myplot = Plots.plot!(x, v, label = thislabel)
+            myplot = Plots.plot!(x, v,
+                                 label = thislabel,
+                                 linewidth = 3)
         end
     end
     Plots.display(myplot)
