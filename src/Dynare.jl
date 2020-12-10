@@ -8,11 +8,11 @@ include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
 include("symboltable.jl")
-include("parser/deterministic_trends.jl")
+include("deterministic_trends.jl")
 include("first_order/simul_first_order.jl")
-include("parser/DynareParser.jl")
+include("DynareParser.jl")
 export parser, get_jacobian_at_steadystate!
-include("parser/DynarePreprocessor.jl")
+include("DynarePreprocessor.jl")
 export dynare_preprocess
 include("steady_state/SteadyState.jl")
 export steady_state!

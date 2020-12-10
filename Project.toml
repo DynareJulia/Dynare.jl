@@ -3,9 +3,6 @@ uuid = "5203de40-99df-439e-afbc-014de65cb9ef"
 authors = ["michel "]
 version = "0.1.2"
 
-[compat]
-PrettyTables = "0.9.1"
-
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -25,3 +22,6 @@ PolynomialMatrixEquations = "4f9d485d-518f-41ed-81c8-372cd804c93b"
 PrettyTables = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 TimeDataFrames = "ff13af16-2f41-468a-a2e1-aff5c43aabf7"
+
+[compat]
+PrettyTables = "0.9.1"
