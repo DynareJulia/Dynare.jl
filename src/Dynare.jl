@@ -8,8 +8,8 @@ include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
 include("symboltable.jl")
+include("initialization.jl")
 include("deterministic_trends.jl")
-include("first_order/simul_first_order.jl")
 include("DynareParser.jl")
 export parser, get_jacobian_at_steadystate!
 include("DynarePreprocessor.jl")
@@ -20,6 +20,11 @@ include("Utils.jl")
 export get_power_deriv
 include("dynare_table.jl")
 include("reporting/report.jl")
+include("graphics.jl")
+include("data.jl")
+include("filters/kalman/kalman.jl")
+include("optimal_policy.jl")
+include("perturbations.jl")
 
 export @dynare
 

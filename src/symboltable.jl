@@ -13,4 +13,10 @@ for typ in instances(SymbolType)
             end
         end
     end
+    s = Symbol("is_$(lowercase(string(typ)))") 
+    @eval begin
+        function $s(name::String, symboltable::SymbolTable)
+            return (symboltable[name].type == $typ)
+        end
+    end
 end

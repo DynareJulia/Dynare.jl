@@ -257,6 +257,7 @@ mutable struct Work
     temporary_values::Vector{Float64}
     dynamic_variables::Vector{Float64}
     exogenous_variables::Matrix{Float64}
+    observed_variables::Vector{String}
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Bool
