@@ -110,6 +110,8 @@ function parse_statements!(statements)
     for field in statements
         if field["statementName"] == "calib_smoother"
             calib_smoother!(context, field)
+        elseif field["statementName"] == "check"
+            check!(context, field)
         elseif field["statementName"] == "deterministic_trends"
             deterministic_trends!(context, field)
         elseif field["statementName"] == "histval"
@@ -134,7 +136,7 @@ function parse_statements!(statements)
         elseif field["statementName"] == "stoch_simul"
             stoch_simul!(context, field)
         elseif field["statementName"] == "verbatim"
-            verbatim!(context, field)
+            Nothing
         else
             error("""Unrecognized statement $(field["statementName"])""")
         end
