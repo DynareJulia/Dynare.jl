@@ -61,7 +61,7 @@ function stoch_simul!(context, field)
     end
 end
 
-function check(context, field)
+function check!(context, field)
 end
 
 function compute_stoch_simul!(context)
