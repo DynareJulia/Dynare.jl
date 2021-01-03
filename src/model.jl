@@ -58,13 +58,13 @@ get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Float64}, lli
 sets the vector of dynamic variables ``y`` with values in as many rows of ``data`` matrix
 as there are leads and lags in the model. ``period`` is the current period.
 """
-function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64}, period::Int64)
+function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
     for i = 1:size(lli,2)
-        m = period - m.maximum_lag - 1
+        p = period - m.maximum_lag - 1
         for j = 1:size(lli,1)
             k = lli[j, i]
             if k > 0
-                y[k] = data[m + j, i]
+                y[k] = data[p + j, i]
             end
         end
     end
@@ -97,9 +97,9 @@ get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64
 returns sets the Jacobian matrix ``work.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
 around ``period`` 
 """
-function get_jacobian!(work::Work, steadystate::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
+function get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
-    get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli, period)
+    get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli, m, period)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,
                       work.residuals,
