@@ -196,15 +196,15 @@ function compute_jacobian(work::Work,
                                 period)  
 end
 
-function get_direction!(y::AbstractVector{Float64},
-                        work::Dynare.Work,
-                        residuals::AbstractVector{Float64},
-                        endogenous::AbstractVector{Float64},
-                        exogenous::AbstractMatrix{Float64},
-                        steadystate::AbstractVector{Float64},
-                        presiduals::AbstractVector{Float64},
-                        m::Dynare.Model,
-                        n::Int64)
+function jacobian_time_vec!(y::AbstractVector{Float64},
+                            work::Dynare.Work,
+                            residuals::AbstractVector{Float64},
+                            endogenous::AbstractVector{Float64},
+                            exogenous::AbstractMatrix{Float64},
+                            steadystate::AbstractVector{Float64},
+                            presiduals::AbstractVector{Float64},
+                            m::Dynare.Model,
+                            n::Int64)
     dynamic_variables = work.dynamic_variables
     ndyn = length(dynamic_variables)
     npred = m.n_bkwrd + m.n_both
@@ -324,45 +324,6 @@ function preconditioner!(rout::AbstractVector{Float64},
     end
 end
 
-function makeA(jacobian::Matrix{Float64},
-               n::Int64)
-    i, j, v = findnz(jacobian)
-    nvar = size(jacobian, 1)
-    m = length(i)
-    nm = n*m - count(j .<= nvar) - count(j .> 2*nvar)
-    i1 = zeros(Int64, nm)
-    j1 = zeros(Int64, nm)
-    v1 = zeros(nm)
-    r = 1
-    for el = 1:m
-        if j[el] > nvar
-            i1[r] = i[el]
-            j1[r] = j[el] - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-    end        
-    offset = nvar
-    for k = 2:(n - 1)
-        for el = 1:m
-            i1[r] = i[el] + offset
-            j1[r] = j[el] + offset - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-        offset += nvar
-    end
-    for el = 1:m
-        if j[el] <= 2*nvar
-            i1[r] = i[el] + offset
-            j1[r] = j[el] + offset - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-    end
-    return sparse(i1, j1, v1)
-end
-
 struct LREprecond
     y::AbstractVector{Float64}
     g::AbstractMatrix{Float64}
@@ -412,8 +373,8 @@ function gmres_solver!(endogenous, exogenous, steadystate,
 
     LRE = LinearMap(k*n) do C, B
         copyto!(work.residuals, n + 1, B, 1, k*n) 
-        get_direction!(C, work, residuals, endogenous, exogenous,
-                       steadystate, work.presiduals, md, k)
+        jacobian_time_vec!(C, work, residuals, endogenous, exogenous,
+                           steadystate, work.presiduals, md, k)
     end
 
     x, h = gmres!(rout, LRE, res, log=true, verbose=true, Pl=P)
