@@ -4,14 +4,12 @@ function dynare_preprocess(modfilename, args)
     dynare_args = [basename(modfilename), "language=julia", "output=third", "json=compute"]
     offset = 0
     for a in args
-        if occursin(r"^output=", a)
-            deleteat!(dynare_args, 3)
-            offset = 1
-        elseif occursin(r"^json=", a)
-            deleteat!(dynare_args, 4 - offset)
+        astring = string(a)
+        if (!occursin(r"^output=", astring)
+            && !occursin(r"^json=", astring))
+            push!(dynare_args, astring)
         end
     end
-    append!(dynare_args, args)
     println(dynare_args)
     run_dynare(modfilename, dynare_args)
 end
