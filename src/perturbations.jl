@@ -30,6 +30,8 @@ function stoch_simul!(context, field)
     work = context.work
     options["stoch_simul"] = Dict()
     copy!(options["stoch_simul"], field["options"])
+    #check_parameters(work.params, context.symboltable)
+    #check_endogenous(results.trends.endogenous_steady_state)
     compute_stoch_simul!(context)
     compute_variance!(context)
     x = results.linearrationalexpectations.g1
@@ -65,47 +67,63 @@ function check!(context, field)
 end
 
 function compute_stoch_simul!(context)
-    m = context.models[1]
+    model = context.models[1]
     results = context.results.model_results[1]
     options = context.options["stoch_simul"]
-    options["cyclic_reduction"] = Dict()
-    options["generalized_schur"] = Dict()
     work = context.work
     Base.invokelatest(steady_state!, context)
-    fill!(results.trends.exogenous_steady_state, 0.0)
-    get_jacobian!(work,
-                  results.trends.endogenous_steady_state,
-                  results.trends.exogenous_steady_state, 
-                  results.trends.endogenous_steady_state,
-                  m,
-                  2)
+    endogenous = results.trends.endogenous_steady_state
+    exogenous = results.trends.exogenous_steady_state
+    fill!(exogenous, 0.0)
+    compute_first_order_solution!(results.linearrationalexpectations,
+                                  endogenous, exogenous, endogenous,
+                                  model, work, options)
+end
+
+function compute_first_order_solution!(
+    results::LinearRationalExpectationsResults,
+    endogenous::AbstractVector{Float64},
+    exogenous::AbstractVector{Float64},
+    steadystate::AbstractVector{Float64},
+    model::Model, work::Work, options)
+
+    # abbreviations
+    LRE = LinearRationalExpectations
+    LREWs = LinearRationalExpectationsWs
+
+    options["cyclic_reduction"] = Dict()
+    options["generalized_schur"] = Dict()
+
+    get_jacobian!(work, endogenous, exogenous, steadystate,
+                  model, 2)
     if isnothing(get(options,"dr_cycle_reduction", nothing))
         algo = "GS"
     else
         algo = "CR"
     end
-    ws = LinearRationalExpectationsWs(algo,
-                                      m.endogenous_nbr,
-                                      m.exogenous_nbr,
-                                      m.exogenous_deterministic_nbr,
-                                      m.i_fwrd_b,
-                                      m.i_current,
-                                      m.i_bkwrd_b,
-                                      m.i_both,
-                                      m.i_static)
-    LinearRationalExpectations.remove_static!(work.jacobian, ws)
+    ws = LREWs(algo,
+               model.endogenous_nbr,
+               model.exogenous_nbr,
+               model.exogenous_deterministic_nbr,
+               model.i_fwrd_b,
+               model.i_current,
+               model.i_bkwrd_b,
+               model.i_both,
+               model.i_static)
+    LRE.remove_static!(work.jacobian, ws)
     if algo == "GS"
-        LinearRationalExpectations.get_de!(ws, work.jacobian)
+        LRE.get_de!(ws, work.jacobian)
         options["generalized_schur"]["criterium"] = 1 + 1e-6
     else
-        LinearRationalExpectations.get_abc!(ws, work.jacobian)
+        LRE.get_abc!(ws, work.jacobian)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
-    LinearRationalExpectations.first_order_solver!(results.linearrationalexpectations,
-                                                   algo,
-                                                   work.jacobian,
-                                                   options,
-                                                   ws)
+    save("gimf1b.jld", "jacobian", work.jacobian)
+    LRE.first_order_solver!(results,
+                            algo,
+                            work.jacobian,
+                            options,
+                            ws)
 end
 
 function compute_variance!(context)
