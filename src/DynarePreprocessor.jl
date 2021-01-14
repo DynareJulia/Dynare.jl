@@ -1,12 +1,11 @@
 using Artifacts
 
 function dynare_preprocess(modfilename, args)
-    dynare_args = [basename(modfilename), "language=julia", "output=third", "json=compute"]
+    dynare_args = [basename(modfilename), "language=julia", "json=compute"]
     offset = 0
     for a in args
         astring = string(a)
-        if (!occursin(r"^output=", astring)
-            && !occursin(r"^json=", astring))
+        if !occursin(r"^json=", astring)
             push!(dynare_args, astring)
         end
     end
