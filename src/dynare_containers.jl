@@ -86,6 +86,7 @@ struct Model
     exogenous_indices
     dynamic!
     static!
+    set_auxiliary_variables!
     steady_state!
 end
 
@@ -166,11 +167,18 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
     purely_forward_indices = setdiff(forward_indices, both_indices)
     forward_indices_d = findall(in(forward_indices), dynamic_indices)
     backward_indices_d = findall(in(backward_indices), dynamic_indices)
-    current_dynamic_indices_d = findall(in(current_dynamic_indices), dynamic_indices)
+    current_dynamic_indices_d =
+        findall(in(current_dynamic_indices), dynamic_indices)
     exogenous_indices = (backward_number + current_number
                          + forward_number .+ (1:exogenous_nbr))
     dynamic! = load_dynare_function(modfilename*"Dynamic.jl")
     static! = load_dynare_function(modfilename*"Static.jl")
+    if isfile(modfilename*"set_auxiliary_variables.jl")
+        set_auxiliary_variables! =
+            load_dynare_function_1(modfilename*"_set_auxiliary_variables.jl")
+    else
+        set_auxiliary_variables! = Nothing
+    end
     if isfile(modfilename*"SteadyState2.jl")
         steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
     else
@@ -197,7 +205,8 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
           orig_maximum_lag, orig_maximum_lead, dynamic_indices,
           current_dynamic_indices, forward_indices_d,
           backward_indices_d, current_dynamic_indices_d,
-          exogenous_indices, dynamic!, static!, steady_state!)
+          exogenous_indices, dynamic!, static!, set_auxiliary_variables!,
+          steady_state!)
 end
 
 struct Simulation
@@ -212,7 +221,7 @@ struct Trends
     endogenous_linear_trend::Vector{Float64}
     endogenous_quadratic_trend::Vector{Float64}
     exogenous_steady_state::Vector{Float64}
-    exogenous_linear_trend::Vector{Float64}
+    exogenous_linexbar_trend::Vector{Float64}
     exogenous_quadratic_trend::Vector{Float64}
     exogenous_det_steady_state::Vector{Float64}
     exogenous_det_linear_trend::Vector{Float64}

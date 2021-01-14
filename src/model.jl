@@ -29,8 +29,14 @@ end
 
 function load_dynare_function(filename::String)
     file = readlines(filename)
-    # drop using Utils
+    # drop "using Utils"
     file[6] = "using Dynare: get_power_deriv"
+    insert!(file, 7, "using StatsFuns")
+    return eval(Meta.parse(join(file, "\n")))
+end
+
+function load_dynare_function_1(filename::String)
+    file = readlines(filename)
     return eval(Meta.parse(join(file, "\n")))
 end
 
@@ -91,6 +97,7 @@ function get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vecto
                       period)  
 end
 
+using JLD
 """
 get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
 
@@ -99,7 +106,18 @@ around ``period``
 """
 function get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
+    @show "OK10"
     get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli, m, period)
+    @show "OK11"
+    save("gimf1.jld",
+         "temp", work.temporary_values,
+         "residuals", work.residuals,
+         "jacobian", work.jacobian,
+         "dynamic_vars", work.dynamic_variables,
+         "exogenous", exogenous,
+         "params", work.params,
+         "steadystate", steadystate,
+         "period", period)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,
                       work.residuals,
@@ -139,4 +157,22 @@ function get_de!(ws, jacobian::AbstractMatrix{Float64})
 end
 
 
+for typ in instances(SymbolType)
+    styp = lowercase(string(typ))
+    f = Symbol("get_$(styp)_name")
+    s = Symbol("check_$styp")
+    @eval begin
+        function $s(x, symbol_table)
+            if !isreal(x)
+                names = $f(symbol_table)
+                msg = "\nSome $styp don't have a real value:\n"
+                for k in findall(!isreal.(x))
+                    msg *= "$(names[k]): $(x[k])\n"
+                end
+                throw(error(msg))
+            end
+        end
+    end
+end
+            
 

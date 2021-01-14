@@ -7,6 +7,7 @@ using JSON
 using KalmanFilterTools
 using LinearRationalExpectations
 using Periods
+using StatsFuns
 using TimeDataFrames
 
 context = Context(Dict{String, DynareSymbol}(),
@@ -102,11 +103,13 @@ function parser(modfilename)
                 Matrix{Float64}(undef, 0, 0))
     results = Results([modelresults])
     global context = Context(symboltable, [model], Dict(), results, work)
-    parse_statements!(modeljson["statements"])
+    if "statements" in keys(modeljson)
+        parse_statements!(context, modeljson["statements"])
+    end
     return context
 end
 
-function parse_statements!(statements)
+function parse_statements!(context, statements)
     for field in statements
         if field["statementName"] == "calib_smoother"
             calib_smoother!(context, field)
