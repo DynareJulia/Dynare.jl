@@ -17,5 +17,3 @@ or, interactively,
 ]add https://git.dynare.org/julia-packages/linearrationalexpectations.jl.git
 ]add https://git.dynare.org/julia-packages/dynare.jl.git
 ```
-
-Until a proper ``build.jl`` is added, one must confiure DYNARE_ROOT in ``./src/parser/DynarePreporcessor.jl`` to point to the installation of a current unstable version of Dynare or Dynare preprocessor

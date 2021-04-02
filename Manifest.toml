@@ -180,14 +180,6 @@ git-tree-sha1 = "9d4f64f79012636741cf01133158a54b24924c32"
 uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 version = "0.8.4"
 
-[[Dynare_preprocessor_jll]]
-deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "0fd63d481f2d53f985fa7d0e41a745b9c8d7d48e"
-repo-rev = "master"
-repo-url = "https://github.com/MichelJuillard/Dynare_preprocessor_jll.jl.git"
-uuid = "8bf4d177-eddb-5a20-998e-55ecc2283fe8"
-version = "4.7.0-2+0"
-
 [[EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "92d8f9f208637e8d2d28c664051a00569c01493d"

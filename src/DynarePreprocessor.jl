@@ -1,4 +1,4 @@
-using Dynare_preprocessor_jll
+using Pkg.Artifacts
 
 function dynare_preprocess(modfilename, args)
     dynare_args = [basename(modfilename), "language=julia", "output=third", "json=compute"]
@@ -20,10 +20,11 @@ function run_dynare(modfilename, dynare_args)
         current_directory = pwd()
         cd(directory)
     end
-    dynare_m() do dynare_m_path
-        run(`$dynare_m_path $dynare_args`)
-    end
+
+    dynare_preprocessor_path = joinpath(artifact"dynare-preprocessor", "dynare-preprocessor")
+    run(`$dynare_preprocessor_path $dynare_args`)
+
     if length(directory) > 0
         cd(current_directory)
     end
-end    
+end
