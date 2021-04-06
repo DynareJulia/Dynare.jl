@@ -1,52 +1,63 @@
 [[dynare-preprocessor]]
 os = "linux"
-arch = "i686"
+arch = "aarch64"
 libc = "glibc"
-git-tree-sha1 = "550ce289667f6c2d742207fa5ac2e942e80b532f"
+git-tree-sha1 = "40e8cc4920aee19056d6cf024b32cae94c33f06b"
 
 [[dynare-preprocessor.download]]
-sha256 = "35d314f51fdf538a8d3bb6e4464b686631feab1b18a46d163fcccd11799a2380"
-url = "https://www.dynare.org/preprocessor/e6194afd7ba64d053f167ad48502b36766f0c75c/linux-i686/dynare-preprocessor.tar.gz"
+sha256 = "72a2fc228a0895cff2fb8d548142df44a73cc3584dfc00f68fe85f78ad974c9c"
+url = "https://www.dynare.org/preprocessor/e3c716faba552bb59146b3b83d6c2fef5e650299/linux-aarch64/dynare-preprocessor.tar.gz"
+
+
+[[dynare-preprocessor]]
+os = "linux"
+arch = "i686"
+libc = "glibc"
+git-tree-sha1 = "e4b93b427da400f11ef513042430918692c18406"
+
+[[dynare-preprocessor.download]]
+sha256 = "5cdbf4d3f87a589341eedf0286a8744fab938ee54ea9d6c1f7d3ee2b8329bbb0"
+url = "https://www.dynare.org/preprocessor/e3c716faba552bb59146b3b83d6c2fef5e650299/linux-i686/dynare-preprocessor.tar.gz"
 
 
 [[dynare-preprocessor]]
 os = "linux"
 arch = "x86_64"
 libc = "glibc"
-git-tree-sha1 = "7531dc8c0a1a05d1d6a60cd23e8f4f0a7405f848"
+git-tree-sha1 = "4568358cfaa3e5e43b32f3eeda0b4f4d2cd7a872"
 
 [[dynare-preprocessor.download]]
-sha256 = "f46a44c3acb1163a263304eb40e0c67fde2fd7f3089ec8a4867b159498a31c30"
-url = "https://www.dynare.org/preprocessor/e6194afd7ba64d053f167ad48502b36766f0c75c/linux-x86_64/dynare-preprocessor.tar.gz"
+sha256 = "f9aa11c11e02dfad185ccf6ec9c90d0048692db61790fa3a65f7aac3d37e69f7"
+url = "https://www.dynare.org/preprocessor/e3c716faba552bb59146b3b83d6c2fef5e650299/linux-x86_64/dynare-preprocessor.tar.gz"
 
 
 [[dynare-preprocessor]]
 os = "macos"
 arch = "x86_64"
-git-tree-sha1 = "ed6e53c24af65054a8864542ea6cbeefcd6643db"
+git-tree-sha1 = "b6fa720c42aa07e7d44b780c035493d1af626c31"
 
 [[dynare-preprocessor.download]]
-sha256 = "5c96940063d63ef7c3559b7889164ee688169128e1deaddc8ab0b0960a267209"
-url = "https://www.dynare.org/preprocessor/e6194afd7ba64d053f167ad48502b36766f0c75c/macos-x86_64/dynare-preprocessor.tar.gz"
+sha256 = "abf6e2a50cf8a1be1e37c7c9d1b7b8c9d50f441acda16d91677b5582b1bea267"
+url = "https://www.dynare.org/preprocessor/e3c716faba552bb59146b3b83d6c2fef5e650299/macos-x86_64/dynare-preprocessor.tar.gz"
 
 
 [[dynare-preprocessor]]
 os = "windows"
 arch = "i686"
-git-tree-sha1 = "2b868d5e28851834af0bb98878110369f4379f7f"
+git-tree-sha1 = "1be2a95f556150ea8255cf0c90ec6f8be35da7a9"
 
 [[dynare-preprocessor.download]]
-sha256 = "2a6c568f5fb30414a29c98049f77b371c26963386a4f584071992f4f2fa8ff13"
-url = "https://www.dynare.org/preprocessor/e6194afd7ba64d053f167ad48502b36766f0c75c/windows-i686/dynare-preprocessor.tar.gz"
+sha256 = "ba545a7cd51aa6a54a0b618df1d017111377fe86c2ef164cf53567a0c125ed88"
+url = "https://www.dynare.org/preprocessor/e3c716faba552bb59146b3b83d6c2fef5e650299/windows-i686/dynare-preprocessor.tar.gz"
 
 
 [[dynare-preprocessor]]
 os = "windows"
 arch = "x86_64"
-git-tree-sha1 = "220187224ff6c329f8d311b1a3aeff7024ed67e3"
+git-tree-sha1 = "5e12578bc14f13ecd1262451b906533f5074b7fa"
 
 [[dynare-preprocessor.download]]
-sha256 = "148455fb0a44b6579dfc6d5664d56c95cac28b14ee2932f97d6dc9e6cda0564c"
-url = "https://www.dynare.org/preprocessor/e6194afd7ba64d053f167ad48502b36766f0c75c/windows-x86_64/dynare-preprocessor.tar.gz"
+sha256 = "5c80b31654491ba12390f4470cb6b693b40e98fa4f1d37b4f9991dcfcb7e0222"
+url = "https://www.dynare.org/preprocessor/e3c716faba552bb59146b3b83d6c2fef5e650299/windows-x86_64/dynare-preprocessor.tar.gz"
 
 
