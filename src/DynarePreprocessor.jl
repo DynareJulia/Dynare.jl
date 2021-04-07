@@ -1,4 +1,4 @@
-using Pkg.Artifacts
+using Artifacts
 
 function dynare_preprocess(modfilename, args)
     dynare_args = [basename(modfilename), "language=julia", "output=third", "json=compute"]
