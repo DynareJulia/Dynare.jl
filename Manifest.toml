@@ -417,7 +417,7 @@ version = "0.8.4"
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "3f2d7a64db1ba6a75b45455ed73912d39a7f6ebb"
 repo-rev = "master"
-repo-url = "git@git.dynare.org:julia-packages/kalmanfiltertools.jl.git"
+repo-url = "https://git.dynare.org/julia-packages/kalmanfiltertools.jl.git"
 uuid = "ec016732-9331-11e9-305f-d53cb440b85a"
 version = "0.1.0"
 
@@ -677,7 +677,7 @@ version = "1.1.0"
 deps = ["Dates", "Test"]
 git-tree-sha1 = "5f421269ea8db6a8b37d3f084c549946ccbba596"
 repo-rev = "master"
-repo-url = "git@git.dynare.org:julia-packages/periods.jl.git"
+repo-url = "https://git.dynare.org/julia-packages/periods.jl.git"
 uuid = "0c1d1a06-9168-427d-90e3-b4d73349562f"
 version = "0.1.0"
 
@@ -914,7 +914,7 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 deps = ["CSV", "DataFrames", "Periods"]
 git-tree-sha1 = "12775b37512cc1c69a218ddeb7c9b980d26372d0"
 repo-rev = "master"
-repo-url = "git@git.dynare.org:julia-packages/timedataframes.jl.git"
+repo-url = "https://git.dynare.org/julia-packages/timedataframes.jl.git"
 uuid = "ff13af16-2f41-468a-a2e1-aff5c43aabf7"
 version = "0.1.0"
 
