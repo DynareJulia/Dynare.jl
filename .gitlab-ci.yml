@@ -1,0 +1,12 @@
+variables:
+  TERM: linux
+  JULIA_VERSION: 1.5.4
+  JULIA: /usr/local/julia/$JULIA_VERSION/bin/julia
+
+stages:
+  - test
+
+unit_tests:
+  stage: test
+  script:
+    - $JULIA --project=@. -e "import Pkg; Pkg.test()"
