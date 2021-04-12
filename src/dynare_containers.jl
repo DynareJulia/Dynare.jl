@@ -137,7 +137,9 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
     i_cur_both = findall(lead_lag_incidence[2,i_both] .> 0)
     n_cur_both = length(i_cur_both)
     p_cur_both = lead_lag_incidence[2,i_both[i_cur_both]]
-    icolsD = [1:n_cur_bkwrd; n_bkwrd + n_both .+ (1:(n_fwrd+n_both))]
+    i_backward_in_current = findall(in(i_current),i_bkwrd)
+    icolsD = [i_backward_in_current;
+              n_bkwrd + n_both .+ (1:(n_fwrd+n_both))]
     jcolsD = [p_cur_bkwrd; p_fwrd; p_both_f]
     # derivatives of current values of variables that are both
     # forward and backward are included in the E matrix
@@ -167,8 +169,7 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
     purely_forward_indices = setdiff(forward_indices, both_indices)
     forward_indices_d = findall(in(forward_indices), dynamic_indices)
     backward_indices_d = findall(in(backward_indices), dynamic_indices)
-    current_dynamic_indices_d =
-        findall(in(current_dynamic_indices), dynamic_indices)
+    current_dynamic_indices_d = findall(in(current_dynamic_indices), dynamic_indices)
     exogenous_indices = (backward_number + current_number
                          + forward_number .+ (1:exogenous_nbr))
     dynamic! = load_dynare_function(modfilename*"Dynamic",
