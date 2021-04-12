@@ -5,7 +5,7 @@ function histval!(context, field)
     for v in field["vals"]
         k = symboltable[v["name"]].orderintype
         l = m.orig_maximum_lag - v["lag"]
-        histval[l, k] = Meta.parse(v["value"])
+        histval[l, k] = dynare_eval(v["value"], context)
     end
     context.work.histval = histval
 end
@@ -15,7 +15,7 @@ function param_init!(context, field)
     symboltable = context.symboltable
     s = symboltable[field["name"]]
     k = s.orderintype
-    params[k] = eval(Meta.parse(field["value"]))
+    params[k] = dynare_eval(field["value"], context)
 end
 
 function initval!(context, field)
@@ -29,11 +29,11 @@ function initval!(context, field)
         typ = s.type
         k = s.orderintype
         if typ == :Endogenous
-            endo_steady_state[k] = Meta.parse(v["value"])
+            endo_steady_state[k] = dynare_eval(v["value"], context)
         elseif typ == :Exogenous
-            exo_steady_state[k] = Meta.parse(v["value"])
+            exo_steady_state[k] = dynare_eval(v["value"], context)
         elseif typ == :ExogenousDeterministic
-            exo_det_steady_state[k] = Meta.parse(v["value"])
+            exo_det_steady_state[k] = dynare_eval(v["value"], context)
         else
             throw(error("$(v["name"]) can't be set in INITVAL"))
         end
@@ -63,14 +63,14 @@ end
 function set_variance!(Sigma, variance, symboltable)
     for v in variance
         k =  symboltable[v["name"]].orderintype
-        Sigma[k, k] = eval(Meta.parse(v["variance"]))
+        Sigma[k, k] = dynare_eval(v["variance"], context)
     end
 end
 
 function set_stderr!(Sigma, stderr, symboltable)
     for s in stderr
         k =  symboltable[s["name"]].orderintype
-        x = eval(Meta.parse(s["stderr"]))
+        x = dynare_eval(s["stderr"], context)
         Sigma[k, k] = x*x
     end
 end
@@ -79,7 +79,7 @@ function set_covariance!(Sigma, covariance, symboltable)
     for c in covariance
         k1 =  symboltable[c["name"]].orderintype
         k2 =  symboltable[c["name2"]].orderintype
-        Sigma[k1, k2] = eval(Meta.parse(c["covariance"]))
+        Sigma[k1, k2] = dynare_eval(c["covariance"], context)
         Sigma[k2, k1] = Sigma[k1, k2]
     end
 end
@@ -88,7 +88,7 @@ function set_correlation!(Sigma, correlation, symboltable)
     for c in correlation
         k1 =  symboltable[c["name"]].orderintype
         k2 =  symboltable[c["name2"]].orderintype
-        corr = eval(Meta.parse(c["correlation"]))
+        corr = dynare_eval(c["correlation"], context)
         Sigma[k2, k1] = sqrt(Sigma[k1, k1]*Sigma[k2, k2])*corr
     end
 end
