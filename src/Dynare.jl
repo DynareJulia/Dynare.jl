@@ -24,7 +24,7 @@ include("data.jl")
 include("filters/kalman/kalman.jl")
 include("optimal_policy.jl")
 include("perturbations.jl")
-
+include("perfectforesight/gmres_solver.jl")
 export @dynare
 
 mutable struct CommandLineOptions
