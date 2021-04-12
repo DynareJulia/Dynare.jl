@@ -104,7 +104,7 @@ function compute_first_order_solution!(
 
     get_jacobian!(work, endogenous, exogenous, steadystate,
                   model, 2)
-    if isnothing(get(options,"dr_cycle_reduction", nothing))
+    if isnothing(get(options,"LRE_solver", nothing))
         algo = "GS"
     else
         algo = "CR"
@@ -123,7 +123,8 @@ function compute_first_order_solution!(
         LRE.get_de!(ws, work.jacobian)
         options["generalized_schur"]["criterium"] = 1 + 1e-6
     else
-        LRE.get_abc!(ws, work.jacobian)
+        @show "abc"
+        @time        LRE.get_abc!(ws, work.jacobian)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
     LRE.first_order_solver!(results,
