@@ -89,6 +89,7 @@ function get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vecto
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli)
     work.exogenous_variables = repeat(transpose(exogenous), size(lli, 1), 1)
+    fill!(work.jacobian, 0.0)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,
                       work.residuals,
