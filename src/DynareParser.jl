@@ -122,8 +122,7 @@ function parse_statements!(context, statements)
         elseif field["statementName"] == "initval"
             initval!(context, field)
         elseif field["statementName"] == "native"
-            expr = Meta.parse(field["string"])
-            eval(expr)
+            dynare_eval(field["string"], context)
         elseif field["statementName"] == "param_init"
             param_init!(context, field)
         elseif field["statementName"] == "perfect_foresight_setup"
@@ -144,6 +143,37 @@ function parse_statements!(context, statements)
             error("""Unrecognized statement $(field["statementName"])""")
         end
     end
+end
+
+function dynare_eval(s::String, context::Context)
+    e = Meta.parse(s)
+    e = dynare_eval(e, context)
+    return eval(e)
+end
+
+function dynare_eval(expr::Expr, context::Context)
+    for (i, a) in enumerate(expr.args)
+        expr.args[i] = dynare_eval(a, context)
+    end
+    return expr
+end
+
+function dynare_eval(s::Symbol, context)
+    symboltable = context.symboltable
+    ks = keys(symboltable)
+    params = context.work.params
+    ss = string(s)
+    if ss in ks
+        st = symboltable[ss]
+        if st.type == Dynare.Parameter
+            s = params[st.orderintype]
+        end
+    end
+    return s
+end
+
+function dynare_eval(x::Real, context)
+    return x
 end
 
 function set_symbol_table!(table::Dict{String, DynareSymbol},
