@@ -123,8 +123,7 @@ function compute_first_order_solution!(
         LRE.get_de!(ws, work.jacobian)
         options["generalized_schur"]["criterium"] = 1 + 1e-6
     else
-        @show "abc"
-        @time        LRE.get_abc!(ws, work.jacobian)
+        LRE.get_abc!(ws, work.jacobian)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
     LRE.first_order_solver!(results,
