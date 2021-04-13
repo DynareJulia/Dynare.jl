@@ -659,9 +659,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[TimeDataFrames]]
 deps = ["CSV", "DataFrames", "Periods"]
-git-tree-sha1 = "6d0330a5c81508e6c761aa11ceb23609cc458750"
+git-tree-sha1 = "8826b3ec53b8256ab41cb2625878351cffc7f298"
 uuid = "ff13af16-2f41-468a-a2e1-aff5c43aabf7"
-version = "0.1.1"
+version = "0.1.2"
 
 [[URIs]]
 git-tree-sha1 = "7855809b88d7b16e9b029afd17880930626f54a2"
