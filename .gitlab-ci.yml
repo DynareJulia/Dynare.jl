@@ -9,4 +9,4 @@ stages:
 unit_tests:
   stage: test
   script:
-    - $JULIA --project=@. -e "import Pkg; Pkg.test()"
+    - $JULIA --project=@. -e "import Pkg; Pkg.Registry.update(); Pkg.test()"
