@@ -4,7 +4,7 @@ function dynare_table_text(data, title, column_header, row_header, note, fmt)
     if length(title) > 0
         pretty_table([title],
                      noheader = true,
-                     tf = borderless,
+                     tf = tf_borderless,
                      highlighters = (hl_row(1, crayon"bold"),
                                      hl_col(1, crayon"bold")),
                      backend = :text)
@@ -24,7 +24,7 @@ function dynare_table_text(data, title, column_header, row_header, note, fmt)
     if length(note) > 0
         pretty_table([note],
                      noheader = true,
-                     tf = borderless,
+                     tf = tf_borderless,
                      backend = :text)
     end
 end
