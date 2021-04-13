@@ -57,6 +57,8 @@ function calib_smoother!(context, field)
     end
     if count(results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
+        start = 1
+        last = nobs
         kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  att, P, Ptt, alphah, epsilonh, etah,
                          Valpha, Vepsilon, Veta, start, last, presample,
                          kws, data_pattern)
