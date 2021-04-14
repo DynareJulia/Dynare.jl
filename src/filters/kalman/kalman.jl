@@ -50,6 +50,8 @@ function calib_smoother!(context, field)
     Valpha = zeros(ns, ns, nobs)
     Vepsilon = zeros(ny, ny, nobs)
     Veta = zeros(np, np, nobs)
+    start = 1
+    last = nobs
     presample = 0
     data_pattern = Vector{Vector{Int64}}(undef, 0)
     for i = 1:nobs
@@ -57,8 +59,6 @@ function calib_smoother!(context, field)
     end
     if count(results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
-        start = 1
-        last = nobs
         kalman_smoother!(Y, c, Z, H, d, T, R, Q, a0,  att, P, Ptt, alphah, epsilonh, etah,
                          Valpha, Vepsilon, Veta, start, last, presample,
                          kws, data_pattern)
@@ -83,8 +83,6 @@ function calib_smoother!(context, field)
         end
         Pinftt = zeros(ns, ns, nobs + 1)
         kws = DiffuseKalmanSmootherWs{Float64, Int64}(ny, ns, model.exogenous_nbr, nobs)
-        start = 1
-        last = nobs
         diffuse_kalman_smoother!(Y, c, tZ, H, td, T, tR, Q, a0, att,
                                  Pinf, Pinftt, P, Ptt, alphah,
                                  epsilonh, etah, Valpha, Vepsilon,
