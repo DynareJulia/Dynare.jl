@@ -129,7 +129,10 @@ function compute_variance!(context)
     fill!(stationary_variables, true)
     state_stationary_variables = view(stationary_variables, m.i_bkwrd_b)
     nonstate_stationary_variables = view(stationary_variables, m.i_non_states)
-    if any(ws.nonstationary_variables)
+    if ws.stationary_model
+        state_stationary_nbr = m.n_states 
+        nonstate_stationary_nbr = m.endogenous_nbr - m.n_states
+    else
         fill!(Σy, NaN)
         state_stationary_variables .= .!ws.nonstationary_variables
         state_stationary_nbr = count(state_stationary_variables)
@@ -143,9 +146,6 @@ function compute_variance!(context)
             end
         end
         nonstate_stationary_nbr = count(nonstate_stationary_variables)
-    else
-        state_stationary_nbr = m.n_states 
-        nonstate_stationary_nbr = m.endogenous_nbr - m.n_states
     end
     # state / state
     stationary_nbr = state_stationary_nbr + nonstate_stationary_nbr
