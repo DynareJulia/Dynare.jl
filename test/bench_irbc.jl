@@ -1,9 +1,9 @@
 using BenchmarkTools
+using Dynare
 using LinearAlgebra.BLAS
-include("../src/perfectforesight/gmres_solver.jl")
-include("../src/perfectforesight/perfectforesight_solvers.jl")
-#context = @dynare "../test/models/example1/example1.mod"
-context = @dynare "test/models/irbc/irbc1.mod" "savemacro" "-DN=200"
+#include("../src/perfectforesight/gmres_solver.jl")
+#include("../src/perfectforesight/perfectforesight_solvers.jl")
+context = @dynare "test/models/irbc/irbc1.mod" "savemacro" "-DN=300"
 
 
 md = context.models[1]
@@ -16,7 +16,7 @@ lli = md.lead_lag_incidence
 endogenous = repeat(endo_steadystate, 3)
 exogenous = repeat(exo_steadystate', 3)
 period = 2
-@btime get_dynamic_endogenous_variables!(dynamic_variables, endogenous,
+@btime Dynare.get_dynamic_endogenous_variables!(dynamic_variables, endogenous,
                                          lli, md, period)
 dynamic! = md.dynamic!.dynamic!
 temporary_values = work.temporary_values
@@ -53,62 +53,72 @@ include("models/irbc/irbc1Dynamic.jl")
                          endo_steadystate,
                          period)
 
-@btime compute_jacobian(work, dynamic_variables, exogenous,
+@btime Dynare.compute_jacobian(work, dynamic_variables, exogenous,
                         endo_steadystate, md, period)
-#=
-periods = 200;
-preconditioner_window = 7
+
+periods = 400;
+preconditioner_window = 3
 res = zeros(periods*md.endogenous_nbr)
 res[[3, 4]] .= 0.1
 rout = zeros(periods*md.endogenous_nbr)
-ws = GmresWs(periods, preconditioner_window, context, "GS")
+ws = Dynare.GmresWs(periods, preconditioner_window, context, "GS")
 ws.endogenous .= repeat(endo_steadystate, periods + 2)
 ws.exogenous .= repeat(exo_steadystate', periods + 2)
 
 n = md.endogenous_nbr
 work = context.work
 function f1(periods)
-    work = context.work
-    get_jacobian!(work, ws.endogenous, ws.exogenous, endo_steadystate, md, 2)
-    get_abc!(ws.a, ws.b, ws.c, work.jacobian, md)
-    A = makeA(hcat(ws.a, ws.b, ws.c), ws.g, periods)
+    JA = Dynare.Jacobian(context, periods)
+    A = Dynare.makeJacobian!(JA, ws.endogenous, ws.exogenous, context, periods)
     y = A\res
+    return 0
 end
 
 
-function f2(periods, ws)
+function f2(periods, ws; verbose = false)
+    JA = Dynare.Jacobian(context, periods)
+    A = Dynare.makeJacobian!(JA, ws.endogenous, ws.exogenous, context, periods)
+    Dynare.gmres!(rout, A, res, log=false,
+           verbose=verbose, Pr=ws.P, initially_zero=true)
+    Dynare.ldiv!(ws.P, rout)
+    return 0
+end
+
+function f3(periods, ws; verbose = false)
     ws.endogenous .= repeat(endo_steadystate, periods + 2)
     ws.exogenous .= zeros(periods + 2, md.exogenous_nbr)
-    gmres!(rout, ws.LREMap, res, log=false,
-       verbose=false, Pr=ws.P)
+    Dynare.gmres!(rout, ws.LREMap, res,Pr=ws.P,
+                  log=false, verbose=verbose, initially_zero=true)
 end
-
 
 BLAS.set_num_threads(3)
 
 z = zeros(n*periods)
 y = zeros(n*periods)
-jacobian_time_vec!(z, ws.dynamic_variables, ws.residuals,
+Dynare.jacobian_time_vec!(z, ws.dynamic_variables, ws.residuals,
                    ws.endogenous, ws.exogenous,
                    ws.steadystate, ws.presiduals, ws.g,
                    ws.temp_vec, context.work, md, periods)
-=#
-
-#=
-@btime get_jacobian!(work, ws.endogenous, ws.exogenous, endo_steadystate, md, 2)
-@btime get_abc!(ws.a, ws.b, ws.c, work.jacobian, md)
-@btime makeA(hcat(ws.a, ws.b, ws.c), ws.g, periods)
-A = makeA(hcat(ws.a, ws.b, ws.c), ws.g, periods)
+@show "get_jacobian"
+@btime Dynare.get_jacobian!(work, ws.endogenous, ws.exogenous, endo_steadystate, md, 2)
+@show "get_abc"
+@btime Dynare.get_abc!(ws.a, ws.b, ws.c, work.jacobian, md)
+@show "makeJacobian"
+JA = Dynare.Jacobian(context, periods)
+@btime Dynare.makeJacobian!(JA, ws.endogenous, ws.exogenous, context, periods)
+A = Dynare.makeJacobian!(JA, ws.endogenous, ws.exogenous, context, periods)
+@show "A\res"
 @btime y = A\res
+@show "f1"
 @btime f1(periods)
-@btime jacobian_time_vec!(z, ws.dynamic_variables, ws.residuals,
-                   ws.endogenous, ws.exogenous,
-                   ws.steadystate, ws.presiduals, ws.g,
-                   ws.temp_vec, context.work, md, periods)
-@btime ldiv!(z, ws.P, res)
-@btime y = ws.LREMap*z
+@show "f2"
+fill!(rout, 0.0)
 @btime f2(periods, ws)
-=#
+f2(periods, ws, verbose=true)
+fill!(rout, 0.0)
+@show "f3"
+fill!(rout, 0.0)
+@btime f3(periods, ws)
 
 #=
 for i = 1:4
