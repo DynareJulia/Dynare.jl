@@ -1,19 +1,3 @@
-using BenchmarkTools
-using Dynare
-using FastLapackInterface
-using FastLapackInterface.LinSolveAlgo
-using IterativeSolvers
-using LinearAlgebra
-using LinearAlgebra.BLAS
-using LinearMaps
-using LinearRationalExpectations
-import Base.\
-import LinearAlgebra.mul!
-import LinearAlgebra.ldiv!
-import LinearAlgebra.BLAS: @blasfunc, BlasInt, BlasFloat, libblas
-using LinearRationalExpectations
-using SparseArrays
-
 function mul!(y::StridedVector{Float64}, offset_y::Int64,
                   a::StridedMatrix{Float64}, offset_a::Int64,
                   ma::Int64, na::Int64, x::StridedVector{Float64},
@@ -136,44 +120,6 @@ function get_jacobian!(work::Work,
                      steadystate, m, period)
 end
 
-function get_jacobian_0!(work::Work,
-                         initial_values,
-                         endogenous::AbstractVector{Float64},
-                         exogenous::Matrix{Float64},
-                         steadystate::Vector{Float64},
-                         m::Model,
-                         period::Int64)
-    dynamic_variables = work.dynamic_variables
-    lli = m.lead_lag_incidence
-    get_dynamic_endogenous_variables_0!(dynamic_variables,
-                                        initial_values,
-                                        endogenous,
-                                        lli, m, period)
-    dynamic! = m.dynamic!.dynamic!
-    temporary_values = work.temporary_values
-    residuals = work.residuals
-    jacobian = work.jacobian
-    params = work.params
-    compute_jacobian(work, dynamic_variables, exogenous,
-                     steadystate, m, period)
-end
-
-function get_jacobian_T!(work::Work,
-                         terminalal_values::AbstractVector{Float64},
-                         endogenous::AbstractVector{Float64},
-                         exogenous::Matrix{Float64},
-                         steadystate::Vector{Float64},
-                         m::Model,
-                         period::Int64)
-    dynamic_variables = work.dynamic_variables
-    lli = m.lead_lag_incidence
-    get_dynamic_endogenous_variables_T!(dynamic_variables,
-                                        terminal_values,
-                                        endogenous,
-                                        lli, m, period)
-    compute_jacobian(work, dynamic_variables, exogenous,
-                          steady_state, m, period)
-end
 
 function compute_jacobian(work::Work,
                           dynamic_variables::AbstractVector{Float64},
@@ -274,95 +220,6 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
     =#
     return 0
 end
-
-function makeA0(jacobian::AbstractMatrix{Float64},
-               g::AbstractMatrix{Float64},
-               n::Int64)
-    i, j, v = findnz(jacobian)
-    nvar = size(jacobian, 1)
-    m = length(i)
-    nm = n*m - count(j .<= nvar) - count(j .> 2*nvar)
-    i1 = zeros(Int64, nm)
-    j1 = zeros(Int64, nm)
-    v1 = zeros(nm)
-    r = 1
-    for el = 1:m
-        if j[el] > nvar
-            i1[r] = i[el]
-            j1[r] = j[el] - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-    end        
-    offset = nvar
-    for k = 2:(n - 1)
-        for el = 1:m
-            i1[r] = i[el] + offset
-            j1[r] = j[el] + offset - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-        offset += nvar
-    end
-    for el = 1:m
-        if j[el] <= 2*nvar
-            i1[r] = i[el] + offset
-            j1[r] = j[el] + offset - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-    end
-    A = sparse(i1, j1, v1, n*nvar, n*nvar)
-    # terminal condition
-    k = (n-1)*nvar + 1:n*nvar
-    A[k,k] .+= jacobian[:,2*nvar+1:end]*g 
-    return A
-end
-
-function makeA(jacobian::AbstractMatrix{Float64},
-               g::AbstractMatrix{Float64},
-               n::Int64)
-    i, j, v = findnz(jacobian)
-    nvar = size(jacobian, 1)
-    m = length(i)
-    nm = n*m - count(j .<= nvar) - count(j .> 2*nvar)
-    i1 = zeros(Int64, nm)
-    j1 = zeros(Int64, nm)
-    v1 = zeros(nm)
-    r = 1
-    for el = 1:m
-        if j[el] > nvar
-            i1[r] = i[el]
-            j1[r] = j[el] - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-    end        
-    offset = nvar
-    for k = 2:(n - 1)
-        for el = 1:m
-            i1[r] = i[el] + offset
-            j1[r] = j[el] + offset - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-        offset += nvar
-    end
-    for el = 1:m
-        if j[el] <= 2*nvar
-            i1[r] = i[el] + offset
-            j1[r] = j[el] + offset - nvar
-            v1[r] = v[el]
-            r += 1
-        end
-    end
-    A = sparse(i1, j1, v1, n*nvar, n*nvar)
-    # terminal condition
-    k = (n-1)*nvar + 1:n*nvar
-    A[k,k] .+= jacobian[:,2*nvar+1:end]*g 
-    return A
-end
-
 
 function fan_columns!(y::Matrix{Float64}, x::Matrix{Float64}, columns::Vector{Int64},
                       offset_x::Int64)
@@ -543,6 +400,7 @@ struct GmresWs
     exogenous::Matrix{Float64}
     steadystate::Vector{Float64}
     temp_vec::Vector{Float64}
+    J::Jacobian
     P::LREprecond
     LREMap::LinearMap
     function GmresWs(periods::Int64, preconditioner_window::Int64,
@@ -554,12 +412,13 @@ struct GmresWs
         c = Matrix{Float64}(undef, n, n)
         g = zeros(n, n)
         steadystate = Vector{Float64}(undef, n)
+        steadystate_exo = Vector{Float64}(undef, m.exogenous_nbr)
         steadystate .= context.results.model_results[1].trends.endogenous_steady_state
+        steadystate_exo .= context.results.model_results[1].trends.exogenous_steady_state
         endogenous = repeat(steadystate, periods + 2)
-        exogenous = zeros(periods + 2, m.exogenous_nbr)
+        exogenous = repeat(steadystate_exo',periods + 2)
         lli = m.lead_lag_incidence
         dynamic_variables = zeros(nnz(sparse(lli)))
-        steadystate = context.results.model_results[1].trends.endogenous_steady_state
         temp_vec=Vector{Float64}(undef, n)
         work = context.work
         LREWs = LinearRationalExpectationsWs(
@@ -607,8 +466,9 @@ struct GmresWs
                                steadystate, presiduals, g,
                                temp_vec, work, m, periods)
         end
+        J = Jacobian(context, periods)
         new(a, b, c, g, dynamic_variables, jacobian, residuals, presiduals,
-            periods, endogenous, exogenous, steadystate, temp_vec, P, LREMap)
+            periods, endogenous, exogenous, steadystate, temp_vec, J, P, LREMap)
     end
 end
 
@@ -617,9 +477,7 @@ function gmres_solver!(rout::Vector{Float64}, res::Vector{Float64},
                        model::Model, work::Work, ws::GmresWs;
                        log=false, verbose=false)
     @inbounds x, h = gmres!(rout, LREMap, res, log=log,
-                            verbose=verbose, Pr=P)
-    @show x
-    @show h
+                            verbose=verbose, Pr=ws.P)
     return 0
 end
 
