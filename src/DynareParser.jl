@@ -28,9 +28,12 @@ context = Context(Dict{String, DynareSymbol}(),
                   )
                          
 function parser(modfilename, commandlineoptions)
+    @show "JSON parsing"
+    @time begin
     modelstring = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
-
+    end
+    
     symboltable = SymbolTable()
     endo_nbr = set_symbol_table!(symboltable, modeljson["endogenous"], Endogenous)
     exo_nbr = set_symbol_table!(symboltable, modeljson["exogenous"], Exogenous)
@@ -39,7 +42,8 @@ function parser(modfilename, commandlineoptions)
                                     ExogenousDeterministic)
     param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
     model_info = get_model_info(modeljson["model_info"])
-    model = Model(modfilename,
+    @show "Model"
+    @time model = Model(modfilename,
                   endo_nbr,
                   model_info.lead_lag_incidence,
                   exo_nbr,
@@ -64,7 +68,8 @@ function parser(modfilename, commandlineoptions)
                   model_info.orig_maximum_lead,
                   commandlineoptions.compilemodule
                   )
-
+    @show "containers"
+    @time begin
     varobs = Vector{String}()
     if "varobs" in keys(modeljson)
         varobs = vcat(varobs, modeljson["varobs"])
@@ -102,9 +107,11 @@ function parser(modfilename, commandlineoptions)
                 false,
                 Matrix{Float64}(undef, 0, 0))
     results = Results([modelresults])
-    global context = Context(symboltable, [model], Dict(), results, work)
+        global context = Context(symboltable, [model], Dict(), results, work)
+    end
     if "statements" in keys(modeljson)
-        parse_statements!(context, modeljson["statements"])
+        @show "processing statements"
+        @time parse_statements!(context, modeljson["statements"])
     end
     return context
 end
@@ -122,7 +129,8 @@ function parse_statements!(context, statements)
         elseif field["statementName"] == "initval"
             initval!(context, field)
         elseif field["statementName"] == "native"
-            dynare_eval(field["string"], context)
+            @show field["string"]
+            @time dynare_parse_eval(field["string"], context)
         elseif field["statementName"] == "param_init"
             param_init!(context, field)
         elseif field["statementName"] == "perfect_foresight_setup"
@@ -136,7 +144,8 @@ function parse_statements!(context, statements)
         elseif field["statementName"] == "shocks"
             shocks!(context, field)
         elseif field["statementName"] == "stoch_simul"
-            stoch_simul!(context, field)
+            @show "stoch_simul"
+            @time stoch_simul!(context, field)
         elseif field["statementName"] == "verbatim"
             Nothing
         else
@@ -145,7 +154,7 @@ function parse_statements!(context, statements)
     end
 end
 
-function dynare_eval(s::String, context::Context)
+function dynare_parse_eval(s::String, context::Context)
     e = Meta.parse(s)
     e = dynare_eval(e, context)
     return eval(e)
@@ -174,6 +183,14 @@ end
 
 function dynare_eval(x::Real, context)
     return x
+end
+
+function dynare_eval(s::String, context)
+    return s
+end
+
+function dynare_eval(q::QuoteNode, context)
+    return q
 end
 
 function set_symbol_table!(table::Dict{String, DynareSymbol},
