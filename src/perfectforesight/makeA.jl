@@ -1,80 +1,20 @@
-struct Jacobian
-    nrow::Int64
-    I::Vector{Int64}
-    J::Vector{Int64}
-    V::Vector{Float64}
-    klasstouch::Vector{Int64}
-    colptr::Vector{Int64}
-    rowptr::Vector{Int64}
-    colval::Vector{Int64}
-    nzval::Vector{Float64}
-    maxcol::Int64
-    steadystate::Vector{Float64}
-    tmp_nvar_npred::Matrix{Float64}
-    tmp_nvar_nfwrd::Matrix{Float64}
-    tmp_nfwrd_npred::Matrix{Float64}
-    function Jacobian(context, periods)
-        md = context.models[1]
-        nvar = md.endogenous_nbr
-        steadystate = context.results.model_results[1].trends.endogenous_steady_state
-        steadystate_exo = context.results.model_results[1].trends.exogenous_steady_state
-        work = context.work
-        endogenous = repeat(steadystate, 3)
-        exogenous = repeat(steadystate_exo', 2)
-        get_jacobian!(work, endogenous, exogenous, steadystate, md, 2)
-        maxcol = size(work.jacobian, 2) - md.exogenous_nbr
-        vj = view(work.jacobian, :, 1:maxcol)
-        nz = periods * nnz(sparse(vj))
-        nrow = periods * md.endogenous_nbr
-        I = Vector{Int64}(undef, nz)
-        J = Vector{Int64}(undef, nz)
-        V = Vector{Float64}(undef, nz)
-        klasstouch = Vector{Int64}(undef, nz)
-        colptr = Vector{Int64}(undef, nrow + 1)
-        rowptr = Vector{Int64}(undef, nrow + 1)
-        colval = Vector{Int64}(undef, nz)
-        nzval = Vector{Float64}(undef, nz)
-        npred = md.n_bkwrd + md.n_both
-        nfwrd = md.n_fwrd + md.n_both
-        tmp_nvar_npred = zeros(nvar, npred)
-        tmp_nvar_nfwrd = zeros(nvar, nfwrd)
-        tmp_nfwrd_npred = zeros(nfwrd, npred)
-        new(
-            nrow,
-            I,
-            J,
-            V,
-            klasstouch,
-            colptr,
-            rowptr,
-            colval,
-            nzval,
-            maxcol,
-            steadystate,
-            tmp_nvar_npred,
-            tmp_nvar_nfwrd,
-            tmp_nfwrd_npred,
-        )
-    end
-end
-
 function makeJacobian!(
     JA::Jacobian,
     endogenous::AbstractVector{Float64},
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
+    ws::JacTimesVec
 )
     md = context.models[1]
-    work = context.work
     steadystate = JA.steadystate
     maxcol = JA.maxcol
     nvar = md.endogenous_nbr
     npred = md.n_bkwrd + md.n_both
-    get_jacobian!(work, endogenous, exogenous, steadystate, md, 2)
+    get_jacobian!(ws, endogenous, exogenous, steadystate, md, 2)
     r = 1
     k = [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
-    i, j, v = findnz(sparse(work.jacobian))
+    i, j, v = findnz(sparse(ws.jacobian))
     for el = 1:length(i)
         if j[el] <= maxcol
             kjel = k[j[el]]
@@ -88,8 +28,8 @@ function makeJacobian!(
     end
     offset = nvar
     for t = 2:(periods-1)
-        get_jacobian!(work, endogenous, exogenous, steadystate, md, 2)
-        i, j, v = findnz(sparse(work.jacobian))
+        get_jacobian!(ws, endogenous, exogenous, steadystate, md, t)
+        i, j, v = findnz(sparse(ws.jacobian))
         for el = 1:length(i)
             if j[el] <= maxcol
                 kjel = k[j[el]]
@@ -101,8 +41,8 @@ function makeJacobian!(
         end
         offset += nvar
     end
-    get_jacobian!(work, endogenous, exogenous, steadystate, md, 2)
-    i, j, v = findnz(sparse(work.jacobian))
+    get_jacobian!(ws, endogenous, exogenous, steadystate, md, periods)
+    i, j, v = findnz(sparse(ws.jacobian))
     for el = 1:length(i)
         if j[el] <= maxcol
             kjel = k[j[el]]
@@ -121,7 +61,7 @@ function makeJacobian!(
         JA.tmp_nvar_npred,
         JA.tmp_nvar_nfwrd,
         JA.tmp_nfwrd_npred,
-        work.jacobian,
+        ws.jacobian,
         g,
         ic,
         md.i_fwrd_b,

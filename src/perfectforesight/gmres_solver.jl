@@ -41,121 +41,16 @@ mul!(y::StridedVector{Float64}, offset_y::Int64,
               1.0, 0.0)
 
 
-function get_dynamic_endogenous_variables!(y::AbstractVector{Float64},
-                                           data::AbstractVector{Float64},
-                                           lli::Matrix{Int64},
-                                           m::Model, period::Int64)
-    m, n = size(lli)
-    p = (period - 2)*n
-    @inbounds for i = 1:m
-        for j = 1:n
-            k = lli[i, j]
-            if k > 0
-                y[k] = data[p + j]
-            end
-        end
-        p += n
-    end
-end
-
-function get_dynamic_endogenous_variables_0!(y::AbstractVector{Float64},
-                                             initial_values::AbstractVector{Float64},
-                                             data::AbstractVector{Float64},
-                                             lli::Matrix{Int64},
-                                             m::Model, period::Int64)
-    m, n = size(lli)
-    @inbounds for j = 1:n
-        k = lli[1, j]
-        if k > 0
-            y[k] = initial_values[j]
-        end
-    end
-    p = (period - 2)*n
-    @inbounds for i = 2:m
-        for j = 1:n
-            k = lli[i, j]
-            if k > 0
-                y[k] = data[p + j]
-            end
-        end
-        p += 1
-    end
-end
-
-function get_dynamic_endogenous_variables_T!(y::AbstractVector{Float64},
-                                             terminal_values::AbstractVector{Float64},
-                                             data::AbstractVector{Float64},
-                                             lli::Matrix{Int64},
-                                             m::Model, period::Int64)
-    m, n = size(lli)
-    p = (period - 2)*n
-    @inbounds for i = 1:m-1
-        for j = 1:n
-            k = lli[i, j]
-            if k > 0
-                y[k] = data[p + j]
-            end
-        end
-        p += 1
-    end
-    @inbounds for j = 1:n
-        k = lli[3, j]
-        if k > 0
-            y[k] = terminal_values[j]
-        end
-    end
-end
-
-function get_jacobian!(work::Work,
-                       endogenous::AbstractVector{Float64},
-                       exogenous::Matrix{Float64},
-                       steadystate::Vector{Float64},
-                       m::Model,
-                       period::Int64)
-    dynamic_variables = work.dynamic_variables
-    lli = m.lead_lag_incidence
-    get_dynamic_endogenous_variables!(dynamic_variables, endogenous,
-                                      lli, m, period)
-    compute_jacobian(work, dynamic_variables, exogenous,
-                     steadystate, m, period)
-end
-
-
-function compute_jacobian(work::Work,
-                          dynamic_variables::AbstractVector{Float64},
-                          exogenous::AbstractMatrix{Float64},
-                          steadystate::AbstractVector{Float64},
-                          m::Model,
-                          period::Int64)
-    dynamic! = m.dynamic!.dynamic!
-    temporary_values = work.temporary_values
-    residuals = work.residuals
-    jacobian = work.jacobian
-    params = work.params
-    fill!(jacobian, 0.0)
-    Base.invokelatest(dynamic!,
-                      temporary_values,
-                      residuals,
-                      jacobian,
-                      dynamic_variables,
-                      exogenous,
-                      params,
-                      steadystate,
-                      period)
-end
 
 function jacobian_time_vec!(y::AbstractVector{Float64},
-                            dynamic_variables::AbstractVector{Float64},
                             residuals::AbstractVector{Float64},
                             endogenous::AbstractVector{Float64},
                             exogenous::AbstractMatrix{Float64},
                             steadystate::AbstractVector{Float64},
-                            presiduals::AbstractVector{Float64},
                             g::AbstractMatrix{Float64},
-                            temp_vec::AbstractVector{Float64},
-                            work::Work,
                             m::Model,
-                            n::Int64)
+                            n::Int64,
+                            ws::Vector{JacTimesVec})
     #=
     y .= NaN
     if any(isnan.(residuals))
@@ -167,9 +62,10 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
     n_current = m.n_current
     nendo = m.endogenous_nbr
     lli = m.lead_lag_incidence
-    offset_y = 1
-    @inbounds for period = 1:n
-        get_jacobian!(work, endogenous, exogenous, steadystate, m,
+    ndyn = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
+    @inbounds @Threads.threads for period = 1:n
+        k = Threads.threadid()
+        get_jacobian!(ws[k], endogenous, exogenous, steadystate, m,
                       period + 1)
 #=
         if any(isnan.(work.residuals))
@@ -181,12 +77,12 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
             throw(ArgumentError("contains NaN in residuals"))
         end
 =# 
-        get_dynamic_endogenous_variables!(presiduals, residuals,
-                                          lli, m, period + 1)
-
-        ndyn = length(presiduals)
-        @inbounds mul!(y, offset_y, work.jacobian, 1, nendo, ndyn,
-                       presiduals, 1)
+        get_dynamic_endogenous_variables!(ws[k].dynamic_variables ,
+                                          residuals, lli, m,
+                                          period + 1)
+        offset_y = (period - 1)*nendo + 1
+        @inbounds mul!(y, offset_y, ws[k].jacobian, 1, nendo, ndyn,
+                       ws[k].dynamic_variables, 1)
 #=        
         if any(isnan.(y[1:period*nendo]))
             @show period
@@ -199,20 +95,20 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
             throw(ArgumentError("contains NaN in y"))
         end
 =#
-        offset_y += nendo
     end
     # setting terminal period according to linear approximation
-    offset_y -= nendo
+    offset_y = (n - 1)*nendo + 1
     #select forward looking variables
     k = 1 
     @inbounds for i = 1:nendo
         if lli[3, i] > 0
-            mul!(temp_vec, k, g, i, 1, nendo, presiduals, npred + 1)
+            mul!(ws[1].temp_vec, k, g, i, 1, nendo, ws[1].dynamic_variables,
+                 npred + 1)
             k += 1
         end
     end
-    mul!(y, offset_y, work.jacobian, (npred+n_current)*nendo + 1, nendo, nfwrd,
-         temp_vec, 1, 1.0, 1.0)
+    mul!(y, offset_y, ws[1].jacobian, (npred+n_current)*nendo + 1, nendo,
+         nfwrd, ws[1].temp_vec, 1, 1.0, 1.0)
     #=
     if any(isnan.(y))
     throw(ArgumentError("contains NaN in whole y"))
@@ -323,22 +219,28 @@ function preconditioner!(rout::AbstractVector{Float64},
     m = size(hh, 1)
     mk = m*preconditioner_window
     @inbounds mul!(rout, 1, hh, 1, m, mk, rin, 1)
+    @Threads.threads for i = 2:(periods - preconditioner_window + 1)
+        ir = (i - 1)*m + 1
+        mul!(rout, ir, hh, 1, m, mk, rin, ir)
+    end
     ir = m + 1
-    m2 = m*m
-    ihh = m2 + 1
     @inbounds for i = 2:(periods - preconditioner_window + 1)
         ir_m = ir - m
-        mul!(rout, ir, g, 1, m, m, rout, ir_m)
-        mul!(rout, ir, hh, 1, m, mk, rin, ir, 1, 1)
+        mul!(rout, ir, g, 1, m, m, rout, ir_m, 1, 1)
         ir += m
     end
     mk -= m
+    @Threads.threads for i = periods - preconditioner_window + 2:periods
+        ir = (i - 1)*m + 1
+        ir_m = ir - m
+        mul!(rout, ir, hh, 1, m, mk, rin, ir)
+        mk -= m
+    end
+    ir = (periods - preconditioner_window + 1)*m + 1 
     @inbounds for i = periods - preconditioner_window + 2:periods
         ir_m = ir - m
-        mul!(rout, ir, g, 1, m, m, rout, ir_m)
-        mul!(rout, ir, hh, 1, m, mk, rin, ir, 1, 1)
+        mul!(rout, ir, g, 1, m, m, rout, ir_m, 1, 1)
         ir += m
-        mk -= m
     end
 end
 
@@ -392,7 +294,6 @@ struct GmresWs
     c::Matrix{Float64}
     g::Matrix{Float64}
     dynamic_variables::Vector{Float64}
-    jacobian::Matrix{Float64}
     residuals::Vector{Float64}
     presiduals::Vector{Float64}
     periods::Int64
@@ -450,24 +351,22 @@ struct GmresWs
         end
         residuals = zeros((periods+2)*n)
         presiduals = zeros(m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both)
-        get_jacobian!(work, endogenous, exogenous, steadystate, m, 2)
-        jacobian = Matrix{Float64}(undef, size(work.jacobian))
-        copy!(jacobian, work.jacobian)
+        ws_threaded = [JacTimesVec(context) for i=1:Threads.nthreads()]
+        get_jacobian!(ws_threaded[1], endogenous, exogenous, steadystate, m, 2)
         n = size(g, 1)
-        if any(isnan.(jacobian))
+        if any(isnan.(ws_threaded[1].jacobian))
             throw(ArgumentError("NaN in jacobian"))
         end
-        @inbounds get_abc!(a, b, c, jacobian, m)
+        @inbounds get_abc!(a, b, c, ws_threaded[1].jacobian, m)
         P = LREprecond(periods, preconditioner_window, a, b, c, g)
         LREMap = LinearMap(periods*n) do C, B
             @inbounds copyto!(residuals, n + 1, B, 1, periods*n)
-            jacobian_time_vec!(C, dynamic_variables, residuals,
-                               endogenous, exogenous,
-                               steadystate, presiduals, g,
-                               temp_vec, work, m, periods)
+            jacobian_time_vec!(C, residuals, endogenous, exogenous,
+                               steadystate, g, m, periods,
+                               ws_threaded)
         end
         J = Jacobian(context, periods)
-        new(a, b, c, g, dynamic_variables, jacobian, residuals, presiduals,
+        new(a, b, c, g, dynamic_variables, residuals, presiduals,
             periods, endogenous, exogenous, steadystate, temp_vec, J, P, LREMap)
     end
 end
@@ -478,30 +377,6 @@ function gmres_solver!(rout::Vector{Float64}, res::Vector{Float64},
                        log=false, verbose=false)
     @inbounds x, h = gmres!(rout, LREMap, res, log=log,
                             verbose=verbose, Pr=ws.P)
-    return 0
-end
-
-function gmres_solver_test!(rout::Vector{Float64}, res::Vector{Float64},
-                            periods::Int64, preconditioner_window::Int64,
-                            model::Model, work::Work, ws::GmresWs;
-                            log=false, verbose=false)
-    n = size(ws.g, 1)
-    @inbounds get_abc!(ws.a, ws.b, ws.c, ws.jacobian, model)
-    
-    P = LREprecond(periods, preconditioner_window, ws.a, ws.b, ws.c, ws.g)
-    ldiv!(P, res)
-    LREMap = LinearMap(periods*n) do C, B
-        @inbounds copyto!(ws.residuals, n + 1, B, 1, periods*n) 
-        jacobian_time_vec!(C, ws.dynamic_variables, ws.residuals, ws.endogenous, ws.exogenous,
-                           ws.steadystate, ws.presiduals, work, model, periods)
-    end
-    @time x, h = gmres!(rout, LREMap, res, log=log, verbose=verbose, Pl=P)
-    @time x, h = gmres!(rout, LREMap, res, log=log, verbose=verbose, Pl=P)
-    @show norm(LREMap*rout - res)
-    A = SparseArrays.sparse(LREMap)
-    @time A = SparseArrays.sparse(LREMap)
-    A\res
-    @time A\res
     return 0
 end
 
