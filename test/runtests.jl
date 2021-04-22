@@ -6,6 +6,4 @@ using Dynare
 
 @dynare "models/cgg/cgg_ramsey.mod"
 
-# The following needs support for “deterministic_trends” in the preprocessor.
-# On 2021-04-07, this feature is only present on Michel’s private preprocessor branch.
-#@dynare "models/stochastic_trend_drift/trend1.mod"
+@dynare "models/stochastic_trend_drift/trend1.mod"
