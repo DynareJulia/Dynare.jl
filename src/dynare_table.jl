@@ -7,7 +7,7 @@ function dynare_table_text(data, title, column_header, row_header, note, fmt)
                      tf = tf_borderless,
                      highlighters = (hl_row(1, crayon"bold"),
                                      hl_col(1, crayon"bold")),
-                     backend = :text)
+                     backend = Val(:text))
     end
     formatter = (v, i, j) -> (i > 1 && j > 1) ? round(v, digits=4) : v
     pretty_table(data,
@@ -20,12 +20,12 @@ function dynare_table_text(data, title, column_header, row_header, note, fmt)
                  hlines = [:begin, 1, :end],
                  body_hlines_format = Tuple('─' for _ = 1:4),
                  vlines = [1],
-                 backend = :text)
+                 backend = Val(:text))
     if length(note) > 0
         pretty_table([note],
                      noheader = true,
                      tf = tf_borderless,
-                     backend = :text)
+                     backend = Val(:text))
     end
 end
 
@@ -47,7 +47,7 @@ function dynare_table_latex(data, title, column_header, row_header, note, fmt)
 #                 highlighters = (LatexHighlighter((data, i, j) -> (i == 1), ["textbf"]),
 #                                 LatexHighlighter((data, i, j) -> (j == 1), ["textbf"])),
 #                 vlines = [1],
-                 backend = :latex)
+                 backend = Val(:latex))
     if length(note) > 0
         write(io, "\\begin{tablenotes}\n")
         write(io, "\\item $note\n")
@@ -59,8 +59,8 @@ function dynare_table_latex(data, title, column_header, row_header, note, fmt)
 end
 
 function dynare_table(data, title, column_header, row_header, note;
-                      fmt="%10.4f", backend=:text)
-    if backend == :text
+                      fmt="%10.4f", backend=Val(:text))
+    if backend == Val(:text)
         dynare_table_text(data, title, column_header, row_header, note, fmt)
     else
         dynare_table_latex(data, title, column_header, row_header, note, fmt)
