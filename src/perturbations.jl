@@ -36,25 +36,33 @@ function stoch_simul!(context, field)
     compute_variance!(context)
     x = results.linearrationalexpectations.g1
     vx = view(x, :, 1:size(x, 2) - 1)
+    steadystate = results.trends.endogenous_steady_state
+    linear_trend = results.trends.endogenous_linear_trend
+    y0 = copy(steadystate)
     display_stoch_simul(vx', "Coefficients of approximate solution function", context)
     if (periods = get(options["stoch_simul"], "periods", 0)) > 0
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
         if size(histval, 1) == 0
-            y0 = results.endogenous_steady_state
+            # no histval
+            if work.model_has_trend
+                y0 = steadystate - linear_trend
+            else
+                y0 = steadystate
+            end
         else
+            # histval present
             y0 = view(histval, 1, :)
         end
         C = cholesky(model.Sigma_e)
         x = vcat(zeros(1, model.exogenous_nbr),
                  randn(periods, model.exogenous_nbr)*C.U)
-        c = results.endogenous_steady_state
         A = zeros(model.endogenous_nbr, model.endogenous_nbr)
         B = zeros(model.endogenous_nbr, model.exogenous_nbr)
         make_A_B!(A, B, model, results)
-        simul_first_order!(simulresults, y0, x, c, A, B, periods)
+        simul_first_order!(simulresults, y0, x, steadystate, A, B, periods)
         if work.model_has_trend
-            simulresults .+= transpose(results.endogenous_trend[:,1]) .+ collect(0:size(simulresults, 1)-1) * transpose(results.endogenous_trend[:, 2]) 
+            simulresults .+= collect(0:periods) * transpose(linear_trend) 
         end
         first_period = get(options["stoch_simul"], "first_periods", 1)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
