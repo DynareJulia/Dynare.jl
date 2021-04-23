@@ -28,6 +28,7 @@ deterministic_trends;
 end;
 
 histval;
+  y(0) = 100;
   ypot(0) = 100;
   ygap(0) = 0;
 end;
