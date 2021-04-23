@@ -118,7 +118,6 @@ function compute_first_order_solution!(
         LRE.get_abc!(ws, work.jacobian)
         options["cyclic_reduction"]["tol"] = 1e-8
     end
-    save("gimf1b.jld", "jacobian", work.jacobian)
     LRE.first_order_solver!(results,
                             algo,
                             work.jacobian,

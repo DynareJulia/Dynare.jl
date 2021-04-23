@@ -97,7 +97,6 @@ function get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vecto
                       period)  
 end
 
-using JLD
 """
 get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
 
@@ -106,9 +105,7 @@ around ``period``
 """
 function get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
-    @show "OK10"
     get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli, m, period)
-    @show "OK11"
     save("gimf1.jld",
          "temp", work.temporary_values,
          "residuals", work.residuals,
