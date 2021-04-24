@@ -79,7 +79,7 @@ function compute_stoch_simul!(context)
     results = context.results.model_results[1]
     options = context.options["stoch_simul"]
     work = context.work
-    Base.invokelatest(steady_state!, context)
+    compute_steady_state!(context)
     endogenous = results.trends.endogenous_steady_state
     exogenous = results.trends.exogenous_steady_state
     fill!(exogenous, 0.0)

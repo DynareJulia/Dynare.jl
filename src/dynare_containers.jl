@@ -87,6 +87,7 @@ struct Model
     dynamic!
     static!
     set_auxiliary_variables!
+    set_dynamic_auxiliary_variables!
     steady_state!
 end
 
@@ -171,16 +172,22 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
         findall(in(current_dynamic_indices), dynamic_indices)
     exogenous_indices = (backward_number + current_number
                          + forward_number .+ (1:exogenous_nbr))
-    dynamic! = load_dynare_function(modfilename*"Dynamic.jl")
-    static! = load_dynare_function(modfilename*"Static.jl")
-    if isfile(modfilename*"set_auxiliary_variables.jl")
+    dynamic! = load_dynare_function(modfilename*"Dynamic")
+    static! = load_dynare_function(modfilename*"Static")
+    if isfile(modfilename*"DynamicSetAuxiliarySeries")
+        set_dynamic_auxiliary_variables! =
+            load_dynare_function(modfilename*"DynamicSetAuxiliarySeries")
+    else
+        set_dynamic_auxiliary_variables! = Nothing
+    end
+    if isfile(modfilename*"SetAuxiliarySeries")
         set_auxiliary_variables! =
-            load_dynare_function_1(modfilename*"_set_auxiliary_variables.jl")
+            load_dynare_function(modfilename*"SetAuxiliarySeries")
     else
         set_auxiliary_variables! = Nothing
     end
     if isfile(modfilename*"SteadyState2.jl")
-        steady_state! = load_dynare_function(modfilename*"SteadyState2.jl")
+        steady_state! = load_dynare_function(modfilename*"SteadyState2")
     else
         steady_state! = nothing
     end
@@ -206,7 +213,7 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
           current_dynamic_indices, forward_indices_d,
           backward_indices_d, current_dynamic_indices_d,
           exogenous_indices, dynamic!, static!, set_auxiliary_variables!,
-          steady_state!)
+          set_dynamic_auxiliary_variables!, steady_state!)
 end
 
 struct Simulation

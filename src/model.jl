@@ -1,4 +1,5 @@
 using LinearAlgebra
+using Suppressor
 export get_de, get_abc, inverse_order_of_dynare_decision_rule
 
 function inverse_order_of_dynare_decision_rule(m::Model)
@@ -27,17 +28,11 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
-function load_dynare_function(filename::String)
-    file = readlines(filename)
-    # drop "using Utils"
-    file[6] = "using Dynare: get_power_deriv"
-    insert!(file, 7, "using StatsFuns")
-    return eval(Meta.parse(join(file, "\n")))
-end
-
-function load_dynare_function_1(filename::String)
-    file = readlines(filename)
-    return eval(Meta.parse(join(file, "\n")))
+function load_dynare_function(modname::String)
+    push!(LOAD_PATH, dirname(modname))
+    name = basename(modname)
+    @suppress eval(Meta.parse("using "*name))
+    return(eval(Symbol(name)))
 end
 
 """

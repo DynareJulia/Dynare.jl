@@ -1,5 +1,5 @@
 
-function steady_state!(context)
+function compute_steady_state!(context)
     model = context.models[1]
     work = context.work
     steadystatemodule = model.steady_state! 
@@ -8,9 +8,10 @@ function steady_state!(context)
     if isnothing(steadystatemodule)
         fill!(results.trends.endogenous_steady_state, 0.0)    
     else
-        steadystatemodule.steady_state!(results.trends.endogenous_steady_state,
-                                        results.trends.exogenous_steady_state,
-                                        work.params)
+        Base.invokelatest(steadystatemodule.steady_state!,
+                          results.trends.endogenous_steady_state,
+                          results.trends.exogenous_steady_state,
+                          work.params)
     end
 end
 	
