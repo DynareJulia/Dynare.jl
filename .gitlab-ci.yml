@@ -1,6 +1,6 @@
 variables:
   TERM: linux
-  JULIA_VERSION: 1.6.0
+  JULIA_VERSION: 1.6.1
   JULIA: /usr/local/julia/$JULIA_VERSION/bin/julia
 
 stages:
