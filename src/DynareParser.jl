@@ -27,7 +27,7 @@ context = Context(Dict{String, DynareSymbol}(),
                        )
                   )
                          
-function parser(modfilename)
+function parser(modfilename, commandlineoptions)
     modelstring = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
 
@@ -61,7 +61,8 @@ function parser(modfilename)
                   model_info.orig_maximum_exo_det_lag,
                   model_info.orig_maximum_exo_det_lead,
                   model_info.orig_maximum_lag,
-                  model_info.orig_maximum_lead
+                  model_info.orig_maximum_lead,
+                  commandlineoptions.compilemodule
                   )
 
     varobs = Vector{String}()

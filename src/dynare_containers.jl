@@ -99,8 +99,7 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
                orig_maximum_endo_lag, orig_maximum_endo_lead,
                orig_maximum_exo_lag, orig_maximum_exo_lead,
                orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
-               orig_maximum_lag, orig_maximum_lead)
-    
+               orig_maximum_lag, orig_maximum_lead, compileoption)
     i_static = findall((lead_lag_incidence[1,:] .== 0) .& (lead_lag_incidence[3,:] .== 0))
     p_static = lead_lag_incidence[2,i_static]
     i_dyn = findall((lead_lag_incidence[1,:] .> 0) .| (lead_lag_incidence[3,:] .> 0))
@@ -172,22 +171,27 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
         findall(in(current_dynamic_indices), dynamic_indices)
     exogenous_indices = (backward_number + current_number
                          + forward_number .+ (1:exogenous_nbr))
-    dynamic! = load_dynare_function(modfilename*"Dynamic")
-    static! = load_dynare_function(modfilename*"Static")
+    dynamic! = load_dynare_function(modfilename*"Dynamic",
+                                    compileoption)
+    static! = load_dynare_function(modfilename*"Static",
+                                   compileoption)
     if isfile(modfilename*"DynamicSetAuxiliarySeries")
         set_dynamic_auxiliary_variables! =
-            load_dynare_function(modfilename*"DynamicSetAuxiliarySeries")
+            load_dynare_function(modfilename*"DynamicSetAuxiliarySeries",
+                                 compileoption)
     else
         set_dynamic_auxiliary_variables! = Nothing
     end
     if isfile(modfilename*"SetAuxiliarySeries")
         set_auxiliary_variables! =
-            load_dynare_function(modfilename*"SetAuxiliarySeries")
+            load_dynare_function(modfilename*"SetAuxiliarySeries",
+                                 compileoption)
     else
         set_auxiliary_variables! = Nothing
     end
     if isfile(modfilename*"SteadyState2.jl")
-        steady_state! = load_dynare_function(modfilename*"SteadyState2")
+        steady_state! = load_dynare_function(modfilename*"SteadyState2",
+                                             compileoption)
     else
         steady_state! = nothing
     end

@@ -1,6 +1,7 @@
 module Dynare
 using Plots
 using GR
+using Revise
 
 gr()
 
@@ -16,8 +17,6 @@ include("DynarePreprocessor.jl")
 export dynare_preprocess
 include("steady_state/SteadyState.jl")
 export steady_state!
-include("Utils.jl")
-export get_power_deriv
 include("dynare_table.jl")
 include("reporting/report.jl")
 include("graphics.jl")
@@ -28,6 +27,14 @@ include("perturbations.jl")
 
 export @dynare
 
+mutable struct CommandLineOptions
+    compilemodule::Bool
+    function CommandLineOptions()
+        compilemodule = true
+        new(compilemodule)
+    end
+end
+        
 macro dynare(modfilename, args...)
     modfilename = string(modfilename)
     if  occursin(r"\.mod$", modfilename)
@@ -35,8 +42,15 @@ macro dynare(modfilename, args...)
     else
         modname = modfilename
     end
+    options = CommandLineOptions()
+    for (i, a) in enumerate(args)
+        if a == "nocompile"
+            options.compilemodule = false
+            deleteat!(args, i)
+        end
+    end
     dynare_preprocess(modname*".mod", args)
-    context = parser(modname)
+    context = parser(modname, options)
     return context
 end
 

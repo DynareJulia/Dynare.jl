@@ -1,5 +1,7 @@
 using LinearAlgebra
+using Revise
 using Suppressor
+
 export get_de, get_abc, inverse_order_of_dynare_decision_rule
 
 function inverse_order_of_dynare_decision_rule(m::Model)
@@ -28,11 +30,17 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
-function load_dynare_function(modname::String)
-    push!(LOAD_PATH, dirname(modname))
-    name = basename(modname)
-    @suppress eval(Meta.parse("using "*name))
-    return(eval(Symbol(name)))
+function load_dynare_function(modname::String, compileoption)
+    if compileoption
+        fun = readlines(modname*".jl")
+        return(eval(Meta.parse(join(fun, "\n"))))
+    else
+        push!(LOAD_PATH, dirname(modname))
+        name = basename(modname)
+        eval(Meta.parse("using "*name))
+        pop!(LOAD_PATH)
+        return(eval(Symbol(name)))
+    end
 end
 
 """
