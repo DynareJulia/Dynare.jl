@@ -43,13 +43,15 @@ macro dynare(modfilename, args...)
         modname = modfilename
     end
     options = CommandLineOptions()
+    arglist = []
     for (i, a) in enumerate(args)
-        if a == "nocompile"
+        if a == :nocompile
             options.compilemodule = false
-            deleteat!(args, i)
+        else
+            push!(arglist, a)
         end
     end
-    dynare_preprocess(modname*".mod", args)
+    dynare_preprocess(modname*".mod", arglist)
     context = parser(modname, options)
     return context
 end
