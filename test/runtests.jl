@@ -1,4 +1,5 @@
 using Dynare
+using StatsFuns
 
 @dynare "models/example1/example1.mod"
 @dynare "models/example2/example2.mod"
