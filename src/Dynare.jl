@@ -3,11 +3,8 @@ using Plots
 using GR
 using Revise
 
-@show "gr"
-@time gr()
+gr()
 
-@show "include"
-@time begin
 include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
@@ -29,7 +26,6 @@ include("optimal_policy.jl")
 include("perturbations.jl")
 include("perfectforesight/perfectforesight_solvers.jl")
 export @dynare
-end
 
 mutable struct CommandLineOptions
     compilemodule::Bool
@@ -55,8 +51,7 @@ macro dynare(modfilename, args...)
             push!(arglist, a)
         end
     end
-    @show "preprocessor"
-    @time     dynare_preprocess(modname*".mod", arglist)
+    dynare_preprocess(modname*".mod", arglist)
     context = parser(modname, options)
     return context
 end

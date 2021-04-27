@@ -28,11 +28,8 @@ context = Context(Dict{String, DynareSymbol}(),
                   )
                          
 function parser(modfilename, commandlineoptions)
-    @show "JSON parsing"
-    @time begin
     modelstring = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
-    end
     
     symboltable = SymbolTable()
     endo_nbr = set_symbol_table!(symboltable, modeljson["endogenous"], Endogenous)
@@ -42,8 +39,8 @@ function parser(modfilename, commandlineoptions)
                                     ExogenousDeterministic)
     param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
     model_info = get_model_info(modeljson["model_info"])
-    @show "Model"
-    @time model = Model(modfilename,
+
+    model = Model(modfilename,
                   endo_nbr,
                   model_info.lead_lag_incidence,
                   exo_nbr,
@@ -68,8 +65,6 @@ function parser(modfilename, commandlineoptions)
                   model_info.orig_maximum_lead,
                   commandlineoptions.compilemodule
                   )
-    @show "containers"
-    @time begin
     varobs = Vector{String}()
     if "varobs" in keys(modeljson)
         varobs = vcat(varobs, modeljson["varobs"])
@@ -110,8 +105,7 @@ function parser(modfilename, commandlineoptions)
         global context = Context(symboltable, [model], Dict(), results, work)
     end
     if "statements" in keys(modeljson)
-        @show "processing statements"
-        @time parse_statements!(context, modeljson["statements"])
+        parse_statements!(context, modeljson["statements"])
     end
     return context
 end
@@ -129,8 +123,7 @@ function parse_statements!(context, statements)
         elseif field["statementName"] == "initval"
             initval!(context, field)
         elseif field["statementName"] == "native"
-            @show field["string"]
-            @time dynare_parse_eval(field["string"], context)
+            dynare_parse_eval(field["string"], context)
         elseif field["statementName"] == "param_init"
             param_init!(context, field)
         elseif field["statementName"] == "perfect_foresight_setup"
@@ -144,8 +137,7 @@ function parse_statements!(context, statements)
         elseif field["statementName"] == "shocks"
             shocks!(context, field)
         elseif field["statementName"] == "stoch_simul"
-            @show "stoch_simul"
-            @time stoch_simul!(context, field)
+            stoch_simul!(context, field)
         elseif field["statementName"] == "verbatim"
             Nothing
         else
