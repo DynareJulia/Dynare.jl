@@ -63,7 +63,7 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
     nendo = m.endogenous_nbr
     lli = m.lead_lag_incidence
     ndyn = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
-    oldthreadnbr = BLAS.get_thread_nbr()
+    oldthreadnbr = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
     @inbounds @Threads.threads for period = 1:n
         k = Threads.threadid()
@@ -202,7 +202,7 @@ function preconditioner!(rout::AbstractVector{Float64},
         mul!(rout, ir, hh, 1, m, mk, rin, ir)
     end
     BLAS.set_num_threads(oldthreadnbr)
-    ir = (periods - preconditioner_window + 1)*m + 1 
+    ir = m + 1 
     @inbounds for i = 2:(periods - preconditioner_window + 1)
         ir_m = ir - m
         mul!(rout, ir, g, 1, m, m, rout, ir_m, 1, 1)
@@ -210,7 +210,7 @@ function preconditioner!(rout::AbstractVector{Float64},
     end
     BLAS.set_num_threads(1)
     @inbounds @Threads.threads for i = periods - preconditioner_window + 2:periods
-        ir1 = (i - 1)*m + 1
+        ir = (i - 1)*m + 1
         mk1 = m*(periods - i + 1)
         mul!(rout, ir, hh, 1, m, mk1, rin, ir)
     end
