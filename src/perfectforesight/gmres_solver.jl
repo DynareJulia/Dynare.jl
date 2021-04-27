@@ -63,38 +63,18 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
     nendo = m.endogenous_nbr
     lli = m.lead_lag_incidence
     ndyn = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
+    oldthreadnbr = BLAS.get_thread_nbr()
+    BLAS.set_num_threads(1)
     @inbounds @Threads.threads for period = 1:n
         k = Threads.threadid()
         get_jacobian!(ws[k], endogenous, exogenous, steadystate, m,
                       period + 1)
-#=
-        if any(isnan.(work.residuals))
-            @show "Periods $period"
-            @show endogenous
-            @show exogenous
-            @show work.jacobian
-            @show work.residuals
-            throw(ArgumentError("contains NaN in residuals"))
-        end
-=# 
         get_dynamic_endogenous_variables!(ws[k].dynamic_variables ,
                                           residuals, lli, m,
                                           period + 1)
         offset_y = (period - 1)*nendo + 1
         @inbounds mul!(y, offset_y, ws[k].jacobian, 1, nendo, ndyn,
                        ws[k].dynamic_variables, 1)
-#=        
-        if any(isnan.(y[1:period*nendo]))
-            @show period
-            @show y[(period-1)*nendo + 1:period*nendo]
-            display(work.jacobian)
-            println(' ')
-            @show presiduals
-            @show endogenous[1:18]
-            @show m.params
-            throw(ArgumentError("contains NaN in y"))
-        end
-=#
     end
     # setting terminal period according to linear approximation
     offset_y = (n - 1)*nendo + 1
@@ -109,11 +89,7 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
     end
     mul!(y, offset_y, ws[1].jacobian, (npred+n_current)*nendo + 1, nendo,
          nfwrd, ws[1].temp_vec, 1, 1.0, 1.0)
-    #=
-    if any(isnan.(y))
-    throw(ArgumentError("contains NaN in whole y"))
-    end
-    =#
+    BLAS.set_num_threads(oldthreadnbr)
     return 0
 end
 
@@ -219,23 +195,26 @@ function preconditioner!(rout::AbstractVector{Float64},
     m = size(hh, 1)
     mk = m*preconditioner_window
     @inbounds mul!(rout, 1, hh, 1, m, mk, rin, 1)
-    @Threads.threads for i = 2:(periods - preconditioner_window + 1)
+    oldthreadnbr = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
+    @inbounds @Threads.threads for i = 2:(periods - preconditioner_window + 1)
         ir = (i - 1)*m + 1
         mul!(rout, ir, hh, 1, m, mk, rin, ir)
     end
-    ir = m + 1
+    BLAS.set_num_threads(oldthreadnbr)
+    ir = (periods - preconditioner_window + 1)*m + 1 
     @inbounds for i = 2:(periods - preconditioner_window + 1)
         ir_m = ir - m
         mul!(rout, ir, g, 1, m, m, rout, ir_m, 1, 1)
         ir += m
     end
-    mk -= m
-    @Threads.threads for i = periods - preconditioner_window + 2:periods
-        ir = (i - 1)*m + 1
-        ir_m = ir - m
-        mul!(rout, ir, hh, 1, m, mk, rin, ir)
-        mk -= m
+    BLAS.set_num_threads(1)
+    @inbounds @Threads.threads for i = periods - preconditioner_window + 2:periods
+        ir1 = (i - 1)*m + 1
+        mk1 = m*(periods - i + 1)
+        mul!(rout, ir, hh, 1, m, mk1, rin, ir)
     end
+    BLAS.set_num_threads(oldthreadnbr)
     ir = (periods - preconditioner_window + 1)*m + 1 
     @inbounds for i = periods - preconditioner_window + 2:periods
         ir_m = ir - m
