@@ -119,7 +119,8 @@ m = Model("test/models/example1/example1",
           m_orig.orig_maximum_exo_det_lag,
           m_orig.orig_maximum_exo_det_lead,
           m_orig.orig_maximum_lag,
-          m_orig.orig_maximum_lead)
+          m_orig.orig_maximum_lead,
+          true)
 
 n = 6
 jacobian = randn(n, 12)
