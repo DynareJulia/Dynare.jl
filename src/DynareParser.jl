@@ -63,6 +63,7 @@ function parser(modfilename, commandlineoptions)
                   model_info.orig_maximum_exo_det_lead,
                   model_info.orig_maximum_lag,
                   model_info.orig_maximum_lead,
+                  model_info.NNZDerivatives,
                   commandlineoptions.compilemodule
                   )
     varobs = Vector{String}()
@@ -102,8 +103,7 @@ function parser(modfilename, commandlineoptions)
                 false,
                 Matrix{Float64}(undef, 0, 0))
     results = Results([modelresults])
-        global context = Context(symboltable, [model], Dict(), results, work)
-    end
+    global context = Context(symboltable, [model], Dict(), results, work)
     if "statements" in keys(modeljson)
         parse_statements!(context, modeljson["statements"])
     end
@@ -226,7 +226,8 @@ get_model_info(field) =
               field["orig_maximum_exo_det_lead"],
               max(field["orig_maximum_lag"],
                   field["orig_maximum_lag_with_diffs_expanded"]),
-              field["orig_maximum_lead"]
+              field["orig_maximum_lead"],
+              field["NNZDerivatives"]
               )
                                   
 function verbatim(field)
