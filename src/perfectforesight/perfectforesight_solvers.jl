@@ -57,11 +57,14 @@ struct Jacobian
         exogenous = repeat(steadystate_exo', 2)
         maxcol = md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both 
         vj = view(work.jacobian, :, 1:maxcol)
-        nz = periods * nnz(sparse(vj))
+        nz = periods * md.NNZDerivatives[1]
         nrow = periods * md.endogenous_nbr
         I = Vector{Int64}(undef, nz)
+        fill!(I, 1)
         J = Vector{Int64}(undef, nz)
+        fill!(J, 1)
         V = Vector{Float64}(undef, nz)
+        fill!(V, 0.0)
         klasstouch = Vector{Int64}(undef, nz)
         colptr = Vector{Int64}(undef, nrow + 1)
         rowptr = Vector{Int64}(undef, nrow + 1)

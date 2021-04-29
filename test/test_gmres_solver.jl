@@ -44,15 +44,15 @@ endogenous = repeat(steadystate, periods + 2)
 exogenous = zeros(periods + 2, md.exogenous_nbr)
 
 J = Dynare.Jacobian(context, periods)
-wsJ = Dynare.JacTimesVec(context)
-A = Dynare.makeJacobian!(J, endogenous, exogenous, context, periods, wsJ)
+ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
+A = Dynare.makeJacobian!(J, endogenous, exogenous, context, periods, ws_threaded)
 
 a = zeros(6, 6)
 b = zeros(6, 6)
 c = zeros(6, 6)
-a[:, [3, 4, 6]] .= wsJ.jacobian[:, 1:3]
-b .= wsJ.jacobian[:, 4:9]
-c[:, [1, 2, 6]] .= wsJ.jacobian[:, 10:12]
+a[:, [3, 4, 6]] .= ws_threaded[1].jacobian[:, 1:3]
+b .= ws_threaded[1].jacobian[:, 4:9]
+c[:, [1, 2, 6]] .= ws_threaded[1].jacobian[:, 10:12]
 
 target = vcat([b c zeros(6, 12)],
               [a b c zeros(6, 6)],
@@ -120,6 +120,7 @@ m = Model("test/models/example1/example1",
           m_orig.orig_maximum_exo_det_lead,
           m_orig.orig_maximum_lag,
           m_orig.orig_maximum_lead,
+          m_orig.NNZDerivatives,
           true)
 
 n = 6
@@ -239,8 +240,8 @@ periods = 6
 JJ = Dynare.Jacobian(context, periods)
 endogenous = repeat(steadystate, periods + 2)
 exogenous = zeros(periods + 2, m.exogenous_nbr)
-ws = Dynare.JacTimesVec(context)
-A = Dynare.makeJacobian!(JJ, endogenous, exogenous, context, periods, ws)
+ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
+A = Dynare.makeJacobian!(JJ, endogenous, exogenous, context, periods, ws_threaded)
 AA = A[1:12, 1:12]
 r = vcat(rin[1:6], zeros(6))
 x = AA\r
@@ -257,8 +258,8 @@ periods = 300
 JJ = Dynare.Jacobian(context, periods)
 endogenous = repeat(steadystate, periods + 2)
 exogenous = zeros(periods + 2,m.exogenous_nbr)
-ws = Dynare.JacTimesVec(context)
-A = Dynare.makeJacobian!(JJ, endogenous, exogenous, context, periods, ws)
+ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
+A = Dynare.makeJacobian!(JJ, endogenous, exogenous, context, periods, ws_threaded)
 rin = zeros(periods*n)
 rin[4] = 0.01
 rin[6] = 0.01
@@ -288,32 +289,35 @@ steadystate = context.results.model_results[1].trends.endogenous_steady_state
 work = context.work
 md = context.models[1]
 
-k=1
-endogenous = repeat(steadystate, k + 2)
-exogenous = zeros(k + 2, md.exogenous_nbr)
+periods=1
+endogenous = repeat(steadystate, periods + 2)
+exogenous = zeros(periods + 2, md.exogenous_nbr)
 exogenous[1, :] .= 0.0
-residuals = zeros((k+2)*n)
-y2 = zeros(k*n)
+residuals = zeros((periods+2)*n)
+y2 = zeros(periods*n)
 dynamic_variables = work.dynamic_variables
 presiduals = zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both)
 temp_vec = zeros(sum(md.dynamic!.tmp_nbr[1:2]))
 ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
 Dynare.jacobian_time_vec!(y2, residuals, endogenous, exogenous,
-               steadystate, g, md, k, ws_threaded)
+               steadystate, g, md, periods, ws_threaded)
 
-LRE1 = LinearMap(k*n) do C, B
-    copyto!(residuals, n + 1, B, 1, k*n) 
+LRE1 = LinearMap(periods*n) do C, B
+    copyto!(residuals, n + 1, B, 1, periods*n) 
     Dynare.jacobian_time_vec!(C, residuals, endogenous, exogenous,
-                   steadystate, g, md, k, ws_threaded)
+                   steadystate, g, md, periods, ws_threaded)
 end
 
 target = (jacobian[:,4:9] + jacobian[:, 10:12]*g[[1, 2, 6], :])*ones(6)
 @test LRE1*ones(6) ≈ target
 
 
-k=300
-endogenous = repeat(steadystate, k + 2)
-exogenous = zeros(k + 2, md.exogenous_nbr)
+periods=300
+JJ = Dynare.Jacobian(context, periods)
+ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
+endogenous = repeat(steadystate, periods + 2)
+exogenous = zeros(periods + 2, md.exogenous_nbr)
+A = Dynare.makeJacobian!(JJ, endogenous, exogenous, context, periods, ws_threaded)
 exogenous[2, :] .= 0.1
 residuals = zeros(1812)
 y2 = zeros(1800)
@@ -321,17 +325,20 @@ presiduals = zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both)
 dynamic_variables = context.work.dynamic_variables
 ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
 Dynare.jacobian_time_vec!(y2, residuals, endogenous, exogenous,
-               steadystate, g, md, k, ws_threaded)
-P = Dynare.LREprecond(k, 10, a, b, c, g)
-LRE = LinearMap(k*n) do C, B
-    copyto!(residuals, n + 1, B, 1, k*n) 
+               steadystate, g, md, periods, ws_threaded)
+P = Dynare.LREprecond(periods, 10, a, b, c, g)
+LRE = LinearMap(periods*n) do C, B
+    copyto!(residuals, n + 1, B, 1, periods*n) 
     Dynare.jacobian_time_vec!(C, residuals, endogenous, exogenous,
-                   steadystate, g, md, k, ws_threaded)
+                   steadystate, g, md, periods, ws_threaded)
 end
+x = endogenous[n+1:(periods+1)*n]
+@test LRE*x ≈ A*x
 
-res = zeros(1800)
+res = zeros(periods*n)
 res[[4, 6]] .= 0.01
-rout = zeros(1800)
+rout = zeros(periods*n)
+
 x, h = Dynare.gmres!(rout, LRE, res, log=true, verbose=true, Pr=P)
 
 
@@ -350,8 +357,8 @@ Dynare.gmres!(rout, ws1.LREMap, res, log=false,
 #gmres_solver!(rout, res, periods, preconditioner_window, md, work, ws, verbose=true)
 
 JJ = Dynare.Jacobian(context, periods)
-ws = Dynare.JacTimesVec(context)
-A = Dynare.makeJacobian!(JJ, ws1.endogenous, ws1.exogenous, context, periods, ws)
+ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
+A = Dynare.makeJacobian!(JJ, ws1.endogenous, ws1.exogenous, context, periods, ws_threaded)
 rout1 = zeros(periods*md.endogenous_nbr)
 ws = Dynare.GmresWs(periods, preconditioner_window, context, "CR")
 ws1.endogenous .= repeat(steadystate, periods + 2)

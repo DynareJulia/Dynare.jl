@@ -41,6 +41,26 @@ mul!(y::StridedVector{Float64}, offset_y::Int64,
               1.0, 0.0)
 
 
+function jacobian_time_vec_period!(y::AbstractVector{Float64},
+                                   ws::JacTimesVec,
+                                   residuals::AbstractVector{Float64},
+                                   endogenous::AbstractVector{Float64},
+                                   exogenous::AbstractMatrix{Float64},
+                                   steadystate::AbstractVector{Float64},
+                                   lli::Matrix{Int64},
+                                   ndyn::Int64,
+                                   md::Model,
+                                   period::Int64)
+    nvar = md.endogenous_nbr
+    get_jacobian!(ws, endogenous, exogenous, steadystate, md,
+                  period + 1)
+    get_dynamic_endogenous_variables!(ws.dynamic_variables ,
+                                      residuals, lli, md,
+                                      period + 1)
+    offset_y = (period - 1)*nvar + 1
+    @inbounds mul!(y, offset_y, ws.jacobian, 1, nvar, ndyn,
+                   ws.dynamic_variables, 1)
+end
 
 function jacobian_time_vec!(y::AbstractVector{Float64},
                             residuals::AbstractVector{Float64},
@@ -49,47 +69,39 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
                             steadystate::AbstractVector{Float64},
                             g::AbstractMatrix{Float64},
                             m::Model,
-                            n::Int64,
+                            periods::Int64,
                             ws::Vector{JacTimesVec})
-    #=
-    y .= NaN
-    if any(isnan.(residuals))
-        throw(ArgumentError("contains NaN in residuals"))
-    end
-    =#
     npred = m.n_bkwrd + m.n_both
     nfwrd = m.n_fwrd + m.n_both
     n_current = m.n_current
-    nendo = m.endogenous_nbr
+    nvar = m.endogenous_nbr
     lli = m.lead_lag_incidence
     ndyn = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
     oldthreadnbr = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
-    @inbounds @Threads.threads for period = 1:n
+    @inbounds @Threads.threads for period = 1:periods
         k = Threads.threadid()
-        get_jacobian!(ws[k], endogenous, exogenous, steadystate, m,
-                      period + 1)
-        get_dynamic_endogenous_variables!(ws[k].dynamic_variables ,
-                                          residuals, lli, m,
-                                          period + 1)
-        offset_y = (period - 1)*nendo + 1
-        @inbounds mul!(y, offset_y, ws[k].jacobian, 1, nendo, ndyn,
-                       ws[k].dynamic_variables, 1)
+        jacobian_time_vec_period!(y, ws[k], residuals, endogenous,
+                                  exogenous, steadystate, lli, ndyn,
+                                  m, period)
     end
+    BLAS.set_num_threads(oldthreadnbr)
     # setting terminal period according to linear approximation
-    offset_y = (n - 1)*nendo + 1
+    offset_y = (periods - 1)*nvar + 1
     #select forward looking variables
+    get_dynamic_endogenous_variables!(ws[1].dynamic_variables ,
+                                      residuals, lli, m,
+                                      periods + 1)
     k = 1 
-    @inbounds for i = 1:nendo
+    @inbounds for i = 1:nvar
         if lli[3, i] > 0
-            mul!(ws[1].temp_vec, k, g, i, 1, nendo, ws[1].dynamic_variables,
+            mul!(ws[1].temp_vec, k, g, i, 1, nvar, ws[1].dynamic_variables,
                  npred + 1)
             k += 1
         end
     end
-    mul!(y, offset_y, ws[1].jacobian, (npred+n_current)*nendo + 1, nendo,
+    mul!(y, offset_y, ws[1].jacobian, (npred+n_current)*nvar + 1, nvar,
          nfwrd, ws[1].temp_vec, 1, 1.0, 1.0)
-    BLAS.set_num_threads(oldthreadnbr)
     return 0
 end
 
@@ -198,8 +210,8 @@ function preconditioner!(rout::AbstractVector{Float64},
     oldthreadnbr = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
     @inbounds @Threads.threads for i = 2:(periods - preconditioner_window + 1)
-        ir = (i - 1)*m + 1
-        mul!(rout, ir, hh, 1, m, mk, rin, ir)
+        ir1 = (i - 1)*m + 1
+        mul!(rout, ir1, hh, 1, m, mk, rin, ir1)
     end
     BLAS.set_num_threads(oldthreadnbr)
     ir = m + 1 
@@ -210,9 +222,9 @@ function preconditioner!(rout::AbstractVector{Float64},
     end
     BLAS.set_num_threads(1)
     @inbounds @Threads.threads for i = periods - preconditioner_window + 2:periods
-        ir = (i - 1)*m + 1
+        ir2 = (i - 1)*m + 1
         mk1 = m*(periods - i + 1)
-        mul!(rout, ir, hh, 1, m, mk1, rin, ir)
+        mul!(rout, ir2, hh, 1, m, mk1, rin, ir2)
     end
     BLAS.set_num_threads(oldthreadnbr)
     ir = (periods - preconditioner_window + 1)*m + 1 

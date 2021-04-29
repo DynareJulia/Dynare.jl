@@ -1,73 +1,94 @@
+function make_one_period!(JA::Jacobian,
+                          endogenous::AbstractVector{Float64},
+                          exogenous::AbstractMatrix{Float64},
+                          periods::Int64,
+                          md::Model,
+                          jacobian_columns::Vector{Int64},
+                          nnz_period::Int64,
+                          maxcol::Int64,
+                          ws::JacTimesVec,
+                          t::Int64
+                          )
+    nvar = md.endogenous_nbr
+    oc = (t - 1)*md.endogenous_nbr
+    get_jacobian!(ws, endogenous, exogenous, JA.steadystate, md, t)
+    i, j, v = findnz(sparse(ws.jacobian))
+    r1 = (t - 1)*nnz_period + 1
+    for el = 1:length(i)
+        if j[el] <= maxcol
+            kjel = jacobian_columns[j[el]]
+            JA.I[r1] = i[el] + oc
+            JA.J[r1] = kjel + oc - nvar
+            JA.V[r1] = v[el]
+            r1 += 1
+        end
+    end
+end
+
 function makeJacobian!(
     JA::Jacobian,
     endogenous::AbstractVector{Float64},
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
-    ws::JacTimesVec
+    ws::Vector{JacTimesVec}
 )
     md = context.models[1]
     steadystate = JA.steadystate
     maxcol = JA.maxcol
     nvar = md.endogenous_nbr
     npred = md.n_bkwrd + md.n_both
-    get_jacobian!(ws, endogenous, exogenous, steadystate, md, 2)
+    nnz_period = md.NNZDerivatives[1]
+    get_jacobian!(ws[1], endogenous, exogenous, steadystate, md, 2)
     r = 1
-    k = [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
-    i, j, v = findnz(sparse(ws.jacobian))
+    jacobian_columns = [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
+    i, j, v = findnz(sparse(ws[1].jacobian))
     for el = 1:length(i)
         if j[el] <= maxcol
-            kjel = k[j[el]]
+            kjel = jacobian_columns[j[el]]
             if kjel > nvar
                 JA.I[r] = i[el]
-                JA.J[r] = k[j[el]] - nvar
+                JA.J[r] = kjel - nvar
                 JA.V[r] = v[el]
                 r += 1
             end
         end
     end
-    offset = nvar
-    for t = 2:(periods-1)
-        get_jacobian!(ws, endogenous, exogenous, steadystate, md, t)
-        i, j, v = findnz(sparse(ws.jacobian))
-        for el = 1:length(i)
-            if j[el] <= maxcol
-                kjel = k[j[el]]
-                JA.I[r] = i[el] + offset
-                JA.J[r] = kjel + offset - nvar
-                JA.V[r] = v[el]
-                r += 1
-            end
-        end
-        offset += nvar
+    @Threads.threads for t = 2:(periods-1)
+        tid = Threads.threadid()
+        make_one_period!(JA, endogenous, exogenous, periods, md,
+                         jacobian_columns, nnz_period, maxcol,
+                         ws[tid], t)
     end
-    get_jacobian!(ws, endogenous, exogenous, steadystate, md, periods)
-    i, j, v = findnz(sparse(ws.jacobian))
+    get_jacobian!(ws[1], endogenous, exogenous, steadystate, md, periods)
+    i, j, v = findnz(sparse(ws[1].jacobian))
+    oc = (periods - 1)*nvar
+    r = (periods - 1)*nnz_period + 1
     for el = 1:length(i)
         if j[el] <= maxcol
-            kjel = k[j[el]]
+            kjel = jacobian_columns[j[el]]
             if kjel <= 2*nvar
-                JA.I[r] = i[el] + offset
-                JA.J[r] = kjel + offset - nvar
+                JA.I[r] = i[el] + oc
+                JA.J[r] = kjel + oc - nvar
                 JA.V[r] = v[el]
                 r += 1
             end
         end
     end
     # terminal condition
-     ic = md.n_bkwrd + md.n_both + md.n_current .+ (1:md.n_fwrd+md.n_both)
+    ic = md.n_bkwrd + md.n_both + md.n_current .+ (1:md.n_fwrd+md.n_both)
     g = context.results.model_results[1].linearrationalexpectations.g1_1
     CmultG!(
         JA.tmp_nvar_npred,
         JA.tmp_nvar_nfwrd,
         JA.tmp_nfwrd_npred,
-        ws.jacobian,
+        ws[1].jacobian,
         g,
         ic,
         md.i_fwrd_b,
     )
     (i, j, v) = findnz(sparse(JA.tmp_nvar_npred))
-    needed_space = r + length(i) - 1 
+    needed_space = periods*nnz_period + length(i) - 1 
     extra_space =  needed_space - length(JA.I) 
     if extra_space > 0
         resize!(JA.I, needed_space)
@@ -78,8 +99,8 @@ function makeJacobian!(
         resize!(JA.nzval, needed_space)
     end
     for el = 1:length(i)
-        JA.I[r] = i[el] + offset
-        JA.J[r] = k[j[el]] + offset
+        JA.I[r] = i[el] + oc
+        JA.J[r] = jacobian_columns[j[el]] + oc
         JA.V[r] = v[el]
         r += 1
     end
