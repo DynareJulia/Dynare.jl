@@ -60,11 +60,11 @@ struct Jacobian
         nz = periods * md.NNZDerivatives[1]
         nrow = periods * md.endogenous_nbr
         I = Vector{Int64}(undef, nz)
-        fill!(I, 1)
+        @inbounds fill!(I, 1)
         J = Vector{Int64}(undef, nz)
-        fill!(J, 1)
+        @inbounds fill!(J, 1)
         V = Vector{Float64}(undef, nz)
-        fill!(V, 0.0)
+        @inbounds fill!(V, 0.0)
         klasstouch = Vector{Int64}(undef, nz)
         colptr = Vector{Int64}(undef, nrow + 1)
         rowptr = Vector{Int64}(undef, nrow + 1)
@@ -97,7 +97,8 @@ end
 function get_dynamic_endogenous_variables!(y::AbstractVector{Float64},
                                            data::AbstractVector{Float64},
                                            lli::Matrix{Int64},
-                                           m::Model, period::Int64)
+                                           m::Model,
+                                           period::Int64)
     m, n = size(lli)
     p = (period - 2)*n
     @inbounds for i = 1:m
@@ -133,7 +134,7 @@ function compute_jacobian(ws::JacTimesVec,
                           period::Int64)
     dynamic! = m.dynamic!.dynamic!
     fill!(ws.jacobian, 0.0)
-    Base.invokelatest(dynamic!,
+    @inbounds Base.invokelatest(dynamic!,
                       ws.temp_vec,
                       ws.residuals,
                       ws.jacobian,

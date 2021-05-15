@@ -14,7 +14,7 @@ function make_one_period!(JA::Jacobian,
     get_jacobian!(ws, endogenous, exogenous, JA.steadystate, md, t)
     i, j, v = findnz(sparse(ws.jacobian))
     r1 = (t - 1)*nnz_period + 1
-    for el = 1:length(i)
+    @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
             JA.I[r1] = i[el] + oc
@@ -43,7 +43,8 @@ function makeJacobian!(
     r = 1
     jacobian_columns = [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
     i, j, v = findnz(sparse(ws[1].jacobian))
-    for el = 1:length(i)
+    fill!(JA.V, 0.0)
+    @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
             if kjel > nvar
@@ -64,7 +65,7 @@ function makeJacobian!(
     i, j, v = findnz(sparse(ws[1].jacobian))
     oc = (periods - 1)*nvar
     r = (periods - 1)*nnz_period + 1
-    for el = 1:length(i)
+    @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
             if kjel <= 2*nvar
@@ -78,7 +79,7 @@ function makeJacobian!(
     # terminal condition
     ic = md.n_bkwrd + md.n_both + md.n_current .+ (1:md.n_fwrd+md.n_both)
     g = context.results.model_results[1].linearrationalexpectations.g1_1
-    CmultG!(
+    @inbounds CmultG!(
         JA.tmp_nvar_npred,
         JA.tmp_nvar_nfwrd,
         JA.tmp_nfwrd_npred,
@@ -88,7 +89,7 @@ function makeJacobian!(
         md.i_fwrd_b,
     )
     (i, j, v) = findnz(sparse(JA.tmp_nvar_npred))
-    needed_space = periods*nnz_period + length(i) - 1 
+    needed_space = r + length(i) - 1 
     extra_space =  needed_space - length(JA.I) 
     if extra_space > 0
         resize!(JA.I, needed_space)
@@ -98,7 +99,7 @@ function makeJacobian!(
         resize!(JA.colval, needed_space)
         resize!(JA.nzval, needed_space)
     end
-    for el = 1:length(i)
+    @inbounds for el = 1:length(i)
         JA.I[r] = i[el] + oc
         JA.J[r] = jacobian_columns[j[el]] + oc
         JA.V[r] = v[el]
@@ -108,6 +109,7 @@ function makeJacobian!(
     resize!(JA.J, r - 1)
     resize!(JA.V, r - 1)
     n = periods * nvar
+    #length(colptr) == n + 1 && colptr[end] - 1 == length(rowval) == length(nzval)
     return SparseArrays.sparse!(
         JA.I,
         JA.J,

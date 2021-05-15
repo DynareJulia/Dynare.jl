@@ -100,7 +100,7 @@ function jacobian_time_vec!(y::AbstractVector{Float64},
             k += 1
         end
     end
-    mul!(y, offset_y, ws[1].jacobian, (npred+n_current)*nvar + 1, nvar,
+    @inbounds mul!(y, offset_y, ws[1].jacobian, (npred+n_current)*nvar + 1, nvar,
          nfwrd, ws[1].temp_vec, 1, 1.0, 1.0)
     return 0
 end
@@ -170,7 +170,7 @@ function hh!(hh::AbstractMatrix{Float64}, h::AbstractMatrix{Float64},
              n::Int64, work1::AbstractMatrix{Float64},
              work2::AbstractMatrix{Float64})
 
-computes hh = [h, h(1), h(2), ..., h(n-1)] and hh(i) = -h*f*h(-1)
+computes hh = [h, h(1), h(2), ..., h(n-1)] and h(i) = -h*f*h(-1)
 """
 function hh!(hh::AbstractMatrix{Float64}, h::AbstractMatrix{Float64},
              f::AbstractMatrix{Float64}, hf::AbstractMatrix{Float64},
@@ -233,6 +233,7 @@ function preconditioner!(rout::AbstractVector{Float64},
         mul!(rout, ir, g, 1, m, m, rout, ir_m, 1, 1)
         ir += m
     end
+    return rout
 end
 
 struct LREprecond
@@ -331,11 +332,11 @@ struct GmresWs
                             work.jacobian,
                             options,
                             LREWs)
+        g1_1 = LREresults.g1_1
         @inbounds for i = 1:LREWs.backward_nbr
-            k = LREWs.backward_indices[i]
-            for j = 1:n
-                g[j, k] = LREresults.g1_1[j, i]
-            end
+            vg = view(g, :, LREWs.backward_indices[i])
+            vg1 = view(g1_1, :, i)
+            copy!(vg, vg1)
         end
         if any(isnan.(g))
             throw(ArgumentError("NaN in g"))
