@@ -1,11 +1,11 @@
 
-function compute_steady_state!(context)
+function compute_steady_state!(context::Context)
     model = context.models[1]
     work = context.work
     steadystatemodule = model.steady_state! 
     results = context.results.model_results[1]
     fill!(results.trends.exogenous_steady_state, 0.0)
-    if isnothing(steadystatemodule)
+    if isempty(steadystatemodule)
         fill!(results.trends.endogenous_steady_state, 0.0)    
     else
         Base.invokelatest(steadystatemodule.steady_state!,

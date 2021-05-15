@@ -5,6 +5,14 @@ using Revise
 
 gr()
 
+mutable struct CommandLineOptions
+    compilemodule::Bool
+    function CommandLineOptions()
+        compilemodule = true
+        new(compilemodule)
+    end
+end
+        
 include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
@@ -27,21 +35,8 @@ include("perturbations.jl")
 include("perfectforesight/perfectforesight_solvers.jl")
 export @dynare
 
-mutable struct CommandLineOptions
-    compilemodule::Bool
-    function CommandLineOptions()
-        compilemodule = true
-        new(compilemodule)
-    end
-end
-        
-macro dynare(modfilename, args...)
-    modfilename = string(modfilename)
-    if  occursin(r"\.mod$", modfilename)
-        modname = modfilename[1:length(modfilename)-4]
-    else
-        modname = modfilename
-    end
+macro dynare(modfile_arg::String, args...)
+    modname = get_modname(modfile_arg)
     options = CommandLineOptions()
     arglist = []
     for (i, a) in enumerate(args)
@@ -51,9 +46,23 @@ macro dynare(modfilename, args...)
             push!(arglist, a)
         end
     end
-    dynare_preprocess(modname*".mod", arglist)
+    modfilename = modname*".mod"
+    dynare_preprocess(modfilename, arglist)
     context = parser(modname, options)
     return context
 end
 
+function get_modname(s::String)
+    modfilename = string(s)
+    mdoname = split(modfilename, ".")[1]
+    if  occursin(r"\.mod$", modfilename)
+        modname::String = modfilename[1:length(modfilename)-4]
+    else
+        modname = modfilename
+    end
+    return modname
+end
+
+include("precompile_Dynare.jl")
+_precompile_()
 end # module

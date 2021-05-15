@@ -30,7 +30,7 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
-function load_dynare_function(modname::String, compileoption)
+function load_dynare_function(modname::String, compileoption::Bool)
     if compileoption
         fun = readlines(modname*".jl")
         return(eval(Meta.parse(join(fun, "\n"))))
@@ -144,7 +144,7 @@ function get_abc!(a::AbstractMatrix{Float64},
     ws.c[:, ws.backward_indices_d] .= view(jacobian, i_rows, 1:ws.backward_nbr)
 end
 
-function get_de!(ws, jacobian::AbstractMatrix{Float64})
+function get_de!(ws::LinearRationalExpectationsWs, jacobian::AbstractMatrix{Float64})
     n1 = ws.backward_nbr + ws.forward_nbr - ws.both_nbr
     fill!(ws.d, 0.0)
     fill!(ws.e, 0.0)
@@ -158,12 +158,13 @@ function get_de!(ws, jacobian::AbstractMatrix{Float64})
 end
 
 
+#=
 for typ in instances(SymbolType)
     styp = lowercase(string(typ))
     f = Symbol("get_$(styp)_name")
     s = Symbol("check_$styp")
     @eval begin
-        function $s(x, symbol_table)
+        function $s(x, symbol_table::SymbolTable)
             if !isreal(x)
                 names = $f(symbol_table)
                 msg = "\nSome $styp don't have a real value:\n"
@@ -175,5 +176,5 @@ for typ in instances(SymbolType)
         end
     end
 end
-            
+=#          
 

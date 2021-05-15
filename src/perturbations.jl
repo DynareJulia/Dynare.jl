@@ -1,4 +1,4 @@
-function display_stoch_simul(x, title, context)
+function display_stoch_simul(x::AbstractVecOrMat{Float64}, title::String, context::Context)
     endogenous_names = get_endogenous_longname(context.symboltable)
     emptyrow = ["" for _= 1:size(x,1)]
     column_header = []
@@ -17,13 +17,13 @@ function display_stoch_simul(x, title, context)
     dynare_table(data, title, column_header, row_header, note)
 end
 
-function make_A_B!(A, B, model, results)
+function make_A_B!(A::Matrix{Float64}, B::Matrix{Float64}, model::Model, results::Results)
     vA = view(A, :, model.i_bkwrd_b)
     vA .= results.linearrationalexpectations.g1_1
     B .= results.linearrationalexpectations.g1_2
 end
 
-function stoch_simul!(context, field)
+function stoch_simul!(context::Context, field::Dict{String, Any})
     model = context.models[1]
     options = context.options
     results = context.results.model_results[1]
@@ -71,7 +71,7 @@ function stoch_simul!(context, field)
     end
 end
 
-function check!(context, field)
+function check!(context::Context, field::Dict{String, Any})
 end
 
 function compute_stoch_simul!(context)
@@ -133,7 +133,7 @@ function compute_first_order_solution!(
                             ws)
 end
 
-function compute_variance!(context)
+function compute_variance!(context::Context)
     m = context.models[1]
     results = context.results.model_results[1]
     Σy = results.endogenous_variance
@@ -209,13 +209,19 @@ function compute_variance!(context)
     vΣy1 .= transpose(vΣy2)
 end
     
-function simul_first_order!(results, initial_values, x, c, A, B, periods)
+function simul_first_order!(results::Results, initial_values::Vector{Float64}, x::AbstractVecOrMat{Float64}, c::Vector{Float64}, A::StridedVecOrMat{Float64}, B::StridedVecOrMat{Float64}, periods::Int64)
+    oldthreadnbr = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
+    @Threads.threads for t = 2:periods + 1
+        r = view(results, t, :)
+        e = view(x, t, :)
+        mul!(r, B, e)
+    end
+    BLAS.set_num_threads(oldthreadnbr)
     r_1 = view(results, 1, :)
     r_1 .= initial_values .- c
     for t = 2:periods + 1
         r = view(results, t, :)
-        e = view(x, t, :)
-        mul!(r, B, e)
         mul!(r, A, r_1, 1.0, 1.0)
         r_1 .+=  c
         r_1 = r

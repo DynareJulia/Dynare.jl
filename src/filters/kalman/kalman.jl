@@ -1,4 +1,4 @@
-function calib_smoother!(context, field)
+function calib_smoother!(context::Context, field::Dict{String, Any})
     symboltable = context.symboltable
     varobs = context.work.observed_variables
     varobs_ids = [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
@@ -99,7 +99,7 @@ end
 
 
 
-function make_state_space!(A, B, Σy, g1_1, g1_2, context, ws)
+function make_state_space!(A::VecOrMat{Float64}, B::VecOrMat{Float64}, Σy::Matrix{Float64}, g1_1::AbstractVecOrMat{Float64}, g1_2::AbstractVecOrMat{Float64}, context::Context, ws::LinearRationalExpectationsWs)
     vA = view(A, :, context.models[1].i_bckwrd_b)
     vA .= g1_1
     B = g1_2

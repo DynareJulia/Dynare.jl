@@ -25,7 +25,7 @@ function identify_period_frequency(period)::Periods.Frequency
     end
 end
 
-function get_data(filename, variables, options)
+function get_data(filename::String, variables::Vector{String}, options::Dict{String, Any})
     df = DataFrame(CSV.File(filename))
     if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES",
                                    "PERIOD", "PERIODS"]

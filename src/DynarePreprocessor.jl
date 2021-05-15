@@ -1,6 +1,6 @@
 using Artifacts
 
-function dynare_preprocess(modfilename, args)
+function dynare_preprocess(modfilename::String, args::Vector{Any})
     dynare_args = [basename(modfilename), "language=julia", "json=compute"]
     offset = 0
     for a in args
@@ -13,7 +13,7 @@ function dynare_preprocess(modfilename, args)
     run_dynare(modfilename, dynare_args)
 end
 
-function run_dynare(modfilename, dynare_args)
+function run_dynare(modfilename::String, dynare_args::Vector{String})
     directory = dirname(modfilename)
     if length(directory) > 0
         current_directory = pwd()

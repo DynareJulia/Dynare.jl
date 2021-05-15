@@ -1,10 +1,10 @@
 function plot(variables::Vector{Vector{Float64}};
-              bar_variable = [],
-              first_period = 1,
-              plot_title = "Smoothed value",
-              plot_legend = (),
-              plot_filename = "",
-              plot_legend_position = :topright)
+              bar_variable::Vector{Float64} = [],
+              first_period::Int64 = 1,
+              plot_title::String = "Smoothed value",
+              plot_legend::Tuple = (),
+              plot_filename::String = "",
+              plot_legend_position::Symbol = :topright)
     local myplot
     # deal first with bar variable
     if length(bar_variable) > 0
@@ -46,12 +46,12 @@ function plot(variables::Vector{Vector{Float64}};
 end
 
 function plot(variable::Vector{Float64};
-              bar_variable = [],
-              first_period = 1,
-              plot_title = "Smoothed value",
-              plot_legend = (),
-              plot_filename = "",
-              plot_legend_position = :topright)
+              bar_variable::Vector{Float64} = [],
+              first_period::Int64 = 1,
+              plot_title::String = "Smoothed value",
+              plot_legend::Tuple = (),
+              plot_filename::String = "",
+              plot_legend_position::Symbol = :topright)
     local myplot
     # deal first with bar variable
     if length(plot_legend) > 0

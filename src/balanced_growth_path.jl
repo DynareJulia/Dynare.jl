@@ -17,7 +17,7 @@ struct BalancedGrowthWs
     end
 end
 
-function balanced_growth_path(A, B, C, d, ws:BalancedGrowthWs)
+function balanced_growth_path(A::AbstractMatrix{Float64}, B::AbstractMatrix{Float64}, C::AbstractMatrix{Float64}, d::AbstractVector{Float64}, ws::BalancedGrowthWs)
     vJ = view(jacobian, :, ws.backward_nbr .+ ws.current_nbr .+ (1:ws.forward_nbr)) 
     ws.A1 .+= vj
     vJ = view(jacobian, :, ws.backward_nbr .+ ws.current_dynamic_indices) 
@@ -28,12 +28,12 @@ function balanced_growth_path(A, B, C, d, ws:BalancedGrowthWs)
     balanced_growth_compute(ws.A1, ws.B, d, ws)
 end
 
-function balanced_growth_path(A, B, d, ws:BalancedGrowthWs)
+function balanced_growth_path(A::AbstractMatrix{Float64}, B::AbstractMatrix{Float64}, d::AbstractVector{Float64}, ws::BalancedGrowthWs)
     ws.A1 .= A .+ B
     balanced_growth_compute(ws.A1, B, d, ws)
 end
 
-function balanced_growth_compute(A1, A2, d, ws)
+function balanced_growth_compute(A1::AbstractMatrix{Float64}, A2::AbstractMatrix{Float64}, d::AbstractVector{Float64}, ws::BalancedGrowthWs)
     n = length(d)
     println("m $n")
     ws = QrpWs(A1)

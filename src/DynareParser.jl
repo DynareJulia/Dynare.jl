@@ -27,8 +27,8 @@ context = Context(Dict{String, DynareSymbol}(),
                        )
                   )
                          
-function parser(modfilename, commandlineoptions)
-    modelstring = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
+function parser(modfilename::String, commandlineoptions::CommandLineOptions)
+    modelstring::String = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
     
     symboltable = SymbolTable()
@@ -110,7 +110,7 @@ function parser(modfilename, commandlineoptions)
     return context
 end
 
-function parse_statements!(context, statements)
+function parse_statements!(context::Context, statements::Vector{Any})
     for field in statements
         if field["statementName"] == "calib_smoother"
             calib_smoother!(context, field)
@@ -159,41 +159,41 @@ function dynare_eval(expr::Expr, context::Context)
     return expr
 end
 
-function dynare_eval(s::Symbol, context)
+function dynare_eval(s::Symbol, context::Context)
     symboltable = context.symboltable
     ks = keys(symboltable)
     params = context.work.params
     ss = string(s)
     if ss in ks
         st = symboltable[ss]
-        if st.type == Dynare.Parameter
+        if st.symboltype == Dynare.Parameter
             s = params[st.orderintype]
         end
     end
     return s
 end
 
-function dynare_eval(x::Real, context)
+function dynare_eval(x::Real, context::Context)
     return x
 end
 
-function dynare_eval(s::String, context)
+function dynare_eval(s::String, context::Context)
     return s
 end
 
-function dynare_eval(q::QuoteNode, context)
+function dynare_eval(q::QuoteNode, context::Context)
     return q
 end
 
 function set_symbol_table!(table::Dict{String, DynareSymbol},
-                           modelfile,
-                           type::SymbolType)
+                           modelfile::Vector{Any},
+                           symboltype::SymbolType)
     count = 0
     for entry in modelfile
         count += 1
         symbol = DynareSymbol(entry["longName"],
                               entry["texName"],
-                              type,
+                              symboltype,
                               count)
         table[entry["name"]] = symbol
 
@@ -201,7 +201,7 @@ function set_symbol_table!(table::Dict{String, DynareSymbol},
     return count
 end
 
-get_model_info(field) =
+get_model_info(field::Dict{String, Any}) =
     ModelInfo(hcat(field["lead_lag_incidence"]...),
               field["nstatic"],
               field["nfwrd"],
@@ -230,12 +230,12 @@ get_model_info(field) =
               field["NNZDerivatives"]
               )
                                   
-function verbatim(field)
+function verbatim(field::Dict{String, Any})
 #    println("VERBATIM: $field")
 end
 
 function get_smoothed_values(variable_name::String;
-                             context=context)
+                             context::Context=context)
     k = context.symboltable[variable_name].orderintype
     return context.results.model_results[1].smoother["alphah"][k,:]
 end

@@ -1,6 +1,6 @@
 using PrettyTables
 
-function dynare_table_text(data, title, column_header, row_header, note, fmt)
+function dynare_table_text(data::AbstractVecOrMat{Any}, title::String, column_header::Vector, row_header::Vector, note::String; fmt="%10.4f")
     if length(title) > 0
         pretty_table([title],
                      noheader = true,
@@ -29,7 +29,7 @@ function dynare_table_text(data, title, column_header, row_header, note, fmt)
     end
 end
 
-function dynare_table_latex(data, title, column_header, row_header, note, fmt)
+function dynare_table_latex(data::AbstractVecOrMat{Any}, title::String, column_header::Vector, row_header::Vector, note::String; fmt="%10.4f")
     io = IOBuffer()
     write(io, "\\begin{table}[h]\n")
     write(io, "\\centering\n")
@@ -58,11 +58,11 @@ function dynare_table_latex(data, title, column_header, row_header, note, fmt)
     return String(take!(io))
 end
 
-function dynare_table(data, title, column_header, row_header, note;
-                      fmt="%10.4f", backend=Val(:text))
+function dynare_table(data::AbstractVecOrMat{Any}, title::String, column_header::Vector, row_header::Vector, note::String;
+                      fmt::String="%10.4f", backend=Val(:text))
     if backend == Val(:text)
-        dynare_table_text(data, title, column_header, row_header, note, fmt)
+        dynare_table_text(data, title, column_header, row_header, note, fmt=fmt)
     else
-        dynare_table_latex(data, title, column_header, row_header, note, fmt)
+        dynare_table_latex(data, title, column_header, row_header, note, fmt=fmt)
     end
 end
