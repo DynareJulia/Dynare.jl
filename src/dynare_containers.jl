@@ -1,3 +1,4 @@
+import Base
 using LinearRationalExpectations
 using TimeDataFrames
 
@@ -92,15 +93,16 @@ struct Model
     steady_state!::Module
 end
 
-function Model(modfilename, endogenous_nbr, lead_lag_incidence,
-               exogenous_nbr, lagged_exogenous_nbr, exogenous_deterministic_nbr,
-               parameter_nbr, maximum_endo_lag, maximum_endo_lead,
-               maximum_exo_lag, maximum_exo_lead, maximum_exo_det_lag,
-               maximum_exo_det_lead, maximum_lag, maximum_lead,
-               orig_maximum_endo_lag, orig_maximum_endo_lead,
-               orig_maximum_exo_lag, orig_maximum_exo_lead,
-               orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
-               orig_maximum_lag, orig_maximum_lead, NNZDerivatives, compileoption)
+function Model(modfilename::String, endogenous_nbr::Int64,
+               lead_lag_incidence::Matrix{Int64},
+               exogenous_nbr::Int64, lagged_exogenous_nbr::Int64, exogenous_deterministic_nbr::Int64,
+               parameter_nbr::Int64, maximum_endo_lag::Int64, maximum_endo_lead::Int64,
+               maximum_exo_lag::Int64, maximum_exo_lead::Int64, maximum_exo_det_lag::Int64,
+               maximum_exo_det_lead::Int64, maximum_lag, maximum_lead::Int64,
+               orig_maximum_endo_lag::Int64, orig_maximum_endo_lead::Int64,
+               orig_maximum_exo_lag::Int64, orig_maximum_exo_lead::Int64,
+               orig_maximum_exo_det_lag::Int64, orig_maximum_exo_det_lead::Int64,
+               orig_maximum_lag::Int64, orig_maximum_lead::Int64, NNZDerivatives::Vector{Int64}, compileoption::Bool)
     i_static = findall((lead_lag_incidence[1,:] .== 0) .& (lead_lag_incidence[3,:] .== 0))
     p_static = lead_lag_incidence[2,i_static]
     i_dyn = findall((lead_lag_incidence[1,:] .> 0) .| (lead_lag_incidence[3,:] .> 0))
@@ -178,16 +180,16 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
                                     compileoption)
     static! = load_dynare_function(modfilename*"Static",
                                    compileoption)
-    if isfile(modfilename*"DynamicSetAuxiliarySeries")
+    if isfile(modfilename*"DynamicSetAuxiliarySeries.jl")
         set_dynamic_auxiliary_variables! =
             load_dynare_function(modfilename*"DynamicSetAuxiliarySeries",
                                  compileoption)
     else
         set_dynamic_auxiliary_variables! = Module()
     end
-    if isfile(modfilename*"SetAuxiliarySeries")
+    if isfile(modfilename*"SetAuxiliaryVariables.jl")
         set_auxiliary_variables! =
-            load_dynare_function(modfilename*"SetAuxiliarySeries",
+            load_dynare_function(modfilename*"SetAuxiliaryVariables",
                                  compileoption)
     else
         set_auxiliary_variables! = Module()
@@ -224,12 +226,16 @@ function Model(modfilename, endogenous_nbr, lead_lag_incidence,
           steady_state!)
 end
 
+Base.show(io::IO, m::Model) = show_field_value(m)
+
 struct Simulation
     name::String
     statement::String
     options::Dict{String, Any}
     data::TimeDataFrame
 end
+
+Base.show(io::IO, s::Simulation) = show_field_value(s)
 
 struct Trends
     endogenous_steady_state::Vector{Float64}
@@ -241,7 +247,7 @@ struct Trends
     exogenous_det_steady_state::Vector{Float64}
     exogenous_det_linear_trend::Vector{Float64}
     exogenous_det_quadratic_trend::Vector{Float64}
-    function Trends(ny, nx, nxd)
+    function Trends(ny::Int64, nx::Int64, nxd::Int64)
         endogenous_steady_state = Vector{Float64}(undef, ny)
         endogenous_linear_trend = Vector{Float64}(undef, ny)
         endogenous_quadratic_trend = Vector{Float64}(undef, ny)
@@ -259,6 +265,8 @@ struct Trends
     end
 end
 
+Base.show(io::IO, t::Trends) = show_field_value(t)
+
 mutable struct ModelResults
     endogenous_steady_state::Vector{Float64}
     trends::Trends
@@ -270,6 +278,8 @@ mutable struct ModelResults
     simulations::Vector{Simulation}
     smoother::Dict{String, Any}
 end
+
+Base.show(io::IO, r::ModelResults) = show_field_value(r)
 
 struct Results
     model_results::Vector{ModelResults}
@@ -288,17 +298,23 @@ mutable struct Work
     histval::Matrix{Float64}
 end
 
+Base.show(io::IO, w::Work) = show_field_value(w)
+
 @enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
 
 struct DynareSymbol
     longname::String
     texname::String
-    type::SymbolType
+    symboltype::SymbolType
     orderintype::Integer
 end
 
+Base.show(io::IO, ds::DynareSymbol) = show_field_value(ds)    
+
+const SymbolTable = Dict{String, DynareSymbol}
+
 mutable struct Context
-    symboltable::Dict{String, DynareSymbol}
+    symboltable::SymbolTable
     models::Vector{Model}
     options::Dict
     results::Results
@@ -307,29 +323,37 @@ end
 
 struct ModelInfo
     lead_lag_incidence::Matrix{Int64}
-    nstatic
-    nfwrd
-    npred
-    nboth
-    nsfwrd
-    nspred
-    ndynamic
-    maximum_endo_lag
-    maximum_endo_lead
-    maximum_exo_lag
-    maximum_exo_lead
-    maximum_exo_det_lag
-    maximum_exo_det_lead
-    maximum_lag
-    maximum_lead
-    orig_maximum_endo_lag
-    orig_maximum_endo_lead
-    orig_maximum_exo_lag
-    orig_maximum_exo_lead
-    orig_maximum_exo_det_lag
-    orig_maximum_exo_det_lead
-    orig_maximum_lag
-    orig_maximum_lead
-    NNZDerivatives
+    nstatic::Int64
+    nfwrd::Int64
+    npred::Int64
+    nboth::Int64
+    nsfwrd::Int64
+    nspred::Int64
+    ndynamic::Int64
+    maximum_endo_lag::Int64
+    maximum_endo_lead::Int64
+    maximum_exo_lag::Int64
+    maximum_exo_lead::Int64
+    maximum_exo_det_lag::Int64
+    maximum_exo_det_lead::Int64
+    maximum_lag::Int64
+    maximum_lead::Int64
+    orig_maximum_endo_lag::Int64
+    orig_maximum_endo_lead::Int64
+    orig_maximum_exo_lag::Int64
+    orig_maximum_exo_lead::Int64
+    orig_maximum_exo_det_lag::Int64
+    orig_maximum_exo_det_lead::Int64
+    orig_maximum_lag::Int64
+    orig_maximum_lead::Int64
+    NNZDerivatives::Vector{Int64}
 end
 
+Base.show(io::IO, m::ModelInfo) = show_field_value(m)
+
+function show_field_value(s::Dict{Any, Any})
+    fn = fieldnames(typeof(s))
+    for f in fn
+        println("$f: $(getproperty(s, f))")
+    end
+end
