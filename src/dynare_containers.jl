@@ -351,7 +351,7 @@ end
 
 Base.show(io::IO, m::ModelInfo) = show_field_value(m)
 
-function show_field_value(s::Dict{Any, Any})
+function show_field_value(s::Any)
     fn = fieldnames(typeof(s))
     for f in fn
         println("$f: $(getproperty(s, f))")
