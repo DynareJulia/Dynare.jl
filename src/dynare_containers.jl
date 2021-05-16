@@ -4,6 +4,8 @@ using TimeDataFrames
 
 export Context, DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
 
+DynareOptions = Dict{String, Any}
+
 struct Model
     endogenous_nbr::Int64
     exogenous_nbr::Int64
@@ -231,7 +233,7 @@ Base.show(io::IO, m::Model) = show_field_value(m)
 struct Simulation
     name::String
     statement::String
-    options::Dict{String, Any}
+    options::DynareOptions
     data::TimeDataFrame
 end
 
@@ -267,7 +269,7 @@ end
 
 Base.show(io::IO, t::Trends) = show_field_value(t)
 
-mutable struct ModelResults
+struct ModelResults
     endogenous_steady_state::Vector{Float64}
     trends::Trends
     endogenous_variance::Matrix{Float64}
@@ -285,16 +287,16 @@ struct Results
     model_results::Vector{ModelResults}
 end
 
-mutable struct Work
+struct Work
     params::Vector{Float64}
     residuals::Vector{Float64}
     temporary_values::Vector{Float64}
     dynamic_variables::Vector{Float64}
-    exogenous_variables::Matrix{Float64}
+    exogenous_varixoables::Matrix{Float64}
     observed_variables::Vector{String}
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
-    model_has_trend::Bool
+    model_has_trend::Vector{Bool}
     histval::Matrix{Float64}
 end
 
@@ -313,10 +315,10 @@ Base.show(io::IO, ds::DynareSymbol) = show_field_value(ds)
 
 const SymbolTable = Dict{String, DynareSymbol}
 
-mutable struct Context
+struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    options::Dict
+    options::DynareOptions
     results::Results
     work::Work
 end

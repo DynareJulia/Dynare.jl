@@ -30,7 +30,7 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
-function load_dynare_function(modname::String, compileoption::Bool)
+function load_dynare_function(modname::String, compileoption::Bool)::Module
     if compileoption
         fun = readlines(modname*".jl")
         return(eval(Meta.parse(join(fun, "\n"))))
@@ -88,7 +88,11 @@ function get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vecto
                        steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli)
-    work.exogenous_variables = repeat(transpose(exogenous), size(lli, 1), 1)
+    nr, nc = size(work.exogenous_variables)
+    nrx = period + m.maximum_exo_lead 
+    if nr < nrx
+        resize!(work.exogenous_variables, nrx, nc)
+    work.exogenous_variables .= transpose(exogenous)
     fill!(work.jacobian, 0.0)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,

@@ -10,23 +10,6 @@ using Periods
 using StatsFuns
 using TimeDataFrames
 
-context = Context(Dict{String, DynareSymbol}(),
-                  Vector{Model}(undef, 0),
-                  Dict(),
-                  Results(Vector{ModelResults}(undef, 0)),
-                  Work(Vector{Float64}(undef, 0),
-                       Vector{Float64}(undef, 0),
-                       Vector{Float64}(undef, 0),
-                       Vector{Float64}(undef, 0),
-                       Matrix{Float64}(undef, 0, 0),
-                       Vector{Int64}(undef, 0),
-                       Matrix{Float64}(undef, 0, 0),
-                       Matrix{Float64}(undef, 0, 0),
-                       false,
-                       Matrix{Float64}(undef, 0, 0)
-                       )
-                  )
-                         
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     modelstring::String = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
@@ -92,21 +75,26 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
     ncol1 = ncol + model.exogenous_nbr
     nrow = model.maximum_exo_lag + model.maximum_exo_lead + 1
+    tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
+    @show nrow
     work = Work(Vector{Float64}(undef, model.parameter_nbr),
                 Vector{Float64}(undef, model.endogenous_nbr),
-                Vector{Float64}(undef, sum(model.dynamic!.tmp_nbr[1:2])),
+                Vector{Float64}(undef, sum(tmp_nbr[1:2])),
                 Vector{Float64}(undef, ncol),
                 Matrix{Float64}(undef, nrow, model.exogenous_nbr),
                 varobs, 
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
-                false,
+                [false],
                 Matrix{Float64}(undef, 0, 0))
     results = Results([modelresults])
+
     global context = Context(symboltable, [model], Dict(), results, work)
+
     if "statements" in keys(modeljson)
         parse_statements!(context, modeljson["statements"])
     end
+
     return context
 end
 
@@ -146,7 +134,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
     end
 end
 
-function dynare_parse_eval(s::String, context::Context)
+function dynare_parse_eval(s::String, context::Context)::Union{Symbol, Real, String, Nothing}
     e = Meta.parse(s)
     e = dynare_eval(e, context)
     return eval(e)
@@ -159,7 +147,7 @@ function dynare_eval(expr::Expr, context::Context)
     return expr
 end
 
-function dynare_eval(s::Symbol, context::Context)
+function dynare_eval(s::Symbol, context::Context)::Union{Symbol, Float64}
     symboltable = context.symboltable
     ks = keys(symboltable)
     params = context.work.params
@@ -187,7 +175,7 @@ end
 
 function set_symbol_table!(table::Dict{String, DynareSymbol},
                            modelfile::Vector{Any},
-                           symboltype::SymbolType)
+                           symboltype::SymbolType)::Int64
     count = 0
     for entry in modelfile
         count += 1

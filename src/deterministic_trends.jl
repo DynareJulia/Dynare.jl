@@ -3,7 +3,7 @@ function deterministic_trends!(context::Context, field::Dict{String, Any})
     work = context.work
     trend = context.results.model_results[1].trends.endogenous_linear_trend
     symboltable = context.symboltable
-    work.model_has_trend = true
+    work.model_has_trend[1] = true
     fill!(trend, 0.0)
     for (key, value) in field["trends"]
         trend[symboltable[key].orderintype] = work.params[symboltable[value].orderintype]

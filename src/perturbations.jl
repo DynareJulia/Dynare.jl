@@ -28,7 +28,7 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
     options = context.options
     results = context.results.model_results[1]
     work = context.work
-    options["stoch_simul"] = Dict()
+    options["stoch_simul"] = DynareOptions()
     copy!(options["stoch_simul"], field["options"])
     #check_parameters(work.params, context.symboltable)
     #check_endogenous(results.trends.endogenous_steady_state)
@@ -45,7 +45,7 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
         histval = work.histval
         if size(histval, 1) == 0
             # no histval
-            if work.model_has_trend
+            if work.model_has_trend[1]
                 y0 = steadystate - linear_trend
             else
                 y0 = steadystate
@@ -61,7 +61,7 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
         B = zeros(model.endogenous_nbr, model.exogenous_nbr)
         make_A_B!(A, B, model, results)
         simul_first_order!(simulresults, y0, x, steadystate, A, B, periods)
-        if work.model_has_trend
+        if work.model_has_trend[1]
             simulresults .+= collect(0:periods) * transpose(linear_trend) 
         end
         first_period = get(options["stoch_simul"], "first_periods", 1)
@@ -74,7 +74,7 @@ end
 function check!(context::Context, field::Dict{String, Any})
 end
 
-function compute_stoch_simul!(context)
+function compute_stoch_simul!(context::Context)
     model = context.models[1]
     results = context.results.model_results[1]
     options = context.options["stoch_simul"]
@@ -93,7 +93,7 @@ function compute_first_order_solution!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
-    model::Model, work::Work, options)
+    model::Model, work::Work, options::DynareOptions)
 
     # abbreviations
     LRE = LinearRationalExpectations
