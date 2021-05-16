@@ -17,7 +17,7 @@ function display_stoch_simul(x::AbstractVecOrMat{Float64}, title::String, contex
     dynare_table(data, title, column_header, row_header, note)
 end
 
-function make_A_B!(A::Matrix{Float64}, B::Matrix{Float64}, model::Model, results::Results)
+function make_A_B!(A::Matrix{Float64}, B::Matrix{Float64}, model::Model, results::ModelResults)
     vA = view(A, :, model.i_bkwrd_b)
     vA .= results.linearrationalexpectations.g1_1
     B .= results.linearrationalexpectations.g1_2
@@ -209,7 +209,7 @@ function compute_variance!(context::Context)
     vΣy1 .= transpose(vΣy2)
 end
     
-function simul_first_order!(results::Results, initial_values::Vector{Float64}, x::AbstractVecOrMat{Float64}, c::Vector{Float64}, A::StridedVecOrMat{Float64}, B::StridedVecOrMat{Float64}, periods::Int64)
+function simul_first_order!(results::AbstractMatrix{Float64}, initial_values::AbstractVector{Float64}, x::AbstractVecOrMat{Float64}, c::AbstractVector{Float64}, A::StridedVecOrMat{Float64}, B::StridedVecOrMat{Float64}, periods::Int64)
     oldthreadnbr = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
     @Threads.threads for t = 2:periods + 1

@@ -5,7 +5,7 @@ function calib_smoother!(context::Context, field::Dict{String, Any})
     model = context.models[1]
     options = context.options
     results = context.results.model_results[1]
-    options["calib_smoother"] = Dict()
+    options["calib_smoother"] = DynareOptions()
     copy!(options["calib_smoother"], field["options"])
     file = get(options["calib_smoother"], "datafile", "")
     if (filename = get(options["calib_smoother"], "datafile", "")) != ""

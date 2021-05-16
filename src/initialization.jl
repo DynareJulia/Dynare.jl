@@ -7,7 +7,7 @@ function histval!(context::Context, field::Dict{String, Any})
         l = m.orig_maximum_lag - v["lag"]
         histval[l, k] = dynare_parse_eval(v["value"], context)
     end
-    context.work.histval = histval
+    context.work.histval .= histval
 end
 
 function param_init!(context::Context, field::Dict{String, Any})

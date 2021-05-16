@@ -79,6 +79,10 @@ function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Floa
     end
 end
 
+function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
+    return reshape(x, Int(length(x)/exogenous_nbr), exogenous_nbr)
+end
+
 """
 get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
 
@@ -88,18 +92,22 @@ function get_jacobian!(work::Work, endogenous::Vector{Float64}, exogenous::Vecto
                        steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli)
-    nr, nc = size(work.exogenous_variables)
-    nrx = period + m.maximum_exo_lead 
-    if nr < nrx
-        resize!(work.exogenous_variables, nrx, nc)
-    work.exogenous_variables .= transpose(exogenous)
+    lx = length(work.exogenous_variables)
+    nrx = period + m.maximum_exo_lead
+    required_lx = nrx*m.exogenous_nbr
+    if lx < required_lx
+        resize!(work.exogenous_variables, required_lx)
+        lx = required_lx
+    end
+    x = get_exogenous_matrix(work.exogenous_variables, m.exogenous_nbr)
+    x .= transpose(exogenous)
     fill!(work.jacobian, 0.0)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,
                       work.residuals,
                       work.jacobian,
                       work.dynamic_variables,
-                      work.exogenous_variables,
+                      x,
                       work.params,
                       steadystate,
                       period)  
@@ -114,20 +122,12 @@ around ``period``
 function get_jacobian!(work::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(work.dynamic_variables, endogenous, lli, m, period)
-    save("gimf1.jld",
-         "temp", work.temporary_values,
-         "residuals", work.residuals,
-         "jacobian", work.jacobian,
-         "dynamic_vars", work.dynamic_variables,
-         "exogenous", exogenous,
-         "params", work.params,
-         "steadystate", steadystate,
-         "period", period)
+    x = get_exogenous_matrix(work.exogenous_variables, m.exogenous_nbr)
     Base.invokelatest(m.dynamic!.dynamic!,
                       work.temporary_values,
                       work.residuals,
                       work.jacobian,
-                      work.dynamic_variables,
+                      x,
                       exogenous,
                       work.params,
                       steadystate,

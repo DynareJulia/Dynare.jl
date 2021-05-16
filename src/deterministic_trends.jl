@@ -10,20 +10,20 @@ function deterministic_trends!(context::Context, field::Dict{String, Any})
     end
 end
 
-function remove_linear_trend!(data_out::AbstractVecOrMat{Float64}, data_in::AbstractVecOrMat{Float64},
+function remove_linear_trend!(data_out::Any, data_in::Any,
                               steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64}; row::Int64 = 1)
     n = size(data_in, 2)
     linear_trend = collect(row - 1 .+ (1:n))
     data_out .= data_in .- steady_state .- linear_trend_coeffs.*transpose(linear_trend)
 end
     
-function add_linear_trend!(data_out::AbstractVecOrMat{Float64}, data_in::AbstractVecOrMat{Float64}, steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64}; row::Int64 = 1)
+function add_linear_trend!(data_out::Any, data_in::Any, steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64}; row::Int64 = 1)
     n = size(data_in, 2)
     linear_trend = collect(row - 1 .+ (1:n))
     data_out .= data_in .+ steady_state .+ linear_trend_coeffs.*transpose(linear_trend)
 end
     
-function remove_quadratic_trend!(data_out::AbstractVecOrMat{Float64}, data_in::AbstractVecOrMat{Float64}, steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64},
+function remove_quadratic_trend!(data_out::Any, data_in::Any, steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64},
                                  quadratic_trend_coeffs::AbstractVector{Float64}; row = 1)
     n = size(data_in, 2)
     linear_trend = collect(row - 1 .+ (1:n))
@@ -33,7 +33,7 @@ function remove_quadratic_trend!(data_out::AbstractVecOrMat{Float64}, data_in::A
                 .- quadratic_trend_coeffs.*transpose(quadratic_trend))
 end
     
-function add_quadratic_trend!(data_out::AbstractVecOrMat{Float64}, data_in::AbstractVecOrMat{Float64}, steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64},
+function add_quadratic_trend!(data_out::Any, data_in::Any, steady_state::AbstractVector{Float64}, linear_trend_coeffs::AbstractVector{Float64},
                               quadratic_trend_coeffs::AbstractVector{Float64}; row::Int64 = 1)
     n = size(data_in, 2)
     linear_trend = collect(row - 1 .+ (1:n))

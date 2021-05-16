@@ -74,19 +74,20 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
                                 Dict{String, Any}())
     ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
     ncol1 = ncol + model.exogenous_nbr
-    nrow = model.maximum_exo_lag + model.maximum_exo_lead + 1
     tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
-    @show nrow
     work = Work(Vector{Float64}(undef, model.parameter_nbr),
                 Vector{Float64}(undef, model.endogenous_nbr),
                 Vector{Float64}(undef, sum(tmp_nbr[1:2])),
                 Vector{Float64}(undef, ncol),
-                Matrix{Float64}(undef, nrow, model.exogenous_nbr),
+                # reserve enough space for a single period computation
+                Vector{Float64}(undef, 3*model.exogenous_nbr),
                 varobs, 
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 [false],
-                Matrix{Float64}(undef, 0, 0))
+                Matrix{Float64}(undef,
+                                model.orig_maximum_lag + 1,
+                                model.endogenous_nbr))
     results = Results([modelresults])
 
     global context = Context(symboltable, [model], Dict(), results, work)

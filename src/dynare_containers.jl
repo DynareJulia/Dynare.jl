@@ -292,7 +292,7 @@ struct Work
     residuals::Vector{Float64}
     temporary_values::Vector{Float64}
     dynamic_variables::Vector{Float64}
-    exogenous_varixoables::Matrix{Float64}
+    exogenous_variables::Vector{Float64}
     observed_variables::Vector{String}
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
