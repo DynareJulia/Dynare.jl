@@ -5,14 +5,11 @@ using Revise
 
 gr()
 
-mutable struct CommandLineOptions
-    compilemodule::Bool
-    function CommandLineOptions()
-        compilemodule = true
-        new(compilemodule)
-    end
+@Base.kwdef struct CommandLineOptions
+    compilemodule::Bool = true
 end
-        
+
+include("utils.jl")
 include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
@@ -37,15 +34,16 @@ export @dynare
 
 macro dynare(modfile_arg::String, args...)
     modname = get_modname(modfile_arg)
-    options = CommandLineOptions()
     arglist = []
+    compilemodule = true
     for (i, a) in enumerate(args)
         if a == :nocompile
-            options.compilemodule = false
+            compilemodule = false
         else
             push!(arglist, a)
         end
     end
+    options = CommandLineOptions(compilemodule)
     modfilename = modname*".mod"
     dynare_preprocess(modfilename, arglist)
     context = parser(modname, options)

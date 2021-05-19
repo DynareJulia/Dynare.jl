@@ -1,7 +1,7 @@
 function display_stoch_simul(x::AbstractVecOrMat{Float64}, title::String, context::Context)
     endogenous_names = get_endogenous_longname(context.symboltable)
     emptyrow = ["" for _= 1:size(x,1)]
-    column_header = []
+    column_header = Vector{String}(undef, 0)
     #    map(x -> push!(column_header, string(x, "\U0209C")), endogenous_names)
     map(x -> push!(column_header, "$(x)_t"), endogenous_names)
     row_header = [""]
@@ -23,16 +23,50 @@ function make_A_B!(A::Matrix{Float64}, B::Matrix{Float64}, model::Model, results
     B .= results.linearrationalexpectations.g1_2
 end
 
+struct StochSimulOptions
+    dr_algo::String
+    first_period::Int64
+    irf::Int64
+    LRE_options::LinearRationalExpectationsOptions
+    order::Int64
+    periods::Int64
+    function StochSimulOptions(options::Dict{String, Any})
+        dr_algo = "GS"
+        first_period = 1
+        irf = 40
+        LRE_options = LinearRationalExpectationsOptions()
+        order = 1
+        periods = 0
+        for (k, v) in pairs(options)
+            if k == "dr_cycle_reduction" && v::Bool
+                dr_algo = "CR"
+            elseif k == "first_period"    
+                first_period = v::Int64
+            elseif k == "irf"
+                irf = v::Int64
+            elseif k == "order"
+                order = v::Int64
+            elseif k == "periods"
+                periods = v::Int64
+            end
+        end
+        new(dr_algo, first_period, irf, LRE_options,
+            order, periods)
+    end
+end
+
 function stoch_simul!(context::Context, field::Dict{String, Any})
+    options = StochSimulOptions(field["options"])
+    stoch_simul_core!(context, options)
+end
+
+function stoch_simul_core!(context::Context, options::StochSimulOptions)
     model = context.models[1]
-    options = context.options
     results = context.results.model_results[1]
     work = context.work
-    options["stoch_simul"] = DynareOptions()
-    copy!(options["stoch_simul"], field["options"])
     #check_parameters(work.params, context.symboltable)
     #check_endogenous(results.trends.endogenous_steady_state)
-    compute_stoch_simul!(context)
+    compute_stoch_simul!(context, options)
     compute_variance!(context)
     x = results.linearrationalexpectations.g1
     vx = view(x, :, 1:size(x, 2) - 1)
@@ -40,7 +74,7 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
     linear_trend = results.trends.endogenous_linear_trend
     y0 = copy(steadystate)
     display_stoch_simul(vx', "Coefficients of approximate solution function", context)
-    if (periods = get(options["stoch_simul"], "periods", 0)) > 0
+    if (periods = options.periods) > 0
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
         if size(histval, 1) == 0
@@ -64,20 +98,19 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
         if work.model_has_trend[1]
             simulresults .+= collect(0:periods) * transpose(linear_trend) 
         end
-        first_period = get(options["stoch_simul"], "first_periods", 1)
+        first_period = options.first_period
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
         data = TimeDataFrame(simulresults, Periods.Undated, first_period, endogenous_names)
-        push!(results.simulations, Simulation("", "stoch_simul", options["stoch_simul"], data))
+        push!(results.simulations, Simulation("", "stoch_simul", data))
     end
 end
 
 function check!(context::Context, field::Dict{String, Any})
 end
 
-function compute_stoch_simul!(context::Context)
+function compute_stoch_simul!(context::Context, options::StochSimulOptions)
     model = context.models[1]
     results = context.results.model_results[1]
-    options = context.options["stoch_simul"]
     work = context.work
     compute_steady_state!(context)
     endogenous = results.trends.endogenous_steady_state
@@ -93,22 +126,15 @@ function compute_first_order_solution!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
-    model::Model, work::Work, options::DynareOptions)
+    model::Model, work::Work, options::StochSimulOptions)
 
     # abbreviations
     LRE = LinearRationalExpectations
     LREWs = LinearRationalExpectationsWs
 
-    options["cyclic_reduction"] = Dict()
-    options["generalized_schur"] = Dict()
-
     get_jacobian!(work, endogenous, exogenous, steadystate,
                   model, 2)
-    if isnothing(get(options,"LRE_solver", nothing))
-        algo = "GS"
-    else
-        algo = "CR"
-    end
+    algo = options.dr_algo
     ws = LREWs(algo,
                model.endogenous_nbr,
                model.exogenous_nbr,
@@ -121,15 +147,13 @@ function compute_first_order_solution!(
     LRE.remove_static!(work.jacobian, ws)
     if algo == "GS"
         LRE.get_de!(ws, work.jacobian)
-        options["generalized_schur"]["criterium"] = 1 + 1e-6
     else
         LRE.get_abc!(ws, work.jacobian)
-        options["cyclic_reduction"]["tol"] = 1e-8
     end
     LRE.first_order_solver!(results,
                             algo,
                             work.jacobian,
-                            options,
+                            options.LRE_options,
                             ws)
 end
 

@@ -10,18 +10,38 @@ using Periods
 using StatsFuns
 using TimeDataFrames
 
-function parser(modfilename::String, commandlineoptions::CommandLineOptions)
+@noinline function parseJSON(modfilename::String)
     modelstring::String = open(f -> read(f, String), modfilename*"/model/json/modfile.json")
     modeljson = JSON.parse(modelstring)
-    
-    symboltable = SymbolTable()
-    endo_nbr = set_symbol_table!(symboltable, modeljson["endogenous"], Endogenous)
-    exo_nbr = set_symbol_table!(symboltable, modeljson["exogenous"], Exogenous)
+    return modeljson
+end
+
+function get_symbol_table(modeljson::Dict{String, Any})
+    symboltable = Dict{String, Any}()
+
+    endo_nbr = set_symbol_table!(symboltable,
+                                 modeljson["endogenous"],
+                                 Endogenous)
+    exo_nbr = set_symbol_table!(symboltable,
+                                modeljson["exogenous"],
+                                Exogenous)
     exo_det_nbr = set_symbol_table!(symboltable,
                                     modeljson["exogenous_deterministic"],
                                     ExogenousDeterministic)
-    param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
-    model_info = get_model_info(modeljson["model_info"])
+    param_nbr = set_symbol_table!(symboltable,
+                                  modeljson["parameters"],
+                                  Parameter)
+    return (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr)
+end
+
+function get_model(modfilename::String,
+                   dynare_model_info::Dict{String, Any},
+                   commandlineoptions::CommandLineOptions,
+                   endo_nbr::Int64, exo_nbr::Int64,
+                   exo_det_nbr::Int64, param_nbr::Int64)
+    model_info = get_model_info(dynare_model_info)
+
+    NNZDerivatives = [Int64(n) for n in model_info.NNZDerivatives]
 
     model = Model(modfilename,
                   endo_nbr,
@@ -46,21 +66,28 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
                   model_info.orig_maximum_exo_det_lead,
                   model_info.orig_maximum_lag,
                   model_info.orig_maximum_lead,
-                  model_info.NNZDerivatives,
+                  NNZDerivatives,
                   commandlineoptions.compilemodule
                   )
+    return model
+end
+
+function get_varobs(modeljson::Dict{String, Any})
     varobs = Vector{String}()
     if "varobs" in keys(modeljson)
-        varobs = vcat(varobs, modeljson["varobs"])
+        varobs = vcat(varobs, Vector{String}(modeljson["varobs"]))
     end
     if "varexobs" in keys(modeljson)
-        varobs = vcat(varobs,modeljson["varexobs"])
+        varobs = vcat(varobs, Vector{String}(modeljson["varexobs"]))
     end
     if "varexdetobs" in keys(modeljson)
-        varobs = vcat(varobs,modeljson["varexdetobs"])
+        varobs = vcat(varobs, Vector{String}(modeljson["varexdetobs"]))
     end
+    return varobs
+end
 
-    order = 1
+function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, param_nbr::Int64,
+                         model::Model, symboltable::Dict{String, Any}, varobs::Vector{String})
     modelresults = ModelResults(Vector{Float64}(undef, endo_nbr),
                                 Trends(endo_nbr, exo_nbr, exo_det_nbr),
                                 Matrix{Float64}(undef, endo_nbr, endo_nbr),
@@ -90,13 +117,32 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
                                 model.endogenous_nbr))
     results = Results([modelresults])
 
-    global context = Context(symboltable, [model], Dict(), results, work)
+    return Context(symboltable, [model], results, work)
+end
 
+function parser(modfilename::String, commandlineoptions::CommandLineOptions)
+    modeljson = parseJSON(modfilename)
+
+    (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr) =
+        get_symbol_table(modeljson)
+
+    model = get_model(modfilename,
+                      modeljson["model_info"],
+                      commandlineoptions,
+                      endo_nbr, exo_nbr, exo_det_nbr,
+                      param_nbr)
+
+    varobs = get_varobs(modeljson)
+
+    global context = make_containers(endo_nbr, exo_nbr, exo_det_nbr,
+                                     param_nbr, model, symboltable,
+                                     varobs)
+    
     if "statements" in keys(modeljson)
         parse_statements!(context, modeljson["statements"])
     end
-
     return context
+
 end
 
 function parse_statements!(context::Context, statements::Vector{Any})
@@ -174,9 +220,11 @@ function dynare_eval(q::QuoteNode, context::Context)
     return q
 end
 
-function set_symbol_table!(table::Dict{String, DynareSymbol},
+function set_symbol_table!(table::Dict{String, Any},
                            modelfile::Vector{Any},
                            symboltype::SymbolType)::Int64
+    @nospecialize table modelfile symboltype
+    
     count = 0
     for entry in modelfile
         count += 1
@@ -190,33 +238,45 @@ function set_symbol_table!(table::Dict{String, DynareSymbol},
     return count
 end
 
+function get_lead_lag_incidence(ll::Vector{Any})
+    n = length(ll)
+    m = length(ll[1])
+    llm = zeros(Int64, m, n)
+    k = 1
+    for v::Vector{Int64} in ll
+        copyto!(llm, k, v, 1, m)
+        k += m
+    end
+    return llm
+end
+
 get_model_info(field::Dict{String, Any}) =
-    ModelInfo(hcat(field["lead_lag_incidence"]...),
-              field["nstatic"],
-              field["nfwrd"],
-              field["npred"],
-              field["nboth"],
-              field["nsfwrd"],
-              field["nspred"],
-              field["ndynamic"],
-              field["maximum_endo_lag"],
-              field["maximum_endo_lead"],
-              field["maximum_exo_lag"],
-              field["maximum_exo_lead"],
-              field["maximum_exo_det_lag"],
-              field["maximum_exo_det_lead"],
-              field["maximum_lag"],
-              field["maximum_lead"],
-              field["orig_maximum_endo_lag"],
-              field["orig_maximum_endo_lead"],
-              field["orig_maximum_exo_lag"],
-              field["orig_maximum_exo_lead"],
-              field["orig_maximum_exo_det_lag"],
-              field["orig_maximum_exo_det_lead"],
-              max(field["orig_maximum_lag"],
-                  field["orig_maximum_lag_with_diffs_expanded"]),
-              field["orig_maximum_lead"],
-              field["NNZDerivatives"]
+    ModelInfo(get_lead_lag_incidence(field["lead_lag_incidence"]::Vector{Any}),
+              field["nstatic"]::Int64,
+              field["nfwrd"]::Int64,
+              field["npred"]::Int64,
+              field["nboth"]::Int64,
+              field["nsfwrd"]::Int64,
+              field["nspred"]::Int64,
+              field["ndynamic"]::Int64,
+              field["maximum_endo_lag"]::Int64,
+              field["maximum_endo_lead"]::Int64,
+              field["maximum_exo_lag"]::Int64,
+              field["maximum_exo_lead"]::Int64,
+              field["maximum_exo_det_lag"]::Int64,
+              field["maximum_exo_det_lead"]::Int64,
+              field["maximum_lag"]::Int64,
+              field["maximum_lead"]::Int64,
+              field["orig_maximum_endo_lag"]::Int64,
+              field["orig_maximum_endo_lead"]::Int64,
+              field["orig_maximum_exo_lag"]::Int64,
+              field["orig_maximum_exo_lead"]::Int64,
+              field["orig_maximum_exo_det_lag"]::Int64,
+              field["orig_maximum_exo_det_lead"]::Int64,
+              max(field["orig_maximum_lag"]::Int64,
+                  field["orig_maximum_lag_with_diffs_expanded"]::Int64),
+              field["orig_maximum_lead"]::Int64,
+              field["NNZDerivatives"]::Vector{Any}
               )
                                   
 function verbatim(field::Dict{String, Any})

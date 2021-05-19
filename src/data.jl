@@ -25,7 +25,8 @@ function identify_period_frequency(period)::Periods.Frequency
     end
 end
 
-function get_data(filename::String, variables::Vector{String}, options::Dict{String, Any})
+function get_data(filename::String, variables::Vector{String};
+                  start::Int64 = 1, last::Int64 = 0)
     df = DataFrame(CSV.File(filename))
     if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES",
                                    "PERIOD", "PERIODS"]
@@ -36,8 +37,9 @@ function get_data(filename::String, variables::Vector{String}, options::Dict{Str
     
     ny = length(variables)
 
-    start = get(options, "first_obs", 1)
-    last = get(options, "last_obs", size(df, 1) - start + 1) 
+    if last == 0
+        last = size(df, 1) - start + 1
+    end
     nobs = last - start + 1
     Y = Matrix{Union{Missing,Float64}}(undef, ny, nobs)
     for (i, v) in enumerate(variables)

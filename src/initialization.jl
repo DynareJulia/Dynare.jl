@@ -15,7 +15,7 @@ function param_init!(context::Context, field::Dict{String, Any})
     symboltable = context.symboltable
     s = symboltable[field["name"]]
     k = s.orderintype
-    params[k] = dynare_parse_eval(field["value"], context)
+    params[k] = Float64(dynare_parse_eval(field["value"], context))
 end
 
 function initval!(context::Context, field::Dict{String, Any})

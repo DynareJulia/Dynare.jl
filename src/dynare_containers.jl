@@ -4,8 +4,6 @@ using TimeDataFrames
 
 export Context, DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
 
-DynareOptions = Dict{String, Any}
-
 struct Model
     endogenous_nbr::Int64
     exogenous_nbr::Int64
@@ -149,7 +147,7 @@ function Model(modfilename::String, endogenous_nbr::Int64,
     # derivatives of current values of variables that are both
     # forward and backward are included in the E matrix
     icolsE = [collect(1:(n_bkwrd + n_both)); n_bkwrd + n_both .+ collect(1:(n_fwrd+n_both))]
-    jcolsE = [p_bkwrd; p_both_b; p_cur_fwrd; p_cur_both]
+    jcolsE = [[p_bkwrd; p_both_b]; [p_cur_fwrd; p_cur_both]]
     colsUD = n_bkwrd .+ collect(1:n_both)
     colsUE = n_both + n_fwrd .+ colsUD
     n_dyn = endogenous_nbr - n_static + n_both
@@ -169,15 +167,16 @@ function Model(modfilename::String, endogenous_nbr::Int64,
     backward_number = n_bkwrd
     forward_number = n_fwrd
     current_number = n_current
-    dynamic_indices = setdiff(collect(1:endogenous_nbr), static_indices)
-    current_dynamic_indices = setdiff(current_indices, static_indices)
-    purely_forward_indices = setdiff(forward_indices, both_indices)
+    dynamic_indices = [i for i in 1:endogenous_nbr if !(i in static_indices)]
+    current_dynamic_indices = [i for i in current_indices if !(i in static_indices)]
+    purely_forward_indices = [i for i in forward_indices if !(i in both_indices)]
     forward_indices_d = findall(in(forward_indices), dynamic_indices)
     backward_indices_d = findall(in(backward_indices), dynamic_indices)
     current_dynamic_indices_d = findall(in(current_dynamic_indices), dynamic_indices)
     exogenous_indices = (backward_number + current_number
                          + forward_number .+ collect(1:exogenous_nbr))
     
+
     dynamic! = load_dynare_function(modfilename*"Dynamic",
                                     compileoption)
     static! = load_dynare_function(modfilename*"Static",
@@ -202,6 +201,7 @@ function Model(modfilename::String, endogenous_nbr::Int64,
     else
         steady_state! = Module()
     end
+
     Model(endogenous_nbr, exogenous_nbr, lagged_exogenous_nbr,
           exogenous_deterministic_nbr, parameter_nbr,
           lead_lag_incidence, n_static, n_fwrd, n_bkwrd, n_both,
@@ -226,6 +226,7 @@ function Model(modfilename::String, endogenous_nbr::Int64,
           exogenous_indices, NNZDerivatives, dynamic!, static!,
           set_auxiliary_variables!, set_dynamic_auxiliary_variables!,
           steady_state!)
+
 end
 
 Base.show(io::IO, m::Model) = show_field_value(m)
@@ -233,7 +234,6 @@ Base.show(io::IO, m::Model) = show_field_value(m)
 struct Simulation
     name::String
     statement::String
-    options::DynareOptions
     data::TimeDataFrame
 end
 
@@ -311,14 +311,14 @@ struct DynareSymbol
     orderintype::Integer
 end
 
+Base.getproperty(d::DynareSymbol, s::Symbol) = getfield(d, s)
 Base.show(io::IO, ds::DynareSymbol) = show_field_value(ds)    
 
-const SymbolTable = Dict{String, DynareSymbol}
+const SymbolTable = Dict{String, Any}
 
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    options::DynareOptions
     results::Results
     work::Work
 end
@@ -348,7 +348,7 @@ struct ModelInfo
     orig_maximum_exo_det_lead::Int64
     orig_maximum_lag::Int64
     orig_maximum_lead::Int64
-    NNZDerivatives::Vector{Int64}
+    NNZDerivatives::Vector{Any}
 end
 
 Base.show(io::IO, m::ModelInfo) = show_field_value(m)

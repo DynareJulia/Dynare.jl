@@ -1,16 +1,40 @@
+struct CalibSmootherOptions
+    datafile::String
+    first_obs::Int64
+    last_obs::Int64
+    function CalibSmootherOptions(options::Dict{String, Any})
+        datafile = ""
+        first_obs = 1
+        last_obs = 0
+        for (k, v) in pairs(options)
+            if k == "datafile"
+                datafile = v::String
+            elseif k == "first_obs"
+                first_obs = v::Int64
+            elseif k == "last_obs"
+                last_obs = v::Int64
+            end
+        end
+        new(datafile, first_obs, last_obs)
+    end            
+end
+
 function calib_smoother!(context::Context, field::Dict{String, Any})
+    options = CalibSmootherOptions(field["options"])
+    calib_smoother_core!(context, options)
+end
+
+function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
     varobs_ids = [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     model = context.models[1]
-    options = context.options
     results = context.results.model_results[1]
-    options["calib_smoother"] = DynareOptions()
-    copy!(options["calib_smoother"], field["options"])
-    file = get(options["calib_smoother"], "datafile", "")
-    if (filename = get(options["calib_smoother"], "datafile", "")) != ""
+    if (filename = options.datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig = get_data(filename, varnames, options["calib_smoother"])
+        Yorig = get_data(filename, varnames,
+                         start = options.first_obs,
+                         last = options.last_obs)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
