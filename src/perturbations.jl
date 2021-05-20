@@ -1,15 +1,19 @@
-function display_stoch_simul(x::AbstractVecOrMat{Float64}, title::String, context::Context)
+function display_stoch_simul(context::Context)
+    title = "Coefficients of approximate solution function"
     endogenous_names = get_endogenous_longname(context.symboltable)
-    emptyrow = ["" for _= 1:size(x,1)]
     column_header = Vector{String}(undef, 0)
     #    map(x -> push!(column_header, string(x, "\U0209C")), endogenous_names)
     map(x -> push!(column_header, "$(x)_t"), endogenous_names)
     row_header = [""]
     map(x -> push!(row_header, "ϕ($x)"), endogenous_names[context.models[1].i_bkwrd_b])
     map(x -> push!(row_header, "$(x)_t"), get_exogenous_longname(context.symboltable))
+    g1 = context.results.model_results[1].linearrationalexpectations.g1
+    # remove first order derivative with respect
+    # to stochastic scale (always 0)
+    vg1 = view(g1, :, 1:size(g1, 2) - 1)
     data = hcat(row_header,
                 vcat(reshape(column_header, 1, length(column_header)),
-                     x))
+                     transpose(vg1)))
     # Note: ϕ(x) = x_{t-1} - \bar x
     #    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
     note = string("Note: ϕ(x) = x_{t-1} - steady_state(x)")
@@ -24,6 +28,7 @@ function make_A_B!(A::Matrix{Float64}, B::Matrix{Float64}, model::Model, results
 end
 
 struct StochSimulOptions
+    display::Bool
     dr_algo::String
     first_period::Int64
     irf::Int64
@@ -31,14 +36,18 @@ struct StochSimulOptions
     order::Int64
     periods::Int64
     function StochSimulOptions(options::Dict{String, Any})
+        display = true
         dr_algo = "GS"
         first_period = 1
         irf = 40
         LRE_options = LinearRationalExpectationsOptions()
         order = 1
         periods = 0
+        print_results = true
         for (k, v) in pairs(options)
-            if k == "dr_cycle_reduction" && v::Bool
+            if k == "noprint"
+                display = false
+            elseif k == "dr_cycle_reduction" && v::Bool
                 dr_algo = "CR"
             elseif k == "first_period"    
                 first_period = v::Int64
@@ -50,7 +59,7 @@ struct StochSimulOptions
                 periods = v::Int64
             end
         end
-        new(dr_algo, first_period, irf, LRE_options,
+        new(display, dr_algo, first_period, irf, LRE_options,
             order, periods)
     end
 end
@@ -67,14 +76,14 @@ function stoch_simul_core!(context::Context, options::StochSimulOptions)
     #check_parameters(work.params, context.symboltable)
     #check_endogenous(results.trends.endogenous_steady_state)
     compute_stoch_simul!(context, options)
+    if options.display
+        display_stoch_simul(context)
+    end
     compute_variance!(context)
-    x = results.linearrationalexpectations.g1
-    vx = view(x, :, 1:size(x, 2) - 1)
-    steadystate = results.trends.endogenous_steady_state
-    linear_trend = results.trends.endogenous_linear_trend
-    y0 = copy(steadystate)
-    display_stoch_simul(vx', "Coefficients of approximate solution function", context)
     if (periods = options.periods) > 0
+        steadystate = results.trends.endogenous_steady_state
+        linear_trend = results.trends.endogenous_linear_trend
+        y0 = copy(steadystate)
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
         if size(histval, 1) == 0
