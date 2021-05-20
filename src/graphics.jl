@@ -1,3 +1,4 @@
+using Plots
 function plot(variables::Vector{Vector{Float64}};
               bar_variable::Vector{Float64} = [],
               first_period::Int64 = 1,

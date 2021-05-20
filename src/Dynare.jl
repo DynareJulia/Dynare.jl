@@ -1,9 +1,6 @@
 module Dynare
-using Plots
-using GR
 using Revise
 
-gr()
 
 @Base.kwdef struct CommandLineOptions
     compilemodule::Bool = true
