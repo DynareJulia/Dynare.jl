@@ -1,24 +1,32 @@
 function display_stoch_simul(context::Context)
+    m = context.models[1]
+    g1 = context.results.model_results[1].linearrationalexpectations.g1
     title = "Coefficients of approximate solution function"
     endogenous_names = get_endogenous_longname(context.symboltable)
-    column_header = Vector{String}(undef, 0)
-    #    map(x -> push!(column_header, string(x, "\U0209C")), endogenous_names)
-    map(x -> push!(column_header, "$(x)_t"), endogenous_names)
-    row_header = [""]
-    map(x -> push!(row_header, "ϕ($x)"), endogenous_names[context.models[1].i_bkwrd_b])
-    map(x -> push!(row_header, "$(x)_t"), get_exogenous_longname(context.symboltable))
-    g1 = context.results.model_results[1].linearrationalexpectations.g1
-    # remove first order derivative with respect
-    # to stochastic scale (always 0)
-    vg1 = view(g1, :, 1:size(g1, 2) - 1)
-    data = hcat(row_header,
-                vcat(reshape(column_header, 1, length(column_header)),
-                     transpose(vg1)))
+    exogenous_names = get_exogenous_longname(context.symboltable)
+    data = Matrix{Any}(undef,
+                       m.n_states + m.exogenous_nbr + 1,
+                       m.endogenous_nbr + 1)
+    data[1, 1] = ""
+    # row headers
+    for i = 1:m.n_states
+        data[i + 1, 1] = "ϕ($(endogenous_names[m.i_bkwrd_b[i]])"
+    end
+    offset = m.n_states + 1
+    for i = 1:m.exogenous_nbr
+        data[i + offset, 1] = "$(exogenous_names[i])_t"
+    end
+    for j =  1:m.endogenous_nbr
+        data[1, j + 1] = "$(endogenous_names[j])_t"
+        for i = 1:m.n_states + m.exogenous_nbr
+            data[i + 1, j + 1] = g1[j, i]
+        end
+    end        
     # Note: ϕ(x) = x_{t-1} - \bar x
     #    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
     note = string("Note: ϕ(x) = x_{t-1} - steady_state(x)")
     println("\n")
-    dynare_table(data, title, column_header, row_header, note)
+    dynare_table(data, title, note)
 end
 
 function make_A_B!(A::Matrix{Float64}, B::Matrix{Float64}, model::Model, results::ModelResults)

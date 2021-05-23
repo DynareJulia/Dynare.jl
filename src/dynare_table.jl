@@ -1,6 +1,6 @@
 using PrettyTables
 
-function dynare_table_text(data::AbstractVecOrMat{Any}, title::String, column_header::Vector, row_header::Vector, note::String; fmt="%10.4f")
+function dynare_table_text(data::AbstractVecOrMat{Any}, title::String, note::String; fmt="%10.4f")
     if length(title) > 0
         pretty_table([title],
                      noheader = true,
@@ -9,7 +9,7 @@ function dynare_table_text(data::AbstractVecOrMat{Any}, title::String, column_he
                                      hl_col(1, crayon"bold")),
                      backend = Val(:text))
     end
-    formatter = (v, i, j) -> (i > 1 && j > 1) ? round(v, digits=4) : v
+    formatter = (v, i::Int64, j::Int64) -> (i > 1 && j > 1) ? round(v::Real, digits=4) : v
     pretty_table(data,
                  noheader = true,
                  formatters = formatter,
@@ -29,7 +29,7 @@ function dynare_table_text(data::AbstractVecOrMat{Any}, title::String, column_he
     end
 end
 
-function dynare_table_latex(data::AbstractVecOrMat{Any}, title::String, column_header::Vector, row_header::Vector, note::String; fmt="%10.4f")
+function dynare_table_latex(data::AbstractVecOrMat{Any}, title::String, note::String; fmt="%10.4f")
     io = IOBuffer()
     write(io, "\\begin{table}[h]\n")
     write(io, "\\centering\n")
@@ -58,11 +58,11 @@ function dynare_table_latex(data::AbstractVecOrMat{Any}, title::String, column_h
     return String(take!(io))
 end
 
-function dynare_table(data::AbstractVecOrMat{Any}, title::String, column_header::Vector, row_header::Vector, note::String;
+function dynare_table(data::AbstractVecOrMat{Any}, title::String, note::String;
                       fmt::String="%10.4f", backend=Val(:text))
     if backend == Val(:text)
-        dynare_table_text(data, title, column_header, row_header, note, fmt=fmt)
+        dynare_table_text(data, title, note, fmt=fmt)
     else
-        dynare_table_latex(data, title, column_header, row_header, note, fmt=fmt)
+        dynare_table_latex(data, title, note, fmt=fmt)
     end
 end
