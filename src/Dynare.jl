@@ -34,7 +34,7 @@ macro dynare(modfile_arg::String, args...)
     arglist = []
     compilemodule = true
     for (i, a) in enumerate(args)
-        if a == :nocompile
+        if a == "nocompile"
             compilemodule = false
         else
             push!(arglist, a)
