@@ -1,7 +1,7 @@
 module DynareSolvers
 
 ##
- # Copyright (C) 2018 Dynare Team
+ # Copyright (C) 2021 Dynare Team
  #
  # This file is part of Dynare.
  #
@@ -55,8 +55,8 @@ end
 
 Given an `n` by `n` matrix `r`, an `n` by 1 vector `d` with non zero entries, an `n` by `1`
 vector `b`, and a positive number δ, the problem is to determine the convex combination `x`
-of the gauss-newton and scaled gradient directions that minimizes (r*x - b) in the least
-squares sense, subject to the restriction that the euclidean norm of d*x be at most delta.
+of the Gauss-Newton and scaled gradient directions that minimizes (r*x - b) in the least
+squares sense, subject to the restriction that the Euclidean norm of d*x be at most delta.
 """
 function dogleg!(x::Vector{Float64}, r::Matrix{Float64}, b::Vector{Float64}, d::Vector{Float64}, δ::Float64, s::Vector{Float64})
     n = length(x)
