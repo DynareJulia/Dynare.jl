@@ -1,30 +1,28 @@
 """
-linesearch!(x, fvec, g, p, stpmax, func, tolx, args...) -> f
+linesearch!(x, fvec, g, p, func!; stpmx=100, tolx=1e-15, kwargs...) -> (check, f)
 % Computes the optimal step by minimizing the residual sum of squares
 %
 % INPUTS
 %   xold:     actual point
-%   fold:     residual sum of squares at the point xold
 %   g:        gradient
 %   p:        Newton direction
+%   func!:    name of the function
 %   stpmax:   maximum step
-%   func:     name of the function
-%   j1:       equations index to be solved
-%   j2:       unknowns index
 %   tolx:     tolerance parameter
-%   varargin: list of arguments following j2
+%   kwargs:   list of arguments passed to the function
+              after 
 %
 % OUTPUTS
 %   x:        chosen point
 %   fvec:     residuals vector
 %   f:        residual sum of squares value for a given x
-%   check=1:  problem of the looping which continues indefinitely
+%   check:    0: OK, 1: the minimum step has been reached
 %
 %
 % SPECIAL REQUIREMENTS
 %   none
 
-% Copyright (C) 2001-2018 Dynare Team
+% Copyright (C) 2001-2021 Dynare Team
 %
 % This file is part of Dynare.
 %
@@ -41,8 +39,10 @@ linesearch!(x, fvec, g, p, stpmax, func, tolx, args...) -> f
 % You should have received a copy of the GNU General Public License
 % along with Dynare.  If not, see <http://www.gnu.org/licenses/>.
 """
-function linesearch!(x, fvec, g, p, stpmax, func, tolx, args...)
+function linesearch!(x, fvec, x0, g, p, func!; kwargs...)
 
+    stpmx = 100
+    tolx = 1e-15
     alf = 1e-4 
     alam = 1
 
@@ -51,11 +51,11 @@ function linesearch!(x, fvec, g, p, stpmax, func, tolx, args...)
 
     if !isfinite(summ)
         error("""
-    Some element of Newton direction isn''t finite. Jacobian maybe
+    Some element of Newton direction isn't finite. Jacobian maybe
     singular or there is a problem with initial values
     """)
     end
-
+    stpmax = stpmx*max(sqrt(dot(y, y)), n*periods)
     if summ > stpmax
         p = p*stpmax/summ 
     end
@@ -69,25 +69,35 @@ function linesearch!(x, fvec, g, p, stpmax, func, tolx, args...)
         alamin = 0.1
     end
 
-    while 1
+    fold = 0.5*dot(fvec, fvec)
+    local f::Float64
+    local f2::Float64
+    local fold2::Float64
+    local alam2::Float64
+    while true
         if alam < alamin
+            @debug "alamin=$alamin has been reached"
             check = 1 
-            return (check, f)
+            return check
         end
-        x .+= alam*p
+
+        x .= x0 .+ alam*p
+        fvec = func!(;residuals=fvec, endogenous=x, kwargs...)
         try
-            fvec = func(x,args)
-        catch
+            fvec = func!(;residuals=fvec, endogenous=x, kwargs...)
+        catch e
+            @debug "function returned error"
             fvec = NaN
         end
-        f = 0.5*dot(fvec, fvec) 
+        f = 0.5*dot(fvec, fvec)
         if any(isnan.(fvec))
             alam = alam/2 
             alam2 = alam 
             f2 = f 
             fold2 = fold 
         else
-            if f <= fold + alf*alam*slope
+            @debug "f = $f"
+            if f <= fold .+ alf*alam*slope
                 check = 0
                 break
             else

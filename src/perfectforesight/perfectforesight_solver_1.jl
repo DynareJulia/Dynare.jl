@@ -29,26 +29,24 @@ function geometric_series!(Y::StridedVecOrMat{Float64},
                            A::StridedVecOrMat{Float64},
                            B::StridedVecOrMat{Float64},
                            X::StridedVecOrMat{Float64},
-                           T::Integer,
                            tmp1::StridedVecOrMat{Float64},
                            tmp2::StridedVecOrMat{Float64})
     n, periods = size(Y)
-    vr = view(Y, :, 1:T)
-    vx = view(X, 1:T, :)
-    mul!(vr, B, transpose(vx))
-    vt1 = view(tmp1, :, 2:T)
-    copyto!(tmp1, 1, Y, n+1, (periods-1)*n)
-    for t = 2:T
+    mul!(Y, B, transpose(X))
+    vt1 = view(tmp1, :, 2:periods)
+    copyto!(tmp1, 1, Y, 1, periods*n)
+    for t = 2:periods
         last = periods - t + 1
         vt1 = view(tmp1, :, 1:last)
         vt2 = view(tmp2, :, 1:last )
         mul!(vt2, A, vt1, 1.0, 0.0)
         vr = view(Y, :, 1:last)
         vr .+= vt2
-        if t < T
+        if t < periods
             copyto!(tmp1, 1, tmp2, n + 1, (last - 1)*n)
         end
     end
+    return Y
 end
 
 """
@@ -68,10 +66,11 @@ function simul_first_order_1!(Y::StridedMatrix{Float64},
                               X::StridedMatrix{Float64},
                               T1::Int64,
                               T::Int64,
-                              temp1::StridedMatrix{Float64},
-                              temp2::StridedMatrix{Float64})
-    vy = view(Y, :, 2:T1 + 1) 
-    geometric_series!(vy, G, H, X, T1, tmp1, tmp2)
+                              tmp1::StridedMatrix{Float64},
+                              tmp2::StridedMatrix{Float64})
+    vy = view(Y, :, 2:T1 + 1)
+    vx = view(X, 2:T1 + 1, :)
+    geometric_series!(vy, G, H, vx, tmp1, tmp2)
     vy_1 = view(Y, :, 1)
     vy_1 .= y0
     for t = 2:T1 + 1
@@ -113,30 +112,182 @@ function simul_first_order_1!(Y::StridedMatrix{Float64},
     Y .+= c
 end
 
-function get_residuals!(residuals::AbstractMatrix{Float64},
-                        endogenous::Vector{Float64},
+function get_initial_dynamic_endogenous_variables!(y::AbstractVector{Float64},
+                                                   data::AbstractVector{Float64},
+                                                   initialvalues::AbstractVector{Float64},
+                                                   lli::Matrix{Int64},
+                                                   m::Model,
+                                                   period::Int64)
+    m, n = size(lli)
+    p = (period - 2)*n
+    for j = 1:n
+        k = lli[1, j]
+        if k > 0
+            y[k] = initialvalues[p + j]
+        end
+    end
+    @inbounds for i = 2:m
+        for j = 1:n
+            k = lli[i, j]
+            if k > 0
+                y[k] = data[p + j]
+            end
+        end
+        p += n
+    end
+end
+
+function get_terminal_dynamic_endogenous_variables!(y::AbstractVector{Float64},
+                                                    data::AbstractVector{Float64},
+                                                    terminalvalues::AbstractVector{Float64},
+                                                    lli::Matrix{Int64},
+                                                    m::Model,
+                                                    period::Int64)
+    m, n = size(lli)
+    p = (period - 2)*n
+    @inbounds for i = 1:m-1
+        for j = 1:n
+            k = lli[i, j]
+            if k > 0
+                y[k] = data[p + j]
+            end
+        end
+        p += n
+    end
+    for j = 1:n
+        k = lli[m, j]
+        if k > 0
+            y[k] = terminalvalues[j]
+        end
+    end
+end
+
+function get_residuals_1!(residuals::AbstractVector{Float64},
+                        endogenous::AbstractVector{Float64},
+                        initialvalues::AbstractVector{Float64},
                         exogenous::AbstractMatrix{Float64},
                         dynamic_variables::AbstractVector{Float64},
                         steadystate::AbstractVector{Float64},
                         params::AbstractVector{Float64},
                         m::Model,
                         periods::Int64,
-                        temp_vec)
+                        temp_vec::AbstractVector{Float64})
     lli = m.lead_lag_incidence
     dynamic! = m.dynamic!.dynamic!
-    for t = 2:periods
-        get_dynamic_endogenous_variables!(dynamic_variables,
-                                          endogenous, lli, m, t)
-        vr = view(residuals, :, t - 1)
-        @inbounds Base.invokelatest(dynamic!,
-                                    temp_vec,
-                                    vr,
-                                    dynamic_variables,
-                                    exogenous,
-                                    params,
-                                    steadystate,
-                                    t)
+
+    get_initial_dynamic_endogenous_variables!(dynamic_variables,
+                                              endogenous,
+                                              initialvalues,
+                                              lli,
+                                              m,
+                                              2)
+    vr = view(residuals, 1:n)
+    @inbounds Base.invokelatest(dynamic!,
+                                temp_vec,
+                                vr,
+                                dynamic_variables,
+                                exogenous,
+                                params,
+                                steadystate,
+                                2)
+end
+
+function get_residuals_2!(residuals::AbstractVector{Float64},
+                          endogenous::AbstractVector{Float64},
+                          exogenous::AbstractMatrix{Float64},
+                          dynamic_variables::AbstractVector{Float64},
+                          steadystate::AbstractVector{Float64},
+                          params::AbstractVector{Float64},
+                          m::Model,
+                          periods::Int64,
+                          temp_vec::AbstractVector{Float64},
+                          t::Int64,
+                          t1::Int64,
+                          t2::Int64
+                          )
+    lli = m.lead_lag_incidence
+    dynamic! = m.dynamic!.dynamic!
+
+    get_dynamic_endogenous_variables!(dynamic_variables,
+                                      endogenous,
+                                      lli,
+                                      m,
+                                      t)
+    vr = view(residuals, t1:t2)
+    @inbounds Base.invokelatest(dynamic!,
+                                temp_vec,
+                                vr,
+                                dynamic_variables,
+                                exogenous,
+                                params,
+                                steadystate,
+                                t)
+end
+
+function get_residuals_3!(residuals::AbstractVector{Float64},
+                          endogenous::AbstractVector{Float64},
+                          terminalvalues::AbstractVector{Float64},
+                          exogenous::AbstractMatrix{Float64},
+                          dynamic_variables::AbstractVector{Float64},
+                          steadystate::AbstractVector{Float64},
+                          params::AbstractVector{Float64},
+                          m::Model,
+                          periods::Int64,
+                          temp_vec::AbstractVector{Float64},
+                          t::Int64,
+                          t1::Int64,
+                          t2::Int64
+                          )
+    lli = m.lead_lag_incidence
+    dynamic! = m.dynamic!.dynamic!
+
+    get_terminal_dynamic_endogenous_variables!(dynamic_variables,
+                                              endogenous,
+                                              terminalvalues,
+                                              lli,
+                                              m,
+                                              t)
+    vr = view(residuals, t1:t2)
+    @inbounds Base.invokelatest(dynamic!,
+                                temp_vec,
+                                vr,
+                                dynamic_variables,
+                                exogenous,
+                                params,
+                                steadystate,
+                                t)
+end
+
+function get_residuals!(;residuals::AbstractVector{Float64},
+                        endogenous::AbstractVector{Float64},
+                        initialvalues::AbstractVector{Float64},
+                        terminalvalues::AbstractVector{Float64},
+                        exogenous::AbstractMatrix{Float64},
+                        dynamic_variables::AbstractVector{Float64},
+                        steadystate::AbstractVector{Float64},
+                        params::AbstractVector{Float64},
+                        m::Model,
+                        periods::Int64,
+                        temp_vec::AbstractVector{Float64})
+    lli = m.lead_lag_incidence
+    dynamic! = m.dynamic!.dynamic!
+
+    get_residuals_1!(residuals, endogenous, initialvalues,
+                     exogenous, dynamic_variables, steadystate,
+                     params, m, periods, temp_vec)
+    t1 = n + 1
+    t2 = 2*n
+    for t = 3:periods - 1
+        get_residuals_2!(residuals, endogenous,
+                         exogenous, dynamic_variables, steadystate,
+                         params, m, periods, temp_vec, t, t1, t2)
+        t1 += n
+        t2 += n
     end
+    get_residuals_3!(residuals, endogenous, terminalvalues,
+                     exogenous, dynamic_variables, steadystate,
+                     params, m, periods, temp_vec, periods, t1, t2)
+    return residuals
 end
 
 function solve1(residuals, y, exogenous, dynamic_variables,
