@@ -74,16 +74,23 @@ end
 
 function stoch_simul!(context::Context, field::Dict{String, Any})
     options = StochSimulOptions(field["options"])
-    stoch_simul_core!(context, options)
+    m = context.models[1]
+    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
+    tmp_nbr = m.dynamic!.tmp_nbr::Vector{Int64}
+    ws = PeriodJacobianWs(m.endogenous_nbr,
+                          m.exogenous_nbr,
+                          ncol,
+                          sum(tmp_nbr[1:2]))
+    stoch_simul_core!(context, ws, options)
 end
 
-function stoch_simul_core!(context::Context, options::StochSimulOptions)
+function stoch_simul_core!(context::Context, ws::PeriodJacobianWs, options::StochSimulOptions)
     model = context.models[1]
     results = context.results.model_results[1]
     work = context.work
     #check_parameters(work.params, context.symboltable)
     #check_endogenous(results.trends.endogenous_steady_state)
-    compute_stoch_simul!(context, options)
+    compute_stoch_simul!(context, ws, work.params, options)
     if options.display
         display_stoch_simul(context)
     end
@@ -125,17 +132,17 @@ end
 function check!(context::Context, field::Dict{String, Any})
 end
 
-function compute_stoch_simul!(context::Context, options::StochSimulOptions)
+function compute_stoch_simul!(context::Context, ws::PeriodJacobianWs,
+                              params::Vector{Float64}, options::StochSimulOptions)
     model = context.models[1]
     results = context.results.model_results[1]
-    work = context.work
     compute_steady_state!(context)
     endogenous = results.trends.endogenous_steady_state
     exogenous = results.trends.exogenous_steady_state
     fill!(exogenous, 0.0)
     compute_first_order_solution!(results.linearrationalexpectations,
                                   endogenous, exogenous, endogenous,
-                                  model, work, options)
+                                  params, model, ws, options)
 end
 
 function compute_first_order_solution!(
@@ -143,16 +150,17 @@ function compute_first_order_solution!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
-    model::Model, work::Work, options::StochSimulOptions)
+    params::AbstractVector{Float64},
+    model::Model, ws::PeriodJacobianWs, options::StochSimulOptions)
 
     # abbreviations
     LRE = LinearRationalExpectations
     LREWs = LinearRationalExpectationsWs
 
-    get_jacobian!(work, endogenous, exogenous, steadystate,
+    get_jacobian!(ws, params, endogenous, exogenous, steadystate,
                   model, 2)
     algo = options.dr_algo
-    ws = LREWs(algo,
+    wsLRE = LREWs(algo,
                model.endogenous_nbr,
                model.exogenous_nbr,
                model.exogenous_deterministic_nbr,
@@ -161,17 +169,17 @@ function compute_first_order_solution!(
                model.i_bkwrd_b,
                model.i_both,
                model.i_static)
-    LRE.remove_static!(work.jacobian, ws)
+    LRE.remove_static!(ws.jacobian, wsLRE)
     if algo == "GS"
-        LRE.get_de!(ws, work.jacobian)
+        LRE.get_de!(wsLRE, ws.jacobian)
     else
-        LRE.get_abc!(ws, work.jacobian)
+        LRE.get_abc!(wsLRE, ws.jacobian)
     end
     LRE.first_order_solver!(results,
                             algo,
-                            work.jacobian,
+                            ws.jacobian,
                             options.LRE_options,
-                            ws)
+                            wsLRE)
 end
 
 function compute_variance!(context::Context)
@@ -184,7 +192,7 @@ function compute_variance!(context::Context)
     g1_2 = results.linearrationalexpectations.g1_2
     vr1 = view(g1_2, m.i_bkwrd_b, :)
     B1 .= vr1
-    ws = LyapdWs(m.n_states)
+    ws = LyapdWs(m.n_states::Int64)
     Σ = zeros(m.n_states, m.n_states)
     tmp = zeros(m.n_states, m.exogenous_nbr)
     mul!(tmp, B1, m.Sigma_e)
@@ -195,7 +203,7 @@ function compute_variance!(context::Context)
     fill!(stationary_variables, true)
     state_stationary_variables = view(stationary_variables, m.i_bkwrd_b)
     nonstate_stationary_variables = view(stationary_variables, m.i_non_states)
-    if ws.stationary_model
+    if is_stationary(ws)
         state_stationary_nbr = m.n_states 
         nonstate_stationary_nbr = m.endogenous_nbr - m.n_states
     else

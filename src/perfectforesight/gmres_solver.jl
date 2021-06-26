@@ -1,3 +1,9 @@
+using LinearAlgebra
+using FastLapackInterface
+using FastLapackInterface.LinSolveAlgo
+
+import LinearAlgebra.BLAS: @blasfunc, BlasInt, BlasFloat, libblas
+
 function mul!(y::StridedVector{Float64}, offset_y::Int64,
                   a::StridedMatrix{Float64}, offset_a::Int64,
                   ma::Int64, na::Int64, x::StridedVector{Float64},
@@ -40,6 +46,25 @@ mul!(y::StridedVector{Float64}, offset_y::Int64,
          mul!(y, offset_y, a, offset_a, ma, na, x, offset_x,
               1.0, 0.0)
 
+struct JacTimesVec
+    jacobian::Matrix{Float64}
+    dynamic_variables::Vector{Float64}
+    temp_vec::Vector{Float64}
+    residuals::Vector{Float64}
+    params::Vector{Float64}
+    function JacTimesVec(context)
+        md = context.models[1]
+        work = context.work
+        jacobian = similar(work.jacobian)
+        dynamic_variables =
+            zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both)
+        temp_vec = Vector{Float64}(undef, sum(md.dynamic!.tmp_nbr[1:2]))
+        residuals = Vector{Float64}(undef, md.endogenous_nbr)
+        params = work.params
+        new(jacobian, dynamic_variables,
+            temp_vec, residuals, params)
+    end
+end
 
 function jacobian_time_vec_period!(y::AbstractVector{Float64},
                                    ws::JacTimesVec,
@@ -320,13 +345,7 @@ struct GmresWs
         LREresults = LinearRationalExpectationsResults(n,
                                                        m.exogenous_nbr,
                                                        LREWs.backward_nbr)
-        options = context.options["stoch_simul"]
-        if algo == "GS"
-            options["generalized_schur"]["criterium"] = 1 + 1e-6
-        else
-            options["cyclic_reduction"] = Dict(["tol" => 1e-8])
-        end
-
+        options = LinearRationalExpectationsOptions()
         first_order_solver!(LREresults,
                             algo,
                             work.jacobian,
@@ -376,7 +395,7 @@ function get_first_order_solution!(context::Context)
     results = context.results.model_results[1]
     model = context.models[1]
     work = context.work
-    options = context.options
+    options = StochSimulOptions(Dict{String, Any}())
     endogenous = results.trends.endogenous_steady_state
     exogenous = results.trends.exogenous_steady_state
     compute_first_order_solution!(results.linearrationalexpectations,

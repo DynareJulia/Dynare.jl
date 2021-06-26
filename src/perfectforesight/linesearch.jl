@@ -39,10 +39,7 @@ linesearch!(x, fvec, g, p, func!; stpmx=100, tolx=1e-15, kwargs...) -> (check, f
 % You should have received a copy of the GNU General Public License
 % along with Dynare.  If not, see <http://www.gnu.org/licenses/>.
 """
-function linesearch!(x, fvec, x0, g, p, func!; kwargs...)
-
-    stpmx = 100
-    tolx = 1e-15
+function linesearch!(x, fvec, x0, g, p, func!; stpmx = 100, tolx = 1e-5)
     alf = 1e-4 
     alam = 1
 
@@ -69,6 +66,7 @@ function linesearch!(x, fvec, x0, g, p, func!; kwargs...)
         alamin = 0.1
     end
 
+    fvec1 = similar(fvec)
     fold = 0.5*dot(fvec, fvec)
     local f::Float64
     local f2::Float64
@@ -78,13 +76,12 @@ function linesearch!(x, fvec, x0, g, p, func!; kwargs...)
         if alam < alamin
             @debug "alamin=$alamin has been reached"
             check = 1 
-            return check
+            return(check, NaN)
         end
 
         x .= x0 .+ alam*p
-        fvec = func!(;residuals=fvec, endogenous=x, kwargs...)
         try
-            fvec = func!(;residuals=fvec, endogenous=x, kwargs...)
+            fvec = func!(fvec, x)
         catch e
             @debug "function returned error"
             fvec = NaN
@@ -132,6 +129,7 @@ function linesearch!(x, fvec, x0, g, p, func!; kwargs...)
             end
         end
     end
+    @debug "final alam= $alam"
     check = 0
     return(check, f)
 end

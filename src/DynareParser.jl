@@ -17,7 +17,7 @@ using TimeDataFrames
 end
 
 function get_symbol_table(modeljson::Dict{String, Any})
-    symboltable = Dict{String, Any}()
+    symboltable = Dict{String, DynareSymbol}()
 
     endo_nbr = set_symbol_table!(symboltable,
                                  modeljson["endogenous"],
@@ -41,11 +41,21 @@ function get_model(modfilename::String,
                    exo_det_nbr::Int64, param_nbr::Int64)
     model_info = get_model_info(dynare_model_info)
 
-    NNZDerivatives = [Int64(n) for n in model_info.NNZDerivatives]
-
+    NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
+    for (i, n) in enumerate(model_info.NNZDerivatives)
+        NNZDerivatives[i] =  n::Int64
+    end
+    lead_lag_incidence = Vector{Vector{Int64}}(undef, 0)
+    for (i, vv) = enumerate(model_info.lead_lag_incidence)
+        v = zeros(Int64, 3)
+        for j = 1:3
+            v[j] = vv[j]::Int64 
+        end
+        push!(lead_lag_incidence, v)
+    end
     model = Model(modfilename,
                   endo_nbr,
-                  model_info.lead_lag_incidence,
+                  lead_lag_incidence,
                   exo_nbr,
                   0,
                   exo_det_nbr,
@@ -87,7 +97,7 @@ function get_varobs(modeljson::Dict{String, Any})
 end
 
 function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, param_nbr::Int64,
-                         model::Model, symboltable::Dict{String, Any}, varobs::Vector{String})
+                         model::Model, symboltable::SymbolTable, varobs::Vector{String})
     modelresults = ModelResults(Vector{Float64}(undef, endo_nbr),
                                 Trends(endo_nbr, exo_nbr, exo_det_nbr),
                                 Matrix{Float64}(undef, endo_nbr, endo_nbr),
@@ -98,7 +108,7 @@ function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, pa
                                                                   exo_nbr,
                                                                   model.n_states),
                                 Vector{Simulation}(undef, 0),
-                                Dict{String, Any}())
+                                Dict{String, Matrix{Float64}}())
     ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
     ncol1 = ncol + model.exogenous_nbr
     tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
@@ -220,19 +230,17 @@ function dynare_eval(q::QuoteNode, context::Context)
     return q
 end
 
-function set_symbol_table!(table::Dict{String, Any},
+function set_symbol_table!(table::Dict{String, DynareSymbol},
                            modelfile::Vector{Any},
                            symboltype::SymbolType)::Int64
-    @nospecialize table modelfile symboltype
-    
     count = 0
     for entry in modelfile
         count += 1
-        symbol = DynareSymbol(entry["longName"],
-                              entry["texName"],
+        symbol = DynareSymbol(entry["longName"]::String,
+                              entry["texName"]::String,
                               symboltype,
                               count)
-        table[entry["name"]] = symbol
+        table[entry["name"]::String] = symbol
 
     end
     return count
@@ -251,7 +259,7 @@ function get_lead_lag_incidence(ll::Vector{Any})
 end
 
 get_model_info(field::Dict{String, Any}) =
-    ModelInfo(get_lead_lag_incidence(field["lead_lag_incidence"]::Vector{Any}),
+    ModelInfo(field["lead_lag_incidence"]::Vector{Any},
               field["nstatic"]::Int64,
               field["nfwrd"]::Int64,
               field["npred"]::Int64,

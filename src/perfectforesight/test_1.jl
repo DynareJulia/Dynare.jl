@@ -1,17 +1,17 @@
 using BenchmarkTools
 using Test
+include("perfectforesight_solver_1.jl")
 
 #tests
 A = randn(4, 4)
 B = randn(4, 3)
 x = randn(5, 3)
-window = size(x, 1)
 results = randn(4, 5)
 tmp1 = similar(results)
 tmp2 = similar(results)
 results_orig = copy(results)
 z = results
-geometric_series!(z, A, B, x, window, tmp1, tmp2)
+geometric_series!(z, A, B, x)
 
 @test z[:, 5] ≈ B*x[5, :]
 @test z[:, 4] ≈ B*x[4, :] + A*B*x[5, :]
@@ -21,19 +21,18 @@ geometric_series!(z, A, B, x, window, tmp1, tmp2)
 
 initial_values = ones(4)
 c = randn(4)
-periods = 8
+periods = 6
 results = rand(4, periods)
 tmp1 = similar(results)
 tmp2 = similar(results)
-simul_first_order_1!(results, initial_values, c, A, B, x, window, periods, tmp1, tmp2)
+simul_first_order_1!(results, initial_values, c, A, B, x)
 
 z = zeros(4, 5)
-geometric_series!(z, A, B, x, window, tmp1, tmp2)
-@test results[:, 1] == initial_values
-for i = 2:6
-    @test results[:, i] ≈ c .+ A*(results[:, i-1] - c) .+ z[:, i-1]
+geometric_series!(z, A, B, x)
+for i = 2:5
+    @test results[:, i] ≈ c .+ A*(results[:, i-1] - c) .+ z[:, i]
 end
-for i = 7:8
+for i = 6:6
     @test results[:, i] ≈ c .+ A*(results[:, i-1] - c)
 end
 
@@ -52,9 +51,11 @@ y = zeros(n, periods)
 tmp1 = similar(y)
 tmp2 = similar(y)
 c = context.results.model_results[1].trends.endogenous_steady_state
-simul_first_order_1!(y, zeros(6), A, B, exogenous, window, periods, tmp1, tmp2)
+simul_first_order_1!(y, zeros(6), A, B, exogenous)
 steadystate = context.results.model_results[1].trends.endogenous_steady_state
 y .+= steadystate
+initialvalues = steadystate
+terminalvalues = y[:, periods]
 residuals = zeros(n, periods - 2)
 dynamic_variables = zeros(12)
 temp_vec = context.work.temporary_values
@@ -64,14 +65,13 @@ algo = "CR"
 rout = zeros((periods - 2)*md.endogenous_nbr)
 tmp = similar(rout)
 JJ = Jacobian(context, periods - 2)
-ws_threaded = [JacTimesVec(context) for i=1:Threads.nthreads()]
-
+ws_threaded = [PeriodJacobianWs(context) for i=1:Threads.nthreads()]
 
 params = context.work.params
 @btime begin
-    simul_first_order_1!(y, zeros(6), A, B, exogenous, window, periods, tmp1, tmp2)
+    simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve1(residuals, y, exogenous, dynamic_variables,
+    solve1(vec(residuals), y, initialvalues, terminalvalues, exogenous, dynamic_variables,
            steadystate, params, md, periods - 2, temp_vec,
            JJ, context, ws_threaded, n)
 end
@@ -79,23 +79,34 @@ end
 @btime begin
     ws = GmresWs(periods - 2, preconditioner_window, context, algo)
     y .+= steadystate
-    solve2(residuals, y, exogenous, dynamic_variables,
+    solve2(residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
            steadystate, params, md, periods - 2, temp_vec,
            JJ, context, ws_threaded, n, ws)
 end
 
 @btime begin
-    simul_first_order_1!(y, zeros(6), A, B, exogenous, window, periods, tmp1, tmp2)
+    simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve3(0.01, residuals, y, exogenous, dynamic_variables,
+    solve3(0.01, residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
                   steadystate, params, md, periods - 2, temp_vec,
                   JJ, context, ws_threaded, n)
 end
 
 @btime begin
-    simul_first_order_1!(y, zeros(6), A, B, exogenous, window, periods, tmp1, tmp2)
+    simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve4(residuals, y, exogenous, dynamic_variables,
+    solve4(residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
                   steadystate, params, md, periods - 2, temp_vec,
                   JJ, context, ws_threaded, n)
+end
+
+using Pardiso
+ps = PardisoSolver()
+
+@btime begin
+    simul_first_order_1!(y, zeros(6), A, B, exogenous)
+    y .= steadystate
+    solve5(residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
+                  steadystate, params, md, periods - 2, temp_vec,
+                  JJ, context, ws_threaded, n, ps)
 end

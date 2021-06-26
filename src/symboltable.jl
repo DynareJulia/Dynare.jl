@@ -4,7 +4,7 @@ for typ in instances(SymbolType)
         @eval begin
             function $s(symboltable::SymbolTable)
                 symbols = collect(values(symboltable))
-                subset = filter(s -> s.symboltype == $typ, symbols)
+                subset = filter(s -> s.symboltype::SymbolType == $typ, symbols)
                 sorted_index = sortperm(subset, by = v -> v.orderintype)
                 names = [s.$f for s in subset[sorted_index]]
                 return names
