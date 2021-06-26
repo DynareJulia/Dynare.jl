@@ -1,6 +1,10 @@
 using Dynare
+using IterativeSolvers
+using LinearAlgebra
 using Test
+
 include("../src/perfectforesight/perfectforesight_solver_1.jl")
+#include("../src/perfectforesight/makeA.jl")
 include("../src/perfectforesight/linesearch.jl")
 
 context = @dynare "test/models/example1/example1.mod"
@@ -34,25 +38,25 @@ tmp = zeros(n*periods)
 dy = zeros(n*periods)
 params = context.work.params
 x = view(vec(y), n+1:(periods+1)*n)
-get_residuals!(residuals=residuals,
-               endogenous=x,
-               initialvalues=initialvalues,
-               terminalvalues=terminalvalues,
-               exogenous=exogenous,
-               dynamic_variables=dynamic_variables,
-               steadystate=steadystate,
-               params=params,
-               m=md,
-               periods=periods,
-               temp_vec=temp_vec)
-
+get_residuals!(residuals,
+               x,
+               initialvalues,
+               terminalvalues,
+               exogenous,
+               dynamic_variables,
+               steadystate,
+               params,
+               md,
+               periods,
+               temp_vec)
 JJ = Jacobian(context, periods)
-ws_threaded = [JacTimesVec(context) for i=1:Threads.nthreads()]
-A = makeJacobian!(JJ, vec(y), exogenous, context, periods, ws_threaded)
+ws_threaded = [Dynare.PeriodJacobianWs(context) for i=1:Threads.nthreads()]
+#A = makeJacobian!(JJ, vec(y), exogenous, context, periods, ws_threaded)
+A = makeJacobian!(JJ, x, initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
 τ = 0.01
 my_lu = ilu(A, τ = τ)
 fill!(tmp, 0.0)
-Dynare.gmres!(dy, A, residuals, Pr=my_lu, verbose = true, maxiter=4)
+gmres!(dy, A, residuals, Pr=my_lu, verbose = true, maxiter=4)
 
 stpmx = 100
 
@@ -63,15 +67,18 @@ x0 = view(vec(y), n+1:(periods+1)*n)
 x = zeros(n*periods)
 params = context.work.params
 
-linesearch!(x, residuals, x0, g, -dy, get_residuals!;
-            initialvalues=initialvalues,
-            terminalvalues=terminalvalues,
-            exogenous=exogenous,
-            dynamic_variables=dynamic_variables,
-            steadystate=steadystate,
-            params=params,
-            m=md,
-            periods=periods,
-            temp_vec=temp_vec)
+f(x, x0) = get_residuals!(x,
+                          x0,
+                          initialvalues,
+                          terminalvalues,
+                          exogenous,
+                          dynamic_variables,
+                          steadystate,
+                          params,
+                          md,
+                          periods,
+                          temp_vec)
+lmul!(-1.0, dy)
+linesearch!(x, residuals, x0, g, dy, f)
 
 

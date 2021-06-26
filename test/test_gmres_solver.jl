@@ -89,13 +89,11 @@ struct M;
     n_current
 end
 
-#m = M([1, 3, 6],
-#      collect(2:6),
-#      [1 , 3, 5],
-#      1, 2, 5)
-lead_lag_incidence = vcat([1,  0, 2, 0,  0, 3]',
-                          [0,  4, 5, 6,  7, 8]',
-                          [9, 10, 0, 0, 11, 0]')
+lli = m_orig.lead_lag_incidence
+lead_lag_incidence = Vector{Vector{Int64}}(undef, 0)
+for i = 1:size(lli, 2)
+    push!(lead_lag_incidence, lli[:,i])
+end
 m_orig = context.models[1]
 m = Model("test/models/example1/example1",
           m_orig.endogenous_nbr,
@@ -132,8 +130,8 @@ c = zeros(n, n)
 Dynare.get_abc!(a, b, c, jacobian, m)
 @time Dynare.get_abc!(a, b, c, jacobian, m)
 @test a[:, m.i_bkwrd_b] == jacobian[:, 1:3]
-@test b[:, m.i_current] == jacobian[:, 4:8]
-@test c[:, m.i_fwrd_b]  == jacobian[:, 9:11]
+@test b[:, m.i_current] == jacobian[:, 4:9]
+@test c[:, m.i_fwrd_b]  == jacobian[:, 10:12]
 
 h0 = zeros(n,n)
 

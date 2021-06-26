@@ -1,11 +1,7 @@
 using BenchmarkTools
 using Dynare
 using SparseArrays
-#context = @dynare "../../models/GIMF/gimf_gmres.mod" "nostrict"
-
-context.options["stoch_simul"] = Dict()
-context.options["stoch_simul"]["generalized_schur"] = Dict()
-context.options["stoch_simul"]["cyclic_reduction"] = Dict()
+context = @dynare "../../models/GIMF/gimf_gmres.mod" "nostrict" "nocompile"
 
 md = context.models[1]
 endo_steadystate = context.results.model_results[1].trends.endogenous_steady_state
@@ -45,19 +41,18 @@ function bench3(periods, preconditioner_window; verbose=false)
     res = zeros(periods*md.endogenous_nbr)
     res[[4, 6]] .= 0.01
     rout = zeros(periods*md.endogenous_nbr)
-    ws = Dynare.GmresWs(periods, preconditioner_window, context, "GS")
-    ws.endogenous .= repeat(endo_steadystate, periods + 2)
-    ws.exogenous .= repeat(exo_steadystate', periods + 2)
+    endogenous .= repeat(endo_steadystate, periods + 2)
+    exogenous .= repeat(exo_steadystate', periods + 2)
     JA = Dynare.Jacobian(context, periods)
     ws_threaded = [Dynare.JacTimesVec(context) for i=1:Threads.nthreads()]
-    A = Dynare.makeJacobian!(JA, ws.endogenous, ws.exogenous, context, periods, ws_threaded)
+    A = Dynare.makeJacobian!(JA, endogenous, exogenous, context, periods, ws_threaded)
     rout = A\res
     return 0
 end
 
 periods = 150
 preconditioner_window = 10
-algo = "CR"
+algo = "GS"
 m = context.models[1]
         n = m.endogenous_nbr
         a = Matrix{Float64}(undef, n, n)
@@ -88,13 +83,8 @@ LREWs = Dynare.LinearRationalExpectationsWs(
         LREresults = Dynare.LinearRationalExpectationsResults(n,
                                                               m.exogenous_nbr,
                                                               LREWs.backward_nbr)
-        options = context.options["stoch_simul"]
-        if algo == "GS"
-            options["generalized_schur"]["criterium"] = 1 + 1e-6
-        else
-            options["cyclic_reduction"] = Dict(["tol" => 1e-8])
-        end
-
+        options = Dynare.LinearRationalExpectationsOptions()
+@show options
 #@btime        Dynare.first_order_solver!(LREresults,
 #                            algo,
 #                            work.jacobian,
@@ -107,7 +97,7 @@ ws = LREWs
 @btime Dynare.LinearRationalExpectations.remove_static!(jacobian, ws)
     if algo == "CR"
         @btime Dynare.LinearRationalExpectations.get_abc!(ws, jacobian)
-        @btime Dynare.LinearRationalExpectations.cyclic_reduction!(ws.x, ws.c, ws.b, ws.a, ws.solver_ws, options["cyclic_reduction"]["tol"], 300)
+        @btime Dynare.LinearRationalExpectations.cyclic_reduction!(ws.x, ws.c, ws.b, ws.a, ws.solver_ws, 1e-8, 300)
         @btime begin
             vg = view(results.gs1, :, 1:ws.backward_nbr)
             vx = view(ws.x, ws.backward_indices_d, ws.backward_indices_d)
@@ -120,17 +110,18 @@ ws = LREWs
         end
     elseif algo == "GS"
         @btime Dynare.LinearRationalExpectations.get_de!(ws, jacobian)
-        @btime Dynare.LinearRationalExpectations.gs_solver!(ws.solver_ws, ws.d, ws.e, ws.backward_nbr, options["generalized_schur"]["criterium"])
+        @btime Dynare.LinearRationalExpectations.gs_solver!(ws.solver_ws, ws.d, ws.e, ws.backward_nbr,
+                                                            options.generalized_schur.criterium)
         @btime results.gs1 .= ws.solver_ws.g1
-        @btime for i = 1:ws.backward_nbr
-            for j = 1:ws.backward_nbr
-                x = ws.solver_ws.g1[j,i]
-                results.g1[ws.backward_indices[j],i] = x
-            end
-            for j = 1:(ws.forward_nbr - ws.both_nbr)
-                results.g1[ws.purely_forward_indices[j], i] =
-                    ws.solver_ws.g2[ws.icolsE[ws.backward_nbr + j] - ws.backward_nbr, i]
-            end
+        @btime begin
+            vs = view(ws.solver_ws.g1, 1:ws.backward_nbr, 1:ws.backward_nbr)
+            vr = view(results.g1, ws.backward_indices,1:ws.backward_nbr)
+            copy!(vr,vs)
+            vs = view(ws.solver_ws.g2,
+                      ws.icolsE[ws.backward_nbr .+ (1:(ws.forward_nbr - ws.both_nbr))]
+                      .-ws.backward_nbr, :)
+            vr = view(results.g1, ws.purely_forward_indices, 1:ws.backward_nbr)
+            copy!(vr,vs)
         end
     else
         error("Algorithm $algo not recognized")
@@ -191,8 +182,11 @@ end
 @btime        J = Dynare.Jacobian(context, periods)
     J = Dynare.Jacobian(context, periods)
 
-#=
+
+@show "bench1 gmres nomatrix"
 @btime bench1(150, 3)
+@show "bench2 gmres matrix"
 @btime bench2(150, 3)
-@btime bench3(150)
-=#
+@show "bench3 sparse LU"
+@btime bench3(150, 3)
+
