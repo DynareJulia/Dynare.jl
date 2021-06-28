@@ -58,6 +58,6 @@ function get_modname(s::String)
     return modname
 end
 
-include("precompile_Dynare.jl")
-_precompile_()
+#include("precompile_Dynare.jl")
+#_precompile_()
 end # module
