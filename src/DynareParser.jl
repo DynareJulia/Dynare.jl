@@ -194,7 +194,12 @@ end
 function dynare_parse_eval(s::String, context::Context)::Union{Symbol, Real, String, Nothing}
     e = Meta.parse(s)
     e = dynare_eval(e, context)
-    return eval(e)
+    try
+        return(eval(e))
+    catch
+        @show s
+        rethrow()
+    end
 end
 
 function dynare_eval(expr::Expr, context::Context)
