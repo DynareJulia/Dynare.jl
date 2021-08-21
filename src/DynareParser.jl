@@ -168,7 +168,11 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif field["statementName"] == "initval"
             initval!(context, field)
         elseif field["statementName"] == "native"
-            dynare_parse_eval(field["string"], context)
+            try
+                dynare_parse_eval(field["string"], context)
+            catch
+                error("""Unrecognized statement $(field["statementName"]) $(field["string"])""")
+            end
         elseif field["statementName"] == "param_init"
             param_init!(context, field)
         elseif field["statementName"] == "perfect_foresight_setup"
@@ -191,7 +195,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
     end
 end
 
-function dynare_parse_eval(s::String, context::Context)::Union{Symbol, Real, String, Nothing}
+function dynare_parse_eval(s::String, context::Context)
     e = Meta.parse(s)
     e = dynare_eval(e, context)
     try
