@@ -1,6 +1,6 @@
 using Plots
 function plot(variables::Vector{Vector{Float64}};
-              bar_variable::Vector{Float64} = [],
+              bar_variable::Vector{Float64} = Vector{Float64}([]),
               first_period::Int64 = 1,
               plot_title::String = "Smoothed value",
               plot_legend::Tuple = (),
@@ -47,7 +47,7 @@ function plot(variables::Vector{Vector{Float64}};
 end
 
 function plot(variable::Vector{Float64};
-              bar_variable::Vector{Float64} = [],
+              bar_variable::Vector{Float64} =  Vector{Float64}([]),
               first_period::Int64 = 1,
               plot_title::String = "Smoothed value",
               plot_legend::Tuple = (),
