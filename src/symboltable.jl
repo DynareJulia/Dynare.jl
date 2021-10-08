@@ -1,4 +1,14 @@
 for typ in instances(SymbolType)
+    s = Symbol("get_$(lowercase(string(typ)))")
+    @eval begin
+        function $s(symboltable::SymbolTable)
+            subset = filter(s -> s["symboltype"] == $typ, symboltable)
+            sorted_index = sortperm(subset, by = v -> v["orderintype"])
+            names = [s[1] for s in subset[sorted_index]]
+            return names
+        end
+    end
+    
     for f in fieldnames(DynareSymbol)
         s = Symbol("get_$(lowercase(string(typ)))_$(f)")
         @eval begin
@@ -11,6 +21,7 @@ for typ in instances(SymbolType)
             end
         end
     end
+
     s = Symbol("is_$(lowercase(string(typ)))") 
     @eval begin
         function $s(name::String, symboltable::SymbolTable)

@@ -31,14 +31,17 @@ function get_symbol_table(modeljson::Dict{String, Any})
     param_nbr = set_symbol_table!(symboltable,
                                   modeljson["parameters"],
                                   Parameter)
-    return (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr)
+    orig_endo_nbr = modeljson["orig_endo_nbr"]::Int64
+    aux_vars = modeljson["aux_vars"]::Vector{Dict{String, Any}}
+    return (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars)
 end
 
 function get_model(modfilename::String,
                    dynare_model_info::Dict{String, Any},
                    commandlineoptions::CommandLineOptions,
                    endo_nbr::Int64, exo_nbr::Int64,
-                   exo_det_nbr::Int64, param_nbr::Int64)
+                   exo_det_nbr::Int64, param_nbr::Int64,
+                   orig_endo_nbr::Int64, aux_vars::Vector{Dict{String, Any}})
     model_info = get_model_info(dynare_model_info)
 
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
@@ -60,6 +63,8 @@ function get_model(modfilename::String,
                   0,
                   exo_det_nbr,
                   param_nbr,
+                  orig_endo_nbr,
+                  aux_vars,
                   model_info.maximum_endo_lag,
                   model_info.maximum_endo_lead,
                   model_info.maximum_exo_lag,
@@ -133,14 +138,14 @@ end
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     modeljson = parseJSON(modfilename)
 
-    (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr) =
+    (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
 
     model = get_model(modfilename,
                       modeljson["model_info"],
                       commandlineoptions,
                       endo_nbr, exo_nbr, exo_det_nbr,
-                      param_nbr)
+                      param_nbr, orig_endo_nbr, aux_vars)
 
     varobs = get_varobs(modeljson)
 
