@@ -32,7 +32,7 @@ function get_symbol_table(modeljson::Dict{String, Any})
                                   modeljson["parameters"],
                                   Parameter)
     orig_endo_nbr = modeljson["orig_endo_nbr"]::Int64
-    aux_vars = modeljson["aux_vars"]::Vector{Dict{String, Any}}
+    aux_vars = modeljson["aux_vars"]
     return (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars)
 end
 
@@ -41,7 +41,7 @@ function get_model(modfilename::String,
                    commandlineoptions::CommandLineOptions,
                    endo_nbr::Int64, exo_nbr::Int64,
                    exo_det_nbr::Int64, param_nbr::Int64,
-                   orig_endo_nbr::Int64, aux_vars::Vector{Dict{String, Any}})
+                   orig_endo_nbr::Int64, aux_vars::Vector{Any})
     model_info = get_model_info(dynare_model_info)
 
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
@@ -127,9 +127,9 @@ function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, pa
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
                 [false],
-                Matrix{Float64}(undef,
-                                model.orig_maximum_lag + 1,
-                                model.endogenous_nbr))
+                Matrix{Union{Float64, Missing}}(missing,
+                                                model.orig_maximum_lag,
+                                                model.endogenous_nbr))
     results = Results([modelresults])
 
     return Context(symboltable, [model], results, work)
@@ -140,13 +140,11 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
 
     (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
-
     model = get_model(modfilename,
                       modeljson["model_info"],
                       commandlineoptions,
                       endo_nbr, exo_nbr, exo_det_nbr,
                       param_nbr, orig_endo_nbr, aux_vars)
-
     varobs = get_varobs(modeljson)
 
     global context = make_containers(endo_nbr, exo_nbr, exo_det_nbr,

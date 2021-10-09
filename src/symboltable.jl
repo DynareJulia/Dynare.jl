@@ -2,10 +2,8 @@ for typ in instances(SymbolType)
     s = Symbol("get_$(lowercase(string(typ)))")
     @eval begin
         function $s(symboltable::SymbolTable)
-            subset = filter(s -> s["symboltype"] == $typ, symboltable)
-            sorted_index = sortperm(subset, by = v -> v["orderintype"])
-            names = [s[1] for s in subset[sorted_index]]
-            return names
+            subset = [(s[1], s[2].orderintype) for s in context.symboltable if s[2].symboltype == Dynare.Endogenous]
+            return [s[1] for s in sort(subset, by = s -> s[2])] 
         end
     end
     

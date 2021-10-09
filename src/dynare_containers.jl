@@ -6,11 +6,11 @@ export Context, DynareSymbol, Model, ModelResults, Results, Simulation, SymbolTy
 
 struct Model
     endogenous_nbr::Int64
-    original_endogenous_nbr::Int64
     exogenous_nbr::Int64
     lagged_exogenous_nbr::Int64
     exogenous_deterministic_nbr::Int64
     parameter_nbr::Int64
+    original_endogenous_nbr::Int64
     lead_lag_incidence::Matrix{Int64}
     n_static::Int64
     n_fwrd::Int64
@@ -98,7 +98,7 @@ end
 function Model(modfilename::String, endogenous_nbr::Int64,
                lead_lag_incidence::Vector{Vector{Int64}},
                exogenous_nbr::Int64, lagged_exogenous_nbr::Int64, exogenous_deterministic_nbr::Int64,
-               parameter_nbr::Int64, orig_endo_nbr::Int64, aux_vars::Vector{Dict{String, Any}},
+               parameter_nbr::Int64, orig_endo_nbr::Int64, aux_vars::Vector{Any},
                maximum_endo_lag::Int64, maximum_endo_lead::Int64,
                maximum_exo_lag::Int64, maximum_exo_lead::Int64, maximum_exo_det_lag::Int64,
                maximum_exo_det_lead::Int64, maximum_lag, maximum_lead::Int64,
@@ -317,7 +317,7 @@ function Model(modfilename::String, endogenous_nbr::Int64,
     end
 
     Model(endogenous_nbr, exogenous_nbr, lagged_exogenous_nbr,
-          exogenous_deterministic_nbr, parameter_nbr, orig_endo_nbr
+          exogenous_deterministic_nbr, parameter_nbr, orig_endo_nbr,
           lead_lag_incidence_matrix, n_static, n_fwrd, n_bkwrd, n_both,
           n_states, DErows1, DErows2, n_dyn, i_static, i_dyn, i_bkwrd,
           i_bkwrd_b, i_bkwrd_ns, i_fwrd, i_fwrd_b, i_fwrd_ns, i_both,
@@ -411,7 +411,7 @@ struct Work
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
-    histval::Matrix{Float64}
+    histval::Matrix{Union{Float64, Missing}}
 end
 
 Base.show(io::IO, w::Work) = show_field_value(w)
