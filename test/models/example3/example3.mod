@@ -56,6 +56,7 @@ end;
 check;
 
 stoch_simul(order=1, periods=100);
+
 CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data))
 
 varobs y;

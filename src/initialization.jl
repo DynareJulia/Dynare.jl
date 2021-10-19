@@ -49,7 +49,7 @@ function histval_file!(context::Context, field::Dict{String, Any})
     if "datafile" in options
         data = TimeDataFrame(CSV.File(options["datafile"]))
     else
-        data = noting
+        data = nothing
     end
 
     first_obs = get_date("first_obs", options)
@@ -113,18 +113,20 @@ function histval_file!(context::Context, field::Dict{String, Any})
     offset = m.orig_maximum_lag - stop
     data_ = getfield(getfield(data, :data), :data)
     histval = context.work.histval
-    let colindex. endogenous_names
+    let colindex, endogenous_names
         if auxiliary_variable_present
             colindex = m.i_bkwrd_b
             endogenous_names = get_endogenous(symboltable)
         else
             colindex = view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
             endogenous_names = view(get_endogenous(symboltable), 1:m.orig_endogenous_nbr)
-    columns = (auxiliary_variables_present) ? m.i_bkwrd_b : view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
-    for (i, vname) in endogenous_names
-        colindex = find
-        for j in istart:istop
-            histval[j + offset, i] = data_[j, colindex] 
+        end
+        columns = (auxiliary_variables_present) ? m.i_bkwrd_b : view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
+        for (i, vname) in endogenous_names
+            colindex = find
+            for j in istart:istop
+                histval[j + offset, i] = data_[j, colindex] 
+            end
         end
     end
 end

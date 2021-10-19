@@ -345,6 +345,25 @@ end
 
 Base.show(io::IO, m::Model) = show_field_value(m)
 
+function Modelfile()
+    return(
+    Dict(
+        "has_calib_smoother" => false,
+        "has_check" => false,
+        "has_deterministic_trend" => false,
+        "has_histval" => false,
+        "has_histval_file" => false,
+        "has_initval" => false,
+        "has_initval_file" => false,
+        "has_planner_objective" => false,
+        "has_perfect_foresight_setup" => false,
+        "has_perfect_foresight_solver" => false,
+        "has_ramsey_model" => false,
+        "has_shocks" => false,
+        "has_stoch_simul" => false
+    ))
+end
+
 struct Simulation
     name::String
     statement::String
@@ -433,6 +452,7 @@ const SymbolTable = Dict{String, DynareSymbol}
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
+    modelfile::Dict{String, Bool}
     results::Results
     work::Work
 end

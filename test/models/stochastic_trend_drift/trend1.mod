@@ -37,3 +37,6 @@ stoch_simul(periods=100, irf=0);
 
 CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data));
 
+//histval_file(datafile=history);
+
+//stoch_simul(periods=100, irf=0);

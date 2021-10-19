@@ -86,6 +86,7 @@ end
 
 function stoch_simul_core!(context::Context, ws::PeriodJacobianWs, options::StochSimulOptions)
     model = context.models[1]
+    modelfile = context.modelfile
     results = context.results.model_results[1]
     work = context.work
     #check_parameters(work.params, context.symboltable)
@@ -97,19 +98,19 @@ function stoch_simul_core!(context::Context, ws::PeriodJacobianWs, options::Stoc
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
-        y0 = copy(steadystate)
+        y0 = zeros(model.endogenous_nbr)
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
-        if size(histval, 1) == 0
-            # no histval
+        if modelfile["has_histval"]
+            for i in eachindex(skipmissing(view(work.histval, size(work.histval, 1), :)))
+                y0[i] = work.histval[end, i]
+            end
+        else
             if work.model_has_trend[1]
                 y0 = steadystate - linear_trend
             else
                 y0 = steadystate
             end
-        else
-            # histval present
-            y0 = view(histval, 1, :)
         end
         C = cholesky(model.Sigma_e)
         x = vcat(zeros(1, model.exogenous_nbr),
@@ -121,9 +122,9 @@ function stoch_simul_core!(context::Context, ws::PeriodJacobianWs, options::Stoc
         if work.model_has_trend[1]
             simulresults .+= collect(0:periods) * transpose(linear_trend) 
         end
-        first_period = options.first_period
+        first_period = ExtendedDates.UndatedDate(options.first_period)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
-        data = TimeDataFrame(simulresults, Periods.Undated, first_period, endogenous_names)
+        data = TimeDataFrame(simulresults, first_period, endogenous_names)
         push!(results.simulations, Simulation("", "stoch_simul", data))
     end
 end

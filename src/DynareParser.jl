@@ -1,6 +1,7 @@
 using CSV
 using DataFrames
 #using .DynareContainers
+using ExtendedDates
 using FastLapackInterface
 using FastLapackInterface.SchurAlgo
 using JSON
@@ -132,7 +133,7 @@ function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, pa
                                                 model.endogenous_nbr))
     results = Results([modelresults])
 
-    return Context(symboltable, [model], results, work)
+    return Context(symboltable, [model], Modelfile(), results, work)
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
@@ -155,21 +156,26 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         parse_statements!(context, modeljson["statements"])
     end
     return context
-
 end
 
 function parse_statements!(context::Context, statements::Vector{Any})
+    modelfile = context.modelfile
     for field in statements
         if field["statementName"] == "calib_smoother"
             calib_smoother!(context, field)
+            modelfile["has_calib_smoother"] = true
         elseif field["statementName"] == "check"
             check!(context, field)
+            modelfile["has_check"] = true
         elseif field["statementName"] == "deterministic_trends"
             deterministic_trends!(context, field)
+            modelfile["has_trends"] = true
         elseif field["statementName"] == "histval"
             histval!(context, field)
+            modelfile["has_histval"] = true
         elseif field["statementName"] == "initval"
             initval!(context, field)
+            modfile["has_initval"] = true
         elseif field["statementName"] == "native"
             try
                 dynare_parse_eval(field["string"], context)
@@ -180,16 +186,21 @@ function parse_statements!(context::Context, statements::Vector{Any})
             param_init!(context, field)
         elseif field["statementName"] == "perfect_foresight_setup"
             perfect_foresight_setup!(context, field)
+            modelfile["has_perfect_foresight_setup"] = true
         elseif field["statementName"] == "perfect_foresight_solver"
             perfect_foresight_solver!(context, field)
+            modelfile["has_perfect_foresight_solver"] = true
         elseif field["statementName"] == "planner_objective"
             planner_objective!(context, field)
+            modelfile["has_planner_objective"] = true
         elseif field["statementName"] == "ramsey_model"
-            Nothing
+            modelfile["has_ramsey_model"] = true
         elseif field["statementName"] == "shocks"
             shocks!(context, field)
+            modelfile["has_shocks"] = true
         elseif field["statementName"] == "stoch_simul"
             stoch_simul!(context, field)
+            modelfile["has_stoch_simul"] = true
         elseif field["statementName"] == "verbatim"
             Nothing
         else
