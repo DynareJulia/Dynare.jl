@@ -29,3 +29,6 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 TimeDataFrames = "ff13af16-2f41-468a-a2e1-aff5c43aabf7"
+
+[compat]
+julia = ">= 1.6.3"
