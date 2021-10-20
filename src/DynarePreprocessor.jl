@@ -1,4 +1,4 @@
-using Artifacts
+using Dynare_preprocessol_jll
 
 function dynare_preprocess(modfilename::String, args::Vector{Any})
     dynare_args = [basename(modfilename), "language=julia", "json=compute"]
