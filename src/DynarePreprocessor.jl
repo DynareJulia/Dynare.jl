@@ -1,4 +1,4 @@
-using Dynare_preprocessol_jll
+using Dynare_preprocessor_jll
 
 function dynare_preprocess(modfilename::String, args::Vector{Any})
     dynare_args = [basename(modfilename), "language=julia", "json=compute"]
@@ -20,7 +20,7 @@ function run_dynare(modfilename::String, dynare_args::Vector{String})
         cd(directory)
     end
 
-    dynare_preprocessor_path = joinpath(artifact"dynare-preprocessor", "dynare-preprocessor")
+    dynare_preprocessor_path = dynare_preprocessor()
     run(`$dynare_preprocessor_path $dynare_args`)
 
     if length(directory) > 0
