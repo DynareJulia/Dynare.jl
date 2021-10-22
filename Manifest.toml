@@ -531,12 +531,6 @@ git-tree-sha1 = "bfd7d8c7fd87f04543810d9cbd3995972236ba1b"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "1.1.2"
 
-[[Periods]]
-deps = ["Dates", "Test"]
-git-tree-sha1 = "846d5f9989d915415e208c1e4e558cb5f5c489db"
-uuid = "0c1d1a06-9168-427d-90e3-b4d73349562f"
-version = "0.1.0"
-
 [[Pixman_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "b4f5d02549a10e20780a24fce72bea96b6329e29"
@@ -758,10 +752,10 @@ deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[TimeDataFrames]]
-deps = ["CSV", "DataFrames", "Periods"]
-git-tree-sha1 = "8826b3ec53b8256ab41cb2625878351cffc7f298"
+deps = ["CSV", "DataFrames", "ExtendedDates"]
+git-tree-sha1 = "28639cb6a56b1775364016530e9046ed296d3185"
 uuid = "ff13af16-2f41-468a-a2e1-aff5c43aabf7"
-version = "0.1.2"
+version = "0.1.3"
 
 [[URIs]]
 git-tree-sha1 = "97bbe755a53fe859669cd907f2d96aee8d2c1355"
