@@ -1,5 +1,4 @@
 using LinearAlgebra
-using Revise
 using Suppressor
 
 export get_de, get_abc, inverse_order_of_dynare_decision_rule

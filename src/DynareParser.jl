@@ -7,7 +7,6 @@ using FastLapackInterface.SchurAlgo
 using JSON
 using KalmanFilterTools
 using LinearRationalExpectations
-using Periods
 using StatsFuns
 using TimeDataFrames
 

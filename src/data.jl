@@ -1,25 +1,25 @@
 function identify_period_frequency(period)::Periods.Frequency
     period = uppercase(period)
     if 'Y' in period
-        frequency = Periods.Year
+        frequency = Year
     elseif 'A' in period
-        frequency = Periods.Year
+        frequency = Year
     elseif 'S' in period
         frequency = Period.Semester
     elseif 'H' in period
-        frequency = Periods.Semester
+        frequency = Semester
     elseif 'Q' in period
-        frequency = Periods.Quarter
+        frequency = Quarter
     elseif 'M' in period
-        frequency = Periods.Month
+        frequency = Month
     elseif 'W' in period
-        frequency = Periods.Week
+        frequency = Week
     elseif 'D' in period
-        frequency = Periods.Day
+        frequency = Day
     elseif (cdash = count("-", period)) == 2
-        frequency = Periods.Day
+        frequency = Day
     elseif cdash == 1
-        frequency = Periods.Month
+        frequency = Month
     else
         throw(ErrorException)
     end
@@ -32,7 +32,7 @@ function get_data(filename::String, variables::Vector{String};
                                    "PERIOD", "PERIODS"]
         frequency = identify_period_frequency(uppercase(df[1, 1]))
     else
-        frequency = Periods.Undated
+        frequency = Undated
     end
     
     ny = length(variables)

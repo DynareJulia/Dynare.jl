@@ -1,6 +1,4 @@
 module Dynare
-using Revise
-
 
 @Base.kwdef struct CommandLineOptions
     compilemodule::Bool = true
