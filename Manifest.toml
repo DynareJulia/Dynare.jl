@@ -322,7 +322,7 @@ version = "2.1.0+0"
 
 [[KalmanFilterTools]]
 deps = ["LinearAlgebra"]
-path = "../kalmanfiltertools.jl"
+git-tree-sha1 = "32453ed2ab365dd12595763dbe46f1107fc2f551"
 uuid = "ec016732-9331-11e9-305f-d53cb440b85a"
 version = "0.1.0"
 
@@ -428,7 +428,7 @@ version = "3.3.0"
 
 [[LinearRationalExpectations]]
 deps = ["FastLapackInterface", "LinearAlgebra", "PolynomialMatrixEquations"]
-path = "../linearrationalexpectations.jl"
+git-tree-sha1 = "8569d5c3e6d6c28c595ef9223b9d4bc4e2415685"
 uuid = "45f42fbc-210c-4ecc-9452-59ec793b9bfd"
 version = "0.1.3"
 
