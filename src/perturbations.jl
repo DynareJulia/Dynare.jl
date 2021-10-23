@@ -163,8 +163,8 @@ function compute_first_order_solution!(
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
             
-    get_jacobian!(ws, params, endogenous, exogenous, steadystate,
-                  model, 2)
+    get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate,
+                          model, 2)
     algo = options.dr_algo
     wsLRE = LREWs(algo,
                model.endogenous_nbr,

@@ -191,6 +191,25 @@ function PeriodJacobianWs(context::Context)
                             dynamic_nbr, tmp_nbr)
 end
 
+struct StaticJacobianWs
+    jacobian::Matrix{Float64}
+    residuals::Vector{Float64}
+    temporary_values::Vector{Float64}
+    function StaticJacobianWs(endogenous_nbr::Int64,
+                              tmp_nbr::Int64)
+        jacobian = Matrix{Float64}(undef, endogenous_nbr, endogenous_nbr)
+        residuals = Vector{Float64}(undef, endogenous_nbr)
+        temporary_values = Vector{Float64}(undef, tmp_nbr)
+        new(jacobian, residuals, temporary_values)
+    end
+end
+
+function StaticJacobianWs(context::Context)
+    m = context.models[1]
+    tmp_nbr = sum(m.static!.tmp_nbr[1:2])
+    return StaticJacobianWs(m.endogenous_nbr, tmp_nbr)
+end
+
 function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
     @debug "any(isnan.(x))=$(any(isnan.(x))) "
     x1 =  reshape(x, Int(length(x)/exogenous_nbr), exogenous_nbr)
@@ -199,11 +218,11 @@ function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
 end
 
 """
-get_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
+get_dynamic_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
 
-returns sets the Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
+sets the dynamic Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
 """
-function get_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::AbstractVector{Float64},
+function get_dynamic_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::AbstractVector{Float64},
                        steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli)
@@ -266,12 +285,12 @@ function get_terminal_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, e
 end
 
 """
-get_jacobian!(ws::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
+get_dynamic_jacobian!(ws::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
 
-returns sets the Jacobian matrix ``ws.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
+sets the dynamic Jacobian matrix ``ws.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
 around ``period`` 
 """
-function get_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous::AbstractVecOrMat{Float64}, exogenous::Matrix{Float64}, steadystate::Vector{Float64}, m::Model, period::Int64)
+function get_dynamic_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous::AbstractVecOrMat{Float64}, exogenous::Matrix{Float64}, steadystate::Vector{Float64}, m::Model, period::Int64)
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli, m, period)
 #    x = get_exogenous_matrix(ws.exogenous_variables, m.exogenous_nbr)
@@ -284,6 +303,26 @@ function get_jacobian!(ws::PeriodJacobianWs, params::Vector{Float64}, endogenous
                       params,
                       steadystate,
                       period)
+end
+
+"""
+get_static_jacobian!(ws::StaticJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64})
+
+sets the static Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values
+"""
+function get_static_jacobian!(ws::StaticJacobianWs,
+                              params::Vector{Float64},
+                              endogenous::AbstractVector{Float64},
+                              exogenous::AbstractVector{Float64})
+    @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
+    fill!(ws.jacobian, 0.0)
+    Base.invokelatest(context.models[1].static!.static!,
+                      ws.temporary_values,
+                      ws.residuals,
+                      ws.jacobian,
+                      endogenous,
+                      exogenous,
+                      params)
 end
 
 function get_abc!(a::AbstractMatrix{Float64},
@@ -314,23 +353,4 @@ function get_de!(ws::LinearRationalExpectationsWs, jacobian::AbstractMatrix{Floa
 end
 
 
-#=
-for typ in instances(SymbolType)
-    styp = lowercase(string(typ))
-    f = Symbol("get_$(styp)_name")
-    s = Symbol("check_$styp")
-    @eval begin
-        function $s(x, symbol_table::SymbolTable)
-            if !isreal(x)
-                names = $f(symbol_table)
-                msg = "\nSome $styp don't have a real value:\n"
-                for k in findall(!isreal.(x))
-                    msg *= "$(names[k]): $(x[k])\n"
-                end
-                throw(error(msg))
-            end
-        end
-    end
-end
-=#          
 

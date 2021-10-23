@@ -75,11 +75,11 @@ function get_abc!(ws::LinearRationalExpectationsWs, jacobian::AbstractMatrix{Flo
 end
 
 function balance_growth_path_general!(m, work)
-    get_jacobian!(work,
-                  zeros(m.endogenous_nbr),
-                  zeros(m.exogenous_nbr),
-                  m,
-                  2)
+    get_dynamic_jacobian!(work,
+                          zeros(m.endogenous_nbr),
+                          zeros(m.exogenous_nbr),
+                          m,
+                          2)
 
 end
 
