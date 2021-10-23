@@ -90,7 +90,7 @@ function get_first_order_solution!(context::Context)
     exogenous = results.trends.exogenous_steady_state
     ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
     tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
-    ws = Dynare.PeriodJacobianWs(model.endogenous_nbr,
+    ws = Dynare.DynamicJacobianWs(model.endogenous_nbr,
                             model.exogenous_nbr,
                            ncol,
                            sum(tmp_nbr[1:2]))
@@ -135,7 +135,7 @@ x0 = view(vec(y), n+1:(periods+1)*n)
 x = similar(x0)
 
 JJ = Jacobian(context, periods)
-ws_threaded = [Dynare.PeriodJacobianWs(context) for i=1:Threads.nthreads()]
+ws_threaded = [Dynare.DynamicJacobianWs(context) for i=1:Threads.nthreads()]
 
 
 func!(resid::AbstractVector{Float64}, x0::AbstractVector{Float64}) = get_residuals!(resid,

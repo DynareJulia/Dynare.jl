@@ -77,14 +77,14 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
     tmp_nbr = m.dynamic!.tmp_nbr::Vector{Int64}
-    ws = PeriodJacobianWs(m.endogenous_nbr,
+    ws = DynamicJacobianWs(m.endogenous_nbr,
                           m.exogenous_nbr,
                           ncol,
                           sum(tmp_nbr[1:2]))
     stoch_simul_core!(context, ws, options)
 end
 
-function stoch_simul_core!(context::Context, ws::PeriodJacobianWs, options::StochSimulOptions)
+function stoch_simul_core!(context::Context, ws::DynamicJacobianWs, options::StochSimulOptions)
     model = context.models[1]
     modelfile = context.modelfile
     results = context.results.model_results[1]
@@ -133,7 +133,7 @@ function check!(context::Context, field::Dict{String, Any})
     Nothing
 end
 
-function compute_stoch_simul!(context::Context, ws::PeriodJacobianWs,
+function compute_stoch_simul!(context::Context, ws::DynamicJacobianWs,
                               params::Vector{Float64}, options::StochSimulOptions)
     model = context.models[1]
     results = context.results.model_results[1]
@@ -153,7 +153,7 @@ function compute_first_order_solution!(
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     model::Model,
-    ws::PeriodJacobianWs,
+    ws::DynamicJacobianWs,
     options::StochSimulOptions)
 
     # abbreviations
