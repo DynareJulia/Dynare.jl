@@ -12,7 +12,7 @@ include("symboltable.jl")
 include("initialization.jl")
 include("deterministic_trends.jl")
 include("DynareParser.jl")
-export parser, get_jacobian_at_steadystate!
+export parser
 include("DynarePreprocessor.jl")
 export dynare_preprocess
 include("steady_state/SteadyState.jl")
