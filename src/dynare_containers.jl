@@ -377,7 +377,7 @@ struct Trends
     endogenous_linear_trend::Vector{Float64}
     endogenous_quadratic_trend::Vector{Float64}
     exogenous_steady_state::Vector{Float64}
-    exogenous_linexbar_trend::Vector{Float64}
+    exogenous_linear_trend::Vector{Float64}
     exogenous_quadratic_trend::Vector{Float64}
     exogenous_det_steady_state::Vector{Float64}
     exogenous_det_linear_trend::Vector{Float64}

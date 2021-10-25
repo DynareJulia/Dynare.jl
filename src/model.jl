@@ -109,7 +109,7 @@ end
 
 
 """
-get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64})
+`get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64})
 
 sets the vector of dynamic variables ``y``, evaluated at the same values 
 for all leads and lags and taken in ``data`` vector 
@@ -127,7 +127,7 @@ function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::AbstractVec
 end
 
 """
-get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
+`get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
 
 sets the vector of dynamic variables ``y`` with values in as many rows of ``data`` matrix
 as there are leads and lags in the model. ``period`` is the current period.
@@ -145,7 +145,7 @@ function get_dynamic_endogenous_variables!(y::Vector{Float64}, data::AbstractMat
 end
 
 """
-get_dynamic_endogenous_variables!(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
+`get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
 
 sets the vector of dynamic variables ``y`` with values in as many rows of ``data`` matrix
 as there are leads and lags in the model. ``period`` is the current period.
@@ -217,8 +217,10 @@ function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
     return x1
 end
 
+function get_dynamic_residuals!(ws:DynamicResidualsWs,
+                                
 """
-get_dynamic_jacobian!(ws::DynamicJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
+`get_dynamic_jacobian!`(ws::DynamicJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
 
 sets the dynamic Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
 """
@@ -284,8 +286,9 @@ function get_terminal_jacobian!(ws::DynamicJacobianWs, params::Vector{Float64}, 
                       period)  
 end
 
+
 """
-get_dynamic_jacobian!(ws::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
+`get_dynamic_jacobian!`(ws::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
 
 sets the dynamic Jacobian matrix ``ws.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
 around ``period`` 
@@ -306,7 +309,7 @@ function get_dynamic_jacobian!(ws::DynamicJacobianWs, params::Vector{Float64}, e
 end
 
 """
-get_static_jacobian!(ws::StaticJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64})
+`get_static_jacobian!`(ws::StaticJacobianWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64})
 
 sets the static Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values
 """
