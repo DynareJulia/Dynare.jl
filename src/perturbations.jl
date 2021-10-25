@@ -77,14 +77,14 @@ function stoch_simul!(context::Context, field::Dict{String, Any})
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2*m.n_both
     tmp_nbr = m.dynamic!.tmp_nbr::Vector{Int64}
-    ws = DynamicJacobianWs(m.endogenous_nbr,
-                          m.exogenous_nbr,
-                          ncol,
-                          sum(tmp_nbr[1:2]))
+    ws = DynamicWs(m.endogenous_nbr,
+                   m.exogenous_nbr,
+                   ncol,
+                   sum(tmp_nbr[1:2]))
     stoch_simul_core!(context, ws, options)
 end
 
-function stoch_simul_core!(context::Context, ws::DynamicJacobianWs, options::StochSimulOptions)
+function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulOptions)
     model = context.models[1]
     modelfile = context.modelfile
     results = context.results.model_results[1]
@@ -133,7 +133,7 @@ function check!(context::Context, field::Dict{String, Any})
     Nothing
 end
 
-function compute_stoch_simul!(context::Context, ws::DynamicJacobianWs,
+function compute_stoch_simul!(context::Context, ws::DynamicWs,
                               params::Vector{Float64}, options::StochSimulOptions)
     model = context.models[1]
     results = context.results.model_results[1]
@@ -153,7 +153,7 @@ function compute_first_order_solution!(
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     model::Model,
-    ws::DynamicJacobianWs,
+    ws::DynamicWs,
     options::StochSimulOptions)
 
     # abbreviations
@@ -163,8 +163,8 @@ function compute_first_order_solution!(
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
             
-    get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate,
-                          model, 2)
+    jacobian = get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate,
+                                     model, 2)
     algo = options.dr_algo
     wsLRE = LREWs(algo,
                model.endogenous_nbr,
@@ -174,16 +174,16 @@ function compute_first_order_solution!(
                model.i_current,
                model.i_bkwrd_b,
                model.i_both,
-               model.i_static)
-    LRE.remove_static!(ws.jacobian, wsLRE)
+                  model.i_static)
+    LRE.remove_static!(jacobian, wsLRE)
     if algo == "GS"
-        LRE.get_de!(wsLRE, ws.jacobian)
+        LRE.get_de!(wsLRE, jacobian)
     else
-        LRE.get_abc!(wsLRE, ws.jacobian)
+        LRE.get_abc!(wsLRE, jacobian)
     end
     LRE.first_order_solver!(LRE_results,
                             algo,
-                            ws.jacobian,
+                            jacobian,
                             options.LRE_options,
                             wsLRE)
     lre_variance_ws = LRE.VarianceWs(model.endogenous_nbr,
