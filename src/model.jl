@@ -36,12 +36,12 @@ struct StaticWs
     derivatives::Vector{Vector{Float64}}
     temporary_values::Vector{Float64}
     function StaticWs(endogenous_nbr::Int64,
-                              tmp_nbr::Int64)
+                      tmp_nbr::Int64)
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = Vector{Vector{Float64}}(undef, 1)
         derivatives[1] = Vector{Float64}(undef, 0)
         temporary_values = Vector{Float64}(undef, tmp_nbr)
-        new(jacobian, residuals, temporary_values)
+        new(residuals, derivatives, temporary_values)
     end
 end
 
@@ -249,7 +249,7 @@ function get_dynamic_residuals!(ws::DynamicWs, params::Vector{Float64}, endogeno
     return ws.residuals
 end
 
-function get_static_residuals!(ws::StaticWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::AbstractVector{Float64})
+function get_static_residuals!(ws::StaticWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::AbstractVector{Float64}, m::Model)
     Base.invokelatest(m.static!.static!,
                       ws.temporary_values,
                       ws.residuals,
@@ -267,7 +267,7 @@ function dynamic_jacobian_matrix(ws::DynamicWs, m::Model)
     return jacobian
 end
 
-function static_jacobian_matrix(ws::DynamicWs, n::Int64)
+function static_jacobian_matrix(ws::StaticWs, n::Int64)
     vecjacobian = resize!(ws.derivatives[1], n*n)
     jacobian = reshape(vecjacobian, n, n)
     fill!(jacobian, 0.0)
@@ -365,7 +365,8 @@ sets the static Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` a
 function get_static_jacobian!(ws::StaticWs,
                               params::Vector{Float64},
                               endogenous::AbstractVector{Float64},
-                              exogenous::AbstractVector{Float64})
+                              exogenous::AbstractVector{Float64},
+                              m::Model)
     @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
     jacobian = static_jacobian_matrix(ws, m.endogenous_nbr)
     Base.invokelatest(context.models[1].static!.static!,

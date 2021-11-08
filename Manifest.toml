@@ -486,6 +486,12 @@ version = "0.3.5"
 [[NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 
+[[NonLinearSolvers]]
+deps = ["FastLapackInterface", "LinearAlgebra"]
+path = "../NonLinearSolvers"
+uuid = "78cd7a1d-237b-4d2b-8f03-7e361a7fd429"
+version = "0.1.0"
+
 [[Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "7937eda4681660b4d6aeeecc2f7e1c81c8ee4e2f"

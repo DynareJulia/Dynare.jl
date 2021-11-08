@@ -1,11 +1,11 @@
-function identify_period_frequency(period)::Periods.Frequency
+function identify_period_frequency(period)::ExtendedDates.Frequency
     period = uppercase(period)
     if 'Y' in period
         frequency = Year
     elseif 'A' in period
         frequency = Year
     elseif 'S' in period
-        frequency = Period.Semester
+        frequency = ExtendedDates.Semester
     elseif 'H' in period
         frequency = Semester
     elseif 'Q' in period
