@@ -77,19 +77,6 @@ function inverse_order_of_dynare_decision_rule(m::Model)
     (inverse_order_var, inverse_order_states)
 end
 
-function load_dynare_function(modname::String, compileoption::Bool)::Module
-    if compileoption
-        fun = readlines(modname*".jl")
-        return(eval(Meta.parse(join(fun, "\n"))))
-    else
-        push!(LOAD_PATH, dirname(modname))
-        name = basename(modname)
-        eval(Meta.parse("using "*name))
-        pop!(LOAD_PATH)
-        return(eval(Symbol(name)))
-    end
-end
-
 function get_initial_dynamic_endogenous_variables!(y::AbstractVector{Float64},
                                                    data::AbstractVector{Float64},
                                                    initialvalues::AbstractVector{Float64},

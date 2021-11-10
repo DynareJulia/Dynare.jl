@@ -86,7 +86,7 @@ end
 
 function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulOptions)
     model = context.models[1]
-    modelfile = context.modelfile
+    modfileinfo = context.modfileinfo
     results = context.results.model_results[1]
     work = context.work
     #check_parameters(work.params, context.symboltable)
@@ -99,9 +99,10 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
         y0 = zeros(model.endogenous_nbr)
+        @show options
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
-        if modelfile["has_histval"]
+        if modfileinfo["has_histval"]
             for i in eachindex(skipmissing(view(work.histval, size(work.histval, 1), :)))
                 y0[i] = work.histval[end, i]
             end

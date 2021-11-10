@@ -161,19 +161,13 @@ function initval!(context::Context, field::Dict{String, Any})
         end
     end
     params = context.work.params
-    if !isempty(m.set_auxiliary_variables!)
-        @show m.set_auxiliary_variables!.set_auxiliary_variables!
-        Base.invokelatest(
-            m.set_auxiliary_variables!.set_auxiliary_variables!(
-                endogenous_steady_state,
-                exogenous_steady_state,
-                params)
-        )
-    end
-    trends = context.results.results_model[1].trends 
-    trends.endogenous_steady_state = endogenous_steady_state
-    trends.exogenous_steady_state = exogenous_steady_state
-    trends.exogenous_det_steady_state = exogenous_det_steady_state
+    m.set_auxiliary_variables!(endogenous_steady_state,
+                               exogenous_steady_state,
+                               params)
+    trends = context.results.model_results[1].trends 
+    trends.endogenous_steady_state .= endogenous_steady_state
+    trends.exogenous_steady_state .= exogenous_steady_state
+    trends.exogenous_det_steady_state .= exogenous_det_steady_state
 end
 
 function shocks!(context::Context, field::Dict{String, Any})
@@ -263,14 +257,7 @@ function load_steadystate!(context::Context, filename::String)
             end
         end
     end
-    if !isempty(m.set_auxiliary_variables!)
-        Base.invokelatest(m.set_auxiliary_variables!.set_auxiliary_variables!,
-                          endogenous,
-                          exogenous,
-                          parameters)
-    end
-end
-
-function isempty(m::Module)
-    return names(m)[1] == :anonymous
+    m.set_auxiliary_variables!(endogenous,
+                               exogenous,
+                               parameters)
 end

@@ -37,6 +37,7 @@ function get_symbol_table(modeljson::Dict{String, Any})
 end
 
 function get_model(modfilename::String,
+                   modfileinfo::Dict{String, Bool},
                    dynare_model_info::Dict{String, Any},
                    commandlineoptions::CommandLineOptions,
                    endo_nbr::Int64, exo_nbr::Int64,
@@ -57,6 +58,7 @@ function get_model(modfilename::String,
         push!(lead_lag_incidence, v)
     end
     model = Model(modfilename,
+                  modfileinfo,
                   endo_nbr,
                   lead_lag_incidence,
                   exo_nbr,
@@ -101,7 +103,19 @@ function get_varobs(modeljson::Dict{String, Any})
     return varobs
 end
 
-function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, param_nbr::Int64,
+function check_function_files!(modfileinfo, modfilename)
+    if isfile(modfilename*"DynamicSetAuxiliarySeries.jl")
+        modfileinfo["has_auxiliary_variables"] = true
+        if !isfile(modfilename*"SetAuxiliaryVariables.jl")
+            error(modfilename*"SetAuxiliaryVariables.jl is missing")
+        end
+    end
+    if isfile(modfilename*"SteadyState2.jl")
+        modfileinfo["has_steadystate_file"] = true
+    end
+end
+
+function make_containers(modelfileinfo::Dict{String, Bool}, endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, param_nbr::Int64,
                          model::Model, symboltable::SymbolTable, varobs::Vector{String})
     modelresults = ModelResults(Vector{Float64}(undef, endo_nbr),
                                 Trends(endo_nbr, exo_nbr, exo_det_nbr),
@@ -132,7 +146,7 @@ function make_containers(endo_nbr::Int64, exo_nbr::Int64, exo_det_nbr::Int64, pa
                                                 model.endogenous_nbr))
     results = Results([modelresults])
 
-    return Context(symboltable, [model], Modelfile(), results, work)
+    return Context(symboltable, [model], modelfileinfo, results, work)
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
@@ -140,14 +154,17 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
 
     (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
+    modfileinfo = Modelfile()
+    check_function_files!(modfileinfo, modfilename)
     model = get_model(modfilename,
+                      modfileinfo,
                       modeljson["model_info"],
                       commandlineoptions,
                       endo_nbr, exo_nbr, exo_det_nbr,
                       param_nbr, orig_endo_nbr, aux_vars)
     varobs = get_varobs(modeljson)
 
-    global context = make_containers(endo_nbr, exo_nbr, exo_det_nbr,
+    global context = make_containers(modfileinfo, endo_nbr, exo_nbr, exo_det_nbr,
                                      param_nbr, model, symboltable,
                                      varobs)
     
@@ -158,52 +175,55 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
 end
 
 function parse_statements!(context::Context, statements::Vector{Any})
-    modelfile = context.modelfile
+    modfileinfo = context.modfileinfo
     for field in statements
-        if field["statementName"] == "calib_smoother"
+        statementname = field["statementName"]
+        if statementname == "calib_smoother"
             calib_smoother!(context, field)
-            modelfile["has_calib_smoother"] = true
-        elseif field["statementName"] == "check"
+            modfileinfo["has_calib_smoother"] = true
+        elseif statementname == "check"
             check!(context, field)
-            modelfile["has_check"] = true
-        elseif field["statementName"] == "deterministic_trends"
+            modfileinfo["has_check"] = true
+        elseif statementname == "deterministic_trends"
             deterministic_trends!(context, field)
-            modelfile["has_trends"] = true
-        elseif field["statementName"] == "histval"
+            modfileinfo["has_trends"] = true
+        elseif statementname == "histval"
             histval!(context, field)
-            modelfile["has_histval"] = true
-        elseif field["statementName"] == "initval"
+            modfileinfo["has_histval"] = true
+        elseif statementname == "initval"
             initval!(context, field)
-            modfile["has_initval"] = true
-        elseif field["statementName"] == "native"
+            modfileinfo["has_initval"] = true
+        elseif statementname == "native"
             try
                 dynare_parse_eval(field["string"], context)
             catch
-                error("""Unrecognized statement $(field["statementName"]) $(field["string"])""")
+                error("""Unrecognized statement $(statementname) $(field["string"])""")
             end
-        elseif field["statementName"] == "param_init"
+        elseif statementname == "param_init"
             param_init!(context, field)
-        elseif field["statementName"] == "perfect_foresight_setup"
+        elseif statementname == "perfect_foresight_setup"
             perfect_foresight_setup!(context, field)
-            modelfile["has_perfect_foresight_setup"] = true
-        elseif field["statementName"] == "perfect_foresight_solver"
+            modfileinfo["has_perfect_foresight_setup"] = true
+        elseif statementname == "perfect_foresight_solver"
             perfect_foresight_solver!(context, field)
-            modelfile["has_perfect_foresight_solver"] = true
-        elseif field["statementName"] == "planner_objective"
+            modfileinfo["has_perfect_foresight_solver"] = true
+        elseif statementname == "planner_objective"
             planner_objective!(context, field)
-            modelfile["has_planner_objective"] = true
-        elseif field["statementName"] == "ramsey_model"
-            modelfile["has_ramsey_model"] = true
-        elseif field["statementName"] == "shocks"
+            modfileinfo["has_planner_objective"] = true
+        elseif statementname == "ramsey_model"
+            modfileinfo["has_ramsey_model"] = true
+        elseif statementname == "shocks"
             shocks!(context, field)
-            modelfile["has_shocks"] = true
-        elseif field["statementName"] == "stoch_simul"
+            modfileinfo["has_shocks"] = true
+        elseif statementname == "steady"
+            steady!(context, field)
+        elseif statementname == "stoch_simul"
             stoch_simul!(context, field)
-            modelfile["has_stoch_simul"] = true
-        elseif field["statementName"] == "verbatim"
+            modfileinfo["has_stoch_simul"] = true
+        elseif statementname == "verbatim"
             Nothing
         else
-            error("""Unrecognized statement $(field["statementName"])""")
+            error("""Unrecognized statement $(statementname)""")
         end
     end
 end

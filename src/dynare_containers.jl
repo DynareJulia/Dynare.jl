@@ -1,9 +1,11 @@
 import Base
 using LinearRationalExpectations
+using RuntimeGeneratedFunctions
 using TimeDataFrames
 
 export Context, DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
 
+RuntimeGeneratedFunctions.init(@__MODULE__)
 struct Model
     endogenous_nbr::Int64
     exogenous_nbr::Int64
@@ -90,12 +92,12 @@ struct Model
     auxiliary_variables::Vector{Dict{String, Any}}
     dynamic!::Module
     static!::Module
-    set_auxiliary_variables!::Module
-    set_dynamic_auxiliary_variables!::Module
+    set_auxiliary_variables!::Function
+    set_dynamic_auxiliary_variables!::Function
     steady_state!::Module
 end
 
-function Model(modfilename::String, endogenous_nbr::Int64,
+function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_nbr::Int64,
                lead_lag_incidence::Vector{Vector{Int64}},
                exogenous_nbr::Int64, lagged_exogenous_nbr::Int64, exogenous_deterministic_nbr::Int64,
                parameter_nbr::Int64, orig_endo_nbr::Int64, aux_vars::Vector{Any},
@@ -260,10 +262,10 @@ function Model(modfilename::String, endogenous_nbr::Int64,
 
     icolsD = vcat(i_cur_bkwrd,
                   n_bkwrd + n_both .+ collect(1:(n_fwrd+n_both)))
-    jcolsD = vcat(p_cur_bkwrd, p_fwrd_b)
-    # derivatives of current values of variables that are both
-    # forward and backward are included in the E matrix
-    icolsE = vcat(collect(1:(n_bkwrd + n_both)), n_bkwrd + n_both .+ i_cur_fwrd_b)
+jcolsD = vcat(p_cur_bkwrd, p_fwrd_b)
+# derivatives of current values of variables that are both
+# forward and backward are included in the E matrix
+icolsE = vcat(collect(1:(n_bkwrd + n_both)), n_bkwrd + n_both .+ i_cur_fwrd_b)
     jcolsE = vcat(p_bkwrd_b, p_cur_fwrd_b)
     colsUD = i_both_b
     colsUE = n_bkwrd + n_both .+ i_both_f
@@ -276,7 +278,7 @@ function Model(modfilename::String, endogenous_nbr::Int64,
     i_lagged_exogenous = []
     Sigma_e = zeros(exogenous_nbr, exogenous_nbr)
     serially_correlated_exogenous = []
-    static_indices = i_static
+static_indices = i_static
     current_indices = i_current
     forward_indices = i_fwrd
     both_indices = i_both
@@ -284,8 +286,8 @@ function Model(modfilename::String, endogenous_nbr::Int64,
     backward_number = n_bkwrd
     forward_number = n_fwrd
     both_number = n_both
-    current_number = n_current
-    # purely_forward_indices = [i for i in forward_indices if !(i in both_indices)]
+current_number = n_current
+# purely_forward_indices = [i for i in forward_indices if !(i in both_indices)]
 #    forward_indices_d = findall(in(forward_indices), i_dyn)
 #    backward_indices_d = findall(in(backward_indices), i_dyn)
     current_dynamic_indices_d = i_current_ns
@@ -295,21 +297,16 @@ function Model(modfilename::String, endogenous_nbr::Int64,
                                     compileoption)
     static! = load_dynare_function(modfilename*"Static",
                                    compileoption)
-    if isfile(modfilename*"DynamicSetAuxiliarySeries.jl")
+    if modfileinfo["has_auxiliary_variables"]
         set_dynamic_auxiliary_variables! =
-            load_dynare_function(modfilename*"DynamicSetAuxiliarySeries",
-                                 compileoption)
-    else
-        set_dynamic_auxiliary_variables! = Module()
-    end
-    if isfile(modfilename*"SetAuxiliaryVariables.jl")
+            load_dynare_function2(modfilename*"DynamicSetAuxiliarySeries")
         set_auxiliary_variables! =
-            load_dynare_function(modfilename*"SetAuxiliaryVariables",
-                                 compileoption)
+            load_dynare_function2(modfilename*"SetAuxiliaryVariables")
     else
-        set_auxiliary_variables! = Module()
+        set_dynamic_auxiliary_variables! = (x...) -> error(modfilename*"DynmicSetAuxiliarySeries is missing")
+        set_auxiliary_variables! = (x...) -> error(modfilename*"SetAuxiliaryVariables is missing")
     end
-    if isfile(modfilename*"SteadyState2.jl")
+    if modfileinfo["has_steadystate_file"]
         steady_state! = load_dynare_function(modfilename*"SteadyState2",
                                              compileoption)
     else
@@ -347,21 +344,22 @@ Base.show(io::IO, m::Model) = show_field_value(m)
 
 function Modelfile()
     return(
-    Dict(
-        "has_calib_smoother" => false,
-        "has_check" => false,
-        "has_deterministic_trend" => false,
-        "has_histval" => false,
-        "has_histval_file" => false,
-        "has_initval" => false,
-        "has_initval_file" => false,
-        "has_planner_objective" => false,
-        "has_perfect_foresight_setup" => false,
-        "has_perfect_foresight_solver" => false,
-        "has_ramsey_model" => false,
-        "has_shocks" => false,
-        "has_stoch_simul" => false
-    ))
+        Dict("has_auxiliary_variables" => false,
+             "has_calib_smoother" => false,
+             "has_check" => false,
+             "has_deterministic_trend" => false,
+             "has_histval" => false,
+             "has_histval_file" => false,
+             "has_initval" => false,
+             "has_initval_file" => false,
+             "has_planner_objective" => false,
+             "has_perfect_foresight_setup" => false,
+             "has_perfect_foresight_solver" => false,
+             "has_ramsey_model" => false,
+             "has_shocks" => false,
+             "has_steadystate_file" => false,
+             "has_stoch_simul" => false
+             ))
 end
 
 struct Simulation
@@ -452,7 +450,7 @@ const SymbolTable = Dict{String, DynareSymbol}
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    modelfile::Dict{String, Bool}
+    modfileinfo:Dict{String, Bool}
     results::Results
     work::Work
 end
@@ -515,3 +513,22 @@ function Base.vcat(v1::Vector{T}, v2::Vector{T}, v3::Vector{T}) where T
     unsafe_copyto!(arr, n1 + n2 + 1, v3, 1, n3)
     return arr
 end
+
+function load_dynare_function(modname::String, compileoption::Bool)::Module
+    if compileoption
+        fun = readlines(modname*".jl")
+        return(eval(Meta.parse(join(fun, "\n"))))
+    else
+        push!(LOAD_PATH, dirname(modname))
+        name = basename(modname)
+        eval(Meta.parse("using "*name))
+        pop!(LOAD_PATH)
+        return(eval(Symbol(name)))
+    end
+end
+
+function load_dynare_function2(modname::String)::Function
+        fun = readlines(modname*".jl")
+        return(@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
+end
+
