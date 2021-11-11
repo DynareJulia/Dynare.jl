@@ -11,6 +11,7 @@ function dynare_preprocess(modfilename::String, args::Vector{Any})
     end
     println(dynare_args)
     run_dynare(modfilename, dynare_args)
+    println("")
 end
 
 function run_dynare(modfilename::String, dynare_args::Vector{String})
