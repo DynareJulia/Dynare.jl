@@ -99,7 +99,6 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
         y0 = zeros(model.endogenous_nbr)
-        @show options
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
         if modfileinfo["has_histval"]
