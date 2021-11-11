@@ -85,7 +85,8 @@ function steady!(context::Context, field::Dict{String,Any})
         compute_steady_state!(context)
     else
         results = context.results.model_results[1]
-        x0 = context.work.initval_endogenous
+        # will fail if missing values are encountered
+        x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
         solve_steady_state!(context, x0)
     end
     if options.display
@@ -111,7 +112,7 @@ function steadystate_display(context::Context)
         data[i, 2] = steady_state[i]
     end
     title = "Steady state"
-    dynare_table(data, title, "")
+    dynare_table(data, title, "", columnheader = false)
 end
 
 """
@@ -157,7 +158,7 @@ end
 
 solves the static model to obtain the steady state
 """
-function solve_steady_state!(context::Context, x0::Vector{Float64})
+function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
 
     ws = StaticWs(context)
     m = context.models[1]
