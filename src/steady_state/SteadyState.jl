@@ -85,11 +85,9 @@ function steady!(context::Context, field::Dict{String,Any})
         compute_steady_state!(context)
     else
         results = context.results.model_results[1]
-        x0 = results.trends.endogenous_steady_state
+        x0 = context.work.initval_endogenous
         solve_steady_state!(context, x0)
-        @show results.trends.endogenous_steady_state
     end
-    @show options
     if options.display
         steadystate_display(context)
     end

@@ -156,7 +156,17 @@ function make_containers(
         Matrix{Union{Float64,Missing}}(
             missing,
             model.orig_maximum_lag,
-            model.endogenous_nbr,
+            endo_nbr,
+        ),
+        Matrix{Union{Float64,Missing}}(
+            missing,
+            1,
+            endo_nbr,
+        ),
+        # default value for initval_exogenous is zero
+        zeros(1, exo_nbr),
+        # default value for initval_exogenous_det is zero
+        zeros(1, exo_det_nbr,
         ),
     )
     results = Results([modelresults])

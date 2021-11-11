@@ -518,6 +518,9 @@ struct Work
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
     histval::Matrix{Union{Float64,Missing}}
+    initval_endogenous::Matrix{Union{Float64,Missing}}
+    initval_exogenous::Matrix{Union{Float64,Missing}}
+    initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
 end
 
 Base.show(io::IO, w::Work) = show_field_value(w)
