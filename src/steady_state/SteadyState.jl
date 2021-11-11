@@ -10,9 +10,34 @@ are too far from the solution
 """
     )
 
+"""
+NonLinearSolveAlgos - enumerate
+
+Nonlinear system of equations available algorithms:
+- trustregion: trust-region algorithm from NLsolve package
+"""
 @enum NonLinearSolveAlgos trustregion=1
+
+"""
+HomotopyModes - enumerate
+Homotopy modes:
+- None
+- SimultaneousFixedSteps: move all declared parameters in a fixed number of steps
+- SingleParameterFixedSteps: move a single parameter in a fixed number of steps
+- SimultaneousAdaptative: move all declared parameters in a adaptative manner
+"""
 @enum HomotopyModes None=0 SimultaneousFixedSteps=1 SingleParameterFixedSteps=2  SimultaneousAdaptative=3
 
+"""
+SteadyOptions type
+    display::Bool - whether to display results [true]
+    maxit::Int64 - maximum number of iterations [50]
+    tolf::Float64 - tolerance criterium for equations error [eps()^(1/3)]
+    solve_algo::NonLinearSolveAlgos - alogrithm for nonlinear equations solver [trustregion]
+    homotopy_mode::HomotopyModes - homotopy mode [None] 
+    homotopy_steps::Int64 - homotopy steps [10]
+    nocheck::Bool - don't check steady state values provided by the user [false]
+"""    
 struct SteadyOptions
     display::Bool
     maxit::Int64
@@ -52,6 +77,11 @@ struct SteadyOptions
     end
 end
 
+"""
+    function `steady!`(context::Context, field::Dict{String, Any})
+
+computes the steady state of the model and set the result in `context`
+"""
 function steady!(context::Context, field::Dict{String, Any})
     modfileinfo = context.modfileinfo
     options = SteadyOptions(get(field, "options", Dict{String,Any}()))
@@ -69,7 +99,12 @@ function steady!(context::Context, field::Dict{String, Any})
     end
 end
 
-function steadystate_display(context)
+"""
+    function `steadystate_display`(context::Context)
+
+displays the steady state of the model
+"""
+function steadystate_display(context::Context)
     m = context.models[1]
     results = context.results.model_results[1]
     endogenous_names = get_endogenous_longname(context.symboltable)
@@ -85,7 +120,11 @@ function steadystate_display(context)
     dynare_table(data, title, "")
 end
         
-    
+"""
+    function `compute_steady_state!`(context::Context)
+
+computes the steady state of the model using solution provided by the user
+"""
 function compute_steady_state!(context::Context)
     model = context.models[1]
     results = context.results.model_results[1]
@@ -96,7 +135,14 @@ function compute_steady_state!(context::Context)
         evaluate_steady_state!(results, steadystatemodule, work.params)
     end
 end
-	
+
+"""
+    function evaluate_steady_state!(results::ModelResults,
+                                static_module::Module,
+                                params::AbstractVector{Float64})
+
+evaluates the steady state function provided by the user
+"""
 function evaluate_steady_state!(results::ModelResults,
                                 static_module::Module,
                                 params::AbstractVector{Float64})
@@ -107,6 +153,12 @@ function evaluate_steady_state!(results::ModelResults,
                       params)
 end
 
+"""
+    function solve_steady_state!(context::Context,
+                                 x0::Vector{Float64})
+
+solves the static model to obtain the steady state
+"""
 function solve_steady_state!(context::Context,
                              x0::Vector{Float64})
 
@@ -122,8 +174,6 @@ function solve_steady_state!(context::Context,
     jacobian_function(x::AbstractVector{Float64}) =
         get_static_jacobian!(ws, w.params, x, exogenous, m)
 
-    residual_function(x0)
-    jacobian_function(x0)
     result = nlsolve(residual_function,
                      jacobian_function,
                      x0::Vector{Float64})
