@@ -4,7 +4,8 @@ function dynare_table_text(
     data::AbstractVecOrMat{Any},
     title::String,
     note::String;
-    fmt = "%10.4f",
+    columnheader::Bool = true,
+    fmt::String = "%10.4f"
 )
     if length(title) > 0
         pretty_table(
@@ -16,13 +17,20 @@ function dynare_table_text(
         )
     end
     formatter = (v, i::Int64, j::Int64) -> (i > 1 && j > 1) ? round(v::Real, digits = 4) : v
+    if columnheader
+        hlines = [:begin, 1, :end]
+        highlighters = (hl_row(1, crayon"bold"), hl_col(1, crayon"bold"))
+    else
+        hlines = nothing
+        highlighters = hl_col(1, crayon"bold")
+    end
     pretty_table(
         data,
         noheader = true,
         formatters = formatter,
         cell_alignment = Dict((1, i) => :c for i = 1:size(data, 1)+1),
-        highlighters = (hl_row(1, crayon"bold"), hl_col(1, crayon"bold")),
-        hlines = [:begin, 1, :end],
+        highlighters = highlighters,
+        hlines = hlines,
         body_hlines_format = Tuple('─' for _ = 1:4),
         vlines = [1],
         backend = Val(:text),
@@ -72,11 +80,12 @@ function dynare_table(
     data::AbstractVecOrMat{Any},
     title::String,
     note::String;
+    columnheader = true,
     fmt::String = "%10.4f",
     backend = Val(:text),
 )
     if backend == Val(:text)
-        dynare_table_text(data, title, note, fmt = fmt)
+        dynare_table_text(data, title, note, columnheader = columnheader, fmt = fmt)
     else
         dynare_table_latex(data, title, note, fmt = fmt)
     end
