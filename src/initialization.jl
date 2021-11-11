@@ -154,7 +154,7 @@ function initval!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     initval_endogenous = zeros(m.endogenous_nbr)
     initval_exogenous = zeros(m.exogenous_nbr)
-    initval_exogenous = zeros(m.exogenous_deterministic_nbr)
+    initval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
@@ -171,11 +171,11 @@ function initval!(context::Context, field::Dict{String,Any})
         end
     end
     params = context.work.params
-    m.set_auxiliary_variables!(endogenous_steady_state, exogenous_steady_state, params)
+    m.set_auxiliary_variables!(initval_endogenous, initval_exogenous, params)
     work = context.work
-    view(work.initval_endogenous, 1, :) .= endogenous_steady_state
-    view(work.initval_exogenous, 1, :) .= exogenous_steady_state
-    view(work.initval_exogenous_det, 1, :) .= exogenous_det_steady_state
+    view(work.initval_endogenous, 1, :) .= initval_endogenous
+    view(work.initval_exogenous, 1, :) .= initval_exogenous
+    view(work.initval_exogenous_deterministic, 1, :) .= initval_exogenous_det
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
