@@ -5,7 +5,8 @@ include("perfectforesight/perfectforesight_solver_1.jl")
 include("perfectforesight/linesearch.jl")
 
 get_initial_dynamic_endogenous_variables! = Dynare.get_initial_dynamic_endogenous_variables!
-get_terminal_dynamic_endogenous_variables! = Dynare.get_terminal_dynamic_endogenous_variables!
+get_terminal_dynamic_endogenous_variables! =
+    Dynare.get_terminal_dynamic_endogenous_variables!
 get_dynamic_endogenous_variables! = Dynare.get_dynamic_endogenous_variables!
 
 struct NewtonWs
@@ -23,13 +24,15 @@ struct NewtonWs
 end
 
 function check_convergency(f, tolf, n)
-    return norm(f)/n  < tolf
+    return norm(f) / n < tolf
 end
 
-function  get_direction!(p::AbstractVector{Float64},
-                        fvec::AbstractVector{Float64},
-                        jacobian::AbstractMatrix{Float64},
-                        algo::String)
+function get_direction!(
+    p::AbstractVector{Float64},
+    fvec::AbstractVector{Float64},
+    jacobian::AbstractMatrix{Float64},
+    algo::String,
+)
     if algo == "LU"
         F = lu(jacobian)
         copy!(p, fvec)
@@ -40,12 +43,20 @@ function  get_direction!(p::AbstractVector{Float64},
         @show any(isnan.(jacobian))
         @show any(isnan.(fvec))
         fill!(p, 0.0)
-        gmres!(p, jacobian, fvec, Pr=my_lu, initially_zero = true, verbose = true, maxiter=4)
+        gmres!(
+            p,
+            jacobian,
+            fvec,
+            Pr = my_lu,
+            initially_zero = true,
+            verbose = true,
+            maxiter = 4,
+        )
     end
     lmul!(-1.0, p)
     return p
 end
-    
+
 function newton_solver!(x, x0, func!, jac!, maxiter, tolf, tolx, direction_algo, ws)
     n = length(x)
     fvec = ws.fvec
@@ -57,7 +68,7 @@ function newton_solver!(x, x0, func!, jac!, maxiter, tolf, tolx, direction_algo,
         @show fvec
     end
     normf = norm(fvec)
-    if normf/n < 0.1*tolf
+    if normf / n < 0.1 * tolf
         return 0
     end
     jacobian = jac!(x0)
@@ -70,7 +81,7 @@ function newton_solver!(x, x0, func!, jac!, maxiter, tolf, tolx, direction_algo,
         if check == 1
             return 1
         end
-#        x .+= p
+        #        x .+= p
         copy!(fold, fvec)
         if check_convergency(f, tolf, n)
             return (x, 0)
@@ -85,18 +96,27 @@ function get_first_order_solution!(context::Context)
     results = context.results.model_results[1]
     model = context.models[1]
     work = context.work
-    options = Dynare.StochSimulOptions(Dict{String, Any}())
+    options = Dynare.StochSimulOptions(Dict{String,Any}())
     endogenous = results.trends.endogenous_steady_state
     exogenous = results.trends.exogenous_steady_state
-    ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2*model.n_both
+    ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2 * model.n_both
     tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
-    ws = Dynare.DynamicJacobianWs(model.endogenous_nbr,
-                            model.exogenous_nbr,
-                           ncol,
-                           sum(tmp_nbr[1:2]))
-    Dynare.compute_first_order_solution!(results.linearrationalexpectations,
-                                  endogenous, exogenous, endogenous,
-                                  work.params, model, ws, options)
+    ws = Dynare.DynamicJacobianWs(
+        model.endogenous_nbr,
+        model.exogenous_nbr,
+        ncol,
+        sum(tmp_nbr[1:2]),
+    )
+    Dynare.compute_first_order_solution!(
+        results.linearrationalexpectations,
+        endogenous,
+        exogenous,
+        endogenous,
+        work.params,
+        model,
+        ws,
+        options,
+    )
 end
 
 #context = @dynare "test/models/irbc/irbc1" "-DN=2" 
@@ -122,42 +142,46 @@ c = context.results.model_results[1].trends.endogenous_steady_state
 simul_first_order_1!(y, zeros(n), A, B, exogenous, window, periods, tmp1, tmp2)
 steadystate = context.results.model_results[1].trends.endogenous_steady_state
 y .+= steadystate
-residuals = zeros(n*(periods - 2))
-dynamic_variables = zeros(md.n_bkwrd + md.n_fwrd + md.n_current + 2*md.n_both)
+residuals = zeros(n * (periods - 2))
+dynamic_variables = zeros(md.n_bkwrd + md.n_fwrd + md.n_current + 2 * md.n_both)
 temp_vec = context.work.temporary_values
 
 initialvalues = y[1:n]
-terminalvalues = y[(periods - 1)*n + 1:periods*n]
+terminalvalues = y[(periods-1)*n+1:periods*n]
 periods = 3
-dy = zeros(n*periods)
+dy = zeros(n * periods)
 params = context.work.params
 x0 = view(vec(y), n+1:(periods+1)*n)
 x = similar(x0)
 
 JJ = Jacobian(context, periods)
-ws_threaded = [Dynare.DynamicJacobianWs(context) for i=1:Threads.nthreads()]
+ws_threaded = [Dynare.DynamicJacobianWs(context) for i = 1:Threads.nthreads()]
 
 
-func!(resid::AbstractVector{Float64}, x0::AbstractVector{Float64}) = get_residuals!(resid,
-                                                                                    x0,
-                                                                                    initialvalues,
-                                                                                    terminalvalues,
-                                                                                    exogenous,
-                                                                                    dynamic_variables,
-                                                                                    steadystate,
-                                                                                    params,
-                                                                                    md,
-                                                                                    periods,
-                                                                                    temp_vec)
+func!(resid::AbstractVector{Float64}, x0::AbstractVector{Float64}) = get_residuals!(
+    resid,
+    x0,
+    initialvalues,
+    terminalvalues,
+    exogenous,
+    dynamic_variables,
+    steadystate,
+    params,
+    md,
+    periods,
+    temp_vec,
+)
 
-jac!(x0::AbstractVector{Float64}) = makeJacobian!(JJ,
-                                                  x0,
-                                                  initialvalues,
-                                                  terminalvalues,
-                                                  exogenous,
-                                                  context,
-                                                  periods,
-                                                  ws_threaded)
+jac!(x0::AbstractVector{Float64}) = makeJacobian!(
+    JJ,
+    x0,
+    initialvalues,
+    terminalvalues,
+    exogenous,
+    context,
+    periods,
+    ws_threaded,
+)
 
 
 M = jac!(x0);
@@ -172,6 +196,5 @@ M = jac!(x0);
 maxiter = 50
 tolf = 1e-8
 tolx = 1e-5
-ws = NewtonWs(periods*n)
+ws = NewtonWs(periods * n)
 @time newton_solver!(x, x0, func!, jac!, maxiter, tolf, tolx, "GMRES", ws)
-

@@ -3,7 +3,8 @@ using LinearRationalExpectations
 using RuntimeGeneratedFunctions
 using TimeDataFrames
 
-export Context, DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
+export Context,
+    DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 struct Model
@@ -89,7 +90,7 @@ struct Model
     current_dynamic_indices_d::Vector{Int64}
     exogenous_indices::Vector{Int64}
     NNZDerivatives::Vector{Int64}
-    auxiliary_variables::Vector{Dict{String, Any}}
+    auxiliary_variables::Vector{Dict{String,Any}}
     dynamic!::Module
     static!::Module
     set_auxiliary_variables!::Function
@@ -97,17 +98,36 @@ struct Model
     steady_state!::Module
 end
 
-function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_nbr::Int64,
-               lead_lag_incidence::Vector{Vector{Int64}},
-               exogenous_nbr::Int64, lagged_exogenous_nbr::Int64, exogenous_deterministic_nbr::Int64,
-               parameter_nbr::Int64, orig_endo_nbr::Int64, aux_vars::Vector{Any},
-               maximum_endo_lag::Int64, maximum_endo_lead::Int64,
-               maximum_exo_lag::Int64, maximum_exo_lead::Int64, maximum_exo_det_lag::Int64,
-               maximum_exo_det_lead::Int64, maximum_lag, maximum_lead::Int64,
-               orig_maximum_endo_lag::Int64, orig_maximum_endo_lead::Int64,
-               orig_maximum_exo_lag::Int64, orig_maximum_exo_lead::Int64,
-               orig_maximum_exo_det_lag::Int64, orig_maximum_exo_det_lead::Int64,
-               orig_maximum_lag::Int64, orig_maximum_lead::Int64, NNZDerivatives::Vector{Int64}, compileoption::Bool)
+function Model(
+    modfilename::String,
+    modfileinfo::Dict{String,Bool},
+    endogenous_nbr::Int64,
+    lead_lag_incidence::Vector{Vector{Int64}},
+    exogenous_nbr::Int64,
+    lagged_exogenous_nbr::Int64,
+    exogenous_deterministic_nbr::Int64,
+    parameter_nbr::Int64,
+    orig_endo_nbr::Int64,
+    aux_vars::Vector{Any},
+    maximum_endo_lag::Int64,
+    maximum_endo_lead::Int64,
+    maximum_exo_lag::Int64,
+    maximum_exo_lead::Int64,
+    maximum_exo_det_lag::Int64,
+    maximum_exo_det_lead::Int64,
+    maximum_lag,
+    maximum_lead::Int64,
+    orig_maximum_endo_lag::Int64,
+    orig_maximum_endo_lead::Int64,
+    orig_maximum_exo_lag::Int64,
+    orig_maximum_exo_lead::Int64,
+    orig_maximum_exo_det_lag::Int64,
+    orig_maximum_exo_det_lead::Int64,
+    orig_maximum_lag::Int64,
+    orig_maximum_lead::Int64,
+    NNZDerivatives::Vector{Int64},
+    compileoption::Bool,
+)
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
     i_dyn = similar(i_static)
@@ -150,10 +170,10 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
     DErows2 = similar(i_static)
     gx_rows = similar(i_static)
     hx_rows = similar(i_static)
-    current_dynamic_indices = similar(i_static) 
-    forward_indices_d = similar(i_static) 
-    backward_indices_d = similar(i_static) 
-    current_dynamic_indices_d = similar(i_static) 
+    current_dynamic_indices = similar(i_static)
+    forward_indices_d = similar(i_static)
+    backward_indices_d = similar(i_static)
+    current_dynamic_indices_d = similar(i_static)
     n_current = 0
     n_static = 0
     n_dyn1 = 0
@@ -167,7 +187,7 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
     lead_lag_incidence_matrix = Matrix{Int64}(undef, 3, endogenous_nbr)
     max_lead_lag_incidence = 0
     v = zeros(Int64, 3)
-    for (i, v) = enumerate(lead_lag_incidence)
+    for (i, v) in enumerate(lead_lag_incidence)
         for j = 1:3
             lead_lag_incidence_matrix[j, i] = v[j]
         end
@@ -178,8 +198,7 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
             push!(p_bkwrd_b, v[1])
             push!(i_dyn, i)
             push!(i_bkwrd_ns, n_dyn1)
-            max_lead_lag_incidence = max(max(v[1], v[3]),
-                                         max_lead_lag_incidence)
+            max_lead_lag_incidence = max(max(v[1], v[3]), max_lead_lag_incidence)
             if v[3] > 0
                 n_dyn2 += 1
                 n_fwrd_b += 1
@@ -212,8 +231,7 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
                 push!(p_fwrd_b, v[3])
                 push!(i_fwrd_ns, n_dyn1)
                 push!(forward_indices_d, n_dyn1)
-                max_lead_lag_incidence = max(v[3],
-                                             max_lead_lag_incidence)
+                max_lead_lag_incidence = max(v[3], max_lead_lag_incidence)
             else
                 n_static += 1
                 push!(i_static, i)
@@ -224,8 +242,7 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
             n_current += 1
             push!(i_current, i)
             push!(p_current, v[2])
-            max_lead_lag_incidence = max(v[2],
-                                         max_lead_lag_incidence)
+            max_lead_lag_incidence = max(v[2], max_lead_lag_incidence)
             if v[1] > 0 || v[3] > 0
                 push!(i_current_ns, n_dyn1)
                 push!(p_current_ns, v[2])
@@ -233,21 +250,21 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
             end
             if v[1] > 0
                 if v[3] == 0
-                    push!(i_cur_bkwrd, n_bkwrd_b) 
+                    push!(i_cur_bkwrd, n_bkwrd_b)
                     push!(p_cur_bkwrd, v[2])
                 end
                 push!(i_backward_in_current, n_bkwrd_b)
             end
             if v[3] > 0
-                push!(i_cur_fwrd_b, n_fwrd_b) 
+                push!(i_cur_fwrd_b, n_fwrd_b)
                 push!(p_cur_fwrd_b, v[2])
                 push!(i_forward_in_current, n_fwrd_b)
             end
             if v[1] > 0 && v[3] > 0
-                push!(i_cur_both, n_both) 
+                push!(i_cur_both, n_both)
                 push!(p_cur_both, v[2])
             end
-                 
+
         end
     end
     n_bkwrd = length(i_bkwrd)
@@ -260,25 +277,24 @@ function Model(modfilename::String, modfileinfo::Dict{String, Bool}, endogenous_
     n_cur_bkwrd = length(i_cur_bkwrd)
     n_cur_both = length(i_cur_both)
 
-    icolsD = vcat(i_cur_bkwrd,
-                  n_bkwrd + n_both .+ collect(1:(n_fwrd+n_both)))
-jcolsD = vcat(p_cur_bkwrd, p_fwrd_b)
-# derivatives of current values of variables that are both
-# forward and backward are included in the E matrix
-icolsE = vcat(collect(1:(n_bkwrd + n_both)), n_bkwrd + n_both .+ i_cur_fwrd_b)
+    icolsD = vcat(i_cur_bkwrd, n_bkwrd + n_both .+ collect(1:(n_fwrd+n_both)))
+    jcolsD = vcat(p_cur_bkwrd, p_fwrd_b)
+    # derivatives of current values of variables that are both
+    # forward and backward are included in the E matrix
+    icolsE = vcat(collect(1:(n_bkwrd+n_both)), n_bkwrd + n_both .+ i_cur_fwrd_b)
     jcolsE = vcat(p_bkwrd_b, p_cur_fwrd_b)
     colsUD = i_both_b
     colsUE = n_bkwrd + n_both .+ i_both_f
     n_dyn = endogenous_nbr - n_static + n_both
     DErows1 = collect(1:(n_dyn-n_both))
-    DErows2 = (n_dyn-n_both) .+ collect(1:n_both)
+    DErows2 = (n_dyn - n_both) .+ collect(1:n_both)
     gx_rows = n_bkwrd + n_both .+ collect(1:(n_fwrd+n_both))
-    hx_rows = collect(1:(n_bkwrd + n_both))
+    hx_rows = collect(1:(n_bkwrd+n_both))
     i_current_exogenous = max_lead_lag_incidence .+ (1:exogenous_nbr)
     i_lagged_exogenous = []
     Sigma_e = zeros(exogenous_nbr, exogenous_nbr)
     serially_correlated_exogenous = []
-static_indices = i_static
+    static_indices = i_static
     current_indices = i_current
     forward_indices = i_fwrd
     both_indices = i_both
@@ -286,80 +302,147 @@ static_indices = i_static
     backward_number = n_bkwrd
     forward_number = n_fwrd
     both_number = n_both
-current_number = n_current
-# purely_forward_indices = [i for i in forward_indices if !(i in both_indices)]
-#    forward_indices_d = findall(in(forward_indices), i_dyn)
-#    backward_indices_d = findall(in(backward_indices), i_dyn)
+    current_number = n_current
+    # purely_forward_indices = [i for i in forward_indices if !(i in both_indices)]
+    #    forward_indices_d = findall(in(forward_indices), i_dyn)
+    #    backward_indices_d = findall(in(backward_indices), i_dyn)
     current_dynamic_indices_d = i_current_ns
-    exogenous_indices = (backward_number + current_number
-                         + forward_number + 2*both_number .+ collect(1:exogenous_nbr))
-    dynamic! = load_dynare_function(modfilename*"Dynamic",
-                                    compileoption)
-    static! = load_dynare_function(modfilename*"Static",
-                                   compileoption)
+    exogenous_indices = (
+        backward_number + current_number + forward_number + 2 * both_number .+
+        collect(1:exogenous_nbr)
+    )
+    dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
+    static! = load_dynare_function(modfilename * "Static", compileoption)
     if modfileinfo["has_auxiliary_variables"]
         set_dynamic_auxiliary_variables! =
-            load_dynare_function2(modfilename*"DynamicSetAuxiliarySeries")
+            load_dynare_function2(modfilename * "DynamicSetAuxiliarySeries")
         set_auxiliary_variables! =
-            load_dynare_function2(modfilename*"SetAuxiliaryVariables")
+            load_dynare_function2(modfilename * "SetAuxiliaryVariables")
     else
-        set_dynamic_auxiliary_variables! = (x...) -> error(modfilename*"DynmicSetAuxiliarySeries is missing")
-        set_auxiliary_variables! = (x...) -> error(modfilename*"SetAuxiliaryVariables is missing")
+        set_dynamic_auxiliary_variables! =
+            (x...) -> error(modfilename * "DynmicSetAuxiliarySeries is missing")
+        set_auxiliary_variables! =
+            (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
     end
     if modfileinfo["has_steadystate_file"]
-        steady_state! = load_dynare_function(modfilename*"SteadyState2",
-                                             compileoption)
+        steady_state! = load_dynare_function(modfilename * "SteadyState2", compileoption)
     else
         steady_state! = Module()
     end
 
-    Model(endogenous_nbr, exogenous_nbr, lagged_exogenous_nbr,
-          exogenous_deterministic_nbr, parameter_nbr, orig_endo_nbr,
-          lead_lag_incidence_matrix, n_static, n_fwrd, n_bkwrd, n_both,
-          n_states, DErows1, DErows2, n_dyn, i_static, i_dyn, i_bkwrd,
-          i_bkwrd_b, i_bkwrd_ns, i_fwrd, i_fwrd_b, i_fwrd_ns, i_both,
-          i_non_states, p_static, p_bkwrd, p_bkwrd_b, p_fwrd,
-          p_fwrd_b, p_both_b, p_both_f, i_current, p_current,
-          n_current, i_current_ns, p_current_ns, n_current_ns, icolsD,
-          jcolsD, icolsE, jcolsE, colsUD, colsUE, i_cur_fwrd_b,
-          n_cur_fwrd_b, p_cur_fwrd_b, i_cur_bkwrd, n_cur_bkwrd,
-          p_cur_bkwrd, i_cur_both, n_cur_both, p_cur_both, gx_rows,
-          hx_rows, i_current_exogenous, i_lagged_exogenous,
-          serially_correlated_exogenous, Sigma_e, maximum_endo_lag,
-          maximum_endo_lead, maximum_exo_lag, maximum_exo_lead,
-          maximum_exo_det_lag, maximum_exo_det_lead, maximum_lag,
-          maximum_lead, orig_maximum_endo_lag, orig_maximum_endo_lead,
-          orig_maximum_exo_lag, orig_maximum_exo_lead,
-          orig_maximum_exo_det_lag, orig_maximum_exo_det_lead,
-          orig_maximum_lag, orig_maximum_lead, i_dyn,
-          current_dynamic_indices, forward_indices_d,
-          backward_indices_d, current_dynamic_indices_d,
-          exogenous_indices, NNZDerivatives, aux_vars, dynamic!, static!,
-          set_auxiliary_variables!, set_dynamic_auxiliary_variables!,
-          steady_state!)
+    Model(
+        endogenous_nbr,
+        exogenous_nbr,
+        lagged_exogenous_nbr,
+        exogenous_deterministic_nbr,
+        parameter_nbr,
+        orig_endo_nbr,
+        lead_lag_incidence_matrix,
+        n_static,
+        n_fwrd,
+        n_bkwrd,
+        n_both,
+        n_states,
+        DErows1,
+        DErows2,
+        n_dyn,
+        i_static,
+        i_dyn,
+        i_bkwrd,
+        i_bkwrd_b,
+        i_bkwrd_ns,
+        i_fwrd,
+        i_fwrd_b,
+        i_fwrd_ns,
+        i_both,
+        i_non_states,
+        p_static,
+        p_bkwrd,
+        p_bkwrd_b,
+        p_fwrd,
+        p_fwrd_b,
+        p_both_b,
+        p_both_f,
+        i_current,
+        p_current,
+        n_current,
+        i_current_ns,
+        p_current_ns,
+        n_current_ns,
+        icolsD,
+        jcolsD,
+        icolsE,
+        jcolsE,
+        colsUD,
+        colsUE,
+        i_cur_fwrd_b,
+        n_cur_fwrd_b,
+        p_cur_fwrd_b,
+        i_cur_bkwrd,
+        n_cur_bkwrd,
+        p_cur_bkwrd,
+        i_cur_both,
+        n_cur_both,
+        p_cur_both,
+        gx_rows,
+        hx_rows,
+        i_current_exogenous,
+        i_lagged_exogenous,
+        serially_correlated_exogenous,
+        Sigma_e,
+        maximum_endo_lag,
+        maximum_endo_lead,
+        maximum_exo_lag,
+        maximum_exo_lead,
+        maximum_exo_det_lag,
+        maximum_exo_det_lead,
+        maximum_lag,
+        maximum_lead,
+        orig_maximum_endo_lag,
+        orig_maximum_endo_lead,
+        orig_maximum_exo_lag,
+        orig_maximum_exo_lead,
+        orig_maximum_exo_det_lag,
+        orig_maximum_exo_det_lead,
+        orig_maximum_lag,
+        orig_maximum_lead,
+        i_dyn,
+        current_dynamic_indices,
+        forward_indices_d,
+        backward_indices_d,
+        current_dynamic_indices_d,
+        exogenous_indices,
+        NNZDerivatives,
+        aux_vars,
+        dynamic!,
+        static!,
+        set_auxiliary_variables!,
+        set_dynamic_auxiliary_variables!,
+        steady_state!,
+    )
 
 end
 
 Base.show(io::IO, m::Model) = show_field_value(m)
 
 function Modelfile()
-    return(
-        Dict("has_auxiliary_variables" => false,
-             "has_calib_smoother" => false,
-             "has_check" => false,
-             "has_deterministic_trend" => false,
-             "has_histval" => false,
-             "has_histval_file" => false,
-             "has_initval" => false,
-             "has_initval_file" => false,
-             "has_planner_objective" => false,
-             "has_perfect_foresight_setup" => false,
-             "has_perfect_foresight_solver" => false,
-             "has_ramsey_model" => false,
-             "has_shocks" => false,
-             "has_steadystate_file" => false,
-             "has_stoch_simul" => false
-             ))
+    return (Dict(
+        "has_auxiliary_variables" => false,
+        "has_calib_smoother" => false,
+        "has_check" => false,
+        "has_deterministic_trend" => false,
+        "has_histval" => false,
+        "has_histval_file" => false,
+        "has_initval" => false,
+        "has_initval_file" => false,
+        "has_planner_objective" => false,
+        "has_perfect_foresight_setup" => false,
+        "has_perfect_foresight_solver" => false,
+        "has_ramsey_model" => false,
+        "has_shocks" => false,
+        "has_steadystate_file" => false,
+        "has_stoch_simul" => false,
+    ))
 end
 
 struct Simulation
@@ -390,11 +473,17 @@ struct Trends
         exogenous_det_steady_state = Vector{Float64}(undef, nxd)
         exogenous_det_linear_trend = Vector{Float64}(undef, nxd)
         exogenous_det_quadratic_trend = Vector{Float64}(undef, nxd)
-        new(endogenous_steady_state, endogenous_linear_trend,
-            endogenous_quadratic_trend, exogenous_steady_state,
-            exogenous_linear_trend, exogenous_quadratic_trend,
-            exogenous_det_steady_state, exogenous_det_linear_trend,
-            exogenous_det_quadratic_trend)
+        new(
+            endogenous_steady_state,
+            endogenous_linear_trend,
+            endogenous_quadratic_trend,
+            exogenous_steady_state,
+            exogenous_linear_trend,
+            exogenous_quadratic_trend,
+            exogenous_det_steady_state,
+            exogenous_det_linear_trend,
+            exogenous_det_quadratic_trend,
+        )
     end
 end
 
@@ -409,7 +498,7 @@ struct ModelResults
     exogenous_deterministic_steady_state::Vector{Float64}
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
-    smoother::Dict{String, Matrix{Float64}}
+    smoother::Dict{String,Matrix{Float64}}
 end
 
 Base.show(io::IO, r::ModelResults) = show_field_value(r)
@@ -428,7 +517,7 @@ struct Work
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
-    histval::Matrix{Union{Float64, Missing}}
+    histval::Matrix{Union{Float64,Missing}}
 end
 
 Base.show(io::IO, w::Work) = show_field_value(w)
@@ -443,14 +532,14 @@ struct DynareSymbol
 end
 
 Base.getproperty(d::DynareSymbol, s::Symbol) = getfield(d, s)
-Base.show(io::IO, ds::DynareSymbol) = show_field_value(ds)    
+Base.show(io::IO, ds::DynareSymbol) = show_field_value(ds)
 
-const SymbolTable = Dict{String, DynareSymbol}
+const SymbolTable = Dict{String,DynareSymbol}
 
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    modfileinfo::Dict{String, Bool}
+    modfileinfo::Dict{String,Bool}
     results::Results
     work::Work
 end
@@ -492,7 +581,7 @@ function show_field_value(s::Any)
     end
 end
 
-function Base.vcat(v1::Vector{T}, v2::Vector{T}) where T
+function Base.vcat(v1::Vector{T}, v2::Vector{T}) where {T}
     n1 = length(v1)
     n2 = length(v2)
     n = n1 + n2
@@ -502,7 +591,7 @@ function Base.vcat(v1::Vector{T}, v2::Vector{T}) where T
     return arr
 end
 
-function Base.vcat(v1::Vector{T}, v2::Vector{T}, v3::Vector{T}) where T
+function Base.vcat(v1::Vector{T}, v2::Vector{T}, v3::Vector{T}) where {T}
     n1 = length(v1)
     n2 = length(v2)
     n3 = length(v3)
@@ -516,19 +605,18 @@ end
 
 function load_dynare_function(modname::String, compileoption::Bool)::Module
     if compileoption
-        fun = readlines(modname*".jl")
-        return(eval(Meta.parse(join(fun, "\n"))))
+        fun = readlines(modname * ".jl")
+        return (eval(Meta.parse(join(fun, "\n"))))
     else
         push!(LOAD_PATH, dirname(modname))
         name = basename(modname)
-        eval(Meta.parse("using "*name))
+        eval(Meta.parse("using " * name))
         pop!(LOAD_PATH)
-        return(eval(Symbol(name)))
+        return (eval(Symbol(name)))
     end
 end
 
 function load_dynare_function2(modname::String)::Function
-        fun = readlines(modname*".jl")
-        return(@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
+    fun = readlines(modname * ".jl")
+    return (@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
 end
-

@@ -23,8 +23,3 @@ st = Dict("v1" => v1, "v2" => v2)
 tinf = @snoopi_deep f("v2", st)
 itrigs = inference_triggers(tinf)
 mtrigs = accumulate_by_source(Method, itrigs)
-
-
-
-
-                 

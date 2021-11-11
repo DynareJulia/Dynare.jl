@@ -1,7 +1,7 @@
 using SparseArrays
 import SparseArrays
 
-struct SparseStorage{Tv, Ti <: Integer}
+struct SparseStorage{Tv,Ti<:Integer}
     I::Vector{Ti}
     J::Vector{Ti}
     V::Vector{Tv}
@@ -10,7 +10,11 @@ struct SparseStorage{Tv, Ti <: Integer}
     csrcolval::Vector{Ti}
     csrnzval::Vector{Tv}
     csccolptr::Vector{Ti}
-    function SparseStorage{Tv, Ti}(m::Integer, n::Integer, nz::Integer) where {Tv, Ti <: Integer}
+    function SparseStorage{Tv,Ti}(
+        m::Integer,
+        n::Integer,
+        nz::Integer,
+    ) where {Tv,Ti<:Integer}
         I = Vector{Ti}(undef, nz)
         J = Vector{Ti}(undef, nz)
         V = Vector{Tv}(undef, nz)
@@ -23,9 +27,16 @@ struct SparseStorage{Tv, Ti <: Integer}
     end
 end
 
-SparseStorage(m::Integer, n::Integer, nz::Integer) = SparseStorage{Float64, Int64}(m, n, nz)
+SparseStorage(m::Integer, n::Integer, nz::Integer) = SparseStorage{Float64,Int64}(m, n, nz)
 
-function SparseStorage(m::Integer, n::Integer, nz::Integer, I::Vector{Ti}, J::Vector{Ti}, V::Vector{Tv}) where {Tv, Ti}
+function SparseStorage(
+    m::Integer,
+    n::Integer,
+    nz::Integer,
+    I::Vector{Ti},
+    J::Vector{Ti},
+    V::Vector{Tv},
+) where {Tv,Ti}
     nz = length(I)
     klasttouch = Vector{Ti}(undef, n)
     csrrowptr = Vector{Ti}(undef, m + 1)
@@ -35,13 +46,37 @@ function SparseStorage(m::Integer, n::Integer, nz::Integer, I::Vector{Ti}, J::Ve
     SparseStorage(I, J, V, klasstouch, csrrowptr, csrcolval, csrnzval, csccolptr)
 end
 
-SparseStorage(m::Integer, n::Integer, nz::Integer, I::Vector{Int64}, J::Vector{Int64}, V::Vector{Float64}) =
-    SparseStorage{Float64, Int64}(m::Integer, n::Integer, nz::Integer, I::Vector{Int64}, J::Vector{Int64}, V::Vector{Float64})
+SparseStorage(
+    m::Integer,
+    n::Integer,
+    nz::Integer,
+    I::Vector{Int64},
+    J::Vector{Int64},
+    V::Vector{Float64},
+) = SparseStorage{Float64,Int64}(
+    m::Integer,
+    n::Integer,
+    nz::Integer,
+    I::Vector{Int64},
+    J::Vector{Int64},
+    V::Vector{Float64},
+)
 
-sparse!(m::Integer, n::Integer, SS::SparseStorage) =
-    sparse!(SS.I, SS.J, SS.V, m, n, (x, y) -> x + y,
-            SS.klasttouch, SS.csrrowptr, SS.csrcolval,
-            SS.csrnzval, SS.csccolptr, SS.J, SS.V)
+sparse!(m::Integer, n::Integer, SS::SparseStorage) = sparse!(
+    SS.I,
+    SS.J,
+    SS.V,
+    m,
+    n,
+    (x, y) -> x + y,
+    SS.klasttouch,
+    SS.csrrowptr,
+    SS.csrcolval,
+    SS.csrnzval,
+    SS.csccolptr,
+    SS.J,
+    SS.V,
+)
 
 struct Jacobian
     nrow::Int64
@@ -60,7 +95,7 @@ struct Jacobian
         work = context.work
         endogenous = repeat(steadystate, 3)
         exogenous = repeat(steadystate_exo', 2)
-        maxcol = md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both 
+        maxcol = md.n_bkwrd + md.n_current + md.n_fwrd + 2 * md.n_both
         vj = view(work.jacobian, :, 1:maxcol)
         nz = periods * md.NNZDerivatives[1]
         nrow = periods * md.endogenous_nbr
@@ -97,13 +132,11 @@ struct PeriodJacobianWs
         md = context.models[1]
         work = context.work
         jacobian = similar(work.jacobian)
-        dynamic_variables =
-            zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both)
+        dynamic_variables = zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2 * md.n_both)
         temp_vec = Vector{Float64}(undef, sum(md.dynamic!.tmp_nbr[1:2]))
         residuals = Vector{Float64}(undef, md.endogenous_nbr)
         params = work.params
-        new(jacobian, dynamic_variables,
-            temp_vec, residuals, params)
+        new(jacobian, dynamic_variables, temp_vec, residuals, params)
     end
 end
 
@@ -161,24 +194,25 @@ function compute_jacobian(ws::JacTimesVec,
 end
 =#
 
-function make_one_period!(JA::Jacobian,
-                          params::AbstractVector{Float64},
-                          endogenous::AbstractVector{Float64},
-                          exogenous::AbstractMatrix{Float64},
-                          periods::Int64,
-                          md::Model,
-                          jacobian_columns::Vector{Int64},
-                          nnz_period::Int64,
-                          maxcol::Int64,
-                          ws::Dynare.PeriodJacobianWs,
-                          t::Int64
-                          )
+function make_one_period!(
+    JA::Jacobian,
+    params::AbstractVector{Float64},
+    endogenous::AbstractVector{Float64},
+    exogenous::AbstractMatrix{Float64},
+    periods::Int64,
+    md::Model,
+    jacobian_columns::Vector{Int64},
+    nnz_period::Int64,
+    maxcol::Int64,
+    ws::Dynare.PeriodJacobianWs,
+    t::Int64,
+)
     nvar = md.endogenous_nbr
-    oc = (t - 1)*md.endogenous_nbr
+    oc = (t - 1) * md.endogenous_nbr
     Dynare.get_jacobian!(ws, params, endogenous, exogenous, JA.steadystate, md, t)
     i, j, v = findnz(sparse(ws.jacobian))
     @debug "period $t: isnan.(v) = $(findall(isnan.(v)))"
-    r1 = (t - 1)*nnz_period + 1
+    r1 = (t - 1) * nnz_period + 1
     @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
@@ -198,7 +232,7 @@ function makeJacobian!(
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
-    ws::Vector{Dynare.PeriodJacobianWs}
+    ws::Vector{Dynare.PeriodJacobianWs},
 )
     I = JA.ss.I
     J = JA.ss.J
@@ -214,7 +248,7 @@ function makeJacobian!(
     nvar = md.endogenous_nbr
     npred = md.n_bkwrd + md.n_both
     nnz_period = md.NNZDerivatives[1]
-    lengthI = periods*nnz_period
+    lengthI = periods * nnz_period
     resize!(I, lengthI)
     resize!(J, lengthI)
     resize!(V, lengthI)
@@ -226,10 +260,20 @@ function makeJacobian!(
     @debug "any(isnan.(initialvalues))=$(any(isnan.(initialvalues)))"
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
-    Dynare.get_initial_jacobian!(ws[1], params, endogenous, initialvalues, exogenous, steadystate, md, 2)
+    Dynare.get_initial_jacobian!(
+        ws[1],
+        params,
+        endogenous,
+        initialvalues,
+        exogenous,
+        steadystate,
+        md,
+        2,
+    )
     r = 1
     @debug "any(isnan.(ws[1].jacobian))=$(any(isnan.(ws[1].jacobian)))"
-    jacobian_columns = [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
+    jacobian_columns =
+        [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
     i, j, v = findnz(sparse(ws[1].jacobian))
     @debug "period 2: isnan.(v) = $(findall(isnan.(v)))"
     fill!(V, 0.0)
@@ -248,19 +292,38 @@ function makeJacobian!(
     for t = 2:(periods-1)
         #        tid = Threads.threadid()
         tid = 1
-        make_one_period!(JA, params, endogenous, exogenous, periods,
-                         md, jacobian_columns, nnz_period, maxcol,
-                     ws[tid], t)
+        make_one_period!(
+            JA,
+            params,
+            endogenous,
+            exogenous,
+            periods,
+            md,
+            jacobian_columns,
+            nnz_period,
+            maxcol,
+            ws[tid],
+            t,
+        )
     end
-    Dynare.get_terminal_jacobian!(ws[1], params, endogenous, terminalvalues, exogenous, steadystate, md, periods)
+    Dynare.get_terminal_jacobian!(
+        ws[1],
+        params,
+        endogenous,
+        terminalvalues,
+        exogenous,
+        steadystate,
+        md,
+        periods,
+    )
     i, j, v = findnz(sparse(ws[1].jacobian))
     @debug "period $periods: isnan.(v) = $(findall(isnan.(v)))"
-    oc = (periods - 1)*nvar
-    r = (periods - 1)*nnz_period + 1
+    oc = (periods - 1) * nvar
+    r = (periods - 1) * nnz_period + 1
     @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
-            if kjel <= 2*nvar
+            if kjel <= 2 * nvar
                 I[r] = i[el] + oc
                 J[r] = kjel + oc - nvar
                 V[r] = v[el]
@@ -299,7 +362,7 @@ function makeJacobian!(
         r += 1
     end
     =#
-    @show r-1
+    @show r - 1
     resize!(I, r - 1)
     resize!(J, r - 1)
     resize!(V, r - 1)
@@ -310,21 +373,22 @@ function makeJacobian!(
     @show length(I)
     @show length(J)
     @show length(csrnzval)
-    A = SparseArrays.sparse!(I,
-                             J,
-                             V,
-                             n,
-                             n,
-                             (x, y) -> x + y,
-                             klasttouch,
-                             csrrowptr,
-                             csrcolval,
-                             csrnzval,
-                             csccolptr,
-                             J,
-                             V,
-                             )
-    @show length(J) 
+    A = SparseArrays.sparse!(
+        I,
+        J,
+        V,
+        n,
+        n,
+        (x, y) -> x + y,
+        klasttouch,
+        csrrowptr,
+        csrcolval,
+        csrnzval,
+        csccolptr,
+        J,
+        V,
+    )
+    @show length(J)
     return A
 end
 
@@ -353,4 +417,3 @@ function CmultG!(
     end
     mul!(y, tmp_nvar_nfwrd, tmp_nfwrd_npred)
 end
-

@@ -1,6 +1,6 @@
 module Dynare
 
-@Base.kwdef struct CommandLineOptions
+Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
 end
 
@@ -39,7 +39,7 @@ macro dynare(modfile_arg::String, args...)
         end
     end
     options = CommandLineOptions(compilemodule)
-    modfilename = modname*".mod"
+    modfilename = modname * ".mod"
     dynare_preprocess(modfilename, arglist)
     context = parser(modname, options)
     return context
@@ -48,7 +48,7 @@ end
 function get_modname(s::String)
     modfilename = string(s)
     mdoname = split(modfilename, ".")[1]
-    if  occursin(r"\.mod$", modfilename)
+    if occursin(r"\.mod$", modfilename)
         modname::String = modfilename[1:length(modfilename)-4]
     else
         modname = modfilename

@@ -5,7 +5,10 @@ struct Graph
     filename::String
 end
 
-Base.print(io::IO, s::Graph) = print(io, "\\begin{centering}\\includegraphics[scale=0.6]{$(s.filename)}\\vspace{30pt}\\end{centering}\n")
+Base.print(io::IO, s::Graph) = print(
+    io,
+    "\\begin{centering}\\includegraphics[scale=0.6]{$(s.filename)}\\vspace{30pt}\\end{centering}\n",
+)
 
 struct Paragraph
     text::String
@@ -16,7 +19,8 @@ Base.print(io::IO, s::Paragraph) = print("$(s.text)\n")
 struct Table
     string::String
     function Table(data, title, column_header, row_header, note)
-        string =  dynare_table(data, title, column_header, row_header, note, backend = :latex)
+        string =
+            dynare_table(data, title, column_header, row_header, note, backend = :latex)
         new(string)
     end
 end
@@ -43,7 +47,7 @@ struct Report
     title::String
     subtitle::String
     pages::Vector{Page}
-    function Report(title::String; subtitle::String="")
+    function Report(title::String; subtitle::String = "")
         pages = Vector{Page}(undef, 0)
         new(title, subtitle, pages)
     end
@@ -66,7 +70,7 @@ function add_table!(page::Page, table::Table)
     push!(page.sections, table)
 end
 
-function print(report::Report; texfilename::String="report.tex")
+function print(report::Report; texfilename::String = "report.tex")
     open(texfilename, "w") do io
         print(io, "\\documentclass{report}\n")
         print(io, "\\usepackage{threeparttable}\n")
@@ -95,4 +99,3 @@ function print(report::Report; texfilename::String="report.tex")
     latex = `pdflatex $texfilename`
     run(latex)
 end
-

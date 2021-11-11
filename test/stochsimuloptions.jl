@@ -3,7 +3,7 @@ struct StochSimulOptions
     dr_algo::String
     order::Int64
     periods::Int64
-    function StochSimulOptions(options::Dict{String, Any})
+    function StochSimulOptions(options::Dict{String,Any})
         ks = keys(options)
         if "dr_cyclic_reduction" in ks && options["dr_cyclic_reduction"]::Bool
             dr_algo = "CR"

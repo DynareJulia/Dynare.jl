@@ -13,11 +13,17 @@ results_orig = copy(results)
 z = results
 geometric_series!(z, A, B, x)
 
-@test z[:, 5] ≈ B*x[5, :]
-@test z[:, 4] ≈ B*x[4, :] + A*B*x[5, :]
-@test z[:, 3] ≈ B*x[3, :] + A*B*x[4, :] + A*A*B*x[5, :]
-@test z[:, 2] ≈ B*x[2, :] + A*B*x[3, :] + A*A*B*x[4, :] + A*A*A*B*x[5, :]
-@test z[:, 1] ≈ B*x[1, :] + A*B*x[2, :] + A*A*B*x[3, :] + A*A*A*B*x[4, :] + A*A*A*A*B*x[5, :]
+@test z[:, 5] ≈ B * x[5, :]
+@test z[:, 4] ≈ B * x[4, :] + A * B * x[5, :]
+@test z[:, 3] ≈ B * x[3, :] + A * B * x[4, :] + A * A * B * x[5, :]
+@test z[:, 2] ≈
+      B * x[2, :] + A * B * x[3, :] + A * A * B * x[4, :] + A * A * A * B * x[5, :]
+@test z[:, 1] ≈
+      B * x[1, :] +
+      A * B * x[2, :] +
+      A * A * B * x[3, :] +
+      A * A * A * B * x[4, :] +
+      A * A * A * A * B * x[5, :]
 
 initial_values = ones(4)
 c = randn(4)
@@ -30,10 +36,10 @@ simul_first_order_1!(results, initial_values, c, A, B, x)
 z = zeros(4, 5)
 geometric_series!(z, A, B, x)
 for i = 2:5
-    @test results[:, i] ≈ c .+ A*(results[:, i-1] - c) .+ z[:, i]
+    @test results[:, i] ≈ c .+ A * (results[:, i-1] - c) .+ z[:, i]
 end
 for i = 6:6
-    @test results[:, i] ≈ c .+ A*(results[:, i-1] - c)
+    @test results[:, i] ≈ c .+ A * (results[:, i-1] - c)
 end
 
 md = context.models[1]
@@ -62,42 +68,100 @@ temp_vec = context.work.temporary_values
 
 preconditioner_window = 10
 algo = "CR"
-rout = zeros((periods - 2)*md.endogenous_nbr)
+rout = zeros((periods - 2) * md.endogenous_nbr)
 tmp = similar(rout)
 JJ = Jacobian(context, periods - 2)
-ws_threaded = [PeriodJacobianWs(context) for i=1:Threads.nthreads()]
+ws_threaded = [PeriodJacobianWs(context) for i = 1:Threads.nthreads()]
 
 params = context.work.params
 @btime begin
     simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve1(vec(residuals), y, initialvalues, terminalvalues, exogenous, dynamic_variables,
-           steadystate, params, md, periods - 2, temp_vec,
-           JJ, context, ws_threaded, n)
+    solve1(
+        vec(residuals),
+        y,
+        initialvalues,
+        terminalvalues,
+        exogenous,
+        dynamic_variables,
+        steadystate,
+        params,
+        md,
+        periods - 2,
+        temp_vec,
+        JJ,
+        context,
+        ws_threaded,
+        n,
+    )
 end
 
 @btime begin
     ws = GmresWs(periods - 2, preconditioner_window, context, algo)
     y .+= steadystate
-    solve2(residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
-           steadystate, params, md, periods - 2, temp_vec,
-           JJ, context, ws_threaded, n, ws)
+    solve2(
+        residuals,
+        y,
+        initialvalues,
+        terminalvalues,
+        exogenous,
+        dynamic_variables,
+        steadystate,
+        params,
+        md,
+        periods - 2,
+        temp_vec,
+        JJ,
+        context,
+        ws_threaded,
+        n,
+        ws,
+    )
 end
 
 @btime begin
     simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve3(0.01, residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
-                  steadystate, params, md, periods - 2, temp_vec,
-                  JJ, context, ws_threaded, n)
+    solve3(
+        0.01,
+        residuals,
+        y,
+        initialvalues,
+        terminalvalues,
+        exogenous,
+        dynamic_variables,
+        steadystate,
+        params,
+        md,
+        periods - 2,
+        temp_vec,
+        JJ,
+        context,
+        ws_threaded,
+        n,
+    )
 end
 
 @btime begin
     simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve4(residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
-                  steadystate, params, md, periods - 2, temp_vec,
-                  JJ, context, ws_threaded, n)
+    solve4(
+        residuals,
+        y,
+        initialvalues,
+        terminalvalues,
+        exogenous,
+        dynamic_variables,
+        steadystate,
+        params,
+        md,
+        periods - 2,
+        temp_vec,
+        JJ,
+        context,
+        ws_threaded,
+        n,
+    )
 end
 
 using Pardiso
@@ -106,7 +170,22 @@ ps = PardisoSolver()
 @btime begin
     simul_first_order_1!(y, zeros(6), A, B, exogenous)
     y .= steadystate
-    solve5(residuals, y, initialvalues, terminalvalues, exogenous, dynamic_variables,
-                  steadystate, params, md, periods - 2, temp_vec,
-                  JJ, context, ws_threaded, n, ps)
+    solve5(
+        residuals,
+        y,
+        initialvalues,
+        terminalvalues,
+        exogenous,
+        dynamic_variables,
+        steadystate,
+        params,
+        md,
+        periods - 2,
+        temp_vec,
+        JJ,
+        context,
+        ws_threaded,
+        n,
+        ps,
+    )
 end

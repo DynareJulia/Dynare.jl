@@ -22,13 +22,11 @@ struct JacTimesVec
         md = context.models[1]
         work = context.work
         jacobian = similar(work.jacobian)
-        dynamic_variables =
-            zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both)
+        dynamic_variables = zeros(md.n_bkwrd + md.n_current + md.n_fwrd + 2 * md.n_both)
         temp_vec = Vector{Float64}(undef, sum(md.dynamic!.tmp_nbr[1:2]))
         residuals = Vector{Float64}(undef, md.endogenous_nbr)
         params = work.params
-        new(jacobian, dynamic_variables,
-            temp_vec, residuals, params)
+        new(jacobian, dynamic_variables, temp_vec, residuals, params)
     end
 end
 
@@ -55,7 +53,7 @@ struct Jacobian
         work = context.work
         endogenous = repeat(steadystate, 3)
         exogenous = repeat(steadystate_exo', 2)
-        maxcol = md.n_bkwrd + md.n_current + md.n_fwrd + 2*md.n_both 
+        maxcol = md.n_bkwrd + md.n_current + md.n_fwrd + 2 * md.n_both
         vj = view(work.jacobian, :, 1:maxcol)
         nz = periods * md.NNZDerivatives[1]
         nrow = periods * md.endogenous_nbr
@@ -94,18 +92,20 @@ struct Jacobian
     end
 end
 
-function get_dynamic_endogenous_variables!(y::AbstractVector{Float64},
-                                           data::AbstractVector{Float64},
-                                           lli::Matrix{Int64},
-                                           m::Model,
-                                           period::Int64)
+function get_dynamic_endogenous_variables!(
+    y::AbstractVector{Float64},
+    data::AbstractVector{Float64},
+    lli::Matrix{Int64},
+    m::Model,
+    period::Int64,
+)
     m, n = size(lli)
-    p = (period - 2)*n
+    p = (period - 2) * n
     @inbounds for i = 1:m
         for j = 1:n
             k = lli[i, j]
             if k > 0
-                y[k] = data[p + j]
+                y[k] = data[p+j]
             end
         end
         p += n
@@ -113,36 +113,40 @@ function get_dynamic_endogenous_variables!(y::AbstractVector{Float64},
 end
 
 
-function get_jacobian!(ws::JacTimesVec,
-                       endogenous::AbstractVector{Float64},
-                       exogenous::Matrix{Float64},
-                       steadystate::Vector{Float64},
-                       m::Model,
-                       period::Int64)
+function get_jacobian!(
+    ws::JacTimesVec,
+    endogenous::AbstractVector{Float64},
+    exogenous::Matrix{Float64},
+    steadystate::Vector{Float64},
+    m::Model,
+    period::Int64,
+)
     lli = m.lead_lag_incidence
-    get_dynamic_endogenous_variables!(ws.dynamic_variables,
-                                      endogenous, lli, m, period)
-    compute_jacobian(ws, exogenous,
-                     steadystate, m, period)
+    get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli, m, period)
+    compute_jacobian(ws, exogenous, steadystate, m, period)
 end
 
 
-function compute_jacobian(ws::JacTimesVec,
-                          exogenous::AbstractMatrix{Float64},
-                          steadystate::AbstractVector{Float64},
-                          m::Model,
-                          period::Int64)
+function compute_jacobian(
+    ws::JacTimesVec,
+    exogenous::AbstractMatrix{Float64},
+    steadystate::AbstractVector{Float64},
+    m::Model,
+    period::Int64,
+)
     dynamic! = m.dynamic!.dynamic!
     fill!(ws.jacobian, 0.0)
-    @inbounds Base.invokelatest(dynamic!,
-                      ws.temp_vec,
-                      ws.residuals,
-                      ws.jacobian,
-                      ws.dynamic_variables,
-                      exogenous,
-                      ws.params,
-                      steadystate,
-                      period)
+    @inbounds Base.invokelatest(
+        dynamic!,
+        ws.temp_vec,
+        ws.residuals,
+        ws.jacobian,
+        ws.dynamic_variables,
+        exogenous,
+        ws.params,
+        steadystate,
+        period,
+    )
 end
 
 include("makeA.jl")

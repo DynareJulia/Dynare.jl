@@ -4,51 +4,53 @@ using Test
 
 include("../src/dynare_containers.jl")
 
-get_model_info(field::Dict{String, Any}) =
-    ModelInfo(field["lead_lag_incidence"]::Vector{Any},
-              field["nstatic"]::Int64,
-              field["nfwrd"]::Int64,
-              field["npred"]::Int64,
-              field["nboth"]::Int64,
-              field["nsfwrd"]::Int64,
-              field["nspred"]::Int64,
-              field["ndynamic"]::Int64,
-              field["maximum_endo_lag"]::Int64,
-              field["maximum_endo_lead"]::Int64,
-              field["maximum_exo_lag"]::Int64,
-              field["maximum_exo_lead"]::Int64,
-              field["maximum_exo_det_lag"]::Int64,
-              field["maximum_exo_det_lead"]::Int64,
-              field["maximum_lag"]::Int64,
-              field["maximum_lead"]::Int64,
-              field["orig_maximum_endo_lag"]::Int64,
-              field["orig_maximum_endo_lead"]::Int64,
-              field["orig_maximum_exo_lag"]::Int64,
-              field["orig_maximum_exo_lead"]::Int64,
-              field["orig_maximum_exo_det_lag"]::Int64,
-              field["orig_maximum_exo_det_lead"]::Int64,
-              max(field["orig_maximum_lag"]::Int64,
-                  field["orig_maximum_lag_with_diffs_expanded"]::Int64),
-              field["orig_maximum_lead"]::Int64,
-              field["NNZDerivatives"]::Vector{Any}
-              )
+get_model_info(field::Dict{String,Any}) = ModelInfo(
+    field["lead_lag_incidence"]::Vector{Any},
+    field["nstatic"]::Int64,
+    field["nfwrd"]::Int64,
+    field["npred"]::Int64,
+    field["nboth"]::Int64,
+    field["nsfwrd"]::Int64,
+    field["nspred"]::Int64,
+    field["ndynamic"]::Int64,
+    field["maximum_endo_lag"]::Int64,
+    field["maximum_endo_lead"]::Int64,
+    field["maximum_exo_lag"]::Int64,
+    field["maximum_exo_lead"]::Int64,
+    field["maximum_exo_det_lag"]::Int64,
+    field["maximum_exo_det_lead"]::Int64,
+    field["maximum_lag"]::Int64,
+    field["maximum_lead"]::Int64,
+    field["orig_maximum_endo_lag"]::Int64,
+    field["orig_maximum_endo_lead"]::Int64,
+    field["orig_maximum_exo_lag"]::Int64,
+    field["orig_maximum_exo_lead"]::Int64,
+    field["orig_maximum_exo_det_lag"]::Int64,
+    field["orig_maximum_exo_det_lead"]::Int64,
+    max(
+        field["orig_maximum_lag"]::Int64,
+        field["orig_maximum_lag_with_diffs_expanded"]::Int64,
+    ),
+    field["orig_maximum_lead"]::Int64,
+    field["NNZDerivatives"]::Vector{Any},
+)
 function load_dynare_function(modname::String, compileoption::Bool)::Module
     if compileoption
-        fun = readlines(modname*".jl")
-        return(eval(Meta.parse(join(fun, "\n"))))
+        fun = readlines(modname * ".jl")
+        return (eval(Meta.parse(join(fun, "\n"))))
     else
         push!(LOAD_PATH, dirname(modname))
         name = basename(modname)
-        eval(Meta.parse("using "*name))
+        eval(Meta.parse("using " * name))
         pop!(LOAD_PATH)
-        return(eval(Symbol(name)))
+        return (eval(Symbol(name)))
     end
 end
 
 lead_lag_incidence = [
-    1  0  2  0  3  0  4  0  5  0;
-    0  6  7  8  9 10  0 11 12 13;
-    14 0 15  0 16  0 17 18  0 19
+    1 0 2 0 3 0 4 0 5 0
+    0 6 7 8 9 10 0 11 12 13
+    14 0 15 0 16 0 17 18 0 19
 ]
 
 json = """
@@ -95,52 +97,54 @@ exo_nbr = 1
 exo_det_nbr = 0
 param_nbr = 1
 
-function f(modfilename,
-           endo_nbr,
-           lead_lag_incidence,
-           exo_nbr,
-           lagged_exo_nbr,
-           exo_det_nbr,
-           param_nbr)
-    
-    model = Model(modfilename,
-                  endo_nbr,
-                  lead_lag_incidence,
-                  exo_nbr,
-                  lagged_exo_nbr,
-                  exo_det_nbr,
-                  param_nbr,
-                  model_info.maximum_endo_lag,
-                  model_info.maximum_endo_lead,
-                  model_info.maximum_exo_lag,
-                  model_info.maximum_exo_lead,
-                  model_info.maximum_exo_det_lag,
-                  model_info.maximum_exo_det_lead,
-                  model_info.maximum_lag,
-                  model_info.maximum_lead,
-                  model_info.orig_maximum_endo_lag,
-                  model_info.orig_maximum_endo_lead,
-                  model_info.orig_maximum_exo_lag,
-                  model_info.orig_maximum_exo_lead,
-                  model_info.orig_maximum_exo_det_lag,
-                  model_info.orig_maximum_exo_det_lead,
-                  model_info.orig_maximum_lag,
-                  model_info.orig_maximum_lead,
-                  NNZDerivatives,
-                  true
-                  )
+function f(
+    modfilename,
+    endo_nbr,
+    lead_lag_incidence,
+    exo_nbr,
+    lagged_exo_nbr,
+    exo_det_nbr,
+    param_nbr,
+)
+
+    model = Model(
+        modfilename,
+        endo_nbr,
+        lead_lag_incidence,
+        exo_nbr,
+        lagged_exo_nbr,
+        exo_det_nbr,
+        param_nbr,
+        model_info.maximum_endo_lag,
+        model_info.maximum_endo_lead,
+        model_info.maximum_exo_lag,
+        model_info.maximum_exo_lead,
+        model_info.maximum_exo_det_lag,
+        model_info.maximum_exo_det_lead,
+        model_info.maximum_lag,
+        model_info.maximum_lead,
+        model_info.orig_maximum_endo_lag,
+        model_info.orig_maximum_endo_lead,
+        model_info.orig_maximum_exo_lag,
+        model_info.orig_maximum_exo_lead,
+        model_info.orig_maximum_exo_det_lag,
+        model_info.orig_maximum_exo_det_lead,
+        model_info.orig_maximum_lag,
+        model_info.orig_maximum_lead,
+        NNZDerivatives,
+        true,
+    )
 end
 
-tinf = @snoopi_deep f(modfilename,
-                      endo_nbr,
-                      model_info.lead_lag_incidence,
-                      exo_nbr,
-                      0,
-                      exo_det_nbr,
-                      param_nbr
-                      )
+tinf = @snoopi_deep f(
+    modfilename,
+    endo_nbr,
+    model_info.lead_lag_incidence,
+    exo_nbr,
+    0,
+    exo_det_nbr,
+    param_nbr,
+)
 
 itrigs = inference_triggers(tinf)
 mtrigs = accumulate_by_source(Method, itrigs)
-
-

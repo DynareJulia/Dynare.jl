@@ -1,11 +1,11 @@
 struct Context
-    symboltable
-    work
+    symboltable::Any
+    work::Any
     options::Dict
 end
 
 struct Work
-    params
+    params::Any
 end
 
 
@@ -20,7 +20,7 @@ end
 function dynare_eval(expr::Expr, context::Context)
     @show expr.head
     for (i, a) in enumerate(expr.args)
-        @show a,typeof(a)
+        @show a, typeof(a)
         expr.args[i] = dynare_eval(a, context)
     end
     return expr
@@ -53,9 +53,9 @@ function dynare_eval(q::QuoteNode, context)
 end
 
 function load_params!(a, b)
-    @show a,b
+    @show a, b
 end
 
-context=Context(Dict(), Work([]), Dict())
+context = Context(Dict(), Work([]), Dict())
 
 dynare_parse_eval("context.options[\"LRE_solver\"] = \"cycle_reduction\"\r", context)

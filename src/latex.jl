@@ -6,7 +6,7 @@
 """
 The active LaTeX engine. Initialized the first time [`latexengine`](@ref) is called.
 """
-const ACTIVE_LATEX_ENGINE = Ref{Union{Nothing, LaTeXEngine}}(nothing)
+const ACTIVE_LATEX_ENGINE = Ref{Union{Nothing,LaTeXEngine}}(nothing)
 function latexengine()
     if ACTIVE_LATEX_ENGINE[] === nothing
         for (engine, enum) in zip(("lualatex", "pdflatex"), (LUALATEX, PDFLATEX))
@@ -16,9 +16,13 @@ function latexengine()
                 return ACTIVE_LATEX_ENGINE[] = enum
             end
         end
-        throw(MissingExternalProgramError("No LaTeX installation found, figures will not be generated. ",
-                                          "Make sure either pdflatex or lualatex are installed and that ",
-                                          "the PATH variable is correctly set."))
+        throw(
+            MissingExternalProgramError(
+                "No LaTeX installation found, figures will not be generated. ",
+                "Make sure either pdflatex or lualatex are installed and that ",
+                "the PATH variable is correctly set.",
+            ),
+        )
     end
     return ACTIVE_LATEX_ENGINE[]
 end
@@ -91,16 +95,15 @@ CUSTOM_PREAMBLE = String[]
 The default preamble for LaTeX documents. Don't change this, customize
 [`CUSTOM_PREAMBLE`](@ref) instead.
 """
-DEFAULT_PREAMBLE =
-    String[
-        "\\usepackage{pgfplots}",
-        "\\pgfplotsset{compat=newest}",
-        "\\usepgfplotslibrary{groupplots}",
-        "\\usepgfplotslibrary{polar}",
-        "\\usepgfplotslibrary{smithchart}",
-        "\\usepgfplotslibrary{statistics}",
-        "\\usepgfplotslibrary{dateplot}",
-    ]
+DEFAULT_PREAMBLE = String[
+    "\\usepackage{pgfplots}",
+    "\\pgfplotsset{compat=newest}",
+    "\\usepgfplotslibrary{groupplots}",
+    "\\usepgfplotslibrary{polar}",
+    "\\usepgfplotslibrary{smithchart}",
+    "\\usepgfplotslibrary{statistics}",
+    "\\usepgfplotslibrary{dateplot}",
+]
 
 # Collects the full preamble from the different sources, default and custom
 function _default_preamble()
@@ -133,10 +136,11 @@ end
 # PNG #
 #######
 @enum(PNGEngine, NO_PNG_ENGINE, PNG_PDF_TO_CAIRO, PDF_TO_PPM)
-const ACTIVE_PNG_ENGINE = Ref{Union{Nothing, PNGEngine}}(nothing)
+const ACTIVE_PNG_ENGINE = Ref{Union{Nothing,PNGEngine}}(nothing)
 function png_engine()
     if ACTIVE_PNG_ENGINE[] === nothing
-        for (engine, enum) in zip(("pdftocairo", "pdftoppm"), (PNG_PDF_TO_CAIRO, PDF_TO_PPM))
+        for (engine, enum) in
+            zip(("pdftocairo", "pdftoppm"), (PNG_PDF_TO_CAIRO, PDF_TO_PPM))
             @debug "png_engine: looking for png engine $engine"
             if Sys.which(engine) !== nothing
                 @debug "png_engine: found png engine $engine, using it"
@@ -148,10 +152,19 @@ function png_engine()
     return ACTIVE_PNG_ENGINE[]
 end
 
-function convert_pdf_to_png(pdf::String, png::String; engine::PNGEngine=png_engine(), dpi=150::Integer)
+function convert_pdf_to_png(
+    pdf::String,
+    png::String;
+    engine::PNGEngine = png_engine(),
+    dpi = 150::Integer,
+)
     if engine == NO_PNG_ENGINE
-        throw(MissingExternalProgramError("No PDF to PNG converter found, we looked for `pdftocairo` and `pdftoppm`. ",
-                                          "Make sure one of these are installed and available at PATH and restart Julia."))
+        throw(
+            MissingExternalProgramError(
+                "No PDF to PNG converter found, we looked for `pdftocairo` and `pdftoppm`. ",
+                "Make sure one of these are installed and available at PATH and restart Julia.",
+            ),
+        )
     end
     if engine == PNG_PDF_TO_CAIRO
         cmd = `pdftocairo -png -r $dpi -singlefile $pdf $png`
@@ -169,7 +182,7 @@ end
 # SVG #
 #######
 @enum(SVGEngine, NO_SVG_ENGINE, SVG_PDF_TO_CAIRO, PDF_TO_SVG)
-const ACTIVE_SVG_ENGINE = Ref{Union{Nothing, SVGEngine}}(nothing)
+const ACTIVE_SVG_ENGINE = Ref{Union{Nothing,SVGEngine}}(nothing)
 function svg_engine()
     if ACTIVE_SVG_ENGINE[] === nothing
         for (engine, enum) in zip(("pdftocairo", "pdf2svg"), (SVG_PDF_TO_CAIRO, PDF_TO_SVG))
@@ -184,10 +197,14 @@ function svg_engine()
     return ACTIVE_SVG_ENGINE[]
 end
 
-function convert_pdf_to_svg(pdf::String, svg::String, engine=svg_engine())
+function convert_pdf_to_svg(pdf::String, svg::String, engine = svg_engine())
     if engine == NO_SVG_ENGINE
-        throw(MissingExternalProgramError("No PDF to SVG converter found, we looked for `pdftocairo` and `pdf2svg`. ",
-                                          "Make sure one of these are installed and available at PATH and restart Julia."))
+        throw(
+            MissingExternalProgramError(
+                "No PDF to SVG converter found, we looked for `pdftocairo` and `pdf2svg`. ",
+                "Make sure one of these are installed and available at PATH and restart Julia.",
+            ),
+        )
     end
     if engine == SVG_PDF_TO_CAIRO
         cmd = `pdftocairo -svg -l 1 $pdf $svg`

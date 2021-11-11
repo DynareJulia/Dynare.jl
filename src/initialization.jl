@@ -1,4 +1,4 @@
-function histval!(context::Context, field::Dict{String, Any})
+function histval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
     histval = zeros(m.orig_maximum_lag, m.endogenous_nbr)
@@ -41,8 +41,8 @@ function check_predetermined_variables(symboltable, m, datanames)
     end
     return auxiliary_variables_present
 end
-    
-function histval_file!(context::Context, field::Dict{String, Any})
+
+function histval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     options = field["options"]
     symboltable = context.symboltable
@@ -60,32 +60,40 @@ function histval_file!(context::Context, field::Dict{String, Any})
 
     if first_obs != nothing && first_simulation_period != nothing
         if typeof(first_obs) != typeof(first_simulation_period)
-            error("first_obs && first_simulation_period, if both present, must have the same frequency. Note that only one of these options is necessary.")
+            error(
+                "first_obs && first_simulation_period, if both present, must have the same frequency. Note that only one of these options is necessary.",
+            )
         elseif first_simulation - first_obs != required_periods
-            error("first_obs && first_simulation_period are inconsistent: first_simulation_period should equal first_obs + $required_periods. Note that only one of these options is necessary.")
+            error(
+                "first_obs && first_simulation_period are inconsistent: first_simulation_period should equal first_obs + $required_periods. Note that only one of these options is necessary.",
+            )
         end
     end
 
     if first_obs != nothing && last_obs != nothing
         if typeof(first_obs) != typeof(last_obs)
             error("first_obs && last_obs must have the same frequency")
-        elseif last_obs  != first_obs + required_periods - 1
-            error("first_obs && last_obs are inconsistent: last_obs must be equal to first_obs + $(required_periods -1)")
+        elseif last_obs != first_obs + required_periods - 1
+            error(
+                "first_obs && last_obs are inconsistent: last_obs must be equal to first_obs + $(required_periods -1)",
+            )
         end
     end
-    
+
     if first_simulation_period != nothing && last_obs != nothing
         if typeof(first_simulation_period) != typeof(last_obs)
             error("first_simulation_period && last_obs must have the same frequency")
-        elseif first_simulation_period  != last_obs + 1
-            error("first_simulation_period && last_obs are inconsistent: last_obs must be equal first_simulation_period - 1.")
+        elseif first_simulation_period != last_obs + 1
+            error(
+                "first_simulation_period && last_obs are inconsistent: last_obs must be equal first_simulation_period - 1.",
+            )
         end
     end
 
     auxiliary_variables_present =
         check_predetermined_variables(context.symboltable, m, names(data))
     required_perdiods = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
-    
+
     start = stop = nothing
     if first_obs == nothing
         if first_simulation_period != nothing
@@ -102,7 +110,7 @@ function histval_file!(context::Context, field::Dict{String, Any})
         start = first_obs
         stop = start + required_periods - 1
     end
-    
+
     data_periods = data.periods
     if typeof(start) != UndatedDate && typeof(start) != typeof(data_periods)
         error("Data frequency is different from frequency used in options")
@@ -121,25 +129,27 @@ function histval_file!(context::Context, field::Dict{String, Any})
             colindex = view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
             endogenous_names = view(get_endogenous(symboltable), 1:m.orig_endogenous_nbr)
         end
-        columns = (auxiliary_variables_present) ? m.i_bkwrd_b : view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
+        columns =
+            (auxiliary_variables_present) ? m.i_bkwrd_b :
+            view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
         for (i, vname) in endogenous_names
             colindex = find
-            for j in istart:istop
-                histval[j + offset, i] = data_[j, colindex] 
+            for j = istart:istop
+                histval[j+offset, i] = data_[j, colindex]
             end
         end
     end
 end
 
-function param_init!(context::Context, field::Dict{String, Any})
+function param_init!(context::Context, field::Dict{String,Any})
     params = context.work.params
-    symboltable::Dict{String, DynareSymbol} = context.symboltable
+    symboltable::Dict{String,DynareSymbol} = context.symboltable
     s = symboltable[field["name"]::String]
     k = s.orderintype::Int64
     params[k] = Float64(dynare_parse_eval(field["value"]::String, context))
 end
 
-function initval!(context::Context, field::Dict{String, Any})
+function initval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
     endogenous_steady_state = zeros(m.endogenous_nbr)
@@ -161,16 +171,14 @@ function initval!(context::Context, field::Dict{String, Any})
         end
     end
     params = context.work.params
-    m.set_auxiliary_variables!(endogenous_steady_state,
-                               exogenous_steady_state,
-                               params)
-    trends = context.results.model_results[1].trends 
+    m.set_auxiliary_variables!(endogenous_steady_state, exogenous_steady_state, params)
+    trends = context.results.model_results[1].trends
     trends.endogenous_steady_state .= endogenous_steady_state
     trends.exogenous_steady_state .= exogenous_steady_state
     trends.exogenous_det_steady_state .= exogenous_det_steady_state
 end
 
-function shocks!(context::Context, field::Dict{String, Any})
+function shocks!(context::Context, field::Dict{String,Any})
     Sigma = context.models[1].Sigma_e
     symboltable = context.symboltable
     set_variance!(Sigma, field["variance"], symboltable)
@@ -179,48 +187,60 @@ function shocks!(context::Context, field::Dict{String, Any})
     set_correlation!(Sigma, field["correlation"], symboltable)
 end
 
-function set_variance!(Sigma::Matrix{Float64}, variance::Vector{Any}, symboltable::SymbolTable)
+function set_variance!(
+    Sigma::Matrix{Float64},
+    variance::Vector{Any},
+    symboltable::SymbolTable,
+)
     for v in variance
-        k =  symboltable[v["name"]::String].orderintype::Int64
+        k = symboltable[v["name"]::String].orderintype::Int64
         Sigma[k, k] = dynare_parse_eval(v["variance"]::String, context)::Float64
     end
 end
 
 function set_stderr!(Sigma::Matrix{Float64}, stderr::Vector{Any}, symboltable::SymbolTable)
     for s in stderr
-        k =  symboltable[s["name"]::String].orderintype::Int64
+        k = symboltable[s["name"]::String].orderintype::Int64
         x = dynare_parse_eval(s["stderr"]::String, context)::Float64
-        Sigma[k, k] = x*x
+        Sigma[k, k] = x * x
     end
 end
 
-function set_covariance!(Sigma::Matrix{Float64}, covariance::Vector{Any}, symboltable::SymbolTable)
+function set_covariance!(
+    Sigma::Matrix{Float64},
+    covariance::Vector{Any},
+    symboltable::SymbolTable,
+)
     for c in covariance
-        k1 =  symboltable[c["name"]::String].orderintype::Int64
-        k2 =  symboltable[c["name2"]::String].orderintype::Int64
+        k1 = symboltable[c["name"]::String].orderintype::Int64
+        k2 = symboltable[c["name2"]::String].orderintype::Int64
         Sigma[k1, k2] = dynare_parse_eval(c["covariance"]::String, context)::Float64
         Sigma[k2, k1] = Sigma[k1, k2]
     end
 end
 
-function set_correlation!(Sigma::Matrix{Float64}, correlation::Vector{Any}, symboltable::SymbolTable)
+function set_correlation!(
+    Sigma::Matrix{Float64},
+    correlation::Vector{Any},
+    symboltable::SymbolTable,
+)
     for c in correlation
-        k1 =  symboltable[c["name"]::String].orderintype::Int64
-        k2 =  symboltable[c["name2"]::String].orderintype::Int64
+        k1 = symboltable[c["name"]::String].orderintype::Int64
+        k2 = symboltable[c["name2"]::String].orderintype::Int64
         corr = dynare_parse_eval(c["correlation"]::String, context)::Float64
-        Sigma[k2, k1] = sqrt(Sigma[k1, k1]*Sigma[k2, k2])*corr
+        Sigma[k2, k1] = sqrt(Sigma[k1, k1] * Sigma[k2, k2]) * corr
     end
 end
 
 function load_params!(context::Context, filename::String)
-    param_nbr = context.models[1].parameter_nbr;
+    param_nbr = context.models[1].parameter_nbr
     parameters = context.work.params
     symboltable = context.symboltable
     open(filename) do io
-        variables = [];
+        variables = []
         param_names = get
         for line in readlines(io)
-            elem = split(line);
+            elem = split(line)
             if elem[1] in keys(symboltable)
                 s = symboltable[elem[1]]
                 if s.symboltype == Parameter
@@ -240,10 +260,10 @@ function load_steadystate!(context::Context, filename::String)
     parameters = context.work.params
     symboltable = context.symboltable
     open(filename) do io
-        variables = [];
+        variables = []
         param_names = get
         for line in readlines(io)
-            elem = split(line);
+            elem = split(line)
             if elem[1] in keys(symboltable)
                 s = symboltable[elem[1]]
                 k = s.orderintype::Int64
@@ -257,7 +277,5 @@ function load_steadystate!(context::Context, filename::String)
             end
         end
     end
-    m.set_auxiliary_variables!(endogenous,
-                               exogenous,
-                               parameters)
+    m.set_auxiliary_variables!(endogenous, exogenous, parameters)
 end

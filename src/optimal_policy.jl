@@ -1,2 +1,1 @@
-function planner_objective!(context, field)
-end
+function planner_objective!(context, field) end

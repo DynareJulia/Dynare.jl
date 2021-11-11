@@ -25,16 +25,19 @@ function identify_period_frequency(period)::ExtendedDates.Frequency
     end
 end
 
-function get_data(filename::String, variables::Vector{String};
-                  start::Int64 = 1, last::Int64 = 0)
+function get_data(
+    filename::String,
+    variables::Vector{String};
+    start::Int64 = 1,
+    last::Int64 = 0,
+)
     df = DataFrame(CSV.File(filename))
-    if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES",
-                                   "PERIOD", "PERIODS"]
+    if uppercase(names(df)[1]) in ["COLUMN1", "DATE", "DATES", "PERIOD", "PERIODS"]
         frequency = identify_period_frequency(uppercase(df[1, 1]))
     else
         frequency = Undated
     end
-    
+
     ny = length(variables)
 
     if last == 0
@@ -47,4 +50,3 @@ function get_data(filename::String, variables::Vector{String};
     end
     return Y
 end
-
