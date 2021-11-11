@@ -450,7 +450,7 @@ const SymbolTable = Dict{String, DynareSymbol}
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    modfileinfo:Dict{String, Bool}
+    modfileinfo::Dict{String, Bool}
     results::Results
     work::Work
 end
