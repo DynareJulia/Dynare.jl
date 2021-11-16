@@ -204,7 +204,7 @@ function make_one_period!(
     jacobian_columns::Vector{Int64},
     nnz_period::Int64,
     maxcol::Int64,
-    ws::Dynare.PeriodJacobianWs,
+    ws::PeriodJacobianWs,
     t::Int64,
 )
     nvar = md.endogenous_nbr
@@ -232,7 +232,7 @@ function makeJacobian!(
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
-    ws::Vector{Dynare.PeriodJacobianWs},
+    ws::Vector{PeriodJacobianWs},
 )
     I = JA.ss.I
     J = JA.ss.J
