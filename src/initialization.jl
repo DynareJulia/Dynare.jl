@@ -180,11 +180,14 @@ end
 
 function shocks!(context::Context, field::Dict{String,Any})
     Sigma = context.models[1].Sigma_e
+    shocks = context.work.shocks
     symboltable = context.symboltable
     set_variance!(Sigma, field["variance"], symboltable)
     set_stderr!(Sigma, field["stderr"], symboltable)
     set_covariance!(Sigma, field["covariance"], symboltable)
     set_correlation!(Sigma, field["correlation"], symboltable)
+    set_deterministic_shocks!(shocks, field["deterministic_shocks"],
+                              symboltable, context.models[1].exogenous_nbr)
 end
 
 function set_variance!(
@@ -229,6 +232,34 @@ function set_correlation!(
         k2 = symboltable[c["name2"]::String].orderintype::Int64
         corr = dynare_parse_eval(c["correlation"]::String, context)::Float64
         Sigma[k2, k1] = sqrt(Sigma[k1, k1] * Sigma[k2, k2]) * corr
+    end
+end
+
+function set_deterministic_shocks!(x::Vector{Float64},
+                                   shocks::Vector{Any},
+                                   symboltable::SymbolTable,
+                                   exogenous_nbr::Int64)
+    @show shocks
+    pmax = maximum((s)->maximum(p -> p["period2"], s["values"]),
+                   shocks)::Int64
+    @show pmax
+    resize!(x, pmax*exogenous_nbr)
+    for s in shocks
+        for v in s["values"]
+            @show v
+            i = symboltable[s["var"]].orderintype
+            d1 = v["period1"]
+            d2 = v["period2"]
+            val = parse(Float64, v["value"])
+            set_exogenous(x, i, d1, d2, val, pmax)
+        end
+    end
+end
+
+function set_exogenous(x::Vector{Float64}, i::Int64, p1::Int64, p2::Int64, v::Float64, pmax)
+    offset = (i-1)*pmax
+    for  p = p1:p2
+        x[offset + p] = v
     end
 end
 

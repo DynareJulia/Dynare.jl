@@ -521,6 +521,7 @@ struct Work
     initval_endogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
+    shocks::Vector{Float64}
 end
 
 Base.show(io::IO, w::Work) = show_field_value(w)

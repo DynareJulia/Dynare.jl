@@ -167,7 +167,9 @@ function make_containers(
         zeros(1, exo_nbr),
         # default value for initval_exogenous_det is zero
         zeros(1, exo_det_nbr,
-        ),
+              ),
+        # shocks
+        Vector{Float64}(undef, 0)
     )
     results = Results([modelresults])
 

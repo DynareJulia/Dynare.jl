@@ -13,7 +13,7 @@ NonLinearSolveAlgos - enumerate
 Nonlinear system of equations available algorithms:
 - trustregion: trust-region algorithm from NLsolve package
 """
-@enum NonLinearSolveAlgos trustregion = 1
+@enum NonLinearSolveAlgos trustregion
 
 """
 HomotopyModes - enumerate
@@ -23,8 +23,7 @@ Homotopy modes:
 - SingleParameterFixedSteps: move a single parameter in a fixed number of steps
 - SimultaneousAdaptative: move all declared parameters in a adaptative manner
 """
-@enum HomotopyModes None = 0 SimultaneousFixedSteps = 1 SingleParameterFixedSteps = 2 SimultaneousAdaptative =
-    3
+@enum HomotopyModes None SimultaneousFixedSteps SingleParameterFixedSteps SimultaneousAdaptative
 
 """
 SteadyOptions type
@@ -173,7 +172,8 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
         get_static_jacobian!(ws, w.params, x, exogenous, m)
 
     @show residual_function(x0)
-    result = nlsolve(residual_function, jacobian_function, x0::Vector{Float64})
+    result = nlsolve(residual_function, jacobian_function, x0::Vector{Float64},
+                     show_trace=true, extended_trace=true)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
     else
