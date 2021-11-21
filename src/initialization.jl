@@ -186,8 +186,11 @@ function shocks!(context::Context, field::Dict{String,Any})
     set_stderr!(Sigma, field["stderr"], symboltable)
     set_covariance!(Sigma, field["covariance"], symboltable)
     set_correlation!(Sigma, field["correlation"], symboltable)
-    set_deterministic_shocks!(shocks, field["deterministic_shocks"],
-                              symboltable, context.models[1].exogenous_nbr)
+    set_deterministic_shocks!(shocks,
+                              field["deterministic_shocks"],
+                              symboltable,
+                              context.models[1].exogenous_nbr,
+                              context.results.model_results[1].trends.exogenous_steady_state)
 end
 
 function set_variance!(
@@ -238,12 +241,15 @@ end
 function set_deterministic_shocks!(x::Vector{Float64},
                                    shocks::Vector{Any},
                                    symboltable::SymbolTable,
-                                   exogenous_nbr::Int64)
+                                   exogenous_nbr::Int64,
+                                   exogenous_steady_state::Vector{Float64})
     @show shocks
+    @show exogenous_steady_state
     pmax = maximum((s)->maximum(p -> p["period2"], s["values"]),
                    shocks)::Int64
     @show pmax
     resize!(x, pmax*exogenous_nbr)
+    x .= repeat(exogenous_steady_state, pmax)
     for s in shocks
         for v in s["values"]
             @show v
