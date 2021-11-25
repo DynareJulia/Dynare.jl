@@ -171,9 +171,8 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
     jacobian_function(x::AbstractVector{Float64}) =
         get_static_jacobian!(ws, w.params, x, exogenous, m)
 
-    @show residual_function(x0)
     result = nlsolve(residual_function, jacobian_function, x0::Vector{Float64},
-                     show_trace=true, extended_trace=true)
+                     show_trace=false, extended_trace=false)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
     else
