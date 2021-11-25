@@ -186,11 +186,13 @@ function shocks!(context::Context, field::Dict{String,Any})
     set_stderr!(Sigma, field["stderr"], symboltable)
     set_covariance!(Sigma, field["covariance"], symboltable)
     set_correlation!(Sigma, field["correlation"], symboltable)
-    set_deterministic_shocks!(shocks,
-                              field["deterministic_shocks"],
-                              symboltable,
-                              context.models[1].exogenous_nbr,
-                              context.results.model_results[1].trends.exogenous_steady_state)
+    if "deterministic_shocks" in keys(field)
+        set_deterministic_shocks!(shocks,
+                                  field["deterministic_shocks"],
+                                  symboltable,
+                                  context.models[1].exogenous_nbr,
+                                  context.results.model_results[1].trends.exogenous_steady_state)
+    end
 end
 
 function set_variance!(
