@@ -128,6 +128,7 @@ function make_containers(
     symboltable::SymbolTable,
     varobs::Vector{String},
 )
+    work = Work(model, varobs)
     modelresults = ModelResults(
         Vector{Float64}(undef, endo_nbr),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
@@ -138,38 +139,6 @@ function make_containers(
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         Dict{String,Matrix{Float64}}(),
-    )
-    ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2 * model.n_both
-    ncol1 = ncol + model.exogenous_nbr
-    tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
-    work = Work(
-        Vector{Float64}(undef, model.parameter_nbr),
-        Vector{Float64}(undef, model.endogenous_nbr),
-        Vector{Float64}(undef, sum(tmp_nbr[1:2])),
-        Vector{Float64}(undef, ncol),
-        # reserve enough space for a single period computation
-        Vector{Float64}(undef, 3 * model.exogenous_nbr),
-        varobs,
-        Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
-        Matrix{Float64}(undef, model.endogenous_nbr, ncol1),
-        [false],
-        Matrix{Union{Float64,Missing}}(
-            missing,
-            model.orig_maximum_lag,
-            endo_nbr,
-        ),
-        Matrix{Union{Float64,Missing}}(
-            missing,
-            1,
-            endo_nbr,
-        ),
-        # default value for initval_exogenous is zero
-        zeros(1, exo_nbr),
-        # default value for initval_exogenous_det is zero
-        zeros(1, exo_det_nbr,
-              ),
-        # shocks
-        Vector{Float64}(undef, 0)
     )
     results = Results([modelresults])
 

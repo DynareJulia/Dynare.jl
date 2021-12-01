@@ -507,6 +507,7 @@ struct Results
     model_results::Vector{ModelResults}
 end
 
+
 struct Work
     params::Vector{Float64}
     residuals::Vector{Float64}
@@ -522,6 +523,48 @@ struct Work
     initval_exogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
     shocks::Vector{Float64}
+    perfect_foresight_setup::Dict{String, Any}
+    function Work(model, varobs)
+        endo_nbr = model.endogenous_nbr
+        exo_nbr = model.exogenous_nbr
+        exo_det_nbr = model.exogenous_deterministic_nbr
+        ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2 * model.n_both
+        ncol1 = ncol + exo_nbr
+        params = Vector{Float64}(undef, model.parameter_nbr)
+        residuals = Vector{Float64}(undef, endo_nbr)
+        tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
+        temporary_values = Vector{Float64}(undef, sum(tmp_nbr[1:2]))
+        dynamic_variables = Vector{Float64}(undef, ncol)
+        # reserve enough space for a single period computation
+        exogenous_variables = Vector{Float64}(undef, 3 * model.exogenous_nbr)
+        observed_variables = varobs
+        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+        model_has_trend = [false]
+        histval = Matrix{Union{Float64,Missing}}(
+            missing,
+            model.orig_maximum_lag,
+            endo_nbr,
+        )
+        initval_endogenous = Matrix{Union{Float64,Missing}}(
+            missing,
+            1,
+            endo_nbr,
+        )
+        # default value for initval_exogenous is zero
+        initval_exogenous = zeros(1, exo_nbr)
+        # default value for initval_exogenous_det is zero
+        initval_exogenous_det = zeros(1, exo_det_nbr)
+        # shocks
+        shocks = Vector{Float64}(undef, 0)
+        perfect_foresight_setup = Dict("periods" => 0,
+                                       "datafile" => "")
+        new(params, residuals, temporary_values, dynamic_variables,
+            exogenous_variables, observed_variables, jacobian,
+            qr_jacobian, model_has_trend, histval, initval_endogenous,
+            initval_exogenous, initval_exogenous_det, shocks,
+            perfect_foresight_setup)
+    end
 end
 
 Base.show(io::IO, w::Work) = show_field_value(w)

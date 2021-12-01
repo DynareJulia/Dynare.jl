@@ -51,7 +51,7 @@ A[:, md.i_bkwrd_b] .= results.linearrationalexpectations.g1_1
 B = copy(results.linearrationalexpectations.g1_2)
 periods = 102
 exogenous = zeros(periods, p)
-exogenous[2, :] = [0.02, 0.02]
+#exogenous[2, :] = [0.02, 0.02]
 window = 2
 y = zeros(n, periods)
 tmp1 = similar(y)
@@ -71,7 +71,16 @@ algo = "CR"
 rout = zeros((periods - 2) * md.endogenous_nbr)
 tmp = similar(rout)
 JJ = Jacobian(context, periods - 2)
-ws_threaded = [PeriodJacobianWs(context) for i = 1:Threads.nthreads()]
+endo_nbr = 6
+exo_nbr = 2
+dynamic_nbr = 12
+tmp_nbr = length(temp_vec)
+
+ws_threaded = [Dynare.DynamicWs(endo_nbr,
+                                exo_nbr,
+                                dynamic_nbr,
+                                tmp_nbr)
+               for i = 1:Threads.nthreads()]
 
 params = context.work.params
 @btime begin

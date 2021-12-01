@@ -204,13 +204,13 @@ function make_one_period!(
     jacobian_columns::Vector{Int64},
     nnz_period::Int64,
     maxcol::Int64,
-    ws::PeriodJacobianWs,
+    ws::Dynare.DynamicWs,
     t::Int64,
 )
     nvar = md.endogenous_nbr
     oc = (t - 1) * md.endogenous_nbr
-    Dynare.get_jacobian!(ws, params, endogenous, exogenous, JA.steadystate, md, t)
-    i, j, v = findnz(sparse(ws.jacobian))
+    jacobian = Dynare.get_dynamic_jacobian!(ws, params, endogenous, exogenous, JA.steadystate, md, t)
+    i, j, v = findnz(sparse(jacobian))
     @debug "period $t: isnan.(v) = $(findall(isnan.(v)))"
     r1 = (t - 1) * nnz_period + 1
     @inbounds for el = 1:length(i)
@@ -232,8 +232,9 @@ function makeJacobian!(
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
-    ws::Vector{PeriodJacobianWs},
+    ws::Vector{Dynare.DynamicWs},
 )
+    @show endogenous
     I = JA.ss.I
     J = JA.ss.J
     V = JA.ss.V
@@ -260,7 +261,7 @@ function makeJacobian!(
     @debug "any(isnan.(initialvalues))=$(any(isnan.(initialvalues)))"
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
-    Dynare.get_initial_jacobian!(
+    jacobian = Dynare.get_initial_jacobian!(
         ws[1],
         params,
         endogenous,
@@ -274,7 +275,7 @@ function makeJacobian!(
     @debug "any(isnan.(ws[1].jacobian))=$(any(isnan.(ws[1].jacobian)))"
     jacobian_columns =
         [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
-    i, j, v = findnz(sparse(ws[1].jacobian))
+    i, j, v = findnz(jacobian)
     @debug "period 2: isnan.(v) = $(findall(isnan.(v)))"
     fill!(V, 0.0)
     @inbounds for el = 1:length(i)
@@ -306,7 +307,7 @@ function makeJacobian!(
             t,
         )
     end
-    Dynare.get_terminal_jacobian!(
+    jacobian = Dynare.get_terminal_jacobian!(
         ws[1],
         params,
         endogenous,
@@ -316,7 +317,7 @@ function makeJacobian!(
         md,
         periods,
     )
-    i, j, v = findnz(sparse(ws[1].jacobian))
+    i, j, v = findnz(sparse(jacobian))
     @debug "period $periods: isnan.(v) = $(findall(isnan.(v)))"
     oc = (periods - 1) * nvar
     r = (periods - 1) * nnz_period + 1
