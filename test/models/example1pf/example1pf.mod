@@ -52,6 +52,7 @@ shocks;
   values 0.015;
 end;
   
-
+perfect_foresight_setup(periods = 100);
+perfect_foresight_solver;
 
 

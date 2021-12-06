@@ -204,12 +204,12 @@ function make_one_period!(
     jacobian_columns::Vector{Int64},
     nnz_period::Int64,
     maxcol::Int64,
-    ws::Dynare.DynamicWs,
+    ws::DynamicWs,
     t::Int64,
 )
     nvar = md.endogenous_nbr
     oc = (t - 1) * md.endogenous_nbr
-    jacobian = Dynare.get_dynamic_jacobian!(ws, params, endogenous, exogenous, JA.steadystate, md, t)
+    jacobian = get_dynamic_jacobian!(ws, params, endogenous, exogenous, JA.steadystate, md, t)
     i, j, v = findnz(sparse(jacobian))
     @debug "period $t: isnan.(v) = $(findall(isnan.(v)))"
     r1 = (t - 1) * nnz_period + 1
@@ -232,9 +232,8 @@ function makeJacobian!(
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
-    ws::Vector{Dynare.DynamicWs},
+    ws::Vector{DynamicWs},
 )
-    @show endogenous
     I = JA.ss.I
     J = JA.ss.J
     V = JA.ss.V
@@ -261,7 +260,7 @@ function makeJacobian!(
     @debug "any(isnan.(initialvalues))=$(any(isnan.(initialvalues)))"
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
-    jacobian = Dynare.get_initial_jacobian!(
+    jacobian = get_initial_jacobian!(
         ws[1],
         params,
         endogenous,
@@ -307,7 +306,7 @@ function makeJacobian!(
             t,
         )
     end
-    jacobian = Dynare.get_terminal_jacobian!(
+    jacobian = get_terminal_jacobian!(
         ws[1],
         params,
         endogenous,
@@ -363,7 +362,6 @@ function makeJacobian!(
         r += 1
     end
     =#
-    @show r - 1
     resize!(I, r - 1)
     resize!(J, r - 1)
     resize!(V, r - 1)
@@ -371,9 +369,6 @@ function makeJacobian!(
     resize!(csrnzval, r - 1)
     n = periods * nvar
     #length(colptr) == n + 1 && colptr[end] - 1 == length(rowval) == length(nzval)
-    @show length(I)
-    @show length(J)
-    @show length(csrnzval)
     A = SparseArrays.sparse!(
         I,
         J,
@@ -389,7 +384,6 @@ function makeJacobian!(
         J,
         V,
     )
-    @show length(J)
     return A
 end
 

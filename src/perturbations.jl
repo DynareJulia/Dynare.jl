@@ -208,30 +208,3 @@ function compute_first_order_solution!(
     )
 end
 
-function simul_first_order!(
-    results::AbstractMatrix{Float64},
-    initial_values::AbstractVector{Float64},
-    x::AbstractVecOrMat{Float64},
-    c::AbstractVector{Float64},
-    A::StridedVecOrMat{Float64},
-    B::StridedVecOrMat{Float64},
-    periods::Int64,
-)
-    oldthreadnbr = BLAS.get_num_threads()
-    BLAS.set_num_threads(1)
-    Threads.@threads for t = 2:periods+1
-        r = view(results, t, :)
-        e = view(x, t, :)
-        mul!(r, B, e)
-    end
-    BLAS.set_num_threads(oldthreadnbr)
-    r_1 = view(results, 1, :)
-    r_1 .= initial_values .- c
-    for t = 2:periods+1
-        r = view(results, t, :)
-        mul!(r, A, r_1, 1.0, 1.0)
-        r_1 .+= c
-        r_1 = r
-    end
-    r_1 .+= c
-end

@@ -126,7 +126,7 @@ function Model(
     orig_maximum_lag::Int64,
     orig_maximum_lead::Int64,
     NNZDerivatives::Vector{Int64},
-    compileoption::Bool,
+    compileoption::Bool
 )
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
@@ -311,7 +311,11 @@ function Model(
         backward_number + current_number + forward_number + 2 * both_number .+
         collect(1:exogenous_nbr)
     )
-    dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
+    if modfileinfo["has_dynamic_file"]
+        dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
+    else
+        dynamic! = Module()
+    end
     static! = load_dynare_function(modfilename * "Static", compileoption)
     if modfileinfo["has_auxiliary_variables"]
         set_dynamic_auxiliary_variables! =
@@ -511,7 +515,6 @@ end
 struct Work
     params::Vector{Float64}
     residuals::Vector{Float64}
-    temporary_values::Vector{Float64}
     dynamic_variables::Vector{Float64}
     exogenous_variables::Vector{Float64}
     observed_variables::Vector{String}
@@ -532,8 +535,6 @@ struct Work
         ncol1 = ncol + exo_nbr
         params = Vector{Float64}(undef, model.parameter_nbr)
         residuals = Vector{Float64}(undef, endo_nbr)
-        tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
-        temporary_values = Vector{Float64}(undef, sum(tmp_nbr[1:2]))
         dynamic_variables = Vector{Float64}(undef, ncol)
         # reserve enough space for a single period computation
         exogenous_variables = Vector{Float64}(undef, 3 * model.exogenous_nbr)
@@ -559,7 +560,7 @@ struct Work
         shocks = Vector{Float64}(undef, 0)
         perfect_foresight_setup = Dict("periods" => 0,
                                        "datafile" => "")
-        new(params, residuals, temporary_values, dynamic_variables,
+        new(params, residuals, dynamic_variables,
             exogenous_variables, observed_variables, jacobian,
             qr_jacobian, model_has_trend, histval, initval_endogenous,
             initval_exogenous, initval_exogenous_det, shocks,

@@ -155,15 +155,17 @@ function initval!(context::Context, field::Dict{String,Any})
     initval_endogenous = zeros(m.endogenous_nbr)
     initval_exogenous = zeros(m.exogenous_nbr)
     initval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
+    xs = [Endogenous, Exogenous, ExogenousDeterministic]
+    xw = [ initval_endogenous, initval_exogenous, initval_exogenous_det]
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
         k = s.orderintype::Int64
-        value = dynare_parse_eval(v["value"]::String, context)
+        value = dynare_parse_eval(v["value"]::String, context, xs=xs, xw=xw)
         if typ == Endogenous
             initval_endogenous[k] = value
         elseif typ == Exogenous
-            initval_exogenous_steady[k] = value
+            initval_exogenous[k] = value
         elseif typ == ExogenousDeterministic
             initval_exogenous_det[k] = value
         else
@@ -173,6 +175,8 @@ function initval!(context::Context, field::Dict{String,Any})
     params = context.work.params
     m.set_auxiliary_variables!(initval_endogenous, initval_exogenous, params)
     work = context.work
+    @show work.initval_exogenous[94]
+    @show initval_exogenous[94]
     view(work.initval_endogenous, 1, :) .= initval_endogenous
     view(work.initval_exogenous, 1, :) .= initval_exogenous
     view(work.initval_exogenous_deterministic, 1, :) .= initval_exogenous_det

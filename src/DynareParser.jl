@@ -107,14 +107,23 @@ function get_varobs(modeljson::Dict{String,Any})
 end
 
 function check_function_files!(modfileinfo, modfilename)
+    if isfile(modfilename * "Dynamic.jl")
+        modfileinfo["has_dynamic_file"] = true
+    else
+        modfileinfo["has_dynamic_file"] = false
+    end
     if isfile(modfilename * "DynamicSetAuxiliarySeries.jl")
         modfileinfo["has_auxiliary_variables"] = true
         if !isfile(modfilename * "SetAuxiliaryVariables.jl")
             error(modfilename * "SetAuxiliaryVariables.jl is missing")
         end
+    else
+        modfileinfo["has_auxiliary_variables"] = false
     end
     if isfile(modfilename * "SteadyState2.jl")
         modfileinfo["has_steadystate_file"] = true
+    else
+        modfileinfo["has_steadystate_file"] = false
     end
 end
 
@@ -237,9 +246,9 @@ function parse_statements!(context::Context, statements::Vector{Any})
     end
 end
 
-function dynare_parse_eval(s::String, context::Context)
+function dynare_parse_eval(s::String, context::Context; xs=SymbolType[], xw=Vector{Float64}[])
     e = Meta.parse(s)
-    e = dynare_eval(e, context)
+    e = dynare_eval(e, context, xs, xw)
     try
         return (eval(e))
     catch
@@ -248,36 +257,45 @@ function dynare_parse_eval(s::String, context::Context)
     end
 end
 
-function dynare_eval(expr::Expr, context::Context)
+function dynare_eval(expr::Expr, context::Context, xs, xw)
     for (i, a) in enumerate(expr.args)
-        expr.args[i] = dynare_eval(a, context)
+        expr.args[i] = dynare_eval(a, context, xs, xw)
     end
     return expr
 end
 
-function dynare_eval(s::Symbol, context::Context)::Union{Symbol,Float64}
+function dynare_eval(s::Symbol, context::Context, xs, xw)::Union{Symbol,Float64}
     symboltable = context.symboltable
-    ks = keys(symboltable)
-    params = context.work.params
+    work = context.work
+    params = work.params
     ss = string(s)
-    if ss in ks
+    v = Union{Symbol, Float64}
+    try
         st = symboltable[ss]
-        if st.symboltype == Dynare.Parameter
-            s = params[st.orderintype]
+        if st.symboltype == Parameter
+            v = params[st.orderintype]
+        else
+            for (xss, xww) in zip(xs, xw)
+                if st.symboltype == xss
+                    v = xww[st.orderintype]
+                end
+            end
         end
+    catch
+        v = s
     end
-    return s
+    return v
 end
 
-function dynare_eval(x::Real, context::Context)
+function dynare_eval(x::Real, context::Context, xs, xw)
     return x
 end
 
-function dynare_eval(s::String, context::Context)
+function dynare_eval(s::String, context::Context, xs, xw)
     return s
 end
 
-function dynare_eval(q::QuoteNode, context::Context)
+function dynare_eval(q::QuoteNode, context::Context, xs, xw)
     return q
 end
 

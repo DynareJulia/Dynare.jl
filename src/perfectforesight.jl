@@ -89,6 +89,8 @@ function perfect_foresight_solver!(context::Context, field::Dict{String,Any})
     compute_perfect_foresight_solver(context)
 end
 
-        function compute_prefect_foresight_setup(context::Context)
-        end
-function compute_perfect_foresight_solver(context::Context) end
+function compute_prefect_foresight_setup(context::Context)
+end
+
+function compute_perfect_foresight_solver(context::Context)
+end

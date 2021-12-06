@@ -86,6 +86,10 @@ function steady!(context::Context, field::Dict{String,Any})
         results = context.results.model_results[1]
         # will fail if missing values are encountered
         x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
+        @show context.work.initval_exogenous[94]
+        copy!(results.trends.exogenous_steady_state,
+              Float64.(vec(view(context.work.initval_exogenous, 1, :))))
+        @show results.trends.exogenous_steady_state[94]
         solve_steady_state!(context, x0)
     end
     if options.display
@@ -172,7 +176,7 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
         get_static_jacobian!(ws, w.params, x, exogenous, m)
 
     result = nlsolve(residual_function, jacobian_function, x0::Vector{Float64},
-                     show_trace=false, extended_trace=false)
+                     show_trace=true)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
     else

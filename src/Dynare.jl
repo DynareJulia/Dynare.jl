@@ -24,7 +24,8 @@ include("data.jl")
 include("filters/kalman/kalman.jl")
 include("optimal_policy.jl")
 include("perturbations.jl")
-#include("perfectforesight/perfectforesight_solvers.jl")
+include("perfectforesight/perfectforesight.jl")
+include("simulations.jl")
 export @dynare
 
 macro dynare(modfile_arg::String, args...)
