@@ -155,6 +155,12 @@ function evaluate_steady_state!(
     )
 end
 
+function sparse_static_jacobian(ws, params, x0, exogenous, m)
+    J = get_static_jacobian!(ws, w.params, x, exogenous, m)
+    return sparse(J)
+end
+
+    
 """
     function solve_steady_state!(context::Context,
                                  x0::Vector{Float64})
@@ -172,9 +178,15 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
     residual_function(x::AbstractVector{Float64}) =
         get_static_residuals!(ws, w.params, x, exogenous, m)
 
-    jacobian_function(x::AbstractVector{Float64}) =
-        get_static_jacobian!(ws, w.params, x, exogenous, m)
-
+    if count(!iszero, get_static_jacobian!(ws, w.params, x, exogenous, m)) < 0.1*m.endogenous_nbr*m.endogenous_nbr
+        jacobian_function(x::AbstractVector{Float64}) =
+            sparse_static_jacobian(ws, w.params, x, exogenous, m)
+    else
+        jacobian_function(x::AbstractVector{Float64}) =
+            get_static_jacobian!(ws, w.params, x, exogenous, m)
+    end
+        
+    df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
     result = nlsolve(residual_function, jacobian_function, x0::Vector{Float64},
                      show_trace=true)
     if converged(result)
