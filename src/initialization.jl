@@ -175,8 +175,6 @@ function initval!(context::Context, field::Dict{String,Any})
     params = context.work.params
     m.set_auxiliary_variables!(initval_endogenous, initval_exogenous, params)
     work = context.work
-    @show work.initval_exogenous[94]
-    @show initval_exogenous[94]
     view(work.initval_endogenous, 1, :) .= initval_endogenous
     view(work.initval_exogenous, 1, :) .= initval_exogenous
     view(work.initval_exogenous_deterministic, 1, :) .= initval_exogenous_det
