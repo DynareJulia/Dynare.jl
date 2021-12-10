@@ -1,5 +1,8 @@
 module Dynare
 
+using Dates
+using Logging
+
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
 end
@@ -30,6 +33,7 @@ export @dynare
 
 macro dynare(modfile_arg::String, args...)
     modname = get_modname(modfile_arg)
+    @info "$(now()): Starting @dynare $modfile_arg"
     arglist = []
     compilemodule = true
     for (i, a) in enumerate(args)
@@ -42,6 +46,7 @@ macro dynare(modfile_arg::String, args...)
     options = CommandLineOptions(compilemodule)
     modfilename = modname * ".mod"
     dynare_preprocess(modfilename, arglist)
+    @info "$(now()): End of preprocessing"
     context = parser(modname, options)
     return context
 end

@@ -155,12 +155,16 @@ function make_containers(
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
+#    @info "$(now()): Start $(nameof(var"#self#"))"
     modeljson = parseJSON(modfilename)
 
+    @debug "$(now()): get symbol_table"
     (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
+    @debug "$(now()): get Modelfile"
     modfileinfo = Modelfile()
     check_function_files!(modfileinfo, modfilename)
+    @debug "$(now()): get model"
     model = get_model(
         modfilename,
         modfileinfo,
@@ -174,7 +178,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         aux_vars,
     )
     varobs = get_varobs(modeljson)
-
+    @debug "$(now()): make_container" 
     global context = make_containers(
         modfileinfo,
         endo_nbr,
@@ -189,10 +193,12 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     if "statements" in keys(modeljson)
         parse_statements!(context, modeljson["statements"])
     end
+    @info "$(now()): End $(nameof(var"#self#"))"
     return context
 end
 
 function parse_statements!(context::Context, statements::Vector{Any})
+    @info "$(now()): Start $(nameof(var"#self#"))"
     modfileinfo = context.modfileinfo
     for field in statements
         statementname = field["statementName"]
@@ -209,8 +215,10 @@ function parse_statements!(context::Context, statements::Vector{Any})
             histval!(context, field)
             modfileinfo["has_histval"] = true
         elseif statementname == "initval"
+            @debug "$(now()): start initval"
             initval!(context, field)
             modfileinfo["has_initval"] = true
+            @debug "$(now()): end initval"
         elseif statementname == "native"
             try
                 dynare_parse_eval(field["string"], context)
@@ -220,11 +228,15 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "param_init"
             param_init!(context, field)
         elseif statementname == "perfect_foresight_setup"
+            @debug "$(now()): start perfect_foresight_setup"
             perfect_foresight_setup!(context, field)
             modfileinfo["has_perfect_foresight_setup"] = true
+            @debug "$(now()): end perfect_foresight_setup"
         elseif statementname == "perfect_foresight_solver"
+            @debug "$(now()): start perfect_foresight_solver"
             perfect_foresight_solver!(context, field)
             modfileinfo["has_perfect_foresight_solver"] = true
+            @debug "$(now()): end perfect_foresight_solver"
         elseif statementname == "planner_objective"
             planner_objective!(context, field)
             modfileinfo["has_planner_objective"] = true
@@ -234,16 +246,21 @@ function parse_statements!(context::Context, statements::Vector{Any})
             shocks!(context, field)
             modfileinfo["has_shocks"] = true
         elseif statementname == "steady"
+            @debug "$(now()): start steady"
             steady!(context, field)
+            @debug "$(now()): end steady"
         elseif statementname == "stoch_simul"
+            @debug "$(now()): start stoch_simul"
             stoch_simul!(context, field)
             modfileinfo["has_stoch_simul"] = true
+            @debug "$(now()): end stoch_simul"
         elseif statementname == "verbatim"
             Nothing
         else
             error("""Unrecognized statement $(statementname)""")
         end
     end
+    @info "$(now()): End $(nameof(var"#self#"))"
 end
 
 function dynare_parse_eval(s::String, context::Context; xs=SymbolType[], xw=Vector{Float64}[])
