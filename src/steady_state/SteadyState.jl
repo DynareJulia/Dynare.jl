@@ -153,8 +153,8 @@ function evaluate_steady_state!(
     )
 end
 
-function sparse_static_jacobian(ws, params, x0, exogenous, m)
-    J = get_static_jacobian!(ws, w.params, x, exogenous, m)
+function sparse_static_jacobian(ws, params, x, exogenous, m)
+    J = get_static_jacobian!(ws, params, x, exogenous, m)
     return sparse(J)
 end
 
@@ -175,7 +175,7 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
 
     if count(!iszero, get_static_jacobian!(ws, w.params, x0, exogenous, m)) < 0.1*m.endogenous_nbr*m.endogenous_nbr
         function J1!(A, x::AbstractVector{Float64})
-            A = sparse_static_jacobian(ws, w.params, x, exogenous, m)
+            A .= sparse_static_jacobian(ws, w.params, x, exogenous, m)
         end
         A0 = sparse_static_jacobian(ws, w.params, x0, exogenous, m)
         solve_steady_state_core!(context, x0, J1!, A0)
@@ -190,7 +190,7 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
 end
 
 function solve_steady_state_core!(context, x0, J!, A0)
-    
+
     ws = StaticWs(context)
     m = context.models[1]
     w = context.work
@@ -203,10 +203,8 @@ function solve_steady_state_core!(context, x0, J!, A0)
     
     residuals = zeros(m.endogenous_nbr)
     f!(residuals, x0)
-    
     df = OnceDifferentiable(f!, J!, vec(x0), residuals, A0)
-    f!(residuals, x0 .+ 0.1)
-    result = nlsolve(df, x0::Vector{Float64}, show_trace=false)
+    result = nlsolve(df, x0; method=:robust_trust_region, show_trace=true)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
     else
