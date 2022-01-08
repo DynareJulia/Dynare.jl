@@ -96,7 +96,6 @@ struct Jacobian
         endogenous = repeat(steadystate, 3)
         exogenous = repeat(steadystate_exo', 2)
         maxcol = md.n_bkwrd + md.n_current + md.n_fwrd + 2 * md.n_both
-        vj = view(work.jacobian, :, 1:maxcol)
         nz = periods * md.NNZDerivatives[1]
         nrow = periods * md.endogenous_nbr
         ss = SparseStorage(nrow, nrow, nz)
@@ -211,7 +210,6 @@ function make_one_period!(
     oc = (t - 1) * md.endogenous_nbr
     jacobian = get_dynamic_jacobian!(ws, params, endogenous, exogenous, JA.steadystate, md, t)
     i, j, v = findnz(sparse(jacobian))
-    @debug "period $t: isnan.(v) = $(findall(isnan.(v)))"
     r1 = (t - 1) * nnz_period + 1
     @inbounds for el = 1:length(i)
         if j[el] <= maxcol
@@ -271,7 +269,7 @@ function makeJacobian!(
         2,
     )
     r = 1
-    @debug "any(isnan.(ws[1].jacobian))=$(any(isnan.(ws[1].jacobian)))"
+    @debug "any(isnan.(ws[1].jacobian))=$(any(isnan.(jacobian)))"
     jacobian_columns =
         [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
     i, j, v = findnz(jacobian)

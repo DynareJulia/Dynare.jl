@@ -37,6 +37,7 @@ end
 
 @enum PerfectForesightAlgo trustregionA
 @enum LinearSolveAlgo ilu pardiso
+@enum InitializationAlgo datafile steadystate firstorder linearinterpolation
 
 struct PerfectForesightSolverOptions
     algo::PerfectForesightAlgo
@@ -109,13 +110,21 @@ function perfect_foresight_solver!(context, field)
     dynamic_ws = DynamicWs(m.endogenous_nbr, m.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
-    linear_simulation = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, dynamic_ws)
-    perfectforesight_core!(perfect_foresight_ws, context, periods, linear_simulation, dynamic_ws)
+    guess_values = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, steadystate, dynamic_ws)
+    perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
 end
 
-function perfect_foresight_initialization!(context, periods, datafile, exogenous, perfect_foresight_ws, dynamic_ws::DynamicWs)
-    linear_simulation = simul_first_order!(context, periods, exogenous, dynamic_ws)
-    return linear_simulation
+function perfect_foresight_initialization!(context, periods, datafile, exogenous, perfect_foresight_ws, algo::InitializationAlgo, dynamic_ws::DynamicWs)
+    if algo == datafile
+    elseif algo == steadystate
+        compute_steady_state!(context)
+        endogenous_steady_state = context.results.model_results[1].trends.endogenous_steady_state
+        initial_values = repeat(endogenous_steady_state, 1, periods)
+    elseif algo == firstorder
+        initial_values = simul_first_order!(context, periods, exogenous, dynamic_ws)
+    elseif algo == interpolation
+    end
+    return initial_values
 end
 
 function simul_first_order!(context::Context, periods::Int64, X::AbstractMatrix{Float64}, dynamic_ws::DynamicWs)
@@ -176,7 +185,9 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
                                     length(temp_vec))
                    for i = 1:Threads.nthreads()]
 
-    f!(residuals, y) = get_residuals!(residuals,
+    function f!(residuals, y)
+        @debug "$(now()): start f!"
+        get_residuals!(residuals,
                            vec(y),
                            initialvalues,
                            terminalvalues,
@@ -187,22 +198,46 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
                            m,
                            periods,
                            temp_vec,
-                           )
+                       )
+        @debug "$(now()): end f!"
+    end
+    
     function J!(A::SparseArrays.SparseMatrixCSC{Float64, Int64}, y::AbstractVecOrMat{Float64})
+        @debug "$(now()): start J!"
         A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+        @debug count(!iszero, A)/prod(size(A))
+        @debug "$(now()): end J!"
     end
     
     function fj!(residuals, JJ, y)
         f!(residuals, vec(y))
         J!(JJ, vec(y))
     end
-           
+
+    @debug "$(now()): start makeJacobian"
     A0 = makeJacobian!(JJ, vec(y0), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+    @debug "$(now()): end makeJacobian"
+    @debug "$(now()): start f!"
     f!(residuals, vec(y0))
+    @debug "$(now()): end f!"
+    @debug "$(now()): start J!"
     J!(A0, y0)
-    y00 = Vector{Float64}(undef, length(y0))
+    @debug "$(now()): end J!"
     df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
-    res = nlsolve(df, vec(y0))
+    @debug "$(now()): start nlsolve"
+    @show count(!iszero, residuals)
+    @show count(!iszero, A0)
+    @show length(A0\residuals)
+    rr = copy(residuals)
+    F = lu(A0)
+    @show norm(ldiv!(rr, F, residuals))
+    res = nlsolve(df, vec(y0), method=:robust_trust_region, show_trace=true)
+    @debug "$(now()): end nlsolve"
+    endogenous_names = get_endogenous_longname(context.symboltable)
+    push!(context.results.model_results[1].simulations,
+          Simulation("Sim1", "", TimeDataFrame(DataFrame(transpose(reshape(res.zero, m.endogenous_nbr, periods)),
+                                                         endogenous_names),
+                                               UndatedDate(1))))
 end
 
 function get_residuals!(

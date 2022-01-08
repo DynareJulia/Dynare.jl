@@ -539,8 +539,10 @@ struct Work
         # reserve enough space for a single period computation
         exogenous_variables = Vector{Float64}(undef, 3 * model.exogenous_nbr)
         observed_variables = varobs
-        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
-        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+#        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+#        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+        jacobian = Matrix{Float64}(undef, 0, 0)
+        qr_jacobian = Matrix{Float64}(undef, 0, 0)
         model_has_trend = [false]
         histval = Matrix{Union{Float64,Missing}}(
             missing,

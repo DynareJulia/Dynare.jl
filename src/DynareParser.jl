@@ -3,7 +3,6 @@ using DataFrames
 #using .DynareContainers
 using ExtendedDates
 using FastLapackInterface
-using FastLapackInterface.SchurAlgo
 using JSON
 using KalmanFilterTools
 using LinearRationalExpectations
