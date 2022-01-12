@@ -1,6 +1,7 @@
 import Base
 using LinearRationalExpectations
 using RuntimeGeneratedFunctions
+using Suppressor
 using TimeDataFrames
 
 export Context,
@@ -653,14 +654,11 @@ function Base.vcat(v1::Vector{T}, v2::Vector{T}, v3::Vector{T}) where {T}
     return arr
 end
 
-function load_dynare_function(modname::String, compileoption::Bool)::Module
-    if compileoption
-        fun = readlines(modname * ".jl")
-        return (eval(Meta.parse(join(fun, "\n"))))
-    else
+function load_dynare_function(modname::String, compileoption::Bool)#::Module
+    @suppress begin
         push!(LOAD_PATH, dirname(modname))
         name = basename(modname)
-        eval(Meta.parse("using " * name))
+        eval(Meta.parse("using $name"))
         pop!(LOAD_PATH)
         return (eval(Symbol(name)))
     end
