@@ -51,9 +51,7 @@ macro dynare(modfile_arg::String, args...)
     return context
 end
 
-function get_modname(s::String)
-    modfilename = string(s)
-    mdoname = split(modfilename, ".")[1]
+function get_modname(modfilename::String)
     if occursin(r"\.mod$", modfilename)
         modname::String = modfilename[1:length(modfilename)-4]
     else
