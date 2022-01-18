@@ -34,7 +34,7 @@ end
 
 function get_model(
     modfilename::String,
-    modfileinfo::Dict{String,Bool},
+    modfileinfo::ModFileInfo,
     dynare_model_info::Dict{String,Any},
     commandlineoptions::CommandLineOptions,
     endo_nbr::Int64,
@@ -45,6 +45,7 @@ function get_model(
     aux_vars::Vector{Any},
 )
     model_info = get_model_info(dynare_model_info)
+    @show modfileinfo.has_auxiliary_variables
 
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
     for (i, n) in enumerate(model_info.NNZDerivatives)
@@ -105,29 +106,25 @@ function get_varobs(modeljson::Dict{String,Any})
     return varobs
 end
 
-function check_function_files!(modfileinfo, modfilename)
+function check_function_files!(modfileinfo::ModFileInfo, modfilename::String)
     if isfile(modfilename * "Dynamic.jl")
-        modfileinfo["has_dynamic_file"] = true
-    else
-        modfileinfo["has_dynamic_file"] = false
+        modfileinfo.has_dynamic_file = true
     end
     if isfile(modfilename * "DynamicSetAuxiliarySeries.jl")
-        modfileinfo["has_auxiliary_variables"] = true
+        @show isfile(modfilename * "DynamicSetAuxiliarySeries.jl")
+        modfileinfo.has_auxiliary_variables = true
+        @show modfileinfo.has_auxiliary_variables
         if !isfile(modfilename * "SetAuxiliaryVariables.jl")
             error(modfilename * "SetAuxiliaryVariables.jl is missing")
         end
-    else
-        modfileinfo["has_auxiliary_variables"] = false
     end
     if isfile(modfilename * "SteadyState2.jl")
-        modfileinfo["has_steadystate_file"] = true
-    else
-        modfileinfo["has_steadystate_file"] = false
+        modfileinfo.has_steadystate_file = true
     end
 end
 
 function make_containers(
-    modelfileinfo::Dict{String,Bool},
+    modelfileinfo::ModFileInfo,
     endo_nbr::Int64,
     exo_nbr::Int64,
     exo_det_nbr::Int64,
@@ -154,15 +151,18 @@ function make_containers(
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
-#    @info "$(now()): Start $(nameof(var"#self#"))"
+    #    @info "$(now()): Start $(nameof(var"#self#"))"
+    @show "OK1"
     modeljson = parseJSON(modfilename)
-
+    @show "OK2"
+    
     @debug "$(now()): get symbol_table"
     (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
     @debug "$(now()): get Modelfile"
-    modfileinfo = Modelfile()
+    modfileinfo = ModFileInfo(modfilename)
     check_function_files!(modfileinfo, modfilename)
+    @show modfileinfo.has_auxiliary_variables "after check_function_files!"
     @debug "$(now()): get model"
     model = get_model(
         modfilename,
@@ -203,20 +203,20 @@ function parse_statements!(context::Context, statements::Vector{Any})
         statementname = field["statementName"]
         if statementname == "calib_smoother"
             calib_smoother!(context, field)
-            modfileinfo["has_calib_smoother"] = true
+            modfileinfo.has_calib_smoother = true
         elseif statementname == "check"
             check!(context, field)
-            modfileinfo["has_check"] = true
+            modfileinfo.has_check = true
         elseif statementname == "deterministic_trends"
             deterministic_trends!(context, field)
-            modfileinfo["has_trends"] = true
+            modfileinfo.has_trends = true
         elseif statementname == "histval"
             histval!(context, field)
-            modfileinfo["has_histval"] = true
+            modfileinfo.has_histval = true
         elseif statementname == "initval"
             @debug "$(now()): start initval"
             initval!(context, field)
-            modfileinfo["has_initval"] = true
+            modfileinfo.has_initval = true
             @debug "$(now()): end initval"
         elseif statementname == "native"
             try
@@ -229,21 +229,21 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "perfect_foresight_setup"
             @debug "$(now()): start perfect_foresight_setup"
             perfect_foresight_setup!(context, field)
-            modfileinfo["has_perfect_foresight_setup"] = true
+            modfileinfo.has_perfect_foresight_setup = true
             @debug "$(now()): end perfect_foresight_setup"
         elseif statementname == "perfect_foresight_solver"
             @debug "$(now()): start perfect_foresight_solver"
             perfect_foresight_solver!(context, field)
-            modfileinfo["has_perfect_foresight_solver"] = true
+            modfileinfo.has_perfect_foresight_solver = true
             @debug "$(now()): end perfect_foresight_solver"
         elseif statementname == "planner_objective"
             planner_objective!(context, field)
-            modfileinfo["has_planner_objective"] = true
+            modfileinfo.has_planner_objective = true
         elseif statementname == "ramsey_model"
-            modfileinfo["has_ramsey_model"] = true
+            modfileinfo.has_ramsey_model = true
         elseif statementname == "shocks"
             shocks!(context, field)
-            modfileinfo["has_shocks"] = true
+            modfileinfo.has_shocks = true
         elseif statementname == "steady"
             @debug "$(now()): start steady"
             steady!(context, field)
@@ -251,7 +251,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "stoch_simul"
             @debug "$(now()): start stoch_simul"
             stoch_simul!(context, field)
-            modfileinfo["has_stoch_simul"] = true
+            modfileinfo.has_stoch_simul = true
             @debug "$(now()): end stoch_simul"
         elseif statementname == "verbatim"
             Nothing

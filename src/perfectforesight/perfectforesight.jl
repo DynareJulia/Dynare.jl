@@ -141,7 +141,7 @@ function simul_first_order!(context::Context, periods::Int64, X::AbstractMatrix{
     work = context.work
     histval = work.histval
     modfileinfo = context.modfileinfo
-    if modfileinfo["has_histval"]
+    if modfileinfo.has_histval
         for i in eachindex(skipmissing(view(work.histval, size(work.histval, 1), :)))
             y0[i] = work.histval[end, i]
         end

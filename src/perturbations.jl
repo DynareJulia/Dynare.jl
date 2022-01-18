@@ -100,7 +100,7 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         y0 = zeros(model.endogenous_nbr)
         simulresults = Matrix{Float64}(undef, periods + 1, model.endogenous_nbr)
         histval = work.histval
-        if modfileinfo["has_histval"]
+        if modfileinfo.has_histval
             for i in eachindex(skipmissing(view(work.histval, size(work.histval, 1), :)))
                 y0[i] = work.histval[end, i]
             end

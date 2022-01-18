@@ -80,7 +80,7 @@ computes the steady state of the model and set the result in `context`
 function steady!(context::Context, field::Dict{String,Any})
     modfileinfo = context.modfileinfo
     options = SteadyOptions(get(field, "options", Dict{String,Any}()))
-    if modfileinfo["has_steadystate_file"]
+    if modfileinfo.has_steadystate_file
         compute_steady_state!(context)
     else
         results = context.results.model_results[1]

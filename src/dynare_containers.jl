@@ -8,6 +8,34 @@ export Context,
     DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
+
+mutable struct ModFileInfo
+    modfilepath::String
+    has_auxiliary_variables::Bool
+    has_calib_smoother::Bool
+    has_check::Bool
+    has_deterministic_trend::Bool
+    has_dynamic_file::Bool
+    has_histval::Bool
+    has_histval_file::Bool
+    has_initval::Bool
+    has_initval_file::Bool
+    has_planner_objective::Bool
+    has_perfect_foresight_setup::Bool
+    has_perfect_foresight_solver::Bool
+    has_ramsey_model::Bool
+    has_shocks::Bool
+    has_static_file::Bool
+    has_steadystate_file::Bool
+    has_stoch_simul::Bool
+    function ModFileInfo(modfilepath_arg::String)
+        modfilepath = modfilepath_arg
+        new(modfilepath)
+    end
+end
+
+Base.show(io::IO, mf::ModFileInfo) = show_field_value(mf)
+
 struct Model
     endogenous_nbr::Int64
     exogenous_nbr::Int64
@@ -101,7 +129,7 @@ end
 
 function Model(
     modfilename::String,
-    modfileinfo::Dict{String,Bool},
+    modfileinfo::ModFileInfo,
     endogenous_nbr::Int64,
     lead_lag_incidence::Vector{Vector{Int64}},
     exogenous_nbr::Int64,
@@ -129,6 +157,7 @@ function Model(
     NNZDerivatives::Vector{Int64},
     compileoption::Bool
 )
+    @show modfileinfo.has_auxiliary_variables
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
     i_dyn = similar(i_static)
@@ -312,24 +341,25 @@ function Model(
         backward_number + current_number + forward_number + 2 * both_number .+
         collect(1:exogenous_nbr)
     )
-    if modfileinfo["has_dynamic_file"]
+    if modfileinfo.has_dynamic_file
         dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
     else
         dynamic! = Module()
     end
     static! = load_dynare_function(modfilename * "Static", compileoption)
-    if modfileinfo["has_auxiliary_variables"]
+    if modfileinfo.has_auxiliary_variables
+        @show modfileinfo.has_auxiliary_variables
         set_dynamic_auxiliary_variables! =
             load_dynare_function2(modfilename * "DynamicSetAuxiliarySeries")
         set_auxiliary_variables! =
             load_dynare_function2(modfilename * "SetAuxiliaryVariables")
     else
         set_dynamic_auxiliary_variables! =
-            (x...) -> error(modfilename * "DynmicSetAuxiliarySeries is missing")
+            (x...) -> error(modfilename * "DynamicSetAuxiliarySeries is missing")
         set_auxiliary_variables! =
             (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
     end
-    if modfileinfo["has_steadystate_file"]
+    if modfileinfo.has_steadystate_file
         steady_state! = load_dynare_function(modfilename * "SteadyState2", compileoption)
     else
         steady_state! = Module()
@@ -429,26 +459,6 @@ function Model(
 end
 
 Base.show(io::IO, m::Model) = show_field_value(m)
-
-function Modelfile()
-    return (Dict(
-        "has_auxiliary_variables" => false,
-        "has_calib_smoother" => false,
-        "has_check" => false,
-        "has_deterministic_trend" => false,
-        "has_histval" => false,
-        "has_histval_file" => false,
-        "has_initval" => false,
-        "has_initval_file" => false,
-        "has_planner_objective" => false,
-        "has_perfect_foresight_setup" => false,
-        "has_perfect_foresight_solver" => false,
-        "has_ramsey_model" => false,
-        "has_shocks" => false,
-        "has_steadystate_file" => false,
-        "has_stoch_simul" => false,
-    ))
-end
 
 struct Simulation
     name::String
@@ -590,11 +600,14 @@ const SymbolTable = Dict{String,DynareSymbol}
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    modfileinfo::Dict{String,Bool}
+    modfileinfo::ModFileInfo
     results::Results
     work::Work
 end
 
+"""
+parameters obtained from modfile.json
+"""
 struct ModelInfo
     lead_lag_incidence::Vector{Any}
     nstatic::Int64
