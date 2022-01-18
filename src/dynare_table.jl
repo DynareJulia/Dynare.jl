@@ -51,7 +51,7 @@ function dynare_table_latex(
     write(io, "\\centering\n")
     write(io, "\\begin{threeparttable}\n")
     if length(title) > 0
-        write(io, "\\caption{$title}\n")
+        write(io, "$title\n")
     end
     pretty_table(
         io,
@@ -65,6 +65,7 @@ function dynare_table_latex(
         #                                 LatexHighlighter((data, i, j) -> (j == 1), ["textbf"])),
         #                 vlines = [1],
         backend = Val(:latex),
+        wrap_table = false,
     )
     if length(note) > 0
         write(io, "\\begin{tablenotes}\n")

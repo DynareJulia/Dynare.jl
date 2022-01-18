@@ -92,7 +92,7 @@ function plot(
         myplot = Plots.plot!(myplot, ylims = (m, M))
     else
         x = collect(range(first_period, length = length(variable)))
-        Plots.plot(
+        myplot = Plots.plot(
             x,
             variable,
             label = thislabel[1],
