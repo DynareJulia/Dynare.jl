@@ -45,8 +45,6 @@ function get_model(
     aux_vars::Vector{Any},
 )
     model_info = get_model_info(dynare_model_info)
-    @show modfileinfo.has_auxiliary_variables
-
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
     for (i, n) in enumerate(model_info.NNZDerivatives)
         NNZDerivatives[i] = n::Int64
@@ -111,9 +109,7 @@ function check_function_files!(modfileinfo::ModFileInfo, modfilename::String)
         modfileinfo.has_dynamic_file = true
     end
     if isfile(modfilename * "DynamicSetAuxiliarySeries.jl")
-        @show isfile(modfilename * "DynamicSetAuxiliarySeries.jl")
         modfileinfo.has_auxiliary_variables = true
-        @show modfileinfo.has_auxiliary_variables
         if !isfile(modfilename * "SetAuxiliaryVariables.jl")
             error(modfilename * "SetAuxiliaryVariables.jl is missing")
         end
@@ -151,18 +147,15 @@ function make_containers(
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
-    #    @info "$(now()): Start $(nameof(var"#self#"))"
-    @show "OK1"
+    @debug "$(now()): Start $(nameof(var"#self#"))"
+
     modeljson = parseJSON(modfilename)
-    @show "OK2"
-    
     @debug "$(now()): get symbol_table"
     (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
     @debug "$(now()): get Modelfile"
     modfileinfo = ModFileInfo(modfilename)
     check_function_files!(modfileinfo, modfilename)
-    @show modfileinfo.has_auxiliary_variables "after check_function_files!"
     @debug "$(now()): get model"
     model = get_model(
         modfilename,

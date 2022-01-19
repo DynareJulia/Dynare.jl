@@ -28,9 +28,46 @@ mutable struct ModFileInfo
     has_static_file::Bool
     has_steadystate_file::Bool
     has_stoch_simul::Bool
+    has_trends::Bool
     function ModFileInfo(modfilepath_arg::String)
         modfilepath = modfilepath_arg
-        new(modfilepath)
+        has_auxiliary_variables = false
+        has_calib_smoother = false
+        has_check = false
+        has_deterministic_trend = false
+        has_dynamic_file = false
+        has_histval = false
+        has_histval_file = false
+        has_initval = false
+        has_initval_file = false
+        has_planner_objective = false
+        has_perfect_foresight_setup = false
+        has_perfect_foresight_solver = false
+        has_ramsey_model = false
+        has_shocks = false
+        has_static_file = false
+        has_steadystate_file = false
+        has_stoch_simul = false
+        has_trends = false
+        new(modfilepath,
+            has_auxiliary_variables,
+            has_calib_smoother,
+            has_check,
+            has_deterministic_trend,
+            has_dynamic_file,
+            has_histval,
+            has_histval_file,
+            has_initval,
+            has_initval_file,
+            has_planner_objective,
+            has_perfect_foresight_setup,
+            has_perfect_foresight_solver,
+            has_ramsey_model,
+            has_shocks,
+            has_static_file,
+            has_steadystate_file,
+            has_stoch_simul,
+            has_trends)
     end
 end
 
@@ -157,7 +194,6 @@ function Model(
     NNZDerivatives::Vector{Int64},
     compileoption::Bool
 )
-    @show modfileinfo.has_auxiliary_variables
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
     i_dyn = similar(i_static)
@@ -348,7 +384,6 @@ function Model(
     end
     static! = load_dynare_function(modfilename * "Static", compileoption)
     if modfileinfo.has_auxiliary_variables
-        @show modfileinfo.has_auxiliary_variables
         set_dynamic_auxiliary_variables! =
             load_dynare_function2(modfilename * "DynamicSetAuxiliarySeries")
         set_auxiliary_variables! =
