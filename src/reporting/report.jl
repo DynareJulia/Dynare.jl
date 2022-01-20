@@ -1,5 +1,6 @@
 import Base.print
 using Dates
+using Formatting
 using Tokenize
 
 struct Graph
@@ -41,7 +42,6 @@ Page(g::Graph) = Page([g])
 
 function print(io::IO, p::Page)
     for s in p.sections
-        @show s
         print(io, s)
     end
 end
@@ -64,11 +64,11 @@ function add_graph!(page::Page, graph::Graph)
     push!(page.sections, graph)
 end
 
-function add_model!(page::Page, context)
+function add_model!(page::Page, context::Context)
     model = modelprintout(context.modfileinfo.modfilepath,
                           context.symboltable,
                           context.work.params)
-    push!(page.section, model)
+    push!(page.sections, model)
 end
           
 function add_paragraph!(page::Page, paragraph::String)
@@ -108,32 +108,50 @@ function print(report::Report; texfilename::String = "report.tex")
 
     latex = `pdflatex $texfilename`
     run(latex)
+    return nothing
 end
 
-    function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64})
-        
+function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64})
+    out = IOBuffer()
     elements = []
     linenumber = 1
-    for token in tokenize(modname)
-        stringtoken = Tokens.untokenize(token)
-        if Tokens.kind(token) == Tokens.IDENTIFIER
-            if stringtoken in keys(symboltable)
-                if is_parameter(stringtoken, symboltable)
-                    k = symboltable[stringtoken].orderintype
-                    stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$\\verb|"
+    model_mode = false
+    symbols = keys(symboltable)
+    open(modname*".mod") do io
+        for token in tokenize(io)
+            stringtoken = Tokens.untokenize(token)
+            kind = Tokens.kind(token)
+            if kind == Tokens.IDENTIFIER
+                if stringtoken == "model"
+                    model_mode = true
+                elseif stringtoken == "end"
+                    model_mode = false
+                elseif model_mode && stringtoken in symbols
+                    if is_parameter(stringtoken, symboltable)
+                        k = symboltable[stringtoken].orderintype
+                        stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$\\verb|"
+                    end
                 end
-            end
-        end
-        push!(elements, stringtoken)
-        if startswith(stringtoken, "\n")
-            printfmt(io, "\\verb|{:4d}: {:s}|\n\n", linenumber, join(elements[1:end-1]))
-            if length(stringtoken) > 1
-                elements = [stringtoken[2:end]]
+                push!(elements, stringtoken)
+            elseif kind == Tokens.WHITESPACE
+                if '\n' in stringtoken
+                    subelements = split(stringtoken, '\n')
+                    for (i, se) in enumerate(subelements)
+                        if i == 1
+                            continue
+                        end
+                        push!(elements, se)
+                        printfmt(out, "\\verb|{:4d}: {:s}|\\\\\n", linenumber, join(elements))
+                        elements = []
+                        linenumber += 1
+                    end
+                else
+                    push!(elements, stringtoken)
+                end
             else
-                elements = []
+                push!(elements, stringtoken)
             end
-            linenumber += 1
         end
+        return String(take!(out))
     end
-    return nothing
 end
