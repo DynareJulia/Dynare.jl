@@ -4,6 +4,7 @@ using StatsFuns
 @dynare "models/example1/example1.mod"
 @dynare "models/example2/example2.mod"
 @dynare "models/example3/example3.mod"
+@dynare "models/example3report/example3report.mod"
 @dynare "models/example3ss/example3ss.mod"
 include("test_initialization.jl")
 
