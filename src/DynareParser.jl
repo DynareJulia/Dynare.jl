@@ -254,7 +254,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
     end
     @info "$(now()): End $(nameof(var"#self#"))"
 end
-x
+
 function dynare_parse_eval(s::String, context::Context; xs=SymbolType[], xw=Vector{Float64}[])
     e = Meta.parse(s)
     e = dynare_eval(e, context, xs, xw)
