@@ -1,5 +1,3 @@
-using NLsolve
-
 include("makeA.jl")
 
 """
