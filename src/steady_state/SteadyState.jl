@@ -1,4 +1,3 @@
-using NLsolve
 
 mutable struct DynareSteadyStateComputationFailed <: Exception end
 Base.showerror(io::IO, e::DynareSteadyStateComputationFailed) = print("""

@@ -1,5 +1,3 @@
-using NLsolve
-
 """
 NonLinearSolveAlgos - enumerate
 

@@ -29,6 +29,7 @@ include("optimal_policy.jl")
 include("perturbations.jl")
 include("perfectforesight/perfectforesight.jl")
 include("simulations.jl")
+include("nonlinear/NLsolve.jl")
 export @dynare
 
 macro dynare(modfile_arg::String, args...)
