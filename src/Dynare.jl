@@ -30,6 +30,8 @@ include("perturbations.jl")
 include("perfectforesight/perfectforesight.jl")
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
+using .NLsolve
+
 export @dynare
 
 macro dynare(modfile_arg::String, args...)
