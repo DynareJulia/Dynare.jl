@@ -8,7 +8,7 @@ function display_stoch_simul(context::Context)
     data[1, 1] = ""
     # row headers
     for i = 1:m.n_states
-        data[i+1, 1] = "ϕ($(endogenous_names[m.i_bkwrd_b[i]])"
+        data[i+1, 1] = "ϕ($(endogenous_names[m.i_bkwrd_b[i]]))"
     end
     offset = m.n_states + 1
     for i = 1:m.exogenous_nbr
