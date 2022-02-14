@@ -4,14 +4,9 @@
 
 ```
 using Pkg
-pkg"registry add https://git.dynare.org/DynareJulia/DynareRegistry.git"
 pkg"add Dynare"
 ```
-in case of difficulty with the installation of ``Plots``, try
-```
-pkg"build Plots"
-pkg"build Dynare"
-```
+
 ## Running Dynare
 
 
