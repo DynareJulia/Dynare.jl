@@ -3,6 +3,7 @@ using LinearRationalExpectations
 using RuntimeGeneratedFunctions
 using Suppressor
 using TimeDataFrames
+using StatsFuns
 
 export Context,
     DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
@@ -399,7 +400,6 @@ function Model(
     else
         steady_state! = Module()
     end
-
     Model(
         endogenous_nbr,
         exogenous_nbr,
@@ -704,11 +704,13 @@ end
 
 function load_dynare_function(modname::String, compileoption::Bool)#::Module
     @suppress begin
-        push!(LOAD_PATH, dirname(modname))
-        name = basename(modname)
-        eval(Meta.parse("using $name"))
-        pop!(LOAD_PATH)
-        return (eval(Symbol(name)))
+        fun = readlines(modname * ".jl")
+        if fun[6] == "using StatsFuns"
+            fun[6] = "using Dynare.StatsFuns"
+        else
+            insert!(fun, 6, "using Dynare.StatsFuns")
+        end
+        return eval(Meta.parse(join(fun, "\n")))
     end
 end
 
