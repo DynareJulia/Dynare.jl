@@ -11,7 +11,7 @@ function histval!(context::Context, field::Dict{String,Any})
 end
 
 function get_date(optionname::String, options)
-    if optionname in options
+    if optionname in keys(options)
         return ExtendedDates.simpleperiod(options[optionname])
     else
         return nothing
@@ -33,7 +33,8 @@ function check_predetermined_variables(symboltable, m, datanames)
             if v in datanames
                 continue
             elseif i <= m.original_endogenous_nbr
-                error("Variable {v} is missing")
+                @show datanames
+                error("Variable {$v} is missing")
             else
                 auxiliary_variables_present = false
             end
@@ -46,8 +47,8 @@ function histval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     options = field["options"]
     symboltable = context.symboltable
-    if "datafile" in options
-        data = TimeDataFrame(CSV.File(options["datafile"]))
+    if "datafile" in keys(options)
+        data = DataFrame(CSV.File(options["datafile"]))
     else
         data = nothing
     end
@@ -55,8 +56,8 @@ function histval_file!(context::Context, field::Dict{String,Any})
     first_obs = get_date("first_obs", options)
     last_obs = get_date("last_obs", options)
     first_simulation_period = get_date("first_simulation_period", options)
-    nobs = ("nobs" in options) ? options["nobs"] : nothing
-    series = ("series" in options) ? options["series"] : nothing
+    nobs = ("nobs" in keys(options)) ? options["nobs"] : nothing
+    series = ("series" in keys(options)) ? options["series"] : nothing
 
     if first_obs != nothing && first_simulation_period != nothing
         if typeof(first_obs) != typeof(first_simulation_period)
@@ -92,7 +93,7 @@ function histval_file!(context::Context, field::Dict{String,Any})
 
     auxiliary_variables_present =
         check_predetermined_variables(context.symboltable, m, names(data))
-    required_perdiods = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
+    required_periods = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
 
     start = stop = nothing
     if first_obs == nothing
@@ -103,7 +104,7 @@ function histval_file!(context::Context, field::Dict{String,Any})
             start = last_obs - required_periods + 1
             stop = last_obs
         else
-            start = UndatedDate(1)
+            start = 1
             stop = start + required_periods - 1
         end
     else

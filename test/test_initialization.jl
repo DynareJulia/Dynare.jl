@@ -18,3 +18,10 @@ y = context.work.initval_endogenous
 params = context.work.params
 @test y[7] ≈ y[2]*exp(y[6])/(exp(y[6])*0.5*(y[2]+y[2]))*(y[3]*(1-params[4])+y[1]*params[3]*exp(y[6]));
 
+field = Dict("statementName" => "histval_file",
+             "options" => Dict("datafile" => "data.csv"))
+
+Dynare.histval_file!(context, field)
+Dynare.initval_file!(context, field)
+             
+           
