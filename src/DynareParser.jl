@@ -92,13 +92,13 @@ end
 
 function get_varobs(modeljson::Dict{String,Any})
     varobs = Vector{String}()
-    if "varobs" in keys(modeljson)
+    if haskey(modeljspon, "varobs")
         varobs = vcat(varobs, Vector{String}(modeljson["varobs"]))
     end
-    if "varexobs" in keys(modeljson)
+    if haskey(modeljspon, "varexobs")
         varobs = vcat(varobs, Vector{String}(modeljson["varexobs"]))
     end
-    if "varexdetobs" in keys(modeljson)
+    if haskey(modeljspon, "varexdetobs")
         varobs = vcat(varobs, Vector{String}(modeljson["varexdetobs"]))
     end
     return varobs
@@ -182,7 +182,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         varobs,
     )
 
-    if "statements" in keys(modeljson)
+    if haskey(modeljson, "statements")
         parse_statements!(context, modeljson["statements"])
     end
     @info "$(now()): End $(nameof(var"#self#"))"

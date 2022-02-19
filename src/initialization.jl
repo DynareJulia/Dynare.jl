@@ -11,7 +11,7 @@ function histval!(context::Context, field::Dict{String,Any})
 end
 
 function get_date(optionname::String, options)
-    if optionname in keys(options)
+    if haskey(options, optionname)
         return ExtendedDates.simpleperiod(options[optionname])
     else
         return nothing
@@ -47,17 +47,12 @@ function histval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     options = field["options"]
     symboltable = context.symboltable
-    if "datafile" in keys(options)
-        data = DataFrame(CSV.File(options["datafile"]))
-    else
-        data = nothing
-    end
 
     first_obs = get_date("first_obs", options)
     last_obs = get_date("last_obs", options)
     first_simulation_period = get_date("first_simulation_period", options)
-    nobs = ("nobs" in keys(options)) ? options["nobs"] : nothing
-    series = ("series" in keys(options)) ? options["series"] : nothing
+    nobs = (haskey(options, "nobs")) ? options["nobs"] : nothing
+    series = (haskey(options, "series")) ? options["series"] : nothing
 
     if first_obs != nothing && first_simulation_period != nothing
         if typeof(first_obs) != typeof(first_simulation_period)
@@ -110,6 +105,20 @@ function histval_file!(context::Context, field::Dict{String,Any})
     else
         start = first_obs
         stop = start + required_periods - 1
+    end
+
+    if haskey(options, "datafile")
+        data = get_data(options["datafile"]
+        df = DataFrame(CSV.File(options["datafile"]))
+        colnames = names(df)
+        idate = findfirst(isequal.(names(uppercase.(colnames))), ["DATE", "DATES", "PERIOD", "PERIODS"])
+        if !isnothing(idate)
+            data = TimeDataFrame(df, colnames[idate])
+        else
+            data = TimeDataFrame(df, UndatedDate(1))
+        end
+    else
+        data = nothing
     end
 
     data_periods = data.periods
@@ -189,7 +198,7 @@ function shocks!(context::Context, field::Dict{String,Any})
     set_stderr!(Sigma, field["stderr"], symboltable)
     set_covariance!(Sigma, field["covariance"], symboltable)
     set_correlation!(Sigma, field["correlation"], symboltable)
-    if "deterministic_shocks" in keys(field)
+    if haskey(field, "deterministic_shocks")
         set_deterministic_shocks!(shocks,
                                   field["deterministic_shocks"],
                                   symboltable,
@@ -279,7 +288,7 @@ function load_params!(context::Context, filename::String)
         param_names = get
         for line in readlines(io)
             elem = split(line)
-            if elem[1] in keys(symboltable)
+            if haskey(symboltable, elem[1])
                 s = symboltable[elem[1]]
                 if s.symboltype == Parameter
                     k = s.orderintype::Int64
@@ -302,7 +311,7 @@ function load_steadystate!(context::Context, filename::String)
         param_names = get
         for line in readlines(io)
             elem = split(line)
-            if elem[1] in keys(symboltable)
+            if haskey(symboltable, elem[1])
                 s = symboltable[elem[1]]
                 k = s.orderintype::Int64
                 if s.symboltype == Endogenous
