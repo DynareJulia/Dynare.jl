@@ -52,6 +52,13 @@ function histval_file!(context::Context, field::Dict{String,Any})
     last_obs = get_date("last_obs", options)
     first_simulation_period = get_date("first_simulation_period", options)
     nobs = (haskey(options, "nobs")) ? options["nobs"] : nothing
+    if haskey(options, "data")
+        data = get_data(options["data"])
+    elseif haskey(options, "series")
+        data = options["series"]
+    else
+        error("
+    series = (haskey(options, "series")) ? options["series"] : nothing
     series = (haskey(options, "series")) ? options["series"] : nothing
 
     if first_obs != nothing && first_simulation_period != nothing
@@ -108,15 +115,7 @@ function histval_file!(context::Context, field::Dict{String,Any})
     end
 
     if haskey(options, "datafile")
-        data = get_data(options["datafile"]
-        df = DataFrame(CSV.File(options["datafile"]))
-        colnames = names(df)
-        idate = findfirst(isequal.(names(uppercase.(colnames))), ["DATE", "DATES", "PERIOD", "PERIODS"])
-        if !isnothing(idate)
-            data = TimeDataFrame(df, colnames[idate])
-        else
-            data = TimeDataFrame(df, UndatedDate(1))
-        end
+        data = get_data(options["datafile"])
     else
         data = nothing
     end
