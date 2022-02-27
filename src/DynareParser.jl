@@ -92,13 +92,13 @@ end
 
 function get_varobs(modeljson::Dict{String,Any})
     varobs = Vector{String}()
-    if haskey(modeljspon, "varobs")
+    if haskey(modeljson, "varobs")
         varobs = vcat(varobs, Vector{String}(modeljson["varobs"]))
     end
-    if haskey(modeljspon, "varexobs")
+    if haskey(modeljson, "varexobs")
         varobs = vcat(varobs, Vector{String}(modeljson["varexobs"]))
     end
-    if haskey(modeljspon, "varexdetobs")
+    if haskey(modeljson, "varexdetobs")
         varobs = vcat(varobs, Vector{String}(modeljson["varexdetobs"]))
     end
     return varobs

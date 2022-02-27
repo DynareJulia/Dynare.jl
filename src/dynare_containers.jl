@@ -568,9 +568,9 @@ struct Work
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
     histval::Matrix{Union{Float64,Missing}}
-    initval_endogenous::Matrix{Union{Float64,Missing}}
-    initval_exogenous::Matrix{Union{Float64,Missing}}
-    initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
+    initval_endogenous::Vector{Union{Float64,Missing}}
+    initval_exogenous::Vector{Union{Float64,Missing}}
+    initval_exogenous_deterministic::Vector{Union{Float64,Missing}}
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String, Any}
     function Work(model, varobs)
@@ -603,7 +603,7 @@ struct Work
         # default value for initval_exogenous is zero
         initval_exogenous = zeros(1, exo_nbr)
         # default value for initval_exogenous_det is zero
-        initval_exogenous_det = zeros(1, exo_det_nbr)
+        initval_exogenous_deterministic = zeros(1, exo_det_nbr)
         # shocks
         shocks = Vector{Float64}(undef, 0)
         perfect_foresight_setup = Dict("periods" => 0,
@@ -611,7 +611,7 @@ struct Work
         new(params, residuals, dynamic_variables,
             exogenous_variables, observed_variables, jacobian,
             qr_jacobian, model_has_trend, histval, initval_endogenous,
-            initval_exogenous, initval_exogenous_det, shocks,
+            initval_exogenous, initval_exogenous_deterministic, shocks,
             perfect_foresight_setup)
     end
 end

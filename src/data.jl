@@ -1,25 +1,68 @@
-function identify_period_frequency(period)::ExtendedDates.Frequency
-    period = uppercase(period)
-    if 'Y' in period
-        frequency = Year
-    elseif 'A' in period
-        frequency = Year
-    elseif 'S' in period
-        frequency = ExtendedDates.Semester
-    elseif 'H' in period
-        frequency = ExtendedDates.Semester
-    elseif 'Q' in period
-        frequency = Quarter
-    elseif 'M' in period
-        frequency = Month
-    elseif 'W' in period
-        frequency = Week
-    elseif 'D' in period
-        frequency = Day
-    elseif (cdash = count("-", period)) == 2
-        frequency = Day
-    elseif cdash == 1
-        frequency = Month
+using ExtendedDates
+
+function find_letter_in_period(period::AbstractString)
+    for c in period
+        if 'A' <= c <=  'z'
+            return uppercase(c)
+        end
+    end
+    return nothing
+end
+    
+function identify_period_type(period::AbstractString)
+    c = find_letter_in_period(period)
+    let period_type
+        if isnothing(c)
+            if (cdash = count("-", period)) == 2
+                period_type = DayDate
+            elseif cdash == 1
+                period_type = MonthDate
+            elseif tryparse(Int64, period) !== nothing
+                period_type = UndatedDate
+            else
+                throw(ErrorException)
+            end
+        else
+            if c == 'Y'
+                period_type = YearDate
+            elseif c == 'A'
+                period_type = YearDate
+            elseif c == 'S'
+                period_type = ExtendedDates.SemesterDate
+            elseif c == 'H'
+                period_type = ExtendedDates.SemesterDate
+            elseif c == 'Q'
+                period_type = QuarterDate
+            elseif c == 'M'
+                period_type = MonthDate
+            elseif c == 'W'
+                period_type = WeekDate
+            elseif c == 'D'  # day of the year: 1980D364
+                period_type = DayDate
+            else
+                throw(ErrorException)
+            end
+        end
+        return period_type
+    end
+end
+
+function periodparse(period::AbstractString)::ExtendedDates.SimpleDate
+    period_type = identify_period_type(period)
+    if period_type == YearDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yY"));
+    elseif period_type == SemesterDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("ySs"));
+    elseif period_type == QuarterDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yQq"));
+    elseif period_type == MonthDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yMm"));
+    elseif period_type == WeekDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yWw"));
+    elseif period_type == DayDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("y-m-d"));
+    elseif period_type == UndatedDate
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("x"));
     else
         throw(ErrorException)
     end
@@ -29,11 +72,11 @@ end
 function MyTimeDataFrame(filename)
     df = DataFrame(CSV.File(filename))
     local first_period::Any
+    periods = []
     continuous = true
     for name in names(df)
         if uppercase(name) in ["DATE", "DATES", "PERIOD", "PERIODS"]
             p = df[!, name]
-            periods = []
             foreach(x -> push!(periods, parse(x)), p)
             if !is_continuous(periods)
                 continuous = false
@@ -67,7 +110,7 @@ function get_data(
     ny = length(variables)
 
     if last == 0
-        last = size(df, 1) - start + 1
+        last = size(tdf, 1) - start + 1
     end
     nobs = last - start + 1
     Y = Matrix{Union{Missing,Float64}}(undef, ny, nobs)

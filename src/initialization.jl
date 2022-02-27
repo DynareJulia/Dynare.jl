@@ -12,7 +12,7 @@ end
 
 function get_date(optionname::String, options)
     if haskey(options, optionname)
-        return ExtendedDates.simpleperiod(options[optionname])
+        return periodparse(options[optionname])
     else
         return nothing
     end
@@ -33,7 +33,6 @@ function check_predetermined_variables(symboltable, m, datanames)
             if v in datanames
                 continue
             elseif i <= m.original_endogenous_nbr
-                @show datanames
                 error("Variable {$v} is missing")
             else
                 auxiliary_variables_present = false
@@ -43,95 +42,117 @@ function check_predetermined_variables(symboltable, m, datanames)
     return auxiliary_variables_present
 end
 
+Delta(::Type{YearDate}) = Year
+Delta(::Type{SemesterDate}) = Semester
+Delta(::Type{QuarterDate}) = Quarter
+Delta(::Type{MonthDate}) = Month
+Delta(::Type{WeekDate}) = Week
+Delta(::Type{DayDate}) = Day
+Delta(::Type{UndatedDate}) = Undated
+"""
+    check_periods_options(options::Options; required_lags::Int64=0, required_leads::Int64=0)
+checks the following assertions if the fields exist:
+    - all periods must have the same frequency
+    - first_simulation_period >= first_obs + required_periods
+    - last_obs >= last_simulation_periods + required
+    - last_obs == first_obs + nobs
+"""
+function check_periods_options(options;
+                               required_lags::Int64 = 0,
+                               required_leads::Int64 = 0)
+    first_obs = get_date("first_obs", options)
+    tf = typeof(first_obs)
+    last_obs = get_date("last_obs", options)
+    tl = typeof(last_obs)
+    first_simulation_period = get_date("first_simulation_period", options)
+    tfs = typeof(first_simulation_period)
+    last_simulation_period = get_date("last_simulation_period", options)
+    tls = typeof(last_simulation_period)
+    nobs_str = get(options, "nobs", nothing)
+    nobs = !isnothing(nobs_str) ? parse(Int64, nobs_str) : nothing
+ 
+    common_type = UndatedDate
+    for f in [first_obs, last_obs, first_simulation_period, last_simulation_period]
+        if !isnothing(f)
+            tf = typeof(f)
+            if common_type == UndatedDate
+                common_type = tf
+            else
+                @assert tf == common_type "period fields must have the same frequency"
+            end
+        end
+    end
+
+    if !isnothing(first_obs) && !isnothing(first_simulation_period)
+        @assert first_simulation_period >=  first_obs + Delta(tf)(required_lags) "first_simulation_period should be greater or equal to first_obs + $required_lags."
+    end
+        
+    if !isnothing(last_obs) && !isnothing(last_simulation_period)
+        @assert last_obs >=  last_simulation_period + Delta(tf)(required_leads) "last_obs should be greater or equal to first_simulation_period + $required_leads."
+    end
+
+    if !isnothing(first_obs) && !isnothing(last_obs) && !isnothing(nobs)
+        @assert first_obs + Delta(tf)(nobs - 1) == last_obs "last_obs must equal first_obs + nobs"
+    end
+    
+    return (first_obs, last_obs, first_simulation_period, last_simulation_period, nobs, common_type)
+
+end
+
 function histval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     options = field["options"]
     symboltable = context.symboltable
 
-    first_obs = get_date("first_obs", options)
-    last_obs = get_date("last_obs", options)
-    first_simulation_period = get_date("first_simulation_period", options)
-    nobs = (haskey(options, "nobs")) ? options["nobs"] : nothing
-    if haskey(options, "data")
-        data = get_data(options["data"])
-    elseif haskey(options, "series")
-        data = options["series"]
-    else
-        error("
-    series = (haskey(options, "series")) ? options["series"] : nothing
-    series = (haskey(options, "series")) ? options["series"] : nothing
-
-    if first_obs != nothing && first_simulation_period != nothing
-        if typeof(first_obs) != typeof(first_simulation_period)
-            error(
-                "first_obs && first_simulation_period, if both present, must have the same frequency. Note that only one of these options is necessary.",
-            )
-        elseif first_simulation - first_obs != required_periods
-            error(
-                "first_obs && first_simulation_period are inconsistent: first_simulation_period should equal first_obs + $required_periods. Note that only one of these options is necessary.",
-            )
-        end
-    end
-
-    if first_obs != nothing && last_obs != nothing
-        if typeof(first_obs) != typeof(last_obs)
-            error("first_obs && last_obs must have the same frequency")
-        elseif last_obs != first_obs + required_periods - 1
-            error(
-                "first_obs && last_obs are inconsistent: last_obs must be equal to first_obs + $(required_periods -1)",
-            )
-        end
-    end
-
-    if first_simulation_period != nothing && last_obs != nothing
-        if typeof(first_simulation_period) != typeof(last_obs)
-            error("first_simulation_period && last_obs must have the same frequency")
-        elseif first_simulation_period != last_obs + 1
-            error(
-                "first_simulation_period && last_obs are inconsistent: last_obs must be equal first_simulation_period - 1.",
-            )
-        end
-    end
-
-    auxiliary_variables_present =
-        check_predetermined_variables(context.symboltable, m, names(data))
-    required_periods = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
-
-    start = stop = nothing
-    if first_obs == nothing
-        if first_simulation_period != nothing
-            start = first_simulation_period - required_periods
-            stop = first_simulation_period - 1
-        elseif last_obs != nothing
-            start = last_obs - required_periods + 1
-            stop = last_obs
-        else
-            start = 1
-            stop = start + required_periods - 1
-        end
-    else
-        start = first_obs
-        stop = start + required_periods - 1
-    end
-
+    @show options
     if haskey(options, "datafile")
-        data = get_data(options["datafile"])
+        tdf = MyTimeDataFrame(options["datafile"])
+    elseif haskey(options, "series")
+        tdf = options["series"]
     else
-        data = nothing
+        error("option datafile or series must be provided")
     end
 
-    data_periods = data.periods
-    if typeof(start) != UndatedDate && typeof(start) != typeof(data_periods)
+    # if auxiliary variables are present, we need only one period of observations
+    auxiliary_variables_present =
+        check_predetermined_variables(context.symboltable, m, names(tdf))
+    required_lags = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
+    # check options consistency
+    (first_obs, last_obs, first_simulation_period, last_simulation_period, nobs, P) =
+        check_periods_options(options; required_lags)
+
+    tdf_periods = getfield(tdf, :periods)
+    @show P typeof(tdf_periods)
+    if P != UndatedDate && P != typeof(tdf_periods)
         error("Data frequency is different from frequency used in options")
     end
 
-    istart = value(start) - value(data_periods[1]) + 1
-    istop = value(stop) - value(data_periods[1]) + 1
-    offset = m.orig_maximum_lag - stop
-    data_ = getfield(getfield(data, :data), :data)
+    # DP is type of period interval
+    DP = typeof(P(1) - P(0))
+
+    start = stop = nothing
+    if isnothing(first_obs)
+        if !isnothing(first_simulation_period)
+            start = first_simulation_period - DP(required_lags)
+            stop = first_simulation_period - DP(1)
+        elseif !isnothing(last_obs)
+            start = last_obs - DP(required_lags + 1)
+            stop = last_obs
+        else
+            start = P(1)
+            stop = start + DP(required_lags - 1)
+        end
+    else
+        start = first_obs
+        stop = start + required_lags - 1
+    end
+
+    istart = ExtendedDates.value(start) - ExtendedDates.value(tdf_periods[1]) + 1
+    istop = ExtendedDates.value(stop) - ExtendedDates.value(tdf_periods[1]) + 1
+    data_ = Matrix(getfield(tdf, :data))
     histval = context.work.histval
     let colindex, endogenous_names
-        if auxiliary_variable_present
+        if auxiliary_variables_present
             colindex = m.i_bkwrd_b
             endogenous_names = get_endogenous(symboltable)
         else
@@ -141,10 +162,94 @@ function histval_file!(context::Context, field::Dict{String,Any})
         columns =
             (auxiliary_variables_present) ? m.i_bkwrd_b :
             view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
-        for (i, vname) in endogenous_names
-            colindex = find
+        dnames = names(tdf)
+        for (i, vname) in enumerate(endogenous_names)
+            colindex = findfirst(x -> x==vname, dnames)
             for j = istart:istop
-                histval[j+offset, i] = data_[j, colindex]
+                histval[j, i] = tdf[j, colindex]
+            end
+        end
+    end
+end
+
+function initval_file!(context::Context, field::Dict{String,Any})
+    m = context.models[1]
+    options = field["options"]
+    symboltable = context.symboltable
+
+    @show options
+    if haskey(options, "datafile")
+        tdf = MyTimeDataFrame(options["datafile"])
+    elseif haskey(options, "series")
+        tdf = options["series"]
+    else
+        error("option datafile or series must be provided")
+    end
+
+    # if auxiliary variables are present, we need only one period of observations
+    auxiliary_variables_present =
+        check_predetermined_variables(context.symboltable, m, names(tdf))
+    required_lags = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
+    # check options consistency
+    (first_obs, last_obs, first_simulation_period, last_simulation_period, nobs, P) =
+        check_periods_options(options; required_lags)
+
+    tdf_periods = getfield(tdf, :periods)
+    @show P typeof(tdf_periods)
+    if P != UndatedDate && P != typeof(tdf_periods)
+        error("Data frequency is different from frequency used in options")
+    end
+
+    # DP is type of period interval
+    DP = typeof(P(1) - P(0))
+
+    start = stop = nothing
+    if isnothing(first_obs)
+        if !isnothing(first_simulation_period)
+            start = first_simulation_period - DP(required_lags)
+            stop = first_simulation_period - DP(1)
+        elseif !isnothing(last_obs)
+            start = last_obs - DP(required_lags + 1)
+            stop = last_obs
+        else
+            start = P(1)
+            stop = start + DP(required_lags - 1)
+        end
+    else
+        start = first_obs
+        stop = start + required_lags - 1
+    end
+
+    istart = ExtendedDates.value(start) - ExtendedDates.value(tdf_periods[1]) + 1
+    istop = ExtendedDates.value(stop) - ExtendedDates.value(tdf_periods[1]) + 1
+    data_ = Matrix(getfield(tdf, :data))
+    initval = context.work.initval
+    let colindex, endogenous_names
+        if auxiliary_variables_present
+            colindex = m.i_bkwrd_b
+            endogenous_names = get_endogenous(symboltable)
+            exogenous_names = get_exogenous(symboltable)
+            exogenousdeterministic_names = get_endogenousexterministic(symboltable)
+        else
+            colindex = view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
+            endogenous_names = view(get_endogenous(symboltable), 1:m.orig_endogenous_nbr)
+        end
+        columns =
+            (auxiliary_variables_present) ? m.i_bkwrd_b :
+            view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
+        dnames = names(tdf)
+        for j = istart:istop
+            for (i, vname) in enumerate(endogenous_names)
+                colindex = findfirst(x -> x==vname, dnames)
+                initval_endogenous[j, i] = tdf[j, colindex]
+            end
+            for (i, vname) in enumerate(exogenous_names)
+                colindex = findfirst(x -> x==vname, dnames)
+                initval_endogenous[j, i] = tdf[j, colindex]
+            end
+            for (i, vname) in enumerate(exogenousdeterministic_names)
+                colindex = findfirst(x -> x==vname, dnames)
+                initval_exgenous[j, i] = tdf[j, colindex]
             end
         end
     end
@@ -184,9 +289,12 @@ function initval!(context::Context, field::Dict{String,Any})
     params = context.work.params
     m.set_auxiliary_variables!(initval_endogenous, initval_exogenous, params)
     work = context.work
-    view(work.initval_endogenous, 1, :) .= initval_endogenous
-    view(work.initval_exogenous, 1, :) .= initval_exogenous
-    view(work.initval_exogenous_deterministic, 1, :) .= initval_exogenous_det
+    resize!(work.initval_endogenous, m.endogenous_nbr)
+    work.initval_endogenous .= initval_endogenous
+    resize!(work.initval_exogenous, m.endogenous_nbr)
+    work.initval_exogenous .= initval_exogenous
+    resize!(work.initval_exogenousdeterministic, m.endogenous_nbr)
+    work.initval_exogenousdeterministic .= initval_exogenous_det
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
