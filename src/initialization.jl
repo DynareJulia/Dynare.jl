@@ -174,6 +174,7 @@ end
 
 function initval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
+    work = context.work
     options = field["options"]
     symboltable = context.symboltable
 
@@ -220,6 +221,9 @@ function initval_file!(context::Context, field::Dict{String,Any})
         stop = start + required_lags - 1
     end
 
+    if isnothing(nobs)
+        nobs = stop - start + 1
+    end
     istart = ExtendedDates.value(start) - ExtendedDates.value(tdf_periods[1]) + 1
     istop = ExtendedDates.value(stop) - ExtendedDates.value(tdf_periods[1]) + 1
     data_ = Matrix(getfield(tdf, :data))
@@ -238,18 +242,21 @@ function initval_file!(context::Context, field::Dict{String,Any})
             (auxiliary_variables_present) ? m.i_bkwrd_b :
             view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
         dnames = names(tdf)
+        work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr) 
+        work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr) 
+        work.initval_endogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenousdeterministic_nbr) 
         for j = istart:istop
             for (i, vname) in enumerate(endogenous_names)
                 colindex = findfirst(x -> x==vname, dnames)
-                initval_endogenous[j, i] = tdf[j, colindex]
+                work.initval_endogenous[j, i] = tdf[j, colindex]
             end
             for (i, vname) in enumerate(exogenous_names)
                 colindex = findfirst(x -> x==vname, dnames)
-                initval_endogenous[j, i] = tdf[j, colindex]
+                work.initval_endogenous[j, i] = tdf[j, colindex]
             end
             for (i, vname) in enumerate(exogenousdeterministic_names)
                 colindex = findfirst(x -> x==vname, dnames)
-                initval_exgenous[j, i] = tdf[j, colindex]
+                work.initval_exogenous_determinisitic[j, i] = tdf[j, colindex]
             end
         end
     end
@@ -266,35 +273,32 @@ end
 function initval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
+    work = context.work
     initval_endogenous = zeros(m.endogenous_nbr)
     initval_exogenous = zeros(m.exogenous_nbr)
     initval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
     xs = [Endogenous, Exogenous, ExogenousDeterministic]
     xw = [ initval_endogenous, initval_exogenous, initval_exogenous_det]
+    work.initval_endogenous = zeros(1, m.endogenous_nbr)
+    work.initval_exogenous = zeros(1, m.exogenous_nbr)
+    work.initval_exogenous_deterministic = zeros(1, m.exogenous_deterministic_nbr)
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
         k = s.orderintype::Int64
         value = dynare_parse_eval(v["value"]::String, context, xs=xs, xw=xw)
         if typ == Endogenous
-            initval_endogenous[k] = value
+            work.initval_endogenous[k] = value
         elseif typ == Exogenous
-            initval_exogenous[k] = value
+            work.initval_exogenous[k] = value
         elseif typ == ExogenousDeterministic
-            initval_exogenous_det[k] = value
+            work.initval_exogenous_determinisitic[k] = value
         else
             throw(error("$(v["name"]) can't be set in INITVAL"))
         end
     end
     params = context.work.params
-    m.set_auxiliary_variables!(initval_endogenous, initval_exogenous, params)
-    work = context.work
-    resize!(work.initval_endogenous, m.endogenous_nbr)
-    work.initval_endogenous .= initval_endogenous
-    resize!(work.initval_exogenous, m.endogenous_nbr)
-    work.initval_exogenous .= initval_exogenous
-    resize!(work.initval_exogenousdeterministic, m.endogenous_nbr)
-    work.initval_exogenousdeterministic .= initval_exogenous_det
+    m.set_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
