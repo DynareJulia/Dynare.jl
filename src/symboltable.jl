@@ -3,10 +3,10 @@ for typ in instances(SymbolType)
     @eval begin
         function $s(symboltable::SymbolTable)
             subset = [
-                (s[1], s[2].orderintype) for
-                s in context.symboltable if s[2].symboltype == $typ
+                (sym[1], sym[2].orderintype) for
+                sym in context.symboltable if sym[2].symboltype == $typ
             ]
-            return [s[1] for s in sort(subset, by = s -> s[2])]
+            return [sym[1] for sym in sort(subset, by = sym -> sym[2])]
         end
     end
 
@@ -17,7 +17,7 @@ for typ in instances(SymbolType)
                 symbols = collect(values(symboltable))
                 subset = filter(s -> s.symboltype::SymbolType == $typ, symbols)
                 sorted_index = sortperm(subset, by = v -> v.orderintype)
-                names = [s.$f for s in subset[sorted_index]]
+                names = [sym.$f for sym in subset[sorted_index]]
                 return names
             end
         end
