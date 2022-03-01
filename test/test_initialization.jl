@@ -171,6 +171,5 @@ Dynare.histval_file!(context, field)
 
 field = Dict("statementName" => "initval_file",
              "options" => Dict("datafile" => "data.csv"))
-resize!(context.work.initval_endogenous, 7)
 Dynare.initval_file!(context, field)
              

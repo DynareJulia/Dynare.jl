@@ -104,7 +104,6 @@ function histval_file!(context::Context, field::Dict{String,Any})
     options = field["options"]
     symboltable = context.symboltable
 
-    @show options
     if haskey(options, "datafile")
         tdf = MyTimeDataFrame(options["datafile"])
     elseif haskey(options, "series")
@@ -122,7 +121,6 @@ function histval_file!(context::Context, field::Dict{String,Any})
         check_periods_options(options; required_lags)
 
     tdf_periods = getfield(tdf, :periods)
-    @show P typeof(tdf_periods)
     if P != UndatedDate && P != typeof(tdf_periods)
         error("Data frequency is different from frequency used in options")
     end
@@ -178,7 +176,6 @@ function initval_file!(context::Context, field::Dict{String,Any})
     options = field["options"]
     symboltable = context.symboltable
 
-    @show options
     if haskey(options, "datafile")
         tdf = MyTimeDataFrame(options["datafile"])
     elseif haskey(options, "series")
@@ -186,7 +183,8 @@ function initval_file!(context::Context, field::Dict{String,Any})
     else
         error("option datafile or series must be provided")
     end
-
+    tdf_nrow = TimeDataFrames.nrow(tdf)
+    
     # if auxiliary variables are present, we need only one period of observations
     auxiliary_variables_present =
         check_predetermined_variables(context.symboltable, m, names(tdf))
@@ -196,7 +194,6 @@ function initval_file!(context::Context, field::Dict{String,Any})
         check_periods_options(options; required_lags)
 
     tdf_periods = getfield(tdf, :periods)
-    @show P typeof(tdf_periods)
     if P != UndatedDate && P != typeof(tdf_periods)
         error("Data frequency is different from frequency used in options")
     end
@@ -206,57 +203,63 @@ function initval_file!(context::Context, field::Dict{String,Any})
 
     start = stop = nothing
     if isnothing(first_obs)
-        if !isnothing(first_simulation_period)
-            start = first_simulation_period - DP(required_lags)
-            stop = first_simulation_period - DP(1)
-        elseif !isnothing(last_obs)
-            start = last_obs - DP(required_lags + 1)
-            stop = last_obs
+        if isnothing(first_simulation_period)
+            start = UndatedDate(1)
         else
-            start = P(1)
-            stop = start + DP(required_lags - 1)
+            start = first_simulation_period - DP(required_lags)
         end
-    else
-        start = first_obs
-        stop = start + required_lags - 1
+    end
+    if isnothing(last_obs)
+        if isnothing(last_simulation_period)
+            stop = UndatedDate(tdf_nrow)
+        else
+            stop = last_simulation_period + DP(required_leads)
+        end
     end
 
-    if isnothing(nobs)
-        nobs = stop - start + 1
-    end
     istart = ExtendedDates.value(start) - ExtendedDates.value(tdf_periods[1]) + 1
     istop = ExtendedDates.value(stop) - ExtendedDates.value(tdf_periods[1]) + 1
+    nobs = istop - istart + 1
     data_ = Matrix(getfield(tdf, :data))
-    initval = context.work.initval
-    let colindex, endogenous_names
+    let colindex, endogenous_names, exogenous_names, exogenousdeterministic_names
         if auxiliary_variables_present
             colindex = m.i_bkwrd_b
             endogenous_names = get_endogenous(symboltable)
-            exogenous_names = get_exogenous(symboltable)
-            exogenousdeterministic_names = get_endogenousexterministic(symboltable)
         else
             colindex = view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
             endogenous_names = view(get_endogenous(symboltable), 1:m.orig_endogenous_nbr)
         end
+        exogenous_names = get_exogenous(symboltable)
+        exogenousdeterministic_names = get_exogenousdeterministic(symboltable)
         columns =
             (auxiliary_variables_present) ? m.i_bkwrd_b :
             view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
         dnames = names(tdf)
         work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr) 
         work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr) 
-        work.initval_endogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenousdeterministic_nbr) 
-        for j = istart:istop
-            for (i, vname) in enumerate(endogenous_names)
-                colindex = findfirst(x -> x==vname, dnames)
-                work.initval_endogenous[j, i] = tdf[j, colindex]
+        work.initval_exogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr) 
+        for (i, vname) in enumerate(endogenous_names)
+            colindex = findfirst(x -> x==vname, dnames)
+            if isnothing(colindex)
+                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+            else
+                work.initval_endogenous[:, i] .= tdf[! , colindex][istart:istop]
             end
-            for (i, vname) in enumerate(exogenous_names)
-                colindex = findfirst(x -> x==vname, dnames)
-                work.initval_endogenous[j, i] = tdf[j, colindex]
+        end
+        for (i, vname) in enumerate(exogenous_names)
+            colindex = findfirst(x -> x==vname, dnames)
+            if isnothing(colindex)
+                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+            else
+                work.initval_exogenous[:, i] .= tdf[! , colindex][istart:istop]
             end
-            for (i, vname) in enumerate(exogenousdeterministic_names)
-                colindex = findfirst(x -> x==vname, dnames)
-                work.initval_exogenous_determinisitic[j, i] = tdf[j, colindex]
+        end
+        for (i, vname) in enumerate(exogenousdeterministic_names)
+            colindex = findfirst(x -> x==vname, dnames)
+            if isnothing(colindex)
+                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+            else
+                work.initval_exogenous_deterministic[:, i] .= tdf[! , colindex][istart:istop]
             end
         end
     end
