@@ -4,7 +4,7 @@ for typ in instances(SymbolType)
         function $s(symboltable::SymbolTable)
             subset = [
                 (s[1], s[2].orderintype) for
-                s in context.symboltable if s[2].symboltype == Dynare.Endogenous
+                s in context.symboltable if s[2].symboltype == $typ
             ]
             return [s[1] for s in sort(subset, by = s -> s[2])]
         end
