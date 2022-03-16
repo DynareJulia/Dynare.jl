@@ -82,7 +82,7 @@ function MyTimeDataFrame(filename)
                 continuous = false
             end
         else
-            periods = range(UndatedDate(1), length=nrow(df), step= ExtendedDates.Undated(1)) 
+            periods = range(UndatedDate(1), length=DataFrames.nrow(df), step= ExtendedDates.Undated(1)) 
         end
         break
     end

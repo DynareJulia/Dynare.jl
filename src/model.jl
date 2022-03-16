@@ -411,7 +411,14 @@ end
 
 
 """
-`get_dynamic_jacobian!`(ws::Work, endogenous::Matrix{Float64}, exogenous::Matrix{Float64}, m::Model, period::Int64)
+`get_dynamic_jacobian!`(ws::DynamicWs,
+                        params::Vector{Float64},
+                        endogenous::AbstractVecOrMat{Float64},
+                        exogenous::Matrix{Float64},
+                        steadystate::Vector{Float64},
+                        m::Model,
+                        period::Int64
+                       )
 
 sets the dynamic Jacobian matrix ``ws.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
 around ``period`` 
@@ -429,6 +436,9 @@ function get_dynamic_jacobian!(
     get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli, m, period)
     dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     jacobian = dynamic_jacobian_matrix(ws, m)
+    y = ws.dynamic_variables
+    x = exogenous
+    it_ = period
     Base.invokelatest(
         m.dynamic!.dynamic!,
         ws.temporary_values,

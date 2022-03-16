@@ -164,96 +164,123 @@ struct Model
     set_dynamic_auxiliary_variables!::Function
     steady_state!::Module
 end
-
-function Model(
-    modfilename::String,
-    modfileinfo::ModFileInfo,
-    endogenous_nbr::Int64,
+# purely backward model
+function assemble_lead_lag_incidence_1!(
+    lead_lag_incidence_matrix::Matrix{Int64},
+    backward_indices_d::Vector{Int64},
+    current_dynamic_indices::Vector{Int64},
+    i_backward_in_current::Vector{Int64},
+    i_bkwrd::Vector{Int64},
+    i_bkwrd_ns::Vector{Int64},
+    i_cur_bkwrd::Vector{Int64},
+    i_current::Vector{Int64},
+    i_current_ns::Vector{Int64},
+    i_dyn::Vector{Int64},
+    i_non_states::Vector{Int64},
+    i_static::Vector{Int64},
+    p_bkwrd::Vector{Int64},
+    p_cur_bkwrd::Vector{Int64},
+    p_current::Vector{Int64},
+    p_current_ns::Vector{Int64},
+    p_static::Vector{Int64},
     lead_lag_incidence::Vector{Vector{Int64}},
-    exogenous_nbr::Int64,
-    lagged_exogenous_nbr::Int64,
-    exogenous_deterministic_nbr::Int64,
-    parameter_nbr::Int64,
-    orig_endo_nbr::Int64,
-    aux_vars::Vector{Any},
-    maximum_endo_lag::Int64,
-    maximum_endo_lead::Int64,
-    maximum_exo_lag::Int64,
-    maximum_exo_lead::Int64,
-    maximum_exo_det_lag::Int64,
-    maximum_exo_det_lead::Int64,
-    maximum_lag,
-    maximum_lead::Int64,
-    orig_maximum_endo_lag::Int64,
-    orig_maximum_endo_lead::Int64,
-    orig_maximum_exo_lag::Int64,
-    orig_maximum_exo_lead::Int64,
-    orig_maximum_exo_det_lag::Int64,
-    orig_maximum_exo_det_lead::Int64,
-    orig_maximum_lag::Int64,
-    orig_maximum_lead::Int64,
-    NNZDerivatives::Vector{Int64},
-    compileoption::Bool
+    endogenous_nbr::Int64,
 )
-    i_static = Vector{Int64}(undef, 0)
-    p_static = similar(i_static)
-    i_dyn = similar(i_static)
-    i_bkwrd = similar(i_static)
-    i_bkwrd_b = similar(i_static)
-    i_bkwrd_ns = similar(i_static)
-    p_bkwrd = similar(i_static)
-    p_bkwrd_b = similar(i_static)
-    i_fwrd = similar(i_static)
-    i_fwrd_b = similar(i_static)
-    i_fwrd_ns = similar(i_static)
-    p_fwrd = similar(i_static)
-    p_fwrd_b = similar(i_static)
-    i_both = similar(i_static)
-    i_non_states = similar(i_static)
-    i_both_b = similar(i_static)
-    p_both_b = similar(i_static)
-    i_both_f = similar(i_static)
-    p_both_f = similar(i_static)
-    i_current = similar(i_static)
-    p_current = similar(i_static)
-    i_current_ns = similar(i_static)
-    p_current_ns = similar(i_static)
-    i_cur_fwrd_b = similar(i_static)
-    p_cur_fwrd_b = similar(i_static)
-    i_cur_bkwrd = similar(i_static)
-    p_cur_bkwrd = similar(i_static)
-    i_cur_both = similar(i_static)
-    p_cur_both = similar(i_static)
-    i_backward_in_current = similar(i_static)
-    i_forward_in_current = similar(i_static)
-    icolsD = similar(i_static)
-    jcolsD = similar(i_static)
-    icolsE = similar(i_static)
-    jcolsE = similar(i_static)
-    colsUD = similar(i_static)
-    colsUE = similar(i_static)
-    n_dyn = similar(i_static)
-    DErows1 = similar(i_static)
-    DErows2 = similar(i_static)
-    gx_rows = similar(i_static)
-    hx_rows = similar(i_static)
-    current_dynamic_indices = similar(i_static)
-    forward_indices_d = similar(i_static)
-    backward_indices_d = similar(i_static)
-    current_dynamic_indices_d = similar(i_static)
-    n_current = 0
-    n_static = 0
+    max_lead_lag_incidence = 0
     n_dyn1 = 0
+    n_current = 0
     n_bkwrd = 0
-    n_bkwrd_b = 0
-    n_fwrd = 0
-    n_fwrd_b = 0
-    n_both = 0
+    n_static = 0
+    
+    for (i, v) in enumerate(lead_lag_incidence)
+        for j = 1:2
+            lead_lag_incidence_matrix[j, i] = v[j]
+        end
+        if v[1] > 0
+            n_dyn1 += 1
+            push!(i_dyn, i)
+            push!(i_bkwrd_ns, n_dyn1)
+            max_lead_lag_incidence = max(v[1], max_lead_lag_incidence)
+            n_bkwrd += 1
+            push!(i_bkwrd, i)
+            push!(p_bkwrd, v[1])
+            push!(backward_indices_d, n_dyn1)
+        else
+            push!(i_non_states, i)
+            n_static += 1
+            push!(i_static, i)
+            push!(p_static, v[2])
+        end
+        if v[2] > 0
+            n_current += 1
+            push!(i_current, i)
+            push!(p_current, v[2])
+            max_lead_lag_incidence = max(v[2], max_lead_lag_incidence)
+            if v[1] > 0
+                push!(i_current_ns, n_dyn1)
+                push!(p_current_ns, v[2])
+                push!(current_dynamic_indices, i)
+                push!(i_cur_bkwrd, n_bkwrd)
+                push!(p_cur_bkwrd, v[2])
+                push!(i_backward_in_current, n_bkwrd)
+            end
+        end
+    end
+    return(max_lead_lag_incidence, n_bkwrd, n_current, n_static)
+
+end
+
+# backward and forward model
+function assemble_lead_lag_incidence_3!(
+    lead_lag_incidence_matrix::Matrix{Int64},
+    backward_indices_d::Vector{Int64},
+    current_dynamic_indices::Vector{Int64},
+    i_backward_in_current::Vector{Int64},
+    i_bkwrd::Vector{Int64},
+    i_bkwrd_b::Vector{Int64},
+    i_bkwrd_ns::Vector{Int64},
+    i_both::Vector{Int64},
+    i_both_b::Vector{Int64},
+    i_both_f::Vector{Int64},
+    i_cur_bkwrd::Vector{Int64},
+    i_cur_both::Vector{Int64},
+    i_cur_fwrd_b::Vector{Int64},
+    i_current::Vector{Int64},
+    i_current_ns::Vector{Int64},
+    i_dyn::Vector{Int64},
+    i_forward_in_current::Vector{Int64},
+    i_fwrd::Vector{Int64},
+    i_fwrd_b::Vector{Int64},
+    i_fwrd_ns::Vector{Int64},
+    i_non_states::Vector{Int64},
+    i_static::Vector{Int64},
+    forward_indices_d::Vector{Int64},
+    p_bkwrd::Vector{Int64},
+    p_bkwrd_b::Vector{Int64},
+    p_both_b::Vector{Int64},
+    p_both_f::Vector{Int64},
+    p_cur_bkwrd::Vector{Int64},
+    p_current::Vector{Int64},
+    p_current_ns::Vector{Int64},
+    p_fwrd::Vector{Int64},
+    p_fwrd_b::Vector{Int64},
+    p_static::Vector{Int64},
+    p_cur_fwrd_b::Vector{Int64},
+    p_cur_both::Vector{Int64},
+    lead_lag_incidence::Vector{Vector{Int64}},
+    endogenous_nbr::Int64,
+)
+    max_lead_lag_incidence = 0
     n_dyn1 = 0
     n_dyn2 = 0
-    lead_lag_incidence_matrix = Matrix{Int64}(undef, 3, endogenous_nbr)
-    max_lead_lag_incidence = 0
-    v = zeros(Int64, 3)
+    n_bkwrd_b = 0
+    n_current = 0
+    n_fwrd_b = 0
+    n_both = 0
+    n_bkwrd = 0
+    n_fwrd = 0
+    n_static = 0
+    
     for (i, v) in enumerate(lead_lag_incidence)
         for j = 1:3
             lead_lag_incidence_matrix[j, i] = v[j]
@@ -334,6 +361,167 @@ function Model(
 
         end
     end
+    return(max_lead_lag_incidence, n_bkwrd, n_both, n_current, n_fwrd, n_static)
+
+end
+
+function Model(
+    modfilename::String,
+    modfileinfo::ModFileInfo,
+    endogenous_nbr::Int64,
+    lead_lag_incidence::Vector{Vector{Int64}},
+    exogenous_nbr::Int64,
+    lagged_exogenous_nbr::Int64,
+    exogenous_deterministic_nbr::Int64,
+    parameter_nbr::Int64,
+    orig_endo_nbr::Int64,
+    aux_vars::Vector{Any},
+    maximum_endo_lag::Int64,
+    maximum_endo_lead::Int64,
+    maximum_exo_lag::Int64,
+    maximum_exo_lead::Int64,
+    maximum_exo_det_lag::Int64,
+    maximum_exo_det_lead::Int64,
+    maximum_lag,
+    maximum_lead::Int64,
+    orig_maximum_endo_lag::Int64,
+    orig_maximum_endo_lead::Int64,
+    orig_maximum_exo_lag::Int64,
+    orig_maximum_exo_lead::Int64,
+    orig_maximum_exo_det_lag::Int64,
+    orig_maximum_exo_det_lead::Int64,
+    orig_maximum_lag::Int64,
+    orig_maximum_lead::Int64,
+    NNZDerivatives::Vector{Int64},
+    compileoption::Bool
+)
+    i_static = Vector{Int64}(undef, 0)
+    p_static = similar(i_static)
+    i_dyn = similar(i_static)
+    i_bkwrd = similar(i_static)
+    i_bkwrd_b = similar(i_static)
+    i_bkwrd_ns = similar(i_static)
+    p_bkwrd = similar(i_static)
+    p_bkwrd_b = similar(i_static)
+    i_fwrd = similar(i_static)
+    i_fwrd_b = similar(i_static)
+    i_fwrd_ns = similar(i_static)
+    p_fwrd = similar(i_static)
+    p_fwrd_b = similar(i_static)
+    i_both = similar(i_static)
+    i_non_states = similar(i_static)
+    i_both_b = similar(i_static)
+    p_both_b = similar(i_static)
+    i_both_f = similar(i_static)
+    p_both_f = similar(i_static)
+    i_current = similar(i_static)
+    p_current = similar(i_static)
+    i_current_ns = similar(i_static)
+    p_current_ns = similar(i_static)
+    i_cur_fwrd_b = similar(i_static)
+    p_cur_fwrd_b = similar(i_static)
+    i_cur_bkwrd = similar(i_static)
+    p_cur_bkwrd = similar(i_static)
+    i_cur_both = similar(i_static)
+    p_cur_both = similar(i_static)
+    i_backward_in_current = similar(i_static)
+    i_forward_in_current = similar(i_static)
+    icolsD = similar(i_static)
+    jcolsD = similar(i_static)
+    icolsE = similar(i_static)
+    jcolsE = similar(i_static)
+    colsUD = similar(i_static)
+    colsUE = similar(i_static)
+    n_dyn = similar(i_static)
+    DErows1 = similar(i_static)
+    DErows2 = similar(i_static)
+    gx_rows = similar(i_static)
+    hx_rows = similar(i_static)
+    current_dynamic_indices = similar(i_static)
+    forward_indices_d = similar(i_static)
+    backward_indices_d = similar(i_static)
+    current_dynamic_indices_d = similar(i_static)
+    if maximum_endo_lag == 1
+        if maximum_endo_lead == 1
+            # backward and forward
+            lead_lag_incidence_matrix = zeros(Int64, 3, endogenous_nbr)
+            (max_lead_lag_incidence, n_bkwrd, n_both, n_current, n_fwrd, n_static) =
+                assemble_lead_lag_incidence_3!(
+                    lead_lag_incidence_matrix,
+                    backward_indices_d,
+                    current_dynamic_indices,
+                    i_backward_in_current,
+                    i_bkwrd,
+                    i_bkwrd_b,
+                    i_bkwrd_ns,
+                    i_both,
+                    i_both_b,
+                    i_both_f,
+                    i_cur_bkwrd,
+                    i_cur_both,
+                    i_cur_fwrd_b,
+                    i_current,
+                    i_current_ns,
+                    i_dyn,
+                    i_forward_in_current,
+                    i_fwrd,
+                    i_fwrd_b,
+                    i_fwrd_ns,
+                    i_non_states,
+                    i_static,
+                    forward_indices_d,
+                    p_bkwrd,
+                    p_bkwrd_b,
+                    p_both_b,
+                    p_both_f,
+                    p_cur_bkwrd,
+                    p_current,
+                    p_current_ns,
+                    p_fwrd,
+                    p_fwrd_b,
+                    p_static,
+                    p_cur_fwrd_b,
+                    p_cur_both,
+                    lead_lag_incidence,
+                    endogenous_nbr,
+                )
+        else
+            # purely backward
+            lead_lag_incidence_matrix = zeros(Int64, 2, endogenous_nbr)
+            (max_lead_lag_incidence, n_bkwrd, n_current, n_static) =
+                assemble_lead_lag_incidence_1!(
+                    lead_lag_incidence_matrix::Matrix{Int64},
+                    backward_indices_d::Vector{Int64},
+                    current_dynamic_indices::Vector{Int64},
+                    i_backward_in_current::Vector{Int64},
+                    i_bkwrd::Vector{Int64},
+                    i_bkwrd_ns::Vector{Int64},
+                    i_cur_bkwrd::Vector{Int64},
+                    i_current::Vector{Int64},
+                    i_current_ns::Vector{Int64},
+                    i_dyn::Vector{Int64},
+                    i_non_states::Vector{Int64},
+                    i_static::Vector{Int64},
+                    p_bkwrd::Vector{Int64},
+                    p_cur_bkwrd::Vector{Int64},
+                    p_current::Vector{Int64},
+                    p_current_ns::Vector{Int64},
+                    p_static::Vector{Int64},
+                    lead_lag_incidence::Vector{Vector{Int64}},
+                    endogenous_nbr::Int64,
+                )
+            i_bkwrd_b = i_bkwrd
+            p_bkwrd_b = p_bkwrd
+            i_fwrd_b = i_fwrd
+            p_fwrd_b = p_fwrd
+        end
+    elseif maximum_endo_lead == 1
+        # purely forward
+        assemble_lead_lag_incidence_2()
+    else
+        # static
+        assemble_lead_lag_incidence_0()
+    end
     n_bkwrd = length(i_bkwrd)
     n_fwrd = length(i_fwrd)
     n_both = length(i_both)
@@ -386,14 +574,19 @@ function Model(
     static! = load_dynare_function(modfilename * "Static", compileoption)
     if modfileinfo.has_auxiliary_variables
         set_dynamic_auxiliary_variables! =
-            load_dynare_function2(modfilename * "DynamicSetAuxiliarySeries")
+            DynareFunctions.load_set_dynamic_auxiliary_variables(modfilename)
         set_auxiliary_variables! =
             load_dynare_function2(modfilename * "SetAuxiliaryVariables")
-    else
+    elseif orig_maximum_lead > 1 || orig_maximum_lag > 1
+        # auxiliary variables are present
         set_dynamic_auxiliary_variables! =
             (x...) -> error(modfilename * "DynamicSetAuxiliarySeries is missing")
         set_auxiliary_variables! =
             (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
+    else
+        # no auxiliary variables
+        set_dynamic_auxiliary_variables! = (a, b, c) -> nothing
+        set_auxiliary_variables! = (a, b, c) -> nothing
     end
     if modfileinfo.has_steadystate_file
         steady_state! = load_dynare_function(modfilename * "SteadyState2", compileoption)

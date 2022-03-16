@@ -36,6 +36,7 @@ function check_predetermined_variables(symboltable, m, datanames)
                 error("Variable {$v} is missing")
             else
                 auxiliary_variables_present = false
+                break
             end
         end
     end
@@ -178,8 +179,6 @@ function initval_file!(context::Context, field::Dict{String,Any})
 
     if haskey(options, "datafile")
         tdf = MyTimeDataFrame(options["datafile"])
-    elseif haskey(options, "series")
-        tdf = options["series"]
     else
         error("option datafile or series must be provided")
     end
@@ -188,7 +187,13 @@ function initval_file!(context::Context, field::Dict{String,Any})
     # if auxiliary variables are present, we need only one period of observations
     auxiliary_variables_present =
         check_predetermined_variables(context.symboltable, m, names(tdf))
-    required_lags = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
+    if auxiliary_variables_present
+        required_lags = 1
+    else
+        required_lags = m.orig_maximum_lag
+        m.set_dynamic_auxiliary_variables!(tdf, work.params)
+    end
+
     # check options consistency
     (first_obs, last_obs, first_simulation_period, last_simulation_period, nobs, P) =
         check_periods_options(options; required_lags)
@@ -222,26 +227,18 @@ function initval_file!(context::Context, field::Dict{String,Any})
     nobs = istop - istart + 1
     data_ = Matrix(getfield(tdf, :data))
     let colindex, endogenous_names, exogenous_names, exogenousdeterministic_names
-        if auxiliary_variables_present
-            colindex = m.i_bkwrd_b
-            endogenous_names = get_endogenous(symboltable)
-        else
-            colindex = view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
-            endogenous_names = view(get_endogenous(symboltable), 1:m.orig_endogenous_nbr)
-        end
+        endogenous_names = get_endogenous(symboltable)
         exogenous_names = get_exogenous(symboltable)
         exogenousdeterministic_names = get_exogenousdeterministic(symboltable)
-        columns =
-            (auxiliary_variables_present) ? m.i_bkwrd_b :
-            view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
         dnames = names(tdf)
         work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr) 
         work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr) 
-        work.initval_exogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr) 
+        work.initval_exogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr)
+        lli = m.lead_lag_incidence
         for (i, vname) in enumerate(endogenous_names)
             colindex = findfirst(x -> x==vname, dnames)
-            if isnothing(colindex)
-                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+            if isnothing(colindex) && lli[1, i] > 0
+#                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
             else
                 work.initval_endogenous[:, i] .= tdf[! , colindex][istart:istop]
             end
@@ -335,7 +332,7 @@ end
 function set_stderr!(Sigma::Matrix{Float64}, stderr::Vector{Any}, symboltable::SymbolTable)
     for s in stderr
         k = symboltable[s["name"]::String].orderintype::Int64
-        x = dynare_parse_eval(s["stderr"]::String, context)::Float64
+        x = dynare_parse_eval(s["stderr"]::String, context)::Real
         Sigma[k, k] = x * x
     end
 end

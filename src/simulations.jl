@@ -107,3 +107,105 @@ function simul_first_order!(
     end
     r_1 .+= c
 end
+
+function is_jacobian_sparse(Y, context)
+    model = context.models[1]
+    results = context.results.model_results[1]
+    work = context.work
+    ncol = model.n_bkwrd + model.n_current
+    nvar = model.endogenous_nbr
+    tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
+    dynamic_ws = DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+    dynamic_variables = dynamic_ws.dynamic_variables
+    params = work.params
+    steadystate = results.trends.endogenous_steady_state
+    lli = model.lead_lag_incidence
+    period = 2
+end
+
+function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
+                                Y0::AbstractArray,
+                                exogenous::AbstractMatrix,
+                                periods::Int64,
+                                context::Context)
+    model = context.models[1]
+    results = context.results.model_results[1]
+    work = context.work
+
+    ncol = model.n_bkwrd + model.n_current
+    tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
+    dynamic_ws = DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+    dynamic_variables = dynamic_ws.dynamic_variables
+    lli = model.lead_lag_incidence
+    nvar = model.endogenous_nbr
+    params = work.params
+    residuals = Vector{Float64}(undef, nvar)
+    steadystate = results.trends.endogenous_steady_state
+    temp_vec = dynamic_ws.temporary_values
+    dynamic! = model.dynamic!.dynamic!
+
+    copy!(Y, Y0)
+    if ndims(Y0) == 1
+        Y[1, :] = Y0[1, :]
+    else
+        copy!(Y, Y0)
+    end
+
+    YT = transpose(Y)
+    jacobian = get_dynamic_jacobian!(dynamic_ws, params, vec(YT),
+                                     exogenous, steadystate, model, 6)
+    A = view(jacobian, :, model.n_bkwrd .+ (1:nvar))
+    if count(!iszero, A) < 0.1*nvar*nvar
+        jacobian_is_sparse = true
+        A = sparse(A)
+    end
+#    jacobian_is_sparse = false
+    for it = 6:periods - 1
+        @show it
+        function f!(residuals, y)
+            copyto!(dynamic_variables, model.n_bkwrd + 1, y, 1, nvar)
+            @inbounds Base.invokelatest(
+                dynamic!,
+                temp_vec,
+                residuals,
+                dynamic_variables,
+                exogenous,
+                params,
+                steadystate,
+                it,
+            )
+        end
+
+        function J!(A::SparseMatrixCSC{T, Int64}, y::AbstractVector{T})::SparseMatrixCSC{T, Int64} where T <: Real
+            copyto!(YT, (it - 1)*nvar + 1, y, 1, nvar)
+            jacobian = get_dynamic_jacobian!(dynamic_ws, params, vec(YT),
+                                             exogenous, steadystate, model, it)
+            A = sparse(view(jacobian, :, model.n_bkwrd .+ (1:nvar)))
+            return A
+        end
+
+        function J!(A::Matrix{T}, y::AbstractMatrix{T})::Matrix{T} where T <: Real
+            copyto!(YT, (it - 1)*nvar + 1, y, 1, nvar)
+            jacobian = get_dynamic_jacobian!(dynamic_ws, params, vec(YT),
+                                             exogenous, steadystate, model, it)
+            A = view(jacobian, :, model.n_bkwrd .+ (1:nvar))
+            return A
+        end
+        
+        if ndims(Y0) == 1
+            # use previous result as guess value
+            guess = view(YT, :, it - 1)
+        elseif ndims(Y0) == 2
+            # provided guess value
+            guess = view(YT, :, it)
+        end
+        df = OnceDifferentiable(f!, J!, guess, residuals, A)
+        results = nlsolve(df, guess, method=:robust_trust_region, show_trace=false, iterations = 100)
+        if !converged(results)
+            error("Nonlinear solver didn't converge")
+        end
+        view(YT, :, it) .= results.zero
+    end
+
+end
+

@@ -49,10 +49,11 @@ function get_model(
     for (i, n) in enumerate(model_info.NNZDerivatives)
         NNZDerivatives[i] = n::Int64
     end
+    nlags = model_info.maximum_endo_lag + model_info.maximum_endo_lead + 1
     lead_lag_incidence = Vector{Vector{Int64}}(undef, 0)
     for (i, vv) in enumerate(model_info.lead_lag_incidence)
-        v = zeros(Int64, 3)
-        for j = 1:3
+        v = zeros(Int64, nlags)
+        for j = 1:nlags
             v[j] = vv[j]::Int64
         end
         push!(lead_lag_incidence, v)
@@ -210,6 +211,11 @@ function parse_statements!(context::Context, statements::Vector{Any})
             @debug "$(now()): start initval"
             initval!(context, field)
             modfileinfo.has_initval = true
+            @debug "$(now()): end initval"
+        elseif statementname == "initval_file"
+            @debug "$(now()): start initval_file"
+            initval_file!(context, field)
+            modfileinfo.has_initval_file = true
             @debug "$(now()): end initval"
         elseif statementname == "native"
             try
