@@ -8,6 +8,7 @@ Base.@kwdef struct CommandLineOptions
 end
 
 include("utils.jl")
+include("dynare_functions.jl")
 include("dynare_containers.jl")
 include("model.jl")
 export get_abc, get_de
@@ -39,17 +40,22 @@ macro dynare(modfile_arg::String, args...)
     @info "$(now()): Starting @dynare $modfile_arg"
     arglist = []
     compilemodule = true
+    preprocessing = true
     for (i, a) in enumerate(args)
         if a == "nocompile"
             compilemodule = false
+        elseif a == "nopreprocessing"
+            preprocessing = false
         else
             push!(arglist, a)
         end
     end
-    options = CommandLineOptions(compilemodule)
-    modfilename = modname * ".mod"
-    dynare_preprocess(modfilename, arglist)
+    if preprocessing
+        modfilename = modname * ".mod"
+        dynare_preprocess(modfilename, arglist)
+    end
     @info "$(now()): End of preprocessing"
+    options = CommandLineOptions(compilemodule)
     context = parser(modname, options)
     return context
 end
