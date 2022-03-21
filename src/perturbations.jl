@@ -221,10 +221,25 @@ end
 """
 computes A_k = A *  A_{k-1}
 """
-function autocovariance(a::AbstractMatrix{T}, Sigma::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64) where T
-    copy!(work1, Sigma)
+function autocovariance(aa::Vector{AbstractMatrix{T}}, ao::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64) where T
+    copy!(work1, a0)
     for i in 1:order
         mul!(work2, a, work1)
+        copy!(aa[i], work2)
+        tmp = work1
+        work2 = work1
+        work1 = tmp
+    end
+end
+    
+                       
+function autocovariance(aa::Vector{AbstractVector{T}}, ao::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64) where T
+    copy!(work1, a0)
+    for i in 1:order
+        mul!(work2, a, work1)
+        for j = 1:size(a0, 1)
+            aa[j] .= work2[j, j]
+        end
         tmp = work1
         work2 = work1
         work1 = tmp
