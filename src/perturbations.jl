@@ -208,3 +208,27 @@ function compute_first_order_solution!(
     )
 end
 
+correlation!(c::AbstractMatrix{T}, v::AbstractMatrix{T}, sd::AbstractVector{T}) where T =
+    c .= transpose(sd) .\ v ./ sd
+
+function correlation(v::AbstractMatrix{T}) where T
+    assert issymmetric(v)
+    sd = sqrt.(diag(v))
+    c = similar(v)
+    correlation!(c, v, ws)
+end
+
+"""
+computes A_k = A *  A_{k-1}
+"""
+function autocovariance(a::AbstractMatrix{T}, Sigma::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64) where T
+    copy!(work1, Sigma)
+    for i in 1:order
+        mul!(work2, a, work1)
+        tmp = work1
+        work2 = work1
+        work1 = tmp
+    end
+end
+    
+                       
