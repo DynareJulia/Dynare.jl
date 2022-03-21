@@ -377,7 +377,7 @@ function set_deterministic_shocks!(x::Vector{Float64},
             i = symboltable[s["var"]].orderintype
             d1 = v["period1"]
             d2 = v["period2"]
-            val = parse(Float64, v["value"])
+            val = dynare_parse_eval(v["value"], context)
             set_exogenous(x, i, d1, d2, val, pmax)
         end
     end

@@ -258,6 +258,21 @@ function makeJacobian!(
     @debug "any(isnan.(initialvalues))=$(any(isnan.(initialvalues)))"
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
+    function make_one_period!(r::Int64, t::Int64, tid::Int64)
+        jacobian = get_dynamic_jacobian!(ws[tid], params, endogenous, exogenous, JA.steadystate, md, t)
+        i, j, v = findnz(sparse(jacobian))
+        oc = (t - 1)*nvar
+        @inbounds for el = 1:length(i)
+            if j[el] <= maxcol
+                kjel = jacobian_columns[j[el]]
+                I[r] = i[el] + oc
+                J[r] = kjel + oc - nvar
+                 V[r] = v[el]
+                r += 1
+            end
+        end
+        return r
+    end
     jacobian = get_initial_jacobian!(
         ws[1],
         params,
@@ -290,19 +305,7 @@ function makeJacobian!(
     for t = 2:(periods-1)
         #        tid = Threads.threadid()
         tid = 1
-        make_one_period!(
-            JA,
-            params,
-            endogenous,
-            exogenous,
-            periods,
-            md,
-            jacobian_columns,
-            nnz_period,
-            maxcol,
-            ws[tid],
-            t,
-        )
+        r = make_one_period!(r, t, tid)
     end
     jacobian = get_terminal_jacobian!(
         ws[1],
@@ -317,7 +320,6 @@ function makeJacobian!(
     i, j, v = findnz(sparse(jacobian))
     @debug "period $periods: isnan.(v) = $(findall(isnan.(v)))"
     oc = (periods - 1) * nvar
-    r = (periods - 1) * nnz_period + 1
     @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
@@ -367,6 +369,7 @@ function makeJacobian!(
     resize!(csrnzval, r - 1)
     n = periods * nvar
     #length(colptr) == n + 1 && colptr[end] - 1 == length(rowval) == length(nzval)
+
     A = SparseArrays.sparse!(
         I,
         J,

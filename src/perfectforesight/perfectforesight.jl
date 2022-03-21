@@ -223,12 +223,9 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     @debug "$(now()): end J!"
     df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
     @debug "$(now()): start nlsolve"
-    @show count(!iszero, residuals)
-    @show count(!iszero, A0)
-    @show length(A0\residuals)
+
     rr = copy(residuals)
     F = lu(A0)
-    @show norm(ldiv!(rr, F, residuals))
     res = nlsolve(df, vec(y0), method=:robust_trust_region, show_trace=true)
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
