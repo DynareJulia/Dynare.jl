@@ -1,12 +1,12 @@
 using Dynare
 
+include("test_initialization.jl")
+include("test_perturbations.jl")
+
 @dynare "models/example1/example1.mod"
 @dynare "models/example2/example2.mod"
 @dynare "models/example3/example3.mod"
 @dynare "models/example3report/example3report.mod"
 @dynare "models/example3ss/example3ss.mod"
-include("test_initialization.jl")
-
 @dynare "models/cgg/cgg_ramsey.mod"
-
 @dynare "models/stochastic_trend_drift/trend1.mod"

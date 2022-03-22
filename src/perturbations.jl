@@ -209,40 +209,48 @@ function compute_first_order_solution!(
 end
 
 correlation!(c::AbstractMatrix{T}, v::AbstractMatrix{T}, sd::AbstractVector{T}) where T =
-    c .= transpose(sd) .\ v ./ sd
+    c .= v ./ (sd .* transpose(sd))
+
 
 function correlation(v::AbstractMatrix{T}) where T
-    assert issymmetric(v)
+    @assert issymmetric(v)
     sd = sqrt.(diag(v))
     c = similar(v)
-    correlation!(c, v, ws)
+    correlation!(c, v, sd)
 end
 
 """
-computes A_k = A *  A_{k-1}
+autocovariance!(aa::Vector{<:AbstractMatrix{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64)
+
+returns a vector of autocovariance matrices E(y_t y_{t-i}') i = 1,...,i for an vector autoregressive process y_t = Ay_{t-1} + Be_t
 """
-function autocovariance(aa::Vector{AbstractMatrix{T}}, ao::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64) where T
-    copy!(work1, a0)
+function autocovariance!(aa::Vector{<:AbstractMatrix{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T}, order::Int64) where T <: Real
+    copy!(work1, v)
     for i in 1:order
         mul!(work2, a, work1)
         copy!(aa[i], work2)
         tmp = work1
-        work2 = work1
-        work1 = tmp
+        work1 = work2
+        work2 = tmp
     end
 end
     
+"""
+autocovariance!(aa::Vector{<:AbstractVector{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64)
+
+returns a vector of autocovariance vector with elements E(y_{j,t} y_{j,t-i}') j= 1,...,n and i = 1,...,i for an vector autoregressive process y_t = Ay_{t-1} + Be_t
+"""
                        
-function autocovariance(aa::Vector{AbstractVector{T}}, ao::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64) where T
-    copy!(work1, a0)
+function autocovariance!(aa::Vector{<:AbstractVector{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T}, order::Int64) where T <: Real
+    copy!(work1, v)
     for i in 1:order
         mul!(work2, a, work1)
-        for j = 1:size(a0, 1)
-            aa[j] .= work2[j, j]
+        @inbounds for j = 1:size(v, 1)
+            aa[i][j] = work2[j, j]
         end
         tmp = work1
-        work2 = work1
-        work1 = tmp
+        work1 = work2
+        work2 = tmp
     end
 end
     
