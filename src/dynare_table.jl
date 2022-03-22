@@ -42,8 +42,8 @@ end
 
 function dynare_table_latex(
     data::AbstractVecOrMat{Any},
-    title::String,
-    note::String;
+    title::String;
+    note::String = "",
     fmt = "%10.4f",
 )
     io = IOBuffer()
@@ -79,8 +79,8 @@ end
 
 function dynare_table(
     data::AbstractVecOrMat{Any},
-    title::String,
-    note::String;
+    title::String;
+    note::String = "",
     columnheader = true,
     fmt::String = "%10.4f",
     backend = Val(:text),
