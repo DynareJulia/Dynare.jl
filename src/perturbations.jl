@@ -1,9 +1,12 @@
 function display_stoch_simul(context::Context)
     m = context.models[1]
-    g1 = context.results.model_results[1].linearrationalexpectations.g1
-    title = "Coefficients of approximate solution function"
     endogenous_names = get_endogenous_longname(context.symboltable)
     exogenous_names = get_exogenous_longname(context.symboltable)
+    results = context.results.model_results[1]
+    
+    # Solution function
+    title = "Coefficients of approximate solution function"
+    g1 = results.linearrationalexpectations.g1
     data = Matrix{Any}(undef, m.n_states + m.exogenous_nbr + 1, m.endogenous_nbr + 1)
     data[1, 1] = ""
     # row headers
@@ -24,7 +27,31 @@ function display_stoch_simul(context::Context)
     #    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
     note = string("Note: ϕ(x) = x_{t-1} - steady_state(x)")
     println("\n")
-    dynare_table(data, title, note)
+    dynare_table(data, title, note = note)
+
+    # Moments
+    title = "APPROXIMATED THEORETICAL MOMENTS"
+    steadystate = results.trends.endogenous_steady_state
+    variance_matrix = results.endogenous_variance
+    variance = diag(variance_matrix)
+    std = sqrt.(variance)
+    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, 4)
+    data[1, 1] = "VARIABLE"
+    # row headers
+    for i = 1:m.original_endogenous_nbr
+        data[i+1, 1] = "$(endogenous_names[i])"
+    end
+    # column headers
+    data[1, 2] = "MEAN"
+    data[1, 3] = "STD. DEV."
+    data[1, 4] = "VARIANCE"
+    for i = 1:m.original_endogenous_nbr
+        data[i+1, 2] = steadystate[i]
+        data[i+1, 3] = std[i]
+        data[i+1, 4] = variance[i]
+    end
+    println("\n")
+    dynare_table(data, title)
 end
 
 function make_A_B!(
