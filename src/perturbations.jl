@@ -1,12 +1,53 @@
-function display_stoch_simul(context::Context)
+struct StochSimulOptions
+    display::Bool
+    dr_algo::String
+    first_period::Int64
+    irf::Int64
+    LRE_options::LinearRationalExpectationsOptions
+    nar::Int64      
+    order::Int64
+    periods::Int64
+    function StochSimulOptions(options::Dict{String,Any})
+        display = true
+        dr_algo = "GS"
+        first_period = 1
+        irf = 40
+        LRE_options = LinearRationalExpectationsOptions()
+        nar = 5
+        order = 1
+        periods = 0
+        print_results = true
+        for (k, v) in pairs(options)
+            if k == "noprint"
+                display = false
+            elseif k == "dr_cycle_reduction" && v::Bool
+                dr_algo = "CR"
+            elseif k == "first_period"
+                first_period = v::Int64
+            elseif k == "irf"
+                irf = v::Int64
+            elseif k == "nar"
+                nar = v::Int64
+            elseif k == "order"
+                order = v::Int64
+            elseif k == "periods"
+                periods = v::Int64
+            end
+        end
+        new(display, dr_algo, first_period, irf, LRE_options, nar, order, periods)
+    end
+end
+
+function display_stoch_simul(context::Context, options::StochSimulOptions)
     m = context.models[1]
     endogenous_names = get_endogenous_longname(context.symboltable)
     exogenous_names = get_exogenous_longname(context.symboltable)
     results = context.results.model_results[1]
+    LRE_results = results.linearrationalexpectations
     
-    # Solution function
+    ## Solution function
     title = "Coefficients of approximate solution function"
-    g1 = results.linearrationalexpectations.g1
+    g1 = LRE_results.g1
     data = Matrix{Any}(undef, m.n_states + m.exogenous_nbr + 1, m.endogenous_nbr + 1)
     data[1, 1] = ""
     # row headers
@@ -17,9 +58,12 @@ function display_stoch_simul(context::Context)
     for i = 1:m.exogenous_nbr
         data[i+offset, 1] = "$(exogenous_names[i])_t"
     end
+    # columns
     for j = 1:m.endogenous_nbr
+        # header
         data[1, j+1] = "$(endogenous_names[j])_t"
-        for i = 1:m.n_states+m.exogenous_nbr
+        # data
+        for i = 1:m.n_states + m.exogenous_nbr
             data[i+1, j+1] = g1[j, i]
         end
     end
@@ -29,10 +73,10 @@ function display_stoch_simul(context::Context)
     println("\n")
     dynare_table(data, title, note = note)
 
-    # Moments
-    title = "APPROXIMATED THEORETICAL MOMENTS"
+    ## Moments
+    title = "THEORETICAL MOMENTS"
     steadystate = results.trends.endogenous_steady_state
-    variance_matrix = results.endogenous_variance
+    variance_matrix = LRE_results.endogenous_variance
     variance = diag(variance_matrix)
     std = sqrt.(variance)
     data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, 4)
@@ -45,10 +89,79 @@ function display_stoch_simul(context::Context)
     data[1, 2] = "MEAN"
     data[1, 3] = "STD. DEV."
     data[1, 4] = "VARIANCE"
+    # data
     for i = 1:m.original_endogenous_nbr
         data[i+1, 2] = steadystate[i]
         data[i+1, 3] = std[i]
         data[i+1, 4] = variance[i]
+    end
+    println("\n")
+    dynare_table(data, title)
+
+    ## Variance decomposition
+    n = m.original_endogenous_nbr
+    VD = LRE_results.variance_decomposition
+    title = "VARIANCE DECOMPOSITION (in percent)"
+    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, m.exogenous_nbr + 1)
+    data[1, 1] = "VARIABLE"
+    # row headers
+    for i = 1:m.original_endogenous_nbr
+        data[i+1, 1] = "$(endogenous_names[i])"
+    end
+    # columns
+    for j = 1:m.exogenous_nbr
+        # header
+        data[1, j + 1] = "$(exogenous_names[j])"
+        # data
+        for i = 1: m.original_endogenous_nbr
+            data[i + 1, j + 1] = VD[i, j]
+        end
+    end
+    println("\n")
+    dynare_table(data, title)
+
+    ## Correlation
+    title = "CORRELATION MATRIX"
+    corr = correlation(LRE_results.endogenous_variance)
+    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, m.original_endogenous_nbr + 1)
+    data[1, 1] = ""
+    # row headers
+    for i = 1:m.original_endogenous_nbr
+        data[i+1, 1] = "$(endogenous_names[i])"
+    end
+    # columns
+    for j = 1:m.original_endogenous_nbr
+        # header
+        data[1, j + 1] = "$(endogenous_names[j])"
+        # data
+        for i = 1: m.original_endogenous_nbr
+            data[i + 1, j + 1] = corr[i, j]
+        end
+    end
+    println("\n")
+    dynare_table(data, title)
+    
+    ## Autocorrelation
+    title = "AUTOCORRELATION COEFFICIENTS"
+    ar = [zeros(m.endogenous_nbr) for i in 1:options.nar]
+    S1a = zeros(m.n_bkwrd + m.n_both, m.endogenous_nbr)
+    S1b = similar(S1a)
+    S2  = zeros(m.endogenous_nbr - m.n_bkwrd - m.n_both, m.endogenous_nbr)
+    ar = autocorrelation!(ar, LRE_results, S1a, S1b, S2, m.i_bkwrd_b)
+    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, options.nar + 1)
+    data[1, 1] = ""
+    # row headers
+    for i = 1:m.original_endogenous_nbr
+        data[i+1, 1] = "$(endogenous_names[i])"
+    end
+    # columns
+    for j = 1:options.nar
+        # header
+        data[1, j + 1] = j
+        # data
+        for i = 1:m.original_endogenous_nbr
+            data[i + 1, j + 1] = ar[j][i]
+        end
     end
     println("\n")
     dynare_table(data, title)
@@ -63,42 +176,6 @@ function make_A_B!(
     vA = view(A, :, model.i_bkwrd_b)
     vA .= results.linearrationalexpectations.g1_1
     B .= results.linearrationalexpectations.g1_2
-end
-
-struct StochSimulOptions
-    display::Bool
-    dr_algo::String
-    first_period::Int64
-    irf::Int64
-    LRE_options::LinearRationalExpectationsOptions
-    order::Int64
-    periods::Int64
-    function StochSimulOptions(options::Dict{String,Any})
-        display = true
-        dr_algo = "GS"
-        first_period = 1
-        irf = 40
-        LRE_options = LinearRationalExpectationsOptions()
-        order = 1
-        periods = 0
-        print_results = true
-        for (k, v) in pairs(options)
-            if k == "noprint"
-                display = false
-            elseif k == "dr_cycle_reduction" && v::Bool
-                dr_algo = "CR"
-            elseif k == "first_period"
-                first_period = v::Int64
-            elseif k == "irf"
-                irf = v::Int64
-            elseif k == "order"
-                order = v::Int64
-            elseif k == "periods"
-                periods = v::Int64
-            end
-        end
-        new(display, dr_algo, first_period, irf, LRE_options, order, periods)
-    end
 end
 
 function stoch_simul!(context::Context, field::Dict{String,Any})
@@ -117,10 +194,10 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
     work = context.work
     #check_parameters(work.params, context.symboltable)
     #check_endogenous(results.trends.endogenous_steady_state)
-    compute_stoch_simul!(context, ws, work.params, options)
+    compute_stoch_simul!(context, ws, work.params, options; variance_decomposition=true)
     if options.display
-        display_stoch_simul(context)
-    end
+        display_stoch_simul(context, options)
+    end  
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
@@ -162,7 +239,8 @@ function compute_stoch_simul!(
     context::Context,
     ws::DynamicWs,
     params::Vector{Float64},
-    options::StochSimulOptions,
+    options::StochSimulOptions;
+    variance_decomposition::Bool = false
 )
     model = context.models[1]
     results = context.results.model_results[1]
@@ -179,6 +257,7 @@ function compute_stoch_simul!(
         model,
         ws,
         options,
+        variance_decomposition
     )
 end
 
@@ -191,6 +270,7 @@ function compute_first_order_solution!(
     model::Model,
     ws::DynamicWs,
     options::StochSimulOptions,
+    variance_decomposition::Bool
 )
 
     # abbreviations
@@ -228,57 +308,19 @@ function compute_first_order_solution!(
         wsLRE,
     )
     compute_variance!(
-        results.endogenous_variance,
         LRE_results,
         model.Sigma_e,
         lre_variance_ws,
     )
-end
-
-correlation!(c::AbstractMatrix{T}, v::AbstractMatrix{T}, sd::AbstractVector{T}) where T =
-    c .= v ./ (sd .* transpose(sd))
-
-
-function correlation(v::AbstractMatrix{T}) where T
-    @assert issymmetric(v)
-    sd = sqrt.(diag(v))
-    c = similar(v)
-    correlation!(c, v, sd)
-end
-
-"""
-autocovariance!(aa::Vector{<:AbstractMatrix{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64)
-
-returns a vector of autocovariance matrices E(y_t y_{t-i}') i = 1,...,i for an vector autoregressive process y_t = Ay_{t-1} + Be_t
-"""
-function autocovariance!(aa::Vector{<:AbstractMatrix{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T}, order::Int64) where T <: Real
-    copy!(work1, v)
-    for i in 1:order
-        mul!(work2, a, work1)
-        copy!(aa[i], work2)
-        tmp = work1
-        work1 = work2
-        work2 = tmp
+    if variance_decomposition
+        variance_decomposition!(
+            LRE_results,
+            model.Sigma_e,
+            diag(LRE_results.endogenous_variance),
+            zeros(model.exogenous_nbr, model.exogenous_nbr),
+            zeros(model.endogenous_nbr, model.endogenous_nbr),
+            lre_variance_ws
+        )
     end
 end
-    
-"""
-autocovariance!(aa::Vector{<:AbstractVector{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T},order::Int64)
 
-returns a vector of autocovariance vector with elements E(y_{j,t} y_{j,t-i}') j= 1,...,n and i = 1,...,i for an vector autoregressive process y_t = Ay_{t-1} + Be_t
-"""
-                       
-function autocovariance!(aa::Vector{<:AbstractVector{T}}, a::AbstractMatrix{T}, v::AbstractMatrix{T}, work1::AbstractMatrix{T}, work2::AbstractMatrix{T}, order::Int64) where T <: Real
-    copy!(work1, v)
-    for i in 1:order
-        mul!(work2, a, work1)
-        @inbounds for j = 1:size(v, 1)
-            aa[i][j] = work2[j, j]
-        end
-        tmp = work1
-        work1 = work2
-        work2 = tmp
-    end
-end
-    
-                       
