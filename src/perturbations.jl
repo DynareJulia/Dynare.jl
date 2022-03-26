@@ -44,6 +44,7 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     exogenous_names = get_exogenous_longname(context.symboltable)
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
+    stationary_variables = LRE_results.stationary_variables
     
     ## Solution function
     title = "Coefficients of approximate solution function"
@@ -102,19 +103,28 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     n = m.original_endogenous_nbr
     VD = LRE_results.variance_decomposition
     title = "VARIANCE DECOMPOSITION (in percent)"
-    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, m.exogenous_nbr + 1)
+    stationary_nbr = count(stationary_variables[1:m.original_endogenous_nbr])
+    data = Matrix{Any}(undef, stationary_nbr + 1, m.exogenous_nbr + 1)
     data[1, 1] = "VARIABLE"
     # row headers
+    k = 2
     for i = 1:m.original_endogenous_nbr
-        data[i+1, 1] = "$(endogenous_names[i])"
+        if stationary_variables[i]
+            data[k, 1] = "$(endogenous_names[i])"
+            k += 1
+        end
     end
     # columns
     for j = 1:m.exogenous_nbr
         # header
         data[1, j + 1] = "$(exogenous_names[j])"
         # data
-        for i = 1: m.original_endogenous_nbr
-            data[i + 1, j + 1] = VD[i, j]
+        k = 1
+        for i = 1:m.original_endogenous_nbr
+            if stationary_variables[i]
+                data[k + 1, j + 1] = VD[i, j]
+                k += 1
+            end
         end
     end
     println("\n")
@@ -123,19 +133,31 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     ## Correlation
     title = "CORRELATION MATRIX"
     corr = correlation(LRE_results.endogenous_variance)
-    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, m.original_endogenous_nbr + 1)
+    data = Matrix{Any}(undef, stationary_nbr + 1, stationary_nbr + 1)
     data[1, 1] = ""
     # row headers
+    k = 2
     for i = 1:m.original_endogenous_nbr
-        data[i+1, 1] = "$(endogenous_names[i])"
+        if stationary_variables[i]
+            data[k, 1] = "$(endogenous_names[i])"
+            k += 1
+        end
     end
     # columns
+    k1 = 2
     for j = 1:m.original_endogenous_nbr
-        # header
-        data[1, j + 1] = "$(endogenous_names[j])"
-        # data
-        for i = 1: m.original_endogenous_nbr
-            data[i + 1, j + 1] = corr[i, j]
+        if stationary_variables[j] 
+            # header
+            data[1, k1] = "$(endogenous_names[j])"
+            # data
+            k2 = 2
+            for i = 1:m.original_endogenous_nbr
+                if stationary_variables[i]
+                    data[k2, k1] = corr[i, j]
+                    k2 += 1
+                end
+            end
+            k1 += 1
         end
     end
     println("\n")
@@ -147,20 +169,28 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     S1a = zeros(m.n_bkwrd + m.n_both, m.endogenous_nbr)
     S1b = similar(S1a)
     S2  = zeros(m.endogenous_nbr - m.n_bkwrd - m.n_both, m.endogenous_nbr)
-    ar = autocorrelation!(ar, LRE_results, S1a, S1b, S2, m.i_bkwrd_b)
-    data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, options.nar + 1)
+    ar = autocorrelation!(ar, LRE_results, S1a, S1b, S2, m.i_bkwrd_b, stationary_variables)
+    data = Matrix{Any}(undef, stationary_nbr + 1, options.nar + 1)
     data[1, 1] = ""
     # row headers
+    k=2
     for i = 1:m.original_endogenous_nbr
-        data[i+1, 1] = "$(endogenous_names[i])"
+        if stationary_variables[i]
+            data[k, 1] = "$(endogenous_names[i])"
+            k += 1
+        end
     end
     # columns
     for j = 1:options.nar
         # header
         data[1, j + 1] = j
         # data
+        k = 1
         for i = 1:m.original_endogenous_nbr
-            data[i + 1, j + 1] = ar[j][i]
+            if stationary_variables[i]
+                data[k + 1, j + 1] = ar[j][i]
+                k += 1
+            end
         end
     end
     println("\n")
