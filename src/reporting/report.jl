@@ -23,7 +23,7 @@ struct Table
     function Table(data, title, column_header, row_header, note)
         data = vcat(hcat("", column_header), hcat(row_header, data))
         string =
-            dynare_table(data, title, note, backend = :latex)
+            dynare_table(data, title, note = note, backend = :latex)
         new(string)
     end
 end

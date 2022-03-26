@@ -112,7 +112,7 @@ function steadystate_display(context::Context)
         data[i, 2] = steady_state[i]
     end
     title = "Steady state"
-    dynare_table(data, title, "", columnheader = false)
+    dynare_table(data, title, columnheader = false)
 end
 
 """

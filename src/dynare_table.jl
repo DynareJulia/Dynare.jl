@@ -2,8 +2,8 @@ using PrettyTables
 
 function dynare_table_text(
     data::AbstractVecOrMat{Any},
-    title::String,
-    note::String;
+    title::String;
+    note::String = "",
     columnheader::Bool = true,
     fmt::String = "%10.4f"
 )
@@ -86,8 +86,8 @@ function dynare_table(
     backend = Val(:text),
 )
     if backend == Val(:text)
-        dynare_table_text(data, title, note, columnheader = columnheader, fmt = fmt)
+        dynare_table_text(data, title, note = note, columnheader = columnheader, fmt = fmt)
     else
-        dynare_table_latex(data, title, note, fmt = fmt)
+        dynare_table_latex(data, title, note = note, fmt = fmt)
     end
 end
