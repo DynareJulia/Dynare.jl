@@ -134,7 +134,6 @@ function make_containers(
     modelresults = ModelResults(
         Vector{Float64}(undef, endo_nbr),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
-        Matrix{Float64}(undef, endo_nbr, endo_nbr),
         Vector{Bool}(undef, endo_nbr),
         Vector{Float64}(undef, exo_nbr),
         Vector{Float64}(undef, exo_det_nbr),

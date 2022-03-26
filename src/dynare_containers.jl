@@ -735,7 +735,6 @@ Base.show(io::IO, t::Trends) = show_field_value(t)
 struct ModelResults
     endogenous_steady_state::Vector{Float64}
     trends::Trends
-    endogenous_variance::Matrix{Float64}
     stationary_variables::Vector{Bool}
     exogenous_steady_state::Vector{Float64}
     exogenous_deterministic_steady_state::Vector{Float64}

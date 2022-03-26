@@ -82,7 +82,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     P = zeros(ns, ns, nobs + 1)
     Ptt = zeros(ns, ns, nobs + 1)
     vv = view(
-        context.results.model_results[1].endogenous_variance,
+        context.results.model_results[1].linearrationalexpectations.endogenous_variance,
         kalman_statevar_ids,
         kalman_statevar_ids,
     )

@@ -1,7 +1,6 @@
 using Dynare
 
 include("test_initialization.jl")
-include("test_perturbations.jl")
 
 @dynare "models/example1/example1.mod"
 @dynare "models/example2/example2.mod"
