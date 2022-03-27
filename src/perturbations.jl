@@ -1,3 +1,5 @@
+using Plots
+
 struct StochSimulOptions
     display::Bool
     dr_algo::String
@@ -294,7 +296,14 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
     compute_stoch_simul!(context, ws, work.params, options; variance_decomposition=true)
     if options.display
         display_stoch_simul(context, options)
-    end  
+    end
+    if options.irf > 0
+        n = model.endogenous_nbr
+        m = model.exogenous_nbr
+        append!(results.irfs, [Matrix{Float64}(undef, options.irf + 1, n) for j in 1:m])  
+        irfs(results.irfs, options.irf, model, results)
+        plot_irfs(results.irfs, model, context.symboltable)
+    end
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
@@ -411,9 +420,10 @@ function compute_first_order_solution!(
     )
 end
 
-function irfs(y, x, steadystate, A, B, periods, model)
-    C = cholesky(model.Sigma_e)
-    x = Matrix{Float64}(periods + 1, model.exogenous_nbr)
+
+function irfs(y, periods, model, results)
+    C = cholesky(model.Sigma_e + 1e-14*I)
+    x = Matrix{Float64}(undef, periods + 1, model.exogenous_nbr)
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
     B = zeros(model.endogenous_nbr, model.exogenous_nbr)
     make_A_B!(A, B, model, results)
@@ -425,18 +435,19 @@ function irfs(y, x, steadystate, A, B, periods, model)
     end
 end
 
-function plot_irfs(y, model, symboltable)
+function plot_irfs(y, model, symboltable; layout = (3, 2))
     x = 1:size(y[1], 1)
     endogenous_names = [n for n in get_endogenous_longname(symboltable)]
     exogenous_names = [n for n in get_exogenous_longname(symboltable)]
     for i = 1:model.exogenous_nbr
+        
         if i == 1
-            plot(x, y[i], layout = layout,
+            display(Plots.plot(x, y[i], layout = layout,
                  title = "Orthogonal shock to $(exogenous_names[i])",
-                 label = [endogenous_names[i]])
+                 label = [endogenous_names[i]]))
         else
-            plot(x, y[i], layout = layout,
-                 label = [endogenous_names[i]])
+            display(Plots.plot(x, y[i], layout = layout,
+                 label = [endogenous_names[i]]))
         end
     end
 end
