@@ -38,17 +38,41 @@ struct StochSimulOptions
     end
 end
 
-function display_stoch_simul(context::Context, options::StochSimulOptions)
+function display_stoch_simul(context::Context,
+                             options::StochSimulOptions)
     m = context.models[1]
     endogenous_names = get_endogenous_longname(context.symboltable)
     exogenous_names = get_exogenous_longname(context.symboltable)
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
     stationary_variables = LRE_results.stationary_variables
-    
-    ## Solution function
+    display_solution_function(LRE_results.g1,
+                              endogenous_names,
+                              exogenous_names,
+                              m)
+    display_mean_sd_variance(results.trends.endogenous_steady_state,
+                             diag(LRE_results.endogenous_variance),
+                             endogenous_names,
+                             m)
+    display_variance_decomposition(LRE_results,
+                                   endogenous_names,
+                                   exogenous_names,
+                                   m,
+                                   options)
+    display_correlation(LRE_results,
+                        endogenous_names,
+                        m)
+    display_autocorrelation(LRE_results,
+                            endogenous_names,
+                            m,
+                            options)
+end
+
+function display_solution_function(g1::AbstractMatrix{Float64},
+                                   endogenous_names::AbstractVector{String},
+                                   exogenous_names::AbstractVector{String},
+                                   m::Model)
     title = "Coefficients of approximate solution function"
-    g1 = LRE_results.g1
     data = Matrix{Any}(undef, m.n_states + m.exogenous_nbr + 1, m.endogenous_nbr + 1)
     data[1, 1] = ""
     # row headers
@@ -73,12 +97,14 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     note = string("Note: ϕ(x) = x_{t-1} - steady_state(x)")
     println("\n")
     dynare_table(data, title, note = note)
+end
 
-    ## Moments
+
+function display_mean_sd_variance(steadystate::AbstractVector{Float64},
+                                  variance::AbstractVector{Float64},
+                                  endogenous_names::AbstractVector{String},
+                                  m::Model)
     title = "THEORETICAL MOMENTS"
-    steadystate = results.trends.endogenous_steady_state
-    variance_matrix = LRE_results.endogenous_variance
-    variance = diag(variance_matrix)
     std = sqrt.(variance)
     data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, 4)
     data[1, 1] = "VARIABLE"
@@ -98,29 +124,52 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     end
     println("\n")
     dynare_table(data, title)
-
-    ## Variance decomposition
-    n = m.original_endogenous_nbr
-    VD = LRE_results.variance_decomposition
+end
+                                  
+function display_variance_decomposition(LREresults::LinearRationalExpectationsResults,
+                                        endogenous_names::AbstractVector{String},
+                                        exogenous_names::AbstractVector{String},
+                                        model::Model,
+                                        options::StochSimulOptions)
+    n = model.original_endogenous_nbr
+    LREws = LinearRationalExpectations.LinearRationalExpectationsWs(
+        options.dr_algo,
+        model.endogenous_nbr,
+        model.exogenous_nbr,
+        model.exogenous_deterministic_nbr,
+        model.i_fwrd_b,
+        model.i_current,
+        model.i_bkwrd_b,
+        model.i_both,
+        model.i_static,
+    )
+    VD = variance_decomposition(LREresults,
+                                LREws,
+                                model.Sigma_e,
+                                model.endogenous_nbr,
+                                model.exogenous_nbr,
+                                model.n_bkwrd + model.n_both
+                                )
     title = "VARIANCE DECOMPOSITION (in percent)"
-    stationary_nbr = count(stationary_variables[1:m.original_endogenous_nbr])
-    data = Matrix{Any}(undef, stationary_nbr + 1, m.exogenous_nbr + 1)
+    stationary_variables = LREresults.stationary_variables
+    stationary_nbr = count(stationary_variables[1:model.original_endogenous_nbr])
+    data = Matrix{Any}(undef, stationary_nbr + 1, model.exogenous_nbr + 1)
     data[1, 1] = "VARIABLE"
     # row headers
     k = 2
-    for i = 1:m.original_endogenous_nbr
+    for i = 1:model.original_endogenous_nbr
         if stationary_variables[i]
             data[k, 1] = "$(endogenous_names[i])"
             k += 1
         end
     end
     # columns
-    for j = 1:m.exogenous_nbr
+    for j = 1:model.exogenous_nbr
         # header
         data[1, j + 1] = "$(exogenous_names[j])"
         # data
         k = 1
-        for i = 1:m.original_endogenous_nbr
+        for i = 1:model.original_endogenous_nbr
             if stationary_variables[i]
                 data[k + 1, j + 1] = VD[i, j]
                 k += 1
@@ -129,15 +178,24 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     end
     println("\n")
     dynare_table(data, title)
+end
 
-    ## Correlation
+function display_correlation(
+    LREresults::LinearRationalExpectationsResults,
+    endogenous_names::Vector{String},
+    model::Model
+)
     title = "CORRELATION MATRIX"
-    corr = correlation(LRE_results.endogenous_variance)
+    corr = correlation(LREresults.endogenous_variance,
+                       )
+    n = model.original_endogenous_nbr
+    stationary_variables = LREresults.stationary_variables
+    stationary_nbr = count(stationary_variables[1:n])
     data = Matrix{Any}(undef, stationary_nbr + 1, stationary_nbr + 1)
     data[1, 1] = ""
     # row headers
     k = 2
-    for i = 1:m.original_endogenous_nbr
+    for i = 1:n
         if stationary_variables[i]
             data[k, 1] = "$(endogenous_names[i])"
             k += 1
@@ -145,13 +203,13 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     end
     # columns
     k1 = 2
-    for j = 1:m.original_endogenous_nbr
+    for j = 1:n
         if stationary_variables[j] 
             # header
             data[1, k1] = "$(endogenous_names[j])"
             # data
             k2 = 2
-            for i = 1:m.original_endogenous_nbr
+            for i = 1:n
                 if stationary_variables[i]
                     data[k2, k1] = corr[i, j]
                     k2 += 1
@@ -162,19 +220,28 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     end
     println("\n")
     dynare_table(data, title)
-    
-    ## Autocorrelation
+end
+
+function display_autocorrelation(
+    LREresults::LinearRationalExpectationsResults,
+    endogenous_names::AbstractVector{String},
+    model::Model,
+    options::StochSimulOptions
+)
     title = "AUTOCORRELATION COEFFICIENTS"
-    ar = [zeros(m.endogenous_nbr) for i in 1:options.nar]
-    S1a = zeros(m.n_bkwrd + m.n_both, m.endogenous_nbr)
+    ar = [zeros(model.endogenous_nbr) for i in 1:options.nar]
+    S1a = zeros(model.n_bkwrd + model.n_both, model.endogenous_nbr)
     S1b = similar(S1a)
-    S2  = zeros(m.endogenous_nbr - m.n_bkwrd - m.n_both, m.endogenous_nbr)
-    ar = autocorrelation!(ar, LRE_results, S1a, S1b, S2, m.i_bkwrd_b, stationary_variables)
+    S2  = zeros(model.endogenous_nbr - model.n_bkwrd - model.n_both, model.endogenous_nbr)
+    stationary_variables = LREresults.stationary_variables
+    n = model.original_endogenous_nbr
+    stationary_nbr = count(stationary_variables[1:n])
+    ar = autocorrelation!(ar, LREresults, S1a, S1b, S2, model.i_bkwrd_b, stationary_variables)
     data = Matrix{Any}(undef, stationary_nbr + 1, options.nar + 1)
     data[1, 1] = ""
     # row headers
     k=2
-    for i = 1:m.original_endogenous_nbr
+    for i = 1:n
         if stationary_variables[i]
             data[k, 1] = "$(endogenous_names[i])"
             k += 1
@@ -186,7 +253,7 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
         data[1, j + 1] = j
         # data
         k = 1
-        for i = 1:m.original_endogenous_nbr
+        for i = 1:n
             if stationary_variables[i]
                 data[k + 1, j + 1] = ar[j][i]
                 k += 1
@@ -342,15 +409,34 @@ function compute_first_order_solution!(
         model.Sigma_e,
         lre_variance_ws,
     )
-    if variance_decomposition
-        variance_decomposition!(
-            LRE_results,
-            model.Sigma_e,
-            diag(LRE_results.endogenous_variance),
-            zeros(model.exogenous_nbr, model.exogenous_nbr),
-            zeros(model.endogenous_nbr, model.endogenous_nbr),
-            lre_variance_ws
-        )
+end
+
+function irfs(y, x, steadystate, A, B, periods, model)
+    C = cholesky(model.Sigma_e)
+    x = Matrix{Float64}(periods + 1, model.exogenous_nbr)
+    A = zeros(model.endogenous_nbr, model.endogenous_nbr)
+    B = zeros(model.endogenous_nbr, model.exogenous_nbr)
+    make_A_B!(A, B, model, results)
+    y0  = zeros(model.endogenous_nbr) 
+    steadystate  = zeros(model.endogenous_nbr) 
+    for i = 1:model.exogenous_nbr
+        x[2, i] = sqrt(model.Sigma_e[i,i])
+        simul_first_order!(y[i], y0, x, steadystate, A, B, periods)
     end
 end
 
+function plot_irfs(y, model, symboltable)
+    x = 1:size(y[1], 1)
+    endogenous_names = [n for n in get_endogenous_longname(symboltable)]
+    exogenous_names = [n for n in get_exogenous_longname(symboltable)]
+    for i = 1:model.exogenous_nbr
+        if i == 1
+            plot(x, y[i], layout = layout,
+                 title = "Orthogonal shock to $(exogenous_names[i])",
+                 label = [endogenous_names[i]])
+        else
+            plot(x, y[i], layout = layout,
+                 label = [endogenous_names[i]])
+        end
+    end
+end
