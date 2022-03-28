@@ -1,5 +1,3 @@
-using Plots
-
 struct StochSimulOptions
     display::Bool
     dr_algo::String
@@ -298,11 +296,14 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         display_stoch_simul(context, options)
     end
     if options.irf > 0
+        exogenous_names = get_exogenous_longname(context.symboltable)
         n = model.endogenous_nbr
         m = model.exogenous_nbr
-        append!(results.irfs, [Matrix{Float64}(undef, options.irf + 1, n) for j in 1:m])  
-        irfs(results.irfs, options.irf, model, results)
-        plot_irfs(results.irfs, model, context.symboltable)
+        y = Vector{Matrix{Float64}}(undef, 0)
+        irfs(y, options.irf, model, results)
+        filename = "irfs_"
+        plot_irfs(y, model, context.symboltable, filename)
+        append!(results.irfs, y)
     end
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
@@ -423,31 +424,18 @@ end
 
 function irfs(y, periods, model, results)
     C = cholesky(model.Sigma_e + 1e-14*I)
-    x = Matrix{Float64}(undef, periods + 1, model.exogenous_nbr)
+    x = Vector{Float64}(undef, model.exogenous_nbr)
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
     B = zeros(model.endogenous_nbr, model.exogenous_nbr)
     make_A_B!(A, B, model, results)
-    y0  = zeros(model.endogenous_nbr) 
-    steadystate  = zeros(model.endogenous_nbr) 
     for i = 1:model.exogenous_nbr
-        x[2, i] = sqrt(model.Sigma_e[i,i])
-        simul_first_order!(y[i], y0, x, steadystate, A, B, periods)
+        x[i] = sqrt(model.Sigma_e[i,i])
+        yy = Matrix{Float64}(undef, size(A, 1), periods)
+        mul!(yy[:, 1], B, x)
+        for j = 2:periods
+            mul!(yy[:, j], A, yy[:, j - 1])
+        end
+        push!(y, yy)
     end
 end
 
-function plot_irfs(y, model, symboltable; layout = (3, 2))
-    x = 1:size(y[1], 1)
-    endogenous_names = [n for n in get_endogenous_longname(symboltable)]
-    exogenous_names = [n for n in get_exogenous_longname(symboltable)]
-    for i = 1:model.exogenous_nbr
-        
-        if i == 1
-            display(Plots.plot(x, y[i], layout = layout,
-                 title = "Orthogonal shock to $(exogenous_names[i])",
-                 label = [endogenous_names[i]]))
-        else
-            display(Plots.plot(x, y[i], layout = layout,
-                 label = [endogenous_names[i]]))
-        end
-    end
-end
