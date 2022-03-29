@@ -301,7 +301,9 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         m = model.exogenous_nbr
         y = Vector{Matrix{Float64}}(undef, 0)
         irfs(y, options.irf, model, results)
-        filename = "irfs_"
+        path = "$(context.modfileinfo.modfilepath)/graphs/"
+        mkpath(path)
+        filename = "$(path)/irfs"
         plot_irfs(y, model, context.symboltable, filename)
         append!(results.irfs, y)
     end
@@ -424,16 +426,17 @@ end
 
 function irfs(y, periods, model, results)
     C = cholesky(model.Sigma_e + 1e-14*I)
-    x = Vector{Float64}(undef, model.exogenous_nbr)
+    x = zeros(model.exogenous_nbr)
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
     B = zeros(model.endogenous_nbr, model.exogenous_nbr)
     make_A_B!(A, B, model, results)
     for i = 1:model.exogenous_nbr
+        fill!(x, 0)
         x[i] = sqrt(model.Sigma_e[i,i])
         yy = Matrix{Float64}(undef, size(A, 1), periods)
-        mul!(yy[:, 1], B, x)
+        mul!(view(yy,:, 1), B, x)
         for j = 2:periods
-            mul!(yy[:, j], A, yy[:, j - 1])
+            mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
         push!(y, yy)
     end
