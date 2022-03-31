@@ -9,3 +9,4 @@ include("test_initialization.jl")
 @dynare "models/example3ss/example3ss.mod"
 @dynare "models/cgg/cgg_ramsey.mod"
 @dynare "models/stochastic_trend_drift/trend1.mod"
+@dynare "models/example1pf/example1pf"
