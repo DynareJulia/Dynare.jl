@@ -103,8 +103,9 @@ function perfect_foresight_solver!(context, field)
     periods = context.work.perfect_foresight_setup["periods"]
     datafile = context.work.perfect_foresight_setup["datafile"]
     m = context.models[1]
+    df = context.dynarefunctions
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    tmp_nbr = m.dynamic!.tmp_nbr::Vector{Int64}
+    tmp_nbr = df.dynamic!.tmp_nbr::Vector{Int64}
     dynamic_ws = DynamicWs(m.endogenous_nbr, m.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
@@ -164,6 +165,7 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
                                 y0::Matrix{Float64},
                                 dynamic_ws::DynamicWs)
     m = context.models[1]
+    ddf = context.dynarefunctions
     results = context.results.model_results[1]
     work = context.work
     residuals = zeros(periods*m.endogenous_nbr)
@@ -186,16 +188,17 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     function f!(residuals, y)
         @debug "$(now()): start f!"
         get_residuals!(residuals,
-                           vec(y),
-                           initialvalues,
-                           terminalvalues,
-                           exogenous,
-                           dynamic_variables,
-                           steadystate,
-                           params,
-                           m,
-                           periods,
-                           temp_vec,
+                       vec(y),
+                       initialvalues,
+                       terminalvalues,
+                       exogenous,
+                       dynamic_variables,
+                       steadystate,
+                       params,
+                       m,
+                       ddf,
+                       periods,
+                       temp_vec,
                        )
         @debug "$(now()): end f!"
     end
@@ -245,11 +248,10 @@ function get_residuals!(
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     m::Model,
+    df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64},
 )
-    lli = m.lead_lag_incidence
-    dynamic! = m.dynamic!.dynamic!
     n = m.endogenous_nbr
 
     get_residuals_1!(
@@ -261,6 +263,7 @@ function get_residuals!(
         steadystate,
         params,
         m,
+        df,
         periods,
         temp_vec,
     )
@@ -275,6 +278,7 @@ function get_residuals!(
             steadystate,
             params,
             m,
+            df,
             periods,
             temp_vec,
             t,
@@ -293,6 +297,7 @@ function get_residuals!(
         steadystate,
         params,
         m,
+        df,
         periods,
         temp_vec,
         periods,
@@ -311,11 +316,12 @@ function get_residuals_1!(
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     m::Model,
+    df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64},
 )
     lli = m.lead_lag_incidence
-    dynamic! = m.dynamic!.dynamic!
+    dynamic! = df.dynamic!.dynamic!
     n = m.endogenous_nbr
 
     get_initial_dynamic_endogenous_variables!(
@@ -346,6 +352,7 @@ function get_residuals_2!(
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     m::Model,
+    df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64},
     t::Int64,
@@ -353,7 +360,7 @@ function get_residuals_2!(
     t2::Int64,
 )
     lli = m.lead_lag_incidence
-    dynamic! = m.dynamic!.dynamic!
+    dynamic! = df.dynamic!.dynamic!
 
     get_dynamic_endogenous_variables!(dynamic_variables, endogenous, lli, t)
     vr = view(residuals, t1:t2)
@@ -378,6 +385,7 @@ function get_residuals_3!(
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     m::Model,
+    df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64},
     t::Int64,
@@ -385,7 +393,7 @@ function get_residuals_3!(
     t2::Int64,
 )
     lli = m.lead_lag_incidence
-    dynamic! = m.dynamic!.dynamic!
+    dynamic! = df.dynamic!.dynamic!
 
     get_terminal_dynamic_endogenous_variables!(
         dynamic_variables,

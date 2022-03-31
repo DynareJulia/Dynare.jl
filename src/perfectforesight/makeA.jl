@@ -241,6 +241,7 @@ function makeJacobian!(
     csrrowptr = JA.ss.csrrowptr
     csccolptr = JA.ss.csccolptr
     md = context.models[1]
+    df = context.dynarefunctions
     steadystate = JA.steadystate
     maxcol = JA.maxcol
     nvar = md.endogenous_nbr
@@ -259,7 +260,7 @@ function makeJacobian!(
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
     function make_one_period!(r::Int64, t::Int64, tid::Int64)
-        jacobian = get_dynamic_jacobian!(ws[tid], params, endogenous, exogenous, JA.steadystate, md, t)
+        jacobian = get_dynamic_jacobian!(ws[tid], params, endogenous, exogenous, JA.steadystate, md, df, t)
         i, j, v = findnz(sparse(jacobian))
         oc = (t - 1)*nvar
         @inbounds for el = 1:length(i)
@@ -281,6 +282,7 @@ function makeJacobian!(
         exogenous,
         steadystate,
         md,
+        df,
         2,
     )
     r = 1
@@ -315,6 +317,7 @@ function makeJacobian!(
         exogenous,
         steadystate,
         md,
+        df,
         periods,
     )
     i, j, v = findnz(sparse(jacobian))
