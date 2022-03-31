@@ -30,8 +30,18 @@ The results are in the ``context`` structure.
 1. ramsey\_model
 1. shocks
 1. steady
-1. stoch_simul (only order=1, no moments)
+1. stoch_simul (only order=1)
 
+## Output
+1. The ``context`` structure is saved in the directory
+   ``<path to modfile>/<modfilenane>/output/<modfilename>.jld2``. It can be loaded with
+   ```
+   using JLD2
+   DD = load("<path to modfile>/<modefilename>/output/<modefilename>.jld2")``
+   ```
+1. The IRF graphs are saved in ``<path to
+   modfile>/<modfilenane>/graphs``
+   
 ## Project web site
 
 - https://www.dynare.org

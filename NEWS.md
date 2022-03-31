@@ -1,3 +1,10 @@
+0.3.0
+=====
+- adding moments and IRFs to stoch_simul
+- open automatically image viewer in ``graphs`` directory upon exit
+- save ``context`` in a JLD2 file in the ``output`` directory
+- fix bug in ``perfect_foresight``
+
 0.2.1
 =====
 - fixing bug linked to the use of StatsFuns in Dynare generated functions
