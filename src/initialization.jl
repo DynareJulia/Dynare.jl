@@ -173,6 +173,7 @@ end
 
 function initval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
+    d= context.dynarefunctions
     work = context.work
     options = field["options"]
     symboltable = context.symboltable
@@ -191,7 +192,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
         required_lags = 1
     else
         required_lags = m.orig_maximum_lag
-        m.set_dynamic_auxiliary_variables!(tdf, work.params)
+        mf.set_dynamic_auxiliary_variables!(tdf, work.params)
     end
 
     # check options consistency
@@ -273,6 +274,7 @@ end
 function initval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
+    df = context.dynarefunctions
     work = context.work
     initval_endogenous = zeros(m.endogenous_nbr)
     initval_exogenous = zeros(m.exogenous_nbr)
@@ -298,7 +300,7 @@ function initval!(context::Context, field::Dict{String,Any})
         end
     end
     params = context.work.params
-    m.set_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
+    df.set_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
@@ -414,7 +416,7 @@ function load_steadystate!(context::Context, filename::String)
     endogenous = context.results.model_results[1].trends.endogenous_steady_state
     exogenous = context.results.model_results[1].trends.exogenous_steady_state
     exogenous_det = context.results.model_results[1].trends.exogenous_det_steady_state
-    m = context.models[1]
+    m = context.dynarefunctions
     parameters = context.work.params
     symboltable = context.symboltable
     open(filename) do io
@@ -435,5 +437,5 @@ function load_steadystate!(context::Context, filename::String)
             end
         end
     end
-    m.set_auxiliary_variables!(endogenous, exogenous, parameters)
+    df.set_auxiliary_variables!(endogenous, exogenous, parameters)
 end

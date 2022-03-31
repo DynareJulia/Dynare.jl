@@ -33,8 +33,9 @@ end
 
 function DynamicWs(context::Context)
     m = context.models[1]
+    df = context.dynarefunctions
     dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    tmp_nbr = sum(m.dynamic!.tmp_nbr[1:2])
+    tmp_nbr = sum(df.dynamic!.tmp_nbr[1:2])
     return DynamicWs(m.endogenous_nbr, m.exogenous_nbr, dynamic_nbr, tmp_nbr)
 end
 
@@ -53,7 +54,8 @@ end
 
 function StaticWs(context::Context)
     m = context.models[1]
-    tmp_nbr = sum(m.static!.tmp_nbr[1:2])
+    df = context.dynarefunctions
+    tmp_nbr = sum(df.static!.tmp_nbr[1:2])
     return StaticWs(m.endogenous_nbr, tmp_nbr)
 end
 
@@ -262,11 +264,12 @@ function get_dynamic_residuals!(
     exogenous::AbstractVector{Float64},
     steadystate::Vector{Float64},
     m::Model,
+    df::DynareFunctions,
     period::Int64,
 )
     x = get_dynamic_variables!(ws, endegenous, exogenous, m, period)
     Base.invokelatest(
-        m.dynamic!.dynamic!,
+        df.dynamic!.dynamic!,
         ws.temporary_values,
         ws.residuals,
         ws.dynamic_variables,
@@ -283,10 +286,10 @@ function get_static_residuals!(
     params::Vector{Float64},
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
-    m::Model,
+    df::DynareFunctions
 )
     Base.invokelatest(
-        m.static!.static!,
+        df.static!.static!,
         ws.temporary_values,
         ws.residuals,
         endogenous,
@@ -324,12 +327,13 @@ function get_dynamic_jacobian!(
     exogenous::AbstractVector{Float64},
     steadystate::Vector{Float64},
     m::Model,
+    df::DynareFunctions,
     period::Int64,
 )
     x = get_dynamic_variables!(ws, endogenous, exogenous, m, period)
     jacobian = dynamic_jacobian_matrix(ws, m)
     Base.invokelatest(
-        m.dynamic!.dynamic!,
+        df.dynamic!.dynamic!,
         ws.temporary_values,
         ws.residuals,
         jacobian,
@@ -350,6 +354,7 @@ function get_initial_jacobian!(
     exogenous::AbstractMatrix{Float64},
     steadystate::Vector{Float64},
     m::Model,
+    df::DynareFunctions,
     period::Int64,
 )
     lli = m.lead_lag_incidence
@@ -363,7 +368,7 @@ function get_initial_jacobian!(
     jacobian = dynamic_jacobian_matrix(ws, m)
     fill!(jacobian, 0.0)
     Base.invokelatest(
-        m.dynamic!.dynamic!,
+        df.dynamic!.dynamic!,
         ws.temporary_values,
         ws.residuals,
         jacobian,
@@ -384,6 +389,7 @@ function get_terminal_jacobian!(
     exogenous::AbstractMatrix{Float64},
     steadystate::Vector{Float64},
     m::Model,
+    df::DynareFunctions,
     period::Int64,
 )
     lli = m.lead_lag_incidence
@@ -396,7 +402,7 @@ function get_terminal_jacobian!(
     )
     jacobian = dynamic_jacobian_matrix(ws, m)
     Base.invokelatest(
-        m.dynamic!.dynamic!,
+        df.dynamic!.dynamic!,
         ws.temporary_values,
         ws.residuals,
         jacobian,
@@ -417,6 +423,7 @@ end
                         exogenous::Matrix{Float64},
                         steadystate::Vector{Float64},
                         m::Model,
+                        df::DynareFunctions,
                         period::Int64
                        )
 
@@ -430,6 +437,7 @@ function get_dynamic_jacobian!(
     exogenous::Matrix{Float64},
     steadystate::Vector{Float64},
     m::Model,
+    df::DynareFunctions,
     period::Int64,
 )
     lli = m.lead_lag_incidence
@@ -440,7 +448,7 @@ function get_dynamic_jacobian!(
     x = exogenous
     it_ = period
     Base.invokelatest(
-        m.dynamic!.dynamic!,
+        df.dynamic!.dynamic!,
         ws.temporary_values,
         ws.residuals,
         jacobian,
@@ -465,11 +473,12 @@ function get_static_jacobian!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     m::Model,
+    df::DynareFunctions
 )
     @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
     jacobian = static_jacobian_matrix(ws, m.endogenous_nbr)
     Base.invokelatest(
-        context.models[1].static!.static!,
+        df.static!.static!,
         ws.temporary_values,
         ws.residuals,
         jacobian,

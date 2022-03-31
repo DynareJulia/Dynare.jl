@@ -3,6 +3,7 @@ using DataFrames
 #using .DynareContainers
 using ExtendedDates
 using FastLapackInterface
+using JLD2
 using JSON
 using KalmanFilterTools
 using LinearRationalExpectations
@@ -122,6 +123,7 @@ end
 
 function make_containers(
     modelfileinfo::ModFileInfo,
+    modfilename::String,
     endo_nbr::Int64,
     exo_nbr::Int64,
     exo_det_nbr::Int64,
@@ -129,6 +131,7 @@ function make_containers(
     model::Model,
     symboltable::SymbolTable,
     varobs::Vector{String},
+    commandlineoption
 )
     work = Work(model, varobs)
     modelresults = ModelResults(
@@ -143,8 +146,12 @@ function make_containers(
         Dict{String,Matrix{Float64}}(),
     )
     results = Results([modelresults])
-
-    return Context(symboltable, [model], modelfileinfo, results, work)
+    dynarefunctions = DynareFunctions(commandlineoption.compilemodule,
+                                      modelfileinfo,
+                                      modfilename,
+                                      model.orig_maximum_lag,
+                                      model.orig_maximum_lead)
+    return Context(symboltable, [model], dynarefunctions, modelfileinfo, results, work)
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
@@ -174,6 +181,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     @debug "$(now()): make_container" 
     global context = make_containers(
         modfileinfo,
+        modfilename,
         endo_nbr,
         exo_nbr,
         exo_det_nbr,
@@ -181,6 +189,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         model,
         symboltable,
         varobs,
+        commandlineoptions
     )
 
     if haskey(modeljson, "statements")
@@ -258,6 +267,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
             error("""Unrecognized statement $(statementname)""")
         end
     end
+    last_steps(context)
     @info "$(now()): End $(nameof(var"#self#"))"
 end
 
@@ -385,3 +395,51 @@ function get_smoothed_values(variable_name::String; context::Context = context)
     k = context.symboltable[variable_name].orderintype
     return context.results.model_results[1].smoother["alphah"][k, :]
 end
+
+function display_graphs(filepath::String)
+    graphs = joinpath(filepath, "graphs")
+    if Sys.islinux()
+        if ENV["DESKTOP_SESSION"] == "gnome"
+            run(`/usr/bin/eog $graphs`, wait=false)
+        elseif ENV["DESKTOP_SESSION"] == "kde"
+            run(`/usr/bin/Gwenview $graphs`, wait=false)
+        end
+    elseif Sys.iswindows()
+        run(`start ms-photos:$graphs`, wait=false)
+    elseif Sys.isapple()
+        run(`Preview $graphs`, wait=false)
+    end
+end
+
+
+
+struct SavedContext
+    symboltable::SymbolTable
+    models::Vector{Model}
+    modfileinfo::ModFileInfo
+    results::Results
+    work::Work
+end
+
+function save_context(context::Context, filepath::String)
+    savedcontext = SavedContext(context.symboltable,
+                                context.models,
+                                context.modfileinfo,
+                                context.results,
+                                context.work)
+    filename = split(filepath, "/")[end]
+    outputpath = mkpath(joinpath(filepath, "output"))
+    save(joinpath(outputpath, "$(filename).jld2"), "context", savedcontext)
+end
+
+
+function last_steps(context::Context)
+    filepath = context.modfileinfo.modfilepath
+    # display graphs
+    if "graphs" in readdir(filepath)
+        display_graphs(filepath)
+    end
+    # save context
+    save_context(context, filepath)
+end
+    

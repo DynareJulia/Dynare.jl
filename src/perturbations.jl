@@ -278,8 +278,9 @@ end
 function stoch_simul!(context::Context, field::Dict{String,Any})
     options = StochSimulOptions(field["options"])
     m = context.models[1]
+    df = context.dynarefunctions
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    tmp_nbr = m.dynamic!.tmp_nbr::Vector{Int64}
+    tmp_nbr = df.dynamic!.tmp_nbr::Vector{Int64}
     ws = DynamicWs(m.endogenous_nbr, m.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
     stoch_simul_core!(context, ws, options)
 end
@@ -390,7 +391,7 @@ function compute_first_order_solution!(
     LRE_results = results.linearrationalexpectations
 
     jacobian =
-        get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate, model, 2)
+        get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate, model, context.dynarefunctions, 2)
     algo = options.dr_algo
     wsLRE = LREWs(
         algo,

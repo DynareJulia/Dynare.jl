@@ -1,4 +1,4 @@
-module DynareFunctions
+module DFunctions
 
 using RuntimeGeneratedFunctions
 using StatsFuns

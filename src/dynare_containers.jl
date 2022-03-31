@@ -158,12 +158,50 @@ struct Model
     exogenous_indices::Vector{Int64}
     NNZDerivatives::Vector{Int64}
     auxiliary_variables::Vector{Dict{String,Any}}
+end
+
+struct DynareFunctions
     dynamic!::Module
     static!::Module
     set_auxiliary_variables!::Function
     set_dynamic_auxiliary_variables!::Function
     steady_state!::Module
+    function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
+        if modfileinfo.has_dynamic_file
+            dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
+        else
+            dynamic! = Module()
+        end
+        static! = load_dynare_function(modfilename * "Static", compileoption)
+        if modfileinfo.has_auxiliary_variables
+            set_dynamic_auxiliary_variables! =
+                DFunctions.load_set_dynamic_auxiliary_variables(modfilename)
+            set_auxiliary_variables! =
+                load_dynare_function2(modfilename * "SetAuxiliaryVariables")
+        elseif orig_maximum_lead > 1 || orig_maximum_lag > 1
+            # auxiliary variables are present
+            set_dynamic_auxiliary_variables! =
+                (x...) -> error(modfilename * "DynamicSetAuxiliarySeries is missing")
+            set_auxiliary_variables! =
+                (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
+        else
+            # no auxiliary variables
+            set_dynamic_auxiliary_variables! = (a, b, c) -> nothing
+            set_auxiliary_variables! = (a, b, c) -> nothing
+        end
+        if modfileinfo.has_steadystate_file
+            steady_state! = load_dynare_function(modfilename * "SteadyState2", compileoption)
+        else
+            steady_state! = Module()
+        end
+        new(dynamic!,
+            static!,
+            set_auxiliary_variables!,
+            set_dynamic_auxiliary_variables!,
+            steady_state!)
+    end
 end
+
 # purely backward model
 function assemble_lead_lag_incidence_1!(
     lead_lag_incidence_matrix::Matrix{Int64},
@@ -566,33 +604,6 @@ function Model(
         backward_number + current_number + forward_number + 2 * both_number .+
         collect(1:exogenous_nbr)
     )
-    if modfileinfo.has_dynamic_file
-        dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
-    else
-        dynamic! = Module()
-    end
-    static! = load_dynare_function(modfilename * "Static", compileoption)
-    if modfileinfo.has_auxiliary_variables
-        set_dynamic_auxiliary_variables! =
-            DynareFunctions.load_set_dynamic_auxiliary_variables(modfilename)
-        set_auxiliary_variables! =
-            load_dynare_function2(modfilename * "SetAuxiliaryVariables")
-    elseif orig_maximum_lead > 1 || orig_maximum_lag > 1
-        # auxiliary variables are present
-        set_dynamic_auxiliary_variables! =
-            (x...) -> error(modfilename * "DynamicSetAuxiliarySeries is missing")
-        set_auxiliary_variables! =
-            (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
-    else
-        # no auxiliary variables
-        set_dynamic_auxiliary_variables! = (a, b, c) -> nothing
-        set_auxiliary_variables! = (a, b, c) -> nothing
-    end
-    if modfileinfo.has_steadystate_file
-        steady_state! = load_dynare_function(modfilename * "SteadyState2", compileoption)
-    else
-        steady_state! = Module()
-    end
     Model(
         endogenous_nbr,
         exogenous_nbr,
@@ -677,11 +688,6 @@ function Model(
         exogenous_indices,
         NNZDerivatives,
         aux_vars,
-        dynamic!,
-        static!,
-        set_auxiliary_variables!,
-        set_dynamic_auxiliary_variables!,
-        steady_state!,
     )
 
 end
@@ -822,6 +828,7 @@ const SymbolTable = Dict{String,DynareSymbol}
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
+    dynarefunctions::DynareFunctions
     modfileinfo::ModFileInfo
     results::Results
     work::Work

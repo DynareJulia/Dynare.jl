@@ -121,10 +121,10 @@ end
 computes the steady state of the model using solution provided by the user
 """
 function compute_steady_state!(context::Context)
-    model = context.models[1]
+    df = context.dynarefunctions
     results = context.results.model_results[1]
     work = context.work
-    steadystatemodule = model.steady_state!
+    steadystatemodule = df.steady_state!
     if Symbol("steady_state!") in names(steadystatemodule)
         # explicit steady state
         evaluate_steady_state!(results, steadystatemodule, work.params)
@@ -152,8 +152,8 @@ function evaluate_steady_state!(
     )
 end
 
-function sparse_static_jacobian(ws, params, x, exogenous, m)
-    J = get_static_jacobian!(ws, params, x, exogenous, m)
+function sparse_static_jacobian(ws, params, x, exogenous, df)
+    J = get_static_jacobian!(ws, params, x, exogenous, df)
     return sparse(J)
 end
 
@@ -168,19 +168,20 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
 
     ws = StaticWs(context)
     m = context.models[1]
+    df = context.dynarefunctions
     w = context.work
     results = context.results.model_results[1]
     exogenous = results.trends.exogenous_steady_state
 
-    if count(!iszero, get_static_jacobian!(ws, w.params, x0, exogenous, m)) < 0.1*m.endogenous_nbr*m.endogenous_nbr
+    if count(!iszero, get_static_jacobian!(ws, w.params, x0, exogenous, m, df)) < 0.1*m.endogenous_nbr*m.endogenous_nbr
         function J1!(A, x::AbstractVector{Float64})
-            A .= sparse_static_jacobian(ws, w.params, x, exogenous, m)
+            A .= sparse_static_jacobian(ws, w.params, x, exogenous, df)
         end
-        A0 = sparse_static_jacobian(ws, w.params, x0, exogenous, m)
+        A0 = sparse_static_jacobian(ws, w.params, x0, exogenous, df)
         solve_steady_state_core!(context, x0, J1!, A0)
     else
         function J2!(A::AbstractMatrix{Float64}, x::AbstractVector{Float64})
-            A .= get_static_jacobian!(ws, w.params, x, exogenous, m)
+            A .= get_static_jacobian!(ws, w.params, x, exogenous, m, df)
         end
         A0 = Matrix{Float64}(undef, m.endogenous_nbr, m.endogenous_nbr)
         J2!(A0, x0)
@@ -192,18 +193,19 @@ function solve_steady_state_core!(context, x0, J!, A0)
 
     ws = StaticWs(context)
     m = context.models[1]
+    df = context.dynarefunctions
     w = context.work
     results = context.results.model_results[1]
     exogenous = results.trends.exogenous_steady_state
 
     function f!(residuals::AbstractVector{Float64}, x::AbstractVector{Float64})
-        residuals .= get_static_residuals!(ws, w.params, x, exogenous, m)
+        residuals .= get_static_residuals!(ws, w.params, x, exogenous, df)
     end
     
     residuals = zeros(m.endogenous_nbr)
     f!(residuals, x0)
-    df = OnceDifferentiable(f!, J!, vec(x0), residuals, A0)
-    result = nlsolve(df, x0; method=:robust_trust_region, show_trace=true)
+    of = OnceDifferentiable(f!, J!, vec(x0), residuals, A0)
+    result = nlsolve(of, x0; method=:robust_trust_region, show_trace=true)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
     else
