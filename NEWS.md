@@ -1,3 +1,7 @@
+0.3.1
+=====
+- update to ExtendedDates v0.1.2
+- fix bugs in ``perfect_foresight``
 0.3.0
 =====
 - adding moments and IRFs to stoch_simul
