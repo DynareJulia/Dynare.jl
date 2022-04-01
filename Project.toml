@@ -1,7 +1,7 @@
 name = "Dynare"
 uuid = "5203de40-99df-439e-afbc-014de65cb9ef"
 authors = ["michel "]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
