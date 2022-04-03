@@ -21,11 +21,12 @@ function load_set_dynamic_auxiliary_variables(modelname::String)
         end
     end
     exp1 = Meta.parse(join(source,"\n"))
-    convert_expression(exp1)
+#    convert_expression(exp1)
     return (@RuntimeGeneratedFunction(exp1))
 end
     
 
+#=
 is_ds_var(e::Expr) =  e.head == :. && e.args[1] == :ds
 is_ds_arg(e::Expr) = e.head == :call && typeof(e.args[1]) == Expr && is_ds_var(e.args[1])
 
@@ -44,5 +45,5 @@ function convert_expression(e)
         end
     end
 end
-
+=#
 end # end module
