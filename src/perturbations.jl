@@ -72,7 +72,7 @@ function display_solution_function(g1::AbstractMatrix{Float64},
                                    endogenous_names::AbstractVector{String},
                                    exogenous_names::AbstractVector{String},
                                    m::Model)
-    title = "Coefficients of approximate solution function"
+    title = "Coefficients of approximate solution function (reduced form)"
     data = Matrix{Any}(undef, m.n_states + m.exogenous_nbr + 1, m.endogenous_nbr + 1)
     data[1, 1] = ""
     # row headers
