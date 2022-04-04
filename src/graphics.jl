@@ -1,4 +1,11 @@
 using Plots
+
+function graph_display(g)
+    if get(ENV, "TERM_PROGRAM", "") == "vscode"
+        display(g)
+    end
+end
+
 function plot(
     variables::Vector{Vector{Float64}};
     bar_variable::Vector{Float64} = Vector{Float64}([]),
@@ -48,7 +55,7 @@ function plot(
             myplot = Plots.plot!(x, v, label = thislabel, linewidth = 3)
         end
     end
-    Plots.display(myplot)
+    graph_display(myplot)
     if length(plot_filename) > 0
         Plots.savefig(plot_filename)
     end
@@ -100,7 +107,7 @@ function plot(
             linewidth = 3,
         )
     end
-    Plots.display(myplot)
+    graph_display(myplot)
     if length(plot_filename) > 0
         Plots.savefig(plot_filename)
     end
@@ -146,7 +153,8 @@ function plot_irf_panel(x, y, endogenous_names, exogenous_name, firstvar, nr, nc
                            label = endogenous_names[ivar])
     end
     
-    Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+    graph_display(pl)
     savefig(filename)
 end
 

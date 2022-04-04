@@ -1,7 +1,13 @@
+0.3.2
+=====
+- fix graphs in Windows
+- fix bugs in initval-file
+
 0.3.1
 =====
 - update to ExtendedDates v0.1.2
 - fix bugs in ``perfect_foresight``
+
 0.3.0
 =====
 - adding moments and IRFs to stoch_simul
@@ -15,6 +21,5 @@
 
 0.2.0
 ======
-
 - Moving project from https://git.dynare.org/DynareJulia/Dynare.jl to https://github.com/DynareJulia/Dynare.jl
 - Adding project to Julia's General Registry

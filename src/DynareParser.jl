@@ -405,7 +405,11 @@ function display_graphs(filepath::String)
             run(`/usr/bin/Gwenview $graphs`, wait=false)
         end
     elseif Sys.iswindows()
-        run(`start ms-photos:$graphs`, wait=false)
+        for (i, f) in enumerate(readdir(graphs))
+            i > 30 && break
+            filename = joinpath(graphs, f)
+            run(`start $filename`, wait=false)
+        end
     elseif Sys.isapple()
         run(`Preview $graphs`, wait=false)
     end
@@ -436,7 +440,7 @@ end
 function last_steps(context::Context)
     filepath = context.modfileinfo.modfilepath
     # display graphs
-    if "graphs" in readdir(filepath)
+    if (get(ENV, "TERM_PROGRAM", "") != "vscode") && ("graphs" in readdir(filepath))
         display_graphs(filepath)
     end
     # save context
