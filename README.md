@@ -6,6 +6,10 @@
 using Pkg
 pkg"add Dynare"
 ```
+## Update
+If you have already a version of Dynare installed (not in development mode):
+using Pkg
+pkg"update Dynare"
 
 ## Running Dynare
 
@@ -16,6 +20,9 @@ using Dynare
 context = @dynare "./test/models/example1/example1.mod";
 ```
 The results are in the ``context`` structure.
+
+## Known bugs and limitations
+- doesn't run on MacOs
 
 ## Supported Dynare instructions
 
