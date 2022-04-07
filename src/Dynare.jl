@@ -1,6 +1,6 @@
 module Dynare
 
-using Dates
+using ExtendedDates
 using Logging
 
 Base.@kwdef struct CommandLineOptions
@@ -35,7 +35,8 @@ using .NLsolve
 
 export @dynare
 
-macro dynare(modfile_arg::String, args...)
+macro dynare(modfile_arg::String, args...) 
+    @info "Dynare version: $(module_version(Dynare))"
     modname = get_modname(modfile_arg)
     @info "$(now()): Starting @dynare $modfile_arg"
     arglist = []
@@ -68,6 +69,7 @@ function get_modname(modfilename::String)
     end
     return modname
 end
+
 
 #include("precompile_Dynare.jl")
 #_precompile_()

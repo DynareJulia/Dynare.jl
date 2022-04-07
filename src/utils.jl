@@ -1,8 +1,10 @@
-function rename_field!(d::Dict{String,Any}, name1::String, name2::String)
-    d[name2] = d[name1]
-    delete!(d, name1)
-    return d
-end
+using Pkg
+
+#function rename_field!(d::Dict{String,Any}, name1::String, name2::String)
+#    d[name2] = d[name1]
+#    delete!(d, name1)
+#    return d
+#end
 
 function check_isfinite(x::AbstractArray)
     if any(!isfinite, x)
@@ -10,3 +12,5 @@ function check_isfinite(x::AbstractArray)
         throw(ErrorException("$i"))
     end
 end
+
+module_version(m) = Pkg.TOML.parsefile(joinpath(pkgdir(m), "Project.toml"))["version"]

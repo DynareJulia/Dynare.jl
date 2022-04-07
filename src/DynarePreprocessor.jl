@@ -1,4 +1,5 @@
 using DynarePreprocessor_jll
+using Pkg
 
 function dynare_preprocess(modfilename::String, args::Vector{Any})
     dynare_args = [basename(modfilename), "language=julia", "json=compute"]
@@ -15,6 +16,7 @@ function dynare_preprocess(modfilename::String, args::Vector{Any})
 end
 
 function run_dynare(modfilename::String, dynare_args::Vector{String})
+    @info "Dynare preprocessor version: $(module_version(DynarePreprocessor_jll))"
     directory = dirname(modfilename)
     if length(directory) > 0
         current_directory = pwd()
