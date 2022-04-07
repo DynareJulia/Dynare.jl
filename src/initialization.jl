@@ -101,21 +101,17 @@ function check_periods_options(options;
 end
 
 function add_auxiliary_variables(tdf::TimeDataFrame, symboltable::SymbolTable, endogenous_nbr::Int64, original_endogenous_nbr::Int64)
-    @show pwd()
     df = getfield(tdf, :data)
     nrow = size(df, 1)
     vnames = names(tdf)
-    @show vnames
-    @show size(df, 2)
     for v in get_endogenous(symboltable)[original_endogenous_nbr + 1:endogenous_nbr]
         if !(v in vnames)
-            @show v
-            insertcols!(df, Symbol(v) => Vector{Missing}(missing, nrow))
+            insertcols!(df, Symbol(v) => Vector{Union{Float64, Missing}}(missing, nrow))
         end
     end
     for v in get_exogenous(symboltable)
         if !(v in vnames)
-            insertcols!(df, Symbol(v) => Vector{Missing}(missing, nrow))
+            insertcols!(df, Symbol(v) => Vector{Union{Float64, Missing}}(missing, nrow))
         end
     end
 end
@@ -201,7 +197,6 @@ function initval_file!(context::Context, field::Dict{String,Any})
 
     if haskey(options, "datafile")
         tdf = MyTimeDataFrame("$(options["datafile"]).csv")
-        add_auxiliary_variables(tdf, symboltable, m.endogenous_nbr, m.original_endogenous_nbr) 
     else
         error("option datafile or series must be provided")
     end
@@ -214,6 +209,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
         required_lags = 1
     else
         required_lags = m.orig_maximum_lag
+        add_auxiliary_variables(tdf, symboltable, m.endogenous_nbr, m.original_endogenous_nbr) 
         df.set_dynamic_auxiliary_variables!(tdf, work.params)
     end
 
@@ -251,20 +247,15 @@ function initval_file!(context::Context, field::Dict{String,Any})
     data_ = Matrix(getfield(tdf, :data))
     let colindex, endogenous_names, exogenous_names, exogenousdeterministic_names
         endogenous_names = get_endogenous(symboltable)
-        @show endogenous_names
         exogenous_names = get_exogenous(symboltable)
-        @show exogenous_names
-        @show endogenous_names
         exogenousdeterministic_names = get_exogenousdeterministic(symboltable)
         dnames = names(tdf)
         work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr) 
         work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr) 
         work.initval_exogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr)
         lli = m.lead_lag_incidence
-        @show endogenous_names
         for (i, vname) in enumerate(endogenous_names)
             colindex = findfirst(x -> x==vname, dnames)
-            @show vname, colindex
             if isnothing(colindex) && lli[1, i] > 0
 #                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
             else
