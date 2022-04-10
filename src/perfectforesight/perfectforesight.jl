@@ -1,4 +1,5 @@
 include("makeA.jl")
+include("PATH_interface.jl")
 
 """
 PerfectForesightSetupOptions type 
@@ -110,6 +111,8 @@ function perfect_foresight_solver!(context, field)
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
     guess_values = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, steadystate, dynamic_ws)
+    if get(field["options"], "lmmcp.status", false)
+        mcp_perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
     perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
 end
 
@@ -250,7 +253,8 @@ function get_residuals!(
     m::Model,
     df::DynareFunctions,
     periods::Int64,
-    temp_vec::AbstractVector{Float64},
+    temp_vec::AbstractVector{Float64};
+    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
 )
     n = m.endogenous_nbr
 
@@ -266,6 +270,7 @@ function get_residuals!(
         df,
         periods,
         temp_vec,
+        permutations
     )
     t1 = n + 1
     t2 = 2 * n
@@ -284,6 +289,7 @@ function get_residuals!(
             t,
             t1,
             t2,
+            permutations
         )
         t1 += n
         t2 += n
@@ -303,9 +309,30 @@ function get_residuals!(
         periods,
         t1,
         t2,
+        permutations
     )
     return residuals
 end
+
+inline function reorder1!(x, permutations, n)
+    isempty(permutations) && return
+    reorder!(x, permutations, 0)
+    reorder!(x, permutations, n)
+end
+
+inline function reorder2!(x, permutations, t, n)
+    isempty(permutations) && return
+    reorder!(x, permutations, (t - 2)*n)
+    reorder!(x, permutations, (t - 1)*n)
+    reorder!(x, permutations, t*n)
+end
+
+inline function reorder3!(x, permutations, t, n)
+    isempty(permutations) && return
+    reorder!(x, permutations, (t - 2)*n)
+    reorder!(x, permutations, (t - 1)*n)
+end
+
 
 function get_residuals_1!(
     residuals::AbstractVector{Float64},
@@ -318,12 +345,15 @@ function get_residuals_1!(
     m::Model,
     df::DynareFunctions,
     periods::Int64,
-    temp_vec::AbstractVector{Float64},
+    temp_vec::AbstractVector{Float64};
+    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
     n = m.endogenous_nbr
 
+    end
+    reorder1!(endogenous, permutations, m.endogenous_nbr)
     get_initial_dynamic_endogenous_variables!(
         dynamic_variables,
         endogenous,
@@ -342,6 +372,7 @@ function get_residuals_1!(
         steadystate,
         2,
     )
+    reorder1!(endogenous, permutations, m.endogenous_nbr)
 end
 
 function get_residuals_2!(
@@ -357,11 +388,13 @@ function get_residuals_2!(
     temp_vec::AbstractVector{Float64},
     t::Int64,
     t1::Int64,
-    t2::Int64,
+    t2::Int64;
+    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
 
+    reorder2!(endogenous, permutations, t, m.endogenous_nbr)
     get_dynamic_endogenous_variables!(dynamic_variables, endogenous, lli, t)
     vr = view(residuals, t1:t2)
     @inbounds Base.invokelatest(
@@ -374,6 +407,7 @@ function get_residuals_2!(
         steadystate,
         t,
     )
+    reorder2!(endogenous, permutations, t, m.endogenous_nbr)
 end
 
 function get_residuals_3!(
@@ -390,11 +424,13 @@ function get_residuals_3!(
     temp_vec::AbstractVector{Float64},
     t::Int64,
     t1::Int64,
-    t2::Int64,
+    t2::Int64;
+    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
 
+    reorder3!(endogenous, permutations, t, m.endogenous_nbr)
     get_terminal_dynamic_endogenous_variables!(
         dynamic_variables,
         endogenous,
@@ -413,6 +449,11 @@ function get_residuals_3!(
         steadystate,
         t,
     )
+    if !isempty(permutations)
+        reorder!(endogenous, permuations, (t - 2)*m.endogenous_nbr)
+        reorder!(endogenous, permuations, (t - 1)*m.endogenous_nbr)
+    end
+    reorder3!(endogenous, permutations, t, m.endogenous_nbr)
 end
 
 

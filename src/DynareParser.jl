@@ -44,6 +44,7 @@ function get_model(
     param_nbr::Int64,
     orig_endo_nbr::Int64,
     aux_vars::Vector{Any},
+    mcps::Vector{Pair{Int64, String}}
 )
     model_info = get_model_info(dynare_model_info)
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
@@ -88,6 +89,7 @@ function get_model(
         model_info.orig_maximum_lead,
         NNZDerivatives,
         commandlineoptions.compilemodule,
+        mcps
     )
     return model
 end
@@ -165,6 +167,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     modfileinfo = ModFileInfo(modfilename)
     check_function_files!(modfileinfo, modfilename)
     @debug "$(now()): get model"
+    get_tags(mcps, modeljson["model"])
     model = get_model(
         modfilename,
         modfileinfo,
@@ -176,6 +179,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         param_nbr,
         orig_endo_nbr,
         aux_vars,
+        mcps
     )
     varobs = get_varobs(modeljson)
     @debug "$(now()): make_container" 

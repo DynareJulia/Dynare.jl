@@ -158,6 +158,7 @@ struct Model
     exogenous_indices::Vector{Int64}
     NNZDerivatives::Vector{Int64}
     auxiliary_variables::Vector{Dict{String,Any}}
+    mcps::Vector{Pair{Int64, String}}
 end
 
 struct DynareFunctions
@@ -431,7 +432,8 @@ function Model(
     orig_maximum_lag::Int64,
     orig_maximum_lead::Int64,
     NNZDerivatives::Vector{Int64},
-    compileoption::Bool
+    compileoption::Bool,
+    mcps::Vector{Pair{Int64, String}}
 )
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
@@ -688,6 +690,7 @@ function Model(
         exogenous_indices,
         NNZDerivatives,
         aux_vars,
+        mcps,
     )
 
 end
