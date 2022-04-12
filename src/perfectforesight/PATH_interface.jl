@@ -17,6 +17,10 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     terminalvalues = view(y0, :, periods)
     params = work.params
     JJ = perfect_foresight_ws.J
+    lb = perfect_foresight_ws.lb
+    ub = perfect_foresight_ws.ub
+    permutations = perfect_foresight_ws.permutations
+    mcp!(lb, ub, permutations, m.mcps, context, periods)
     
     exogenous = perfect_foresight_ws.x
 
@@ -42,20 +46,22 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
                        ddf,
                        periods,
                        temp_vec,
+                       permutations = permutations
                        )
         @debug "$(now()): end f!"
     end
     
-    function J!(A::SparseArrays.SparseMatrixCSC{Float64, Int64}, y::AbstractVecOrMat{Float64})
+    function JA!(A::SparseArrays.SparseMatrixCSC{Float64, Int64}, y::AbstractVecOrMat{Float64})
         @debug "$(now()): start J!"
-        A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+        A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded, permutations = permutations)
         @debug count(!iszero, A)/prod(size(A))
         @debug "$(now()): end J!"
+        return A
     end
-    
+
     function fj!(residuals, JJ, y)
         f!(residuals, vec(y))
-        J!(JJ, vec(y))
+        JA!(JJ, vec(y))
     end
 
     @debug "$(now()): start makeJacobian"
@@ -65,30 +71,36 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     f!(residuals, vec(y0))
     @debug "$(now()): end f!"
     @debug "$(now()): start J!"
-    J!(A0, y0)
+    JA!(A0, y0)
+
+    function J!(y::AbstractVecOrMat{Float64})
+        JA!(A0, y)
+        return JA!(A0, y)
+    end
+    
     @debug "$(now()): end J!"
     df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
     @debug "$(now()): start nlsolve"
 
     rr = copy(residuals)
     F = lu(A0)
-    res = nlsolve(df, vec(y0), method=:robust_trust_region, show_trace=true)
+    (status, results, info) = solve_path!(f!, J!, lb, ub, vec(y0))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(context.results.model_results[1].simulations,
-          Simulation("Sim1", "", TimeDataFrame(DataFrame(transpose(reshape(res.zero, m.endogenous_nbr, periods)),
+          Simulation("Sim1", "", TimeDataFrame(DataFrame(transpose(reshape(results, m.endogenous_nbr, periods)),
                                                          endogenous_names),
                                                UndatedDate(1))))
 end
-end
-
 
 # Using PATHSolver
 function solve_path!(F, J, lb, ub, initial_values; kwargs...)
-
+    n = length(initial_values)
+    @assert n == length(lb) == length(ub)
+    
     function function_callback(n::Cint, z::Vector{Cdouble}, F_val::Vector{Cdouble})
         @assert n == length(z) == length(F_val)
-        F_val .= F(z)
+        F(F_val, z)
          return Cint(0)
     end
 
@@ -130,6 +142,7 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
     # overestimating number of nonzeros in Jacobian
     nnz = max( SparseArrays.nnz(J(lb)), SparseArrays.nnz(J(ub)) )
     nnz = max( nnz, SparseArrays.nnz(J(initial_values)) )
+    n = length(lb)
     for i in 1:2
         z_rand = max.(lb, min.(ub, rand(Float64, n)))
         nnz_rand = SparseArrays.nnz(J(z_rand))
@@ -138,9 +151,7 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
     nnz = min( 2 * nnz, n^2 )
 
 
-    F_val = zeros(3)
-    @show function_callback(Int32(3), initial_values, F_val)
-    @show F_val
+    F_val = zeros(n)
     # Solve the MCP using PATHSolver
     status, z, info = PATHSolver.solve_mcp(
         function_callback, 
@@ -165,40 +176,41 @@ function ramsey_contraints(context, field)
     end
 end
     
-function get_tags!(mcps, modeljson)
-    for (i, eq) in enumerate(modeljson["model"])
+function get_mcps!(mcps, model)
+    for (i, eq) in enumerate(model)
         tag = get(eq["tags"], "mcp", "")
         if !isempty(tag)
-            push!(mcps, (i, tag))
+            push!(mcps, (i, split(tag, limit=3)...))
         end
     end
 end
 
-function mcp!(lb, ub, permutations, mcps, context)
+function mcp!(lb, ub, permutations, mcps, context, periods)
+    n = context.models[1].endogenous_nbr
+    resize!(lb, periods*n)
+    resize!(ub, periods*n)
+    fill!(lb, -Inf)
+    fill!(ub, Inf)
     for m in mcps
-        (m1, m2) = m 
-        (var, op, expr) = split(m2)
-        
+        (eqn, var, op, expr) = m 
+        boundary = Dynare.dynare_parse_eval(String(expr), context)
         if op[1] == '<'
-            ub[m1] = Dynare.dynare_parse_eval(String(expr), context)
+            for i = eqn:n:n*periods
+                ub[i] = boundary 
+            end
         elseif op[1] == '>'
-            lb[m1] = Dynare.dynare_parse_eval(String(expr), context)
+            for i = eqn:n:n*periods
+                lb[i] = boundary
+            end
         else
             error("MCP operator must be <, <=, > or >=")
         end
         iva = context.symboltable[var].orderintype
-        if iva != m1
-            push!(permutations, (iva, m1))
+        if iva != eqn
+            push!(permutations, (iva, eqn))
         end
     end
 end
-
-mcps = []
-get_tags!(mcps, modeljson)
-lb = repeat([-Inf], 3)
-ub = repeat([Inf], 3)
-permutations = []
-mcp!(lb, ub, permutations, mcps, context)
 
 function reorder!(x, permutations, offset)
     for p in permutations
@@ -208,11 +220,3 @@ function reorder!(x, permutations, offset)
     end
 end
 
-x = collect(1:10)
-reorder!(x, [(1, 3), (2, 6)], 0)
-@show x
-reorder!(x, [(1, 3), (2, 6)], 0)
-@show x
-x = collect(1:20)
-reorder!(x, [(1, 3), (2, 6)], 10)
-@show x

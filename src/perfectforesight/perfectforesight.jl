@@ -1,5 +1,4 @@
 include("makeA.jl")
-include("PATH_interface.jl")
 
 """
 PerfectForesightSetupOptions type 
@@ -84,6 +83,9 @@ struct PerfectForesightWs
     x::Matrix{Float64}
     shocks::Matrix{Float64}
     J::Jacobian
+    lb::Vector{Float64}
+    ub::Vector{Float64}
+    permutations::Vector{Tuple{Int64, Int64}}
     function PerfectForesightWs(context, periods)
         m = context.models[1]
         y = Vector{Float64}(undef, (periods+2)*m.endogenous_nbr)
@@ -96,7 +98,10 @@ struct PerfectForesightWs
         # adding shocks to exogenous variables
         view(x, 2:pmax+1,:) .+= shocks
         J = Jacobian(context, periods)
-        new(y, x, shocks, J)
+        lb = Float64[]
+        ub = Float64[]
+        permutations = Tuple{Int64, Int64}[]
+        new(y, x, shocks, J, lb, ub, permutations)
     end
 end
 
@@ -113,7 +118,9 @@ function perfect_foresight_solver!(context, field)
     guess_values = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, steadystate, dynamic_ws)
     if get(field["options"], "lmmcp.status", false)
         mcp_perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
-    perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
+    else
+        perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
+    end
 end
 
 function perfect_foresight_initialization!(context, periods, datafile, exogenous, perfect_foresight_ws, algo::InitializationAlgo, dynamic_ws::DynamicWs)
@@ -254,7 +261,7 @@ function get_residuals!(
     df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64};
-    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
 )
     n = m.endogenous_nbr
 
@@ -270,7 +277,7 @@ function get_residuals!(
         df,
         periods,
         temp_vec,
-        permutations
+        permutations = permutations
     )
     t1 = n + 1
     t2 = 2 * n
@@ -289,7 +296,7 @@ function get_residuals!(
             t,
             t1,
             t2,
-            permutations
+            permutations = permutations
         )
         t1 += n
         t2 += n
@@ -309,25 +316,25 @@ function get_residuals!(
         periods,
         t1,
         t2,
-        permutations
+        permutations = permutations
     )
     return residuals
 end
 
-inline function reorder1!(x, permutations, n)
+@inline function reorder1!(x, permutations, n)
     isempty(permutations) && return
     reorder!(x, permutations, 0)
     reorder!(x, permutations, n)
 end
 
-inline function reorder2!(x, permutations, t, n)
+@inline function reorder2!(x, permutations, t, n)
     isempty(permutations) && return
     reorder!(x, permutations, (t - 2)*n)
     reorder!(x, permutations, (t - 1)*n)
     reorder!(x, permutations, t*n)
 end
 
-inline function reorder3!(x, permutations, t, n)
+@inline function reorder3!(x, permutations, t, n)
     isempty(permutations) && return
     reorder!(x, permutations, (t - 2)*n)
     reorder!(x, permutations, (t - 1)*n)
@@ -346,13 +353,12 @@ function get_residuals_1!(
     df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64};
-    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
     n = m.endogenous_nbr
 
-    end
     reorder1!(endogenous, permutations, m.endogenous_nbr)
     get_initial_dynamic_endogenous_variables!(
         dynamic_variables,
@@ -389,7 +395,7 @@ function get_residuals_2!(
     t::Int64,
     t1::Int64,
     t2::Int64;
-    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
@@ -425,7 +431,7 @@ function get_residuals_3!(
     t::Int64,
     t1::Int64,
     t2::Int64;
-    permutations::Vector{Pair{Int64, Int64}} = Pair{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
@@ -449,11 +455,8 @@ function get_residuals_3!(
         steadystate,
         t,
     )
-    if !isempty(permutations)
-        reorder!(endogenous, permuations, (t - 2)*m.endogenous_nbr)
-        reorder!(endogenous, permuations, (t - 1)*m.endogenous_nbr)
-    end
     reorder3!(endogenous, permutations, t, m.endogenous_nbr)
 end
 
+include("PATH_interface.jl")
 

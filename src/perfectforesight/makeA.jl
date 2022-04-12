@@ -230,7 +230,8 @@ function makeJacobian!(
     exogenous::AbstractMatrix{Float64},
     context::Context,
     periods::Int64,
-    ws::Vector{DynamicWs},
+    ws::Vector{DynamicWs};
+    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
 )
     I = JA.ss.I
     J = JA.ss.J
@@ -260,7 +261,9 @@ function makeJacobian!(
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
     function make_one_period!(r::Int64, t::Int64, tid::Int64)
+        reorder2!(endogenous, permutations, t, nvar)
         jacobian = get_dynamic_jacobian!(ws[tid], params, endogenous, exogenous, JA.steadystate, md, df, t)
+        reorder2!(endogenous, permutations, t, nvar)
         i, j, v = findnz(sparse(jacobian))
         oc = (t - 1)*nvar
         @inbounds for el = 1:length(i)
@@ -274,6 +277,7 @@ function makeJacobian!(
         end
         return r
     end
+    reorder1!(endogenous, permutations, nvar)
     jacobian = get_initial_jacobian!(
         ws[1],
         params,
@@ -285,6 +289,7 @@ function makeJacobian!(
         df,
         2,
     )
+    reorder1!(endogenous, permutations, nvar)
     r = 1
     @debug "any(isnan.(ws[1].jacobian))=$(any(isnan.(jacobian)))"
     jacobian_columns =
@@ -309,6 +314,7 @@ function makeJacobian!(
         tid = 1
         r = make_one_period!(r, t, tid)
     end
+    reorder3!(endogenous, permutations, periods, nvar)
     jacobian = get_terminal_jacobian!(
         ws[1],
         params,
@@ -320,6 +326,7 @@ function makeJacobian!(
         df,
         periods,
     )
+    reorder3!(endogenous, permutations, periods, nvar)
     i, j, v = findnz(sparse(jacobian))
     @debug "period $periods: isnan.(v) = $(findall(isnan.(v)))"
     oc = (periods - 1) * nvar
