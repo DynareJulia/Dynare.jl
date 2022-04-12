@@ -46,11 +46,12 @@ end;
 
 shocks;
  var epsilon;
- periods 10;
- values -1;
+ periods 2;
+ values 0;
+// values -1;
 end;
 
 steady;
 
-perfect_foresight_setup(periods=400);
+perfect_foresight_setup(periods=4);
 perfect_foresight_solver(lmmcp, maxit=200, no_homotopy);

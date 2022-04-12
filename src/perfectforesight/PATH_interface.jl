@@ -35,7 +35,7 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     function f!(residuals, y)
         @debug "$(now()): start f!"
         get_residuals!(residuals,
-                       vec(y),
+                       vec(y'),
                        initialvalues,
                        terminalvalues,
                        exogenous,
@@ -53,22 +53,24 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     
     function JA!(A::SparseArrays.SparseMatrixCSC{Float64, Int64}, y::AbstractVecOrMat{Float64})
         @debug "$(now()): start J!"
-        A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded, permutations = permutations)
+        A = makeJacobian!(JJ, vec(y'), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded, permutations = permutations)
         @debug count(!iszero, A)/prod(size(A))
         @debug "$(now()): end J!"
         return A
     end
 
     function fj!(residuals, JJ, y)
-        f!(residuals, vec(y))
-        JA!(JJ, vec(y))
+        f!(residuals, vec(y'))
+        JA!(JJ, vec(y'))
     end
 
     @debug "$(now()): start makeJacobian"
-    A0 = makeJacobian!(JJ, vec(y0), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+    A0 = makeJacobian!(JJ, vec(y0'), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
     @debug "$(now()): end makeJacobian"
     @debug "$(now()): start f!"
+    @show vec(y0)
     f!(residuals, vec(y0))
+    @show residuals
     @debug "$(now()): end f!"
     @debug "$(now()): start J!"
     JA!(A0, y0)
@@ -79,7 +81,7 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     end
     
     @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
+    df = OnceDifferentiable(f!, J!, vec(y0'), residuals, A0)
     @debug "$(now()): start nlsolve"
 
     rr = copy(residuals)
