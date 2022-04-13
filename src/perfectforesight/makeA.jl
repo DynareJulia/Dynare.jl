@@ -193,6 +193,15 @@ function compute_jacobian(ws::JacTimesVec,
 end
 =#
 
+function permute_row(ir, permutations)
+    for p in permutations
+        ir == p[1] && return p[2]
+        ir == p[2] && return p[1]
+    end
+    return ir
+end
+
+#=
 function make_one_period!(
     JA::Jacobian,
     params::AbstractVector{Float64},
@@ -204,7 +213,8 @@ function make_one_period!(
     nnz_period::Int64,
     maxcol::Int64,
     ws::DynamicWs,
-    t::Int64,
+    t::Int64;
+    permutations::Tuple{Int64, Int64} = Tuple{Int64, Int64}[]
 )
     nvar = md.endogenous_nbr
     oc = (t - 1) * md.endogenous_nbr
@@ -214,13 +224,14 @@ function make_one_period!(
     @inbounds for el = 1:length(i)
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
-            JA.ss.I[r1] = i[el] + oc
+            JA.ss.I[r1] = permute_row(i[el], permutations) + oc
             JA.ss.J[r1] = kjel + oc - nvar
             JA.ss.V[r1] = v[el]
             r1 += 1
         end
     end
 end
+=#
 
 function makeJacobian!(
     JA::Jacobian,
@@ -261,15 +272,13 @@ function makeJacobian!(
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
     function make_one_period!(r::Int64, t::Int64, tid::Int64)
-        reorder2!(endogenous, permutations, t, nvar)
         jacobian = get_dynamic_jacobian!(ws[tid], params, endogenous, exogenous, JA.steadystate, md, df, t)
-        reorder2!(endogenous, permutations, t, nvar)
         i, j, v = findnz(sparse(jacobian))
         oc = (t - 1)*nvar
         @inbounds for el = 1:length(i)
             if j[el] <= maxcol
                 kjel = jacobian_columns[j[el]]
-                I[r] = i[el] + oc
+                I[r] = permute_row(i[el], permutations) + oc
                 J[r] = kjel + oc - nvar
                  V[r] = v[el]
                 r += 1
@@ -277,7 +286,6 @@ function makeJacobian!(
         end
         return r
     end
-    reorder1!(endogenous, permutations, nvar)
     jacobian = get_initial_jacobian!(
         ws[1],
         params,
@@ -289,7 +297,6 @@ function makeJacobian!(
         df,
         2,
     )
-    reorder1!(endogenous, permutations, nvar)
     r = 1
     @debug "any(isnan.(ws[1].jacobian))=$(any(isnan.(jacobian)))"
     jacobian_columns =
@@ -301,7 +308,7 @@ function makeJacobian!(
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
             if kjel > nvar
-                I[r] = i[el]
+                I[r] = permute_row(i[el], permutations)
                 J[r] = kjel - nvar
                 V[r] = v[el]
                 r += 1
@@ -314,7 +321,6 @@ function makeJacobian!(
         tid = 1
         r = make_one_period!(r, t, tid)
     end
-    reorder3!(endogenous, permutations, periods, nvar)
     jacobian = get_terminal_jacobian!(
         ws[1],
         params,
@@ -326,7 +332,6 @@ function makeJacobian!(
         df,
         periods,
     )
-    reorder3!(endogenous, permutations, periods, nvar)
     i, j, v = findnz(sparse(jacobian))
     @debug "period $periods: isnan.(v) = $(findall(isnan.(v)))"
     oc = (periods - 1) * nvar
@@ -334,7 +339,7 @@ function makeJacobian!(
         if j[el] <= maxcol
             kjel = jacobian_columns[j[el]]
             if kjel <= 2 * nvar
-                I[r] = i[el] + oc
+                I[r] = permute_row(i[el], permutations) + oc
                 J[r] = kjel + oc - nvar
                 V[r] = v[el]
                 r += 1

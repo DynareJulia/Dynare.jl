@@ -53,24 +53,22 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     
     function JA!(A::SparseArrays.SparseMatrixCSC{Float64, Int64}, y::AbstractVecOrMat{Float64})
         @debug "$(now()): start J!"
-        A = makeJacobian!(JJ, vec(y'), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded, permutations = permutations)
+        A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded, permutations = permutations)
         @debug count(!iszero, A)/prod(size(A))
         @debug "$(now()): end J!"
         return A
     end
 
     function fj!(residuals, JJ, y)
-        f!(residuals, vec(y'))
-        JA!(JJ, vec(y'))
+        f!(residuals, vec(y))
+        JA!(JJ, vec(y))
     end
 
     @debug "$(now()): start makeJacobian"
-    A0 = makeJacobian!(JJ, vec(y0'), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+    A0 = makeJacobian!(JJ, vec(y0), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
     @debug "$(now()): end makeJacobian"
     @debug "$(now()): start f!"
-    @show vec(y0)
     f!(residuals, vec(y0))
-    @show residuals
     @debug "$(now()): end f!"
     @debug "$(now()): start J!"
     JA!(A0, y0)
@@ -81,7 +79,7 @@ function mcp_perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     end
     
     @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(y0'), residuals, A0)
+    df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
     @debug "$(now()): start nlsolve"
 
     rr = copy(residuals)
@@ -155,6 +153,7 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
 
     F_val = zeros(n)
     # Solve the MCP using PATHSolver
+    @show lb[1:12]
     status, z, info = PATHSolver.solve_mcp(
         function_callback, 
         jacobian_callback, 
@@ -194,31 +193,23 @@ function mcp!(lb, ub, permutations, mcps, context, periods)
     fill!(lb, -Inf)
     fill!(ub, Inf)
     for m in mcps
-        (eqn, var, op, expr) = m 
+        (eqn, var, op, expr) = m
+        ivar = context.symboltable[var].orderintype
         boundary = Dynare.dynare_parse_eval(String(expr), context)
         if op[1] == '<'
-            for i = eqn:n:n*periods
+            for i = ivar:n:n*periods
                 ub[i] = boundary 
             end
         elseif op[1] == '>'
-            for i = eqn:n:n*periods
+            for i = ivar:n:n*periods
                 lb[i] = boundary
             end
         else
             error("MCP operator must be <, <=, > or >=")
         end
-        iva = context.symboltable[var].orderintype
-        if iva != eqn
-            push!(permutations, (iva, eqn))
+        if ivar != eqn
+            push!(permutations, (ivar, eqn))
         end
-    end
-end
-
-function reorder!(x, permutations, offset)
-    for p in permutations
-        p1 = p[1] + offset
-        p2 = p[2] + offset
-        x[p2], x[p1] = x[p1], x[p2]
     end
 end
 

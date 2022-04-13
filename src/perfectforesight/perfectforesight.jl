@@ -321,6 +321,22 @@ function get_residuals!(
     return residuals
 end
 
+@inline function reorder!(x, permutations)
+    for p in permutations
+        p1 = p[1]
+        p2 = p[2]
+        x[p2], x[p1] = x[p1], x[p2]
+    end
+end
+
+@inline function reorder!(x, permutations, offset)
+    for p in permutations
+        p1 = p[1] + offset
+        p2 = p[2] + offset
+        x[p2], x[p1] = x[p1], x[p2]
+    end
+end
+
 @inline function reorder1!(x, permutations, n)
     isempty(permutations) && return
     reorder!(x, permutations, 0)
@@ -359,7 +375,6 @@ function get_residuals_1!(
     dynamic! = df.dynamic!.dynamic!
     n = m.endogenous_nbr
 
-    reorder1!(endogenous, permutations, m.endogenous_nbr)
     get_initial_dynamic_endogenous_variables!(
         dynamic_variables,
         endogenous,
@@ -378,7 +393,7 @@ function get_residuals_1!(
         steadystate,
         2,
     )
-    reorder1!(endogenous, permutations, m.endogenous_nbr)
+    reorder!(vr, permutations)
 end
 
 function get_residuals_2!(
@@ -400,7 +415,6 @@ function get_residuals_2!(
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
 
-    reorder2!(endogenous, permutations, t, m.endogenous_nbr)
     get_dynamic_endogenous_variables!(dynamic_variables, endogenous, lli, t)
     vr = view(residuals, t1:t2)
     @inbounds Base.invokelatest(
@@ -411,9 +425,9 @@ function get_residuals_2!(
         exogenous,
         params,
         steadystate,
-        t,
+        t + 1,
     )
-    reorder2!(endogenous, permutations, t, m.endogenous_nbr)
+    reorder!(vr, permutations)
 end
 
 function get_residuals_3!(
@@ -436,7 +450,6 @@ function get_residuals_3!(
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
 
-    reorder3!(endogenous, permutations, t, m.endogenous_nbr)
     get_terminal_dynamic_endogenous_variables!(
         dynamic_variables,
         endogenous,
@@ -453,9 +466,9 @@ function get_residuals_3!(
         exogenous,
         params,
         steadystate,
-        t,
+        t + 1,
     )
-    reorder3!(endogenous, permutations, t, m.endogenous_nbr)
+    reorder!(vr, permutations)
 end
 
 include("PATH_interface.jl")
