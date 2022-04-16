@@ -457,7 +457,7 @@ function load_steadystate!(context::Context, filename::String)
     end
     df.set_auxiliary_variables!(endogenous, exogenous, parameters)
 end
-
+#=
 import Base: +, -, *, /
 
 +(t::TimeDataFrame, a::Float64) = a .+ t     
@@ -468,5 +468,5 @@ import Base: +, -, *, /
 -(a::Float64, t::TimeDataFrame) = a .- t     
 *(a::Float64, t::TimeDataFrame) = a .* t     
 /(a::Float64, t::TimeDataFrame) = a ./ t     
-
+=#
     
