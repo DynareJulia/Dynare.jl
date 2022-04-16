@@ -202,9 +202,8 @@ function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
             guess = view(YT, :, it)
         end
         df = OnceDifferentiable(f!, J!, guess, residuals, A)
-        show_trace = (it > 189) ? true : false
+        show_trace = false
         results = nlsolve(df, guess, method=:robust_trust_region, iterations = 1000, show_trace = show_trace, extended_trace = show_trace)
-        @show results.residual_norm, results.iterations
         if !converged(results)
             error("Nonlinear solver didn't converge")
         end

@@ -239,7 +239,7 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
 
     rr = copy(residuals)
     F = lu(A0)
-    res = nlsolve(df, vec(y0), method=:robust_trust_region, show_trace=true)
+    res = nlsolve(df, vec(y0), method=:robust_trust_region, show_trace=false)
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(context.results.model_results[1].simulations,
