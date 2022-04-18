@@ -196,7 +196,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
 
     if haskey(options, "datafile")
-        tdf = MyTimeDataFrame("$(options["datafile"]).csv")
+        tdf = MyTimeDataFrame("$(options["datafile"])")
     else
         error("option datafile or series must be provided")
     end

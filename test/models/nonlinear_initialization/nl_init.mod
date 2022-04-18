@@ -11,5 +11,5 @@ model;
   x = diff(y*y + a1*y^2 - exp(y) + exp(ln(y)) + sin(y) - cos(y) + y/y(-1));
 end;
 
-initval_file(datafile=data_nl);
+initval_file(datafile='data_nl.csv');
  
