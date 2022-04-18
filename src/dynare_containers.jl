@@ -743,7 +743,7 @@ Base.show(io::IO, t::Trends) = show_field_value(t)
 
 struct ModelResults
     endogenous_steady_state::Vector{Float64}
-    irfs::Vector{Matrix{Float64}}
+    irfs::Dict{Symbol, TimeDataFrame}
     trends::Trends
     stationary_variables::Vector{Bool}
     exogenous_steady_state::Vector{Float64}

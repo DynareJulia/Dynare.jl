@@ -136,7 +136,7 @@ function make_containers(
     work = Work(model, varobs)
     modelresults = ModelResults(
         Vector{Float64}(undef, endo_nbr),
-        Vector{Matrix{Float64}}(undef, 0),
+        Dict{Symbol, TimeDataFrame}(),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
         Vector{Float64}(undef, exo_nbr),

@@ -113,8 +113,8 @@ function plot(
     end
 end
 
-function plot_irfs(y, model, symboltable, filepath)
-    x = 1:size(y[1], 2)
+function plot_irfs(irfs, model, symboltable, filepath)
+    x = 1:TimeDataFrames.nrow(first(irfs)[2])
     endogenous_names = get_endogenous_longname(symboltable)
     exogenous_names = get_exogenous_longname(symboltable)
     for i = 1:model.exogenous_nbr
@@ -123,23 +123,23 @@ function plot_irfs(y, model, symboltable, filepath)
         firstvar = 1
         for p in 1:nbplt - 1
             filename = "$(filepath)_$(exonenous_name)_$(nbplt).png"
-            plot_irf_panel(x, y[i], endogenous_names, exogenous_name,
+            plot_irf_panel(x, irfs[Symbol(exogenous_name)], endogenous_names, exogenous_name,
                            firstvar, nr, nc, nr*nc, filename)
             firstvar += nr*nc
         end
         filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
-        plot_irf_panel(x, y[i], endogenous_names, exogenous_name, firstvar, lr, lc,
+        plot_irf_panel(x, irfs[Symbol(exogenous_name)], endogenous_names, exogenous_name, firstvar, lr, lc,
                        nstar, filename)
     end
 end
 
-function plot_irf_panel(x, y, endogenous_names, exogenous_name, firstvar, nr, nc,
+function plot_irf_panel(x, tdf, endogenous_names, exogenous_name, firstvar, nr, nc,
                         nstar, filename)
     sp = [Plots.plot(showaxis=false, ticks=false, grid=false) for i in 1:nr*nc] 
     for i = 1:nstar
         ivar = firstvar + i - 1
         title = (i == 1) ? "Orthogonal shock to $(exogenous_name)" : ""
-        yy = view(y, ivar, :)
+        yy = tdf[!, Symbol(endogenous_names[i])]
         if all(yy .> 0)
             lims = (0, Inf)
         elseif all(yy .< 0)

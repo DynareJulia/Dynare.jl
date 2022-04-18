@@ -300,13 +300,12 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         exogenous_names = get_exogenous_longname(context.symboltable)
         n = model.endogenous_nbr
         m = model.exogenous_nbr
-        y = Vector{Matrix{Float64}}(undef, 0)
-        irfs(y, options.irf, model, results)
+        y = Dict{Symbol, TimeDataFrame}
+        irfs!(context, options.irf)
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
         filename = "$(path)/irfs"
-        plot_irfs(y, model, context.symboltable, filename)
-        append!(results.irfs, y)
+        plot_irfs(context.results.model_results[1].irfs, model, context.symboltable, filename)
     end
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
@@ -336,8 +335,8 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         end
         first_period = ExtendedDates.UndatedDate(options.first_period)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
-        data = TimeDataFrame(simulresults, first_period, endogenous_names)
-        push!(results.simulations, Simulation("", "stoch_simul", data))
+        tdf = TimeDataFrame(simulresults, first_period, endogenous_names)
+        push!(results.simulations, Simulation("", "stoch_simul", tdf))
     end
 end
 
@@ -425,7 +424,11 @@ function compute_first_order_solution!(
 end
 
 
-function irfs(y, periods, model, results)
+function irfs!(context, periods)
+    model = context.models[1]
+    results = context.results.model_results[1]
+    endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
+    exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
     C = cholesky(model.Sigma_e + 1e-14*I)
     x = zeros(model.exogenous_nbr)
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
@@ -439,7 +442,8 @@ function irfs(y, periods, model, results)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
-        push!(y, yy)
+        tdf = TimeDataFrame(transpose(yy), UndatedDate(1), endogenous_names) 
+        results.irfs[exogenous_names[i]] = tdf
     end
 end
 

@@ -116,7 +116,7 @@ function perfect_foresight_solver!(context, field)
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
     guess_values = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, steadystate, dynamic_ws)
-    if get(field["options"], "lmmcp.status", false)
+    if haskey(field, "options") && get(field["options"], "lmmcp.status", false)
         mcp_perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
     else
         perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
