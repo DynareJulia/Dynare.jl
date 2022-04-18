@@ -411,7 +411,11 @@ function display_graphs(filepath::String)
             run(`start $filename`, wait=false)
         end
     elseif Sys.isapple()
-        run(`Preview $graphs`, wait=false)
+        for (i, f) in enumerate(readdir(graphs))
+            i > 30 && break
+            filename = joinpath(graphs, f)
+            run(`open $filename`, wait=false)
+        end
     end
 end
 
