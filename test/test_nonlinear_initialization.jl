@@ -1,12 +1,8 @@
-using CSV
-using DataFrames
 using Dynare
-using ExtendedDates
 using Test
-using TimeDataFrames
 
-tdf = TimeDataFrame(DataFrame(rand(10,3), ["x", "y", "e"]), UndatedDate(1))
-CSV.write("data_nl.csv", getfield(tdf, :data))
+tdf = Dynare.TimeDataFrame(Dynare.DataFrame(rand(10,3), ["x", "y", "e"]), Dynare.UndatedDate(1))
+Dynare.CSV.write("data_nl.csv", getfield(tdf, :data))
 
 context = @dynare "models/nonlinear_initialization/nl_init.mod";
 
