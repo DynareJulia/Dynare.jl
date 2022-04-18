@@ -179,9 +179,12 @@ end
     
 function get_mcps!(mcps, model)
     for (i, eq) in enumerate(model)
-        tag = get(eq["tags"], "mcp", "")
-        if !isempty(tag)
-            push!(mcps, (i, split(tag, limit=3)...))
+        tags = get(eq, "tags", "")
+        if !isempty(tags)
+            tag = get(eq["tags"], "mcp", "")
+            if !isempty(tag)
+                push!(mcps, (i, split(tag, limit=3)...))
+            end
         end
     end
 end
