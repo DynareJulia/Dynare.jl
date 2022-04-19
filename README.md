@@ -49,3 +49,18 @@ The results are in the ``context`` structure.
 ## Project web site
 
 - https://www.dynare.org
+
+## PATH licence
+
+Dynare uses the PATH software by S. Dirkse, M.C. Ferris and T. Munson (https://pages.cs.wisc.edu/~ferris/path.html),
+as provided by
+[PATHSolver.jl](https://github.com/chkwon/PATHSolver.jl) to solve
+prefect foresight models with occasionally binding constraints. 
+
+In order to use it, you need to add the free licence available at
+https://pages.cs.wisc.edu/~ferris/path/LICENSE in your file
+``~/.julia/config/startup.jl``
+
+> ENV["PATH_LICENSE_STRING"] = "*licence number provided in the above
+> link*"
+
