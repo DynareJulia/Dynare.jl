@@ -1,3 +1,9 @@
+0.4.0
+=====
+- add support for MCP problems in ``perfect_foresight``
+- fix preprocessor problem with macOS
+- fix backward-looking model simulation
+- IRFs are now stored in a vector of TimeDataFrames
 0.3.2
 =====
 - fix graphs in Windows

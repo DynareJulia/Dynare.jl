@@ -21,9 +21,6 @@ context = @dynare "./test/models/example1/example1.mod";
 ```
 The results are in the ``context`` structure.
 
-## Known bugs and limitations
-- doesn't run on MacOs
-
 ## Supported Dynare instructions
 
 1. calib_smoother
@@ -32,7 +29,7 @@ The results are in the ``context`` structure.
 1. histval
 1. initval
 1. perfect\_foresight\_setup (only some options)
-1. perfect\_foresight\_solver (only some options)
+1. perfect\_foresight\_solver (only some options, includind lmmcp)
 1. planner_objective
 1. ramsey\_model
 1. shocks
