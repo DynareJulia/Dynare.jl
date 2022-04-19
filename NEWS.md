@@ -4,6 +4,7 @@
 - fix preprocessor problem with macOS
 - fix backward-looking model simulation
 - IRFs are now stored in a vector of TimeDataFrames
+
 0.3.2
 =====
 - fix graphs in Windows
