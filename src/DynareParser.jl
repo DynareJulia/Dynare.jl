@@ -444,7 +444,7 @@ end
 function last_steps(context::Context)
     filepath = context.modfileinfo.modfilepath
     # display graphs
-    if (get(ENV, "TERM_PROGRAM", "") != "vscode") && ("graphs" in readdir(filepath))
+    if isinteractive() && (get(ENV, "TERM_PROGRAM", "") != "vscode") && ("graphs" in readdir(filepath))
         display_graphs(filepath)
     end
     # save context
