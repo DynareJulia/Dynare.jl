@@ -1,3 +1,8 @@
+0.4.1
+=====
+- fix ``histval``
+- fix ``ramsey_constraints``
+
 0.4.0
 =====
 - add support for MCP problems in ``perfect_foresight``
