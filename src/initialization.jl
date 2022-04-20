@@ -4,7 +4,7 @@ function histval!(context::Context, field::Dict{String,Any})
     histval = zeros(m.orig_maximum_lag, m.endogenous_nbr)
     for v in field["vals"]
         k = symboltable[v["name"]::String].orderintype::Int64
-        l = m.orig_maximum_lag - v["lag"]::Int64
+        l = m.orig_maximum_lag + v["lag"]::Int64
         histval[l, k] = dynare_parse_eval(v["value"]::String, context)
     end
     context.work.histval .= histval
