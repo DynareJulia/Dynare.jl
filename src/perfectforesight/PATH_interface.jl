@@ -171,9 +171,11 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
 end
 
 
-function ramsey_contraints(context, field)
+function ramsey_constraints!(context, field)
     for c in field["ramsey_model_constraints"]
-        push!(context.work.mcps, c["constraint"])
+        constraint = split(c["constraint"], limit=3)
+        eq = context.symboltable[constraint[1]].orderintype
+        push!(context.models[1].mcps, (eq, constraint...))
     end
 end
     

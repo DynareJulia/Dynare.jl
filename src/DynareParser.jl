@@ -247,6 +247,8 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "planner_objective"
             planner_objective!(context, field)
             modfileinfo.has_planner_objective = true
+        elseif statementname == "ramsey_constraints"
+            ramsey_constraints!(context, field)
         elseif statementname == "ramsey_model"
             modfileinfo.has_ramsey_model = true
         elseif statementname == "shocks"
