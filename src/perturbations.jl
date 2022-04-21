@@ -99,13 +99,15 @@ function display_solution_function(g1::AbstractMatrix{Float64},
     dynare_table(data, title, note = note)
 end
 
+robustsqrt(x) = sqrt(x + eps())
 
 function display_mean_sd_variance(steadystate::AbstractVector{Float64},
                                   variance::AbstractVector{Float64},
                                   endogenous_names::AbstractVector{String},
                                   m::Model)
     title = "THEORETICAL MOMENTS"
-    std = sqrt.(variance)
+
+    std = robustsqrt.(variance)
     data = Matrix{Any}(undef, m.original_endogenous_nbr + 1, 4)
     data[1, 1] = "VARIABLE"
     # row headers
@@ -436,7 +438,7 @@ function irfs!(context, periods)
     make_A_B!(A, B, model, results)
     for i = 1:model.exogenous_nbr
         fill!(x, 0)
-        x[i] = sqrt(model.Sigma_e[i,i])
+        x[i] = robustsqrt(model.Sigma_e[i,i])
         yy = Matrix{Float64}(undef, size(A, 1), periods)
         mul!(view(yy,:, 1), B, x)
         for j = 2:periods
