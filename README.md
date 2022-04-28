@@ -8,9 +8,10 @@ pkg"add Dynare"
 ```
 ## Update
 If you have already a version of Dynare installed (not in development mode):
+```
 using Pkg
 pkg"update Dynare"
-
+```
 ## Running Dynare
 
 
