@@ -7,7 +7,7 @@ using Pkg
 pkg"add Dynare"
 ```
 ## Update
-If you have already a version of Dynare installed (not in development mode):
+If you already have a version of Dynare installed (not in development mode):
 ```
 using Pkg
 pkg"update Dynare"
@@ -15,7 +15,7 @@ pkg"update Dynare"
 ## Running Dynare
 
 
-Example (to be run in the directory ``./Dynare.jl``):
+Example (to be run in the directory ``Dynare.jl``):
 ```
 using Dynare
 context = @dynare "./test/models/example1/example1.mod";
