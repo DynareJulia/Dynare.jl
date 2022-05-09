@@ -8,7 +8,7 @@ struct Parameters
     initialvalues::Vector{Float64}
     mh_scale::Vector{Float64}
     optim_lb::Vector{Float64}
-    optin_ub::Vector{Float64}
+    optim_ub::Vector{Float64}
     posteriormodes::Vector{Float64}
     posteriormeans::Vector{Float64}
     posteriormedian::Vector{Float64}
@@ -26,28 +26,30 @@ struct Parameters
         posteriormedian = Vector{Float64}(undef, 0)
         posteriorHPI = Matrix{Float64}(undef, 0, 2)
         new(symbols, calibrations, distributions, initialvalues, mh_scale,
-            optim_lb, optim_ub, 
-            posteriormodes, posteriormeans, posteriormedian, posteriorHPI)
+            optim_lb, optim_ub, posteriormodes, posteriormeans,
+            posteriormedian, posteriorHPI)
     end
 end
 
-function parse_estimated_parameters!(context::Context, fields::Dict{String, Any})
-    parameters = context.results.model_results[1].parameters
+dynare_parse_eval(s, c) = Dynare.dynare_parse_eval(s, c)
+
+function parse_estimated_parameters!(parameters, context, fields::Dict{String, Any})
+#    parameters = context.results.model_results[1].parameters
     for p in fields["params"]
         push!(parameters.symbols, Symbol(p["param"]))
-        push!(parameters.initialvalues, dynare_parse_eval(p["init_val"]))
-        push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"])),
-        push!(parameters.optim_ub, dynare_parse_eval(p["upper_bound"])),
-        push!(parameters.mh_scale, dynare_parse_eval(p["scale"])),
-        push!(parameters.distributions, parse_prior_distribution(Val(p["prior_distribution"]), p))
+        push!(parameters.initialvalues, dynare_parse_eval(p["init_val"], context))
+        push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"], context)),
+        push!(parameters.optim_ub, dynare_parse_eval(p["upper_bound"], context)),
+#        push!(parameters.mh_scale, dynare_parse_eval(p["scale"], context)),
+        push!(parameters.distributions, parse_prior_distribution(Val(p["prior_distribution"], context), p))
     end
 end
 
 function get_basic_parameters(p::Dict{String, Any})
-    return (μ = dynare_parse_eval(p["mean"]),
-            σ = dynare_parse_eval(p["std"]),
-            p3 = dynare_parse_eval(p["p3"]),
-            p4 = dynare_parse_eval(p["p4"]),
+    return (μ = dynare_parse_eval(p["mean"], context),
+            σ = dynare_parse_eval(p["std"], context),
+            p3 = dynare_parse_eval(p["p3"], context),
+            p4 = dynare_parse_eval(p["p4"], context),
             name = p["param"])
 end
 
@@ -59,34 +61,35 @@ function parse_prior_distribution(::Val{1}, p)
 end
 
 function parse_prior_distribution(::Val{2}, p)
-    d = Gamma(μ = dynare_parse_eval(p["mean"]), σ = dynare_parse_eval(p["std"]))
+    d = Gamma(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 function parse_prior_distribution(::Val{3}, p)
-    d = Normal(μ = dynare_parse_eval(p["mean"]), σ = dynare_parse_eval(p["std"]))
+    d = Normal(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 # Inverse gamma 1
 function parse_prior_distribution(::Val{4}, p)
-    d = Normal(μ = dynare_parse_eval(p["mean"]), σ = dynare_parse_eval(p["std"]))
+    d = Normal(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 function parse_prior_distribution(::Val{5}, p)
-    d = Uniform(μ = dynare_parse_eval(p["mean"]), σ = dynare_parse_eval(p["std"]))
+    d = Uniform(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 # Inverse gamma 2
 function parse_prior_distribution(::Val{6}, p)
-    d = Uniform(μ = dynare_parse_eval(p["mean"]), σ = dynare_parse_eval(p["std"]))
+    d = Uniform(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 function parse_prior_distribution(::Val{8}, p)
-    d = Weibull(μ = dynare_parse_eval(p["mean"]), σ = dynare_parse_eval(p["std"]))
+    d = Weibull(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 parameters = Parameters()
 fields = Dict("statementName" => "estimated_params", "params" => [Dict("param" => "alp", "init_val" => "NaN", "lower_bound" => "(-Inf)", "upper_bound" => "Inf", "prior_distribution" => 1, "mean" => "0.356", "std" => "0.02", "p3" => "NaN", "p4" => "NaN", "jscale" => "NaN"),
                                                          Dict("param" => "bet", "init_val" => "NaN", "lower_bound" => "(-Inf)", "upper_bound" => "Inf", "prior_distribution" => 1, "mean" => "0.993", "std" => "0.002", "p3" => "NaN", "p4" => "NaN", "jscale" => "NaN")])
-context = @dynare "dynare.jl/test/models/estimation/fs2000.mod"
+context = @dynare "test/models/estimation/fs2000.mod"
 
-parse_estimated_parameters!(context, fields)
+parameters = Parameters()
+parse_estimated_parameters!(parameters, context, fields)
