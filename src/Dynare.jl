@@ -10,7 +10,7 @@ end
 include("utils.jl")
 include("dynare_functions.jl")
 include("dynare_containers.jl")
-#include("accessors.jl")
+include("accessors.jl")
 export irf, simulation
 include("model.jl")
 export get_abc, get_de
