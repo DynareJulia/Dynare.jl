@@ -7,6 +7,7 @@ using JLD2
 using JSON
 using KalmanFilterTools
 using LinearRationalExpectations
+using Plots
 using StatsFuns
 using TimeDataFrames
 

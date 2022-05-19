@@ -200,3 +200,9 @@ function pltorg_0(number)
     end
     return (lr, lc)
 end
+
+function plot(tdf::TimeDataFrame; label=(), title="", filename="")
+    pl = Plots.plot(tdf, label=label, title=title)
+    graph_display(pl)
+    savefig(filename)
+end
