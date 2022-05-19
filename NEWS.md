@@ -1,3 +1,7 @@
+0.5.0
+=====
+- add plots for TimeDataFrames series
+- add accessor functions
 0.4.1
 =====
 - fix ``histval``
