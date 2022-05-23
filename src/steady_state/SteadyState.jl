@@ -29,7 +29,8 @@ SteadyOptions type
     display::Bool - whether to display results [true]
     maxit::Int64 - maximum number of iterations [50]
     tolf::Float64 - tolerance criterium for equations error [eps()^(1/3)]
-    solve_algo::NonLinearSolveAlgos - alogrithm for nonlinear equations solver [trustregion]
+    tolx::Float64 - norm difference in x between two successive iterates under which convergence is declared.  [0]
+    solve_algo::NonLinearSolveAlgos - algorithm for nonlinear equations solver [trustregion]
     homotopy_mode::HomotopyModes - homotopy mode [None] 
     homotopy_steps::Int64 - homotopy steps [10]
     nocheck::Bool - don't check steady state values provided by the user [false]
@@ -38,6 +39,7 @@ struct SteadyOptions
     display::Bool
     maxit::Int64
     tolf::Float64
+    tolx::Float64
     solve_algo::NonLinearSolveAlgos
     homotopy_mode::HomotopyModes
     homotopy_steps::Int64
@@ -46,6 +48,7 @@ struct SteadyOptions
         display = true
         maxit = 50
         tolf = cbrt(eps())
+        tolx = 0.0
         solve_algo = trustregion
         homotopy_mode = None
         homotopy_steps = 10
@@ -57,6 +60,8 @@ struct SteadyOptions
                 maxit = v::Int64
             elseif k == "tolf"
                 tolf = v::Float64
+            elseif k == "tolx"
+                tolx = v::Float64
             elseif k == "solve_algo"
                 solve_algo = v::NonLinearSolveAlgos
             elseif k == "homotopy_mode"
@@ -67,7 +72,7 @@ struct SteadyOptions
                 nochecl = true
             end
         end
-        new(display, maxit, tolf, solve_algo, homotopy_mode, homotopy_steps, nocheck)
+        new(display, maxit, tolf, tolx, solve_algo, homotopy_mode, homotopy_steps, nocheck)
     end
 end
 
