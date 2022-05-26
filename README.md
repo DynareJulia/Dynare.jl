@@ -65,3 +65,23 @@ https://pages.cs.wisc.edu/~ferris/path/LICENSE in your file
 > ENV["PATH_LICENSE_STRING"] = "*licence number provided in the above
 > link*"
 
+### Under Windows
+    • Create a new folder in your /.julia directory called “config”
+    • In the /.julia/config folder create a new text file: Right click  → New → Text Document
+    • Inside the new text document, type:
+> ENV["PATH_LICENSE_STRING"] = "*licence number provided in the above
+> link*"
+    • In the text document, go File → Save as
+    • In the dropdown “Save as type” option at the bottom of the pop-up window select “All files”
+    • In the field “File name” write “startup.jl”
+    • Press “Save.”
+### In VScode
+    • Go to File → Open Folder, navigate through your folders and choose the one where you want to create the .jl file
+    • Go to File → New Text File
+    • In the new text file, type
+> ENV["PATH_LICENSE_STRING"] = "*licence number provided in the above
+> link*"
+    • Go to File → Save
+    • In the dropdown “Save as type” option at the bottom of the pop-up window select “All files”
+    • In the field “File name” write the name of your Julia file.
+    • Press “Save.”
