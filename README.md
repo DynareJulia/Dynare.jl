@@ -1,5 +1,8 @@
 # WORK IN PROGRESS
 
+## Requirements
+Julia 64bit >= v1.6
+
 ## Installation 
 
 ```
