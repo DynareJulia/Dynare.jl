@@ -1,3 +1,6 @@
+0.5.1
+=====
+- fix reporting with end of line CR LF
 0.5.0
 =====
 - add plots for TimeDataFrames series
