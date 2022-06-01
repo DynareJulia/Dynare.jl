@@ -66,7 +66,7 @@ function get_model(
         endo_nbr,
         lead_lag_incidence,
         exo_nbr,
-        0,
+        Int64(0),
         exo_det_nbr,
         param_nbr,
         orig_endo_nbr,
