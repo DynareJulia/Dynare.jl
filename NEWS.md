@@ -1,10 +1,18 @@
+0.5.2
+=====
+- change signature of steady_state_function
+- force Int64 numerical constant (necessary for Julia 32bit)
+- removing debug instructions
+
 0.5.1
 =====
 - fix reporting with end of line CR LF
+
 0.5.0
 =====
 - add plots for TimeDataFrames series
 - add accessor functions
+
 0.4.1
 =====
 - fix ``histval``
