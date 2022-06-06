@@ -119,9 +119,7 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
     symbols = keys(symboltable)
     open(modname*".mod") do io
         for token in tokenize(io)
-            @show token
             stringtoken = Tokens.untokenize(token)
-            @show stringtoken
             kind = Tokens.kind(token)
             if kind == Tokens.IDENTIFIER
                 if stringtoken == "model"
@@ -137,20 +135,17 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
                 push!(elements, stringtoken)
             elseif kind == Tokens.WHITESPACE
                 subelements = []
-                @show stringtoken
                 if occursin("\r\n", stringtoken)
                     subelements = split(stringtoken, "\r\n")
                 elseif '\n' in stringtoken
                     subelements = split(stringtoken, '\n')
                 end
-                @show subelements
                 if length(subelements) > 0
                     for (i, se) in enumerate(subelements)
                         if i == 1
                             continue
                         end
                         push!(elements, se)
-                        @show elements
                         printfmt(out, "\\verb|{:4d}: {:s}|\\\\\n", linenumber, join(elements))
                         elements = []
                         linenumber += 1
@@ -159,7 +154,6 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
                     push!(elements, stringtoken)
                 end
             else
-                @show stringtoken
                 push!(elements, stringtoken)
             end
         end
