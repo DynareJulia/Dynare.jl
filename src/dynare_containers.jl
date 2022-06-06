@@ -191,7 +191,7 @@ struct DynareFunctions
             set_auxiliary_variables! = (a, b, c) -> nothing
         end
         if modfileinfo.has_steadystate_file
-            steady_state! = load_dynare_function(modfilename * "SteadyState2", compileoption)
+            steady_state! = load_steady_state_function(modfilename * "SteadyState2", compileoption)
         else
             steady_state! = Module()
         end
@@ -915,3 +915,15 @@ function load_dynare_function2(modname::String)::Function
     fun = readlines(modname * ".jl")
     return (@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
 end
+
+function load_steady_state_function(modname::String, compileoption::Bool)
+    fun = readlines(modname * ".jl")
+    if fun[6] == "using StatsFuns"
+        fun[6] = "using Dynare.StatsFuns"
+    else
+        insert!(fun, 6, "using Dynare.StatsFuns")
+    end
+    fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
+    return eval(Meta.parse(join(fun, "\n")))
+end
+
