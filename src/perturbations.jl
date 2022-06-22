@@ -232,12 +232,18 @@ function display_autocorrelation(
 )
     title = "AUTOCORRELATION COEFFICIENTS"
     ar = [zeros(model.endogenous_nbr) for i in 1:options.nar]
-    S1a = zeros(model.n_bkwrd + model.n_both, model.endogenous_nbr)
-    S1b = similar(S1a)
-    S2  = zeros(model.endogenous_nbr - model.n_bkwrd - model.n_both, model.endogenous_nbr)
     stationary_variables = LREresults.stationary_variables
     n = model.original_endogenous_nbr
+    # doesn't work yet for nonstationary models
+    @show model.endogenous_nbr
+    @show count(stationary_variables)
+    if model.endogenous_nbr != count(stationary_variables)
+        return
+    end
     stationary_nbr = count(stationary_variables[1:n])
+    S1a = zeros(stationary_nbr, model.endogenous_nbr)
+    S1b = similar(S1a)
+    S2  = zeros(model.endogenous_nbr - model.n_bkwrd - model.n_both, model.endogenous_nbr)
     ar = autocorrelation!(ar, LREresults, S1a, S1b, S2, model.i_bkwrd_b, stationary_variables)
     data = Matrix{Any}(undef, stationary_nbr + 1, options.nar + 1)
     data[1, 1] = ""
