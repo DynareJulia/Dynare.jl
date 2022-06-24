@@ -7,7 +7,9 @@ function histval!(context::Context, field::Dict{String,Any})
         l = m.orig_maximum_lag + v["lag"]::Int64
         histval[l, k] = dynare_parse_eval(v["value"]::String, context)
     end
-    context.work.histval .= histval
+    tdf = TimeDataFrame(Matrix{Union{Float64, Missing}}(histval), get_endogenous(symboltable), UndatedDate(1))
+    context.dynarefunctions.set_dynamic_auxiliary_variables!(tdf, context.work.params)
+    context.work.histval .= Matrix(tdf)
 end
 
 function get_date(optionname::String, options)
