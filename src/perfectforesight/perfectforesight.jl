@@ -35,7 +35,7 @@ end
 
 @enum PerfectForesightAlgo trustregionA
 @enum LinearSolveAlgo ilu pardiso
-@enum InitializationAlgo datafile steadystate firstorder linearinterpolation
+@enum InitializationAlgo initvalfile steadystate firstorder linearinterpolation
 
 struct PerfectForesightSolverOptions
     algo::PerfectForesightAlgo
@@ -115,25 +115,41 @@ function perfect_foresight_solver!(context, field)
     dynamic_ws = DynamicWs(m.endogenous_nbr, m.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
+    initialvalues = get_dynamic_initialvalues(context)
     guess_values = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, steadystate, dynamic_ws)
     if haskey(field, "options") && get(field["options"], "lmmcp.status", false)
-        mcp_perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
+        mcp_perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, initialvalues, dynamic_ws)
     else
-        perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, dynamic_ws)
+        perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, initialvalues, dynamic_ws)
+    end
+end
+
+function get_dynamic_initialvalues(context::Context)
+    @show context.work.histval
+    if context.modfileinfo.has_histval
+        work = context.work
+        y0 = zeros(context.models[1].endogenous_nbr)
+        for i in eachindex(skipmissing(view(work.histval, size(work.histval, 1), :)))
+            y0[i] = work.histval[end, i]
+        end
+        return y0
+    else
+        return context.results.model_results[1].trends.endogenous_steady_state
     end
 end
 
 function perfect_foresight_initialization!(context, periods, datafile, exogenous, perfect_foresight_ws, algo::InitializationAlgo, dynamic_ws::DynamicWs)
-    if algo == datafile
+    if algo == initvalfile
+    elseif algo == linearinterpolation
     elseif algo == steadystate
         compute_steady_state!(context)
         endogenous_steady_state = context.results.model_results[1].trends.endogenous_steady_state
-        initial_values = repeat(endogenous_steady_state, 1, periods)
+        guess_values = repeat(endogenous_steady_state, 1, periods)
     elseif algo == firstorder
-        initial_values = simul_first_order!(context, periods, exogenous, dynamic_ws)
+        guess_values = simul_first_order!(context, periods, exogenous, dynamic_ws)
     elseif algo == interpolation
     end
-    return initial_values
+    return guess_values
 end
 
 function simul_first_order!(context::Context, periods::Int64, X::AbstractMatrix{Float64}, dynamic_ws::DynamicWs)
@@ -173,6 +189,7 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
                                 context::Context,
                                 periods::Int64,
                                 y0::Matrix{Float64},
+                                initialvalues::Vector{<:Real},
                                 dynamic_ws::DynamicWs)
     m = context.models[1]
     ddf = context.dynarefunctions
@@ -182,7 +199,6 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
     dynamic_variables = dynamic_ws.dynamic_variables
     temp_vec = dynamic_ws.temporary_values
     steadystate = results.trends.endogenous_steady_state
-    initialvalues = steadystate
     terminalvalues = view(y0, :, periods)
     params = work.params
     JJ = perfect_foresight_ws.J
