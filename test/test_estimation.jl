@@ -1,6 +1,8 @@
 using Dynare
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
 using Optim
+using FiniteDiff: finite_difference_hessian
+using LinearAlgebra: inv, diag
 
 struct SSWs{D<:AbstractFloat,I<:Integer}
     a0::Vector{D}
@@ -76,7 +78,13 @@ function loglikelihood(
     results = context.results.model_results[1]
 
     #compute steady state and first order solution
-    Dynare.compute_stoch_simul!(context, ssws.dynamicws, params, ssws.stoch_simul_options)
+    Dynare.compute_stoch_simul!(
+        context,
+        ssws.dynamicws,
+        params,
+        ssws.stoch_simul_options;
+        variance_decomposition = true,
+    )
 
     # build state space representation
     steady_state = results.trends.endogenous_steady_state[ssws.varobs_ids]
@@ -187,7 +195,13 @@ end
 init_guess = context.work.params
 f(p) = negative_loglikelihood(p, eltype(p)(0))
 res = optimize(f, init_guess, NelderMead())
-println(res.minimizer)
-println(init_guess)
-println(res.minimum)
-println(f(init_guess))
+
+hessian = finite_difference_hessian(negative_loglikelihood, res.minimizer)
+#println(hessian)
+inv_hessian = inv(hessian)
+println(diag(hessian))
+hsd = sqrt.(diag(hessian))
+invhess = inv(hessian./(hsd*hsd'))./(hsd*hsd')
+println(diag(invhess))
+stdh = sqrt.(diag(invhess))
+println("variance: ", stdh)
