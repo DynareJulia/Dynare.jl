@@ -65,13 +65,13 @@ function get_basic_parameters(p::Dict{String, Any})
 end
 
 function parse_prior_distribution(::Val{1}, p)
-    μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)
-    
+    μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)    
     α, β = beta_specification(μ, σ*σ, name=name)
-    d = Beta()
+    d = Beta(α, β)
 end
 
 function parse_prior_distribution(::Val{2}, p)
+    μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)    
     d = Gamma(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
@@ -81,18 +81,25 @@ end
 
 # Inverse gamma 1
 function parse_prior_distribution(::Val{4}, p)
-    d = Normal(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
+    μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)
+    α, θ = inverse_gamma_1_specification(μ, σ)
+    d = InverseGamma1(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 function parse_prior_distribution(::Val{5}, p)
+    μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)
+    a, b = uniform_specification(μ, σ, p3, p4)
     d = Uniform(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
 # Inverse gamma 2
 function parse_prior_distribution(::Val{6}, p)
-    d = Uniform(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
+    μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)
+    α, θ = inverse_gamma_2_specification(μ, σ)
+    d = InverseGamma(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
 
+# Weibull
 function parse_prior_distribution(::Val{8}, p)
     d = Weibull(μ = dynare_parse_eval(p["mean"], context), σ = dynare_parse_eval(p["std"], context))
 end
