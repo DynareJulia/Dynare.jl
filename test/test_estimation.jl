@@ -67,14 +67,46 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     end
 end
 
+function estimated_parameters!(
+    context::Context,
+    estimated_params::Vector{D},
+    param_indices::Vector{I},
+    shock_variance_indices::Vector{I},
+    measurement_variance_indices::Vector{I},
+)  where {D<:AbstractFloat,I<:Integer}
+    k = 1
+    for j in param_indices
+        context.work.params[j] = estimated_params[k]
+        k += 1
+    end
+    for j in shock_variance_indices
+        # !!! linear indices to variance matrix
+        context.model.Sigma_e[j] = estimated_params[k]
+        k += 1
+    end
+    for j in measurement_variance_indices
+        # not implemented
+        k += 1
+    end
+end
+
 function loglikelihood(
-    params::Vector{D},
+    estimated_params::Vector{D},
+    param_indices::Vector{I},
+    shock_variance_indices::Vector{I},
+    measurement_variance_indices::Vector{I},
     varobs::Tuple{String,String},
     observations::Matrix{D},
     context::Dynare.Context,
     ssws::SSWs{D,I},
 ) where {D<:AbstractFloat,I<:Integer}
+    estimated_parameters!(context,
+                          estimated_params,
+                          param_indices,
+                          shock_variance_indices,
+                          measurement_variance_indices)
     model = context.models[1]
+    params = context.work.params
     results = context.results.model_results[1]
 
     #compute steady state and first order solution
@@ -83,7 +115,7 @@ function loglikelihood(
         ssws.dynamicws,
         params,
         ssws.stoch_simul_options;
-        variance_decomposition = true,
+        variance_decomposition = false,
     )
 
     # build state space representation
@@ -172,8 +204,20 @@ varobs = ("y", "c")
 observations = copy(transpose(Matrix(Dynare.simulation(varobs))))
 nobs = size(observations, 2)
 ssws = SSWs(context, nobs, varobs)
-
-loglikelihood(params) = loglikelihood(params, varobs, observations, context, ssws)
+# estimated parameters: rho, alpha, theta, tau
+params_indices = [2, 3, 5, 6]
+# no shock_variance estimated
+shock_variance_indices = Vector{Int}(undef, 0)
+# no measurement errors in the model
+measurement_variance_indices = Vector{Int}(undef, 0)
+loglikelihood(estimated_params) = loglikelihood(estimated_params,
+                                                params_indices,
+                                                shock_variance_indices,
+                                                measurement_variance_indices,
+                                                varobs,
+                                                observations,
+                                                context,
+                                                ssws)
 
 function negative_loglikelihood(
     params::Vector{D},
@@ -191,14 +235,14 @@ function negative_loglikelihood(
 end
 
 # objective function
-# context.work.params contains the parameter values of the DGP
-init_guess = context.work.params
+# estimated parameters: rho, alpha, theta,tau
+init_guess = [0.9, 0.4, 3, 0] 
 f(p) = negative_loglikelihood(p, eltype(p)(0))
 res = optimize(f, init_guess, NelderMead())
 
 hessian = finite_difference_hessian(negative_loglikelihood, res.minimizer)
 #println(hessian)
-inv_hessian = inv(hessian)
+              inv_hessian = inv(hessian)
 println(diag(hessian))
 hsd = sqrt.(diag(hessian))
 invhess = inv(hessian./(hsd*hsd'))./(hsd*hsd')
