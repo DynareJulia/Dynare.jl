@@ -1,5 +1,5 @@
 using Distributions
-import Distributions: zval, cdf, ccdf, logcdf, logccdf, quantile, cquantile, invlogcdf, invlogccdf, rand, params, shape, scale, rate, pdf, logpdf 
+import Distributions: zval, cdf, ccdf, logcdf, logccdf, quantile, cquantile, invlogcdf, invlogccdf, rand, params, shape, scale, rate, pdf, logpdf, mean, var, mode, skewness, kurtosis, entropy, kldivergence, mgf, cf 
 using Random
 using SpecialFunctions
 """
@@ -66,13 +66,13 @@ partype(::InverseGamma1{T}) where {T} = T
 
 #### Parameters
 
-mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d); α  > 1/2 ? sqrt(1/θ)*gamma(α - 1/2)/gamma(α)  : T(Inf))
+mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d); α  > 1/2 ? sqrt(θ)*gamma(α - 1/2)/gamma(α)  : T(Inf))
 
 #mode(d::InverseGamma1) = scale(d) / (shape(d) + 1)
 
 function var(d::InverseGamma1{T}) where T<:Real
     (α, θ) = params(d)
-    α > 2 ? θ^2 / ((α - 1)^2 * (α - 2)) : T(Inf)
+    α > 1 ? θ / (α - 1) - mean(d)*mean(d) : T(Inf)
 end
 
 #function skewness(d::InverseGamma1{T}) where T<:Real
