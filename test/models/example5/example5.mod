@@ -4,14 +4,13 @@
 var y, c, k, a, h, b;
 varexo e, u;
 
-parameters beta, rho, alpha, delta, theta, psi, tau;
+parameters beta, rho, alpha, delta, theta, tau;
 
 alpha = 0.36;
 rho   = 0.95;
 tau   = 0.025;
 beta  = 0.99;
 delta = 0.025;
-psi   = 0;
 theta = 2.95;
 
 model;
