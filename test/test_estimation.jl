@@ -92,7 +92,7 @@ end
 
 function loglikelihood(
     estimated_params::Vector{D},
-    param_indices::Vector{I},
+    params_indices::Vector{I},
     shock_variance_indices::Vector{I},
     measurement_variance_indices::Vector{I},
     varobs::Tuple{String,String},
@@ -102,7 +102,7 @@ function loglikelihood(
 ) where {D<:AbstractFloat,I<:Integer}
     estimated_parameters!(context,
                           estimated_params,
-                          param_indices,
+                          params_indices,
                           shock_variance_indices,
                           measurement_variance_indices)
     model = context.models[1]
@@ -117,7 +117,6 @@ function loglikelihood(
         ssws.stoch_simul_options;
         variance_decomposition = false,
     )
-
     # build state space representation
     steady_state = results.trends.endogenous_steady_state[ssws.varobs_ids]
     linear_trend_coeffs = results.trends.endogenous_linear_trend[ssws.varobs_ids]
@@ -196,7 +195,7 @@ end
 
 # generate artificial data with model example5
 # provide model parsing
-context = @dynare "test/models/example5/example5.mod";
+context = @dynare "test/models/example5/example5_est_a.mod";
 
 # simulation is an accessor to simulated series
 # we assume that we observe output, y, and consumption, c
@@ -210,24 +209,73 @@ params_indices = [2, 3, 5, 6]
 shock_variance_indices = Vector{Int}(undef, 0)
 # no measurement errors in the model
 measurement_variance_indices = Vector{Int}(undef, 0)
-loglikelihood(estimated_params) = loglikelihood(estimated_params,
-                                                params_indices,
-                                                shock_variance_indices,
-                                                measurement_variance_indices,
-                                                varobs,
-                                                observations,
-                                                context,
-                                                ssws)
+
+pervious_optimum = Inf
+function minimas_unstable!(m, x)
+    fill!(m, Inf)
+    for xx in x
+        xxx = abs(xx)
+        if xxx > 1
+            x1 = xxx - 1
+            for mm in m
+                x1 = xxx - 1
+                if x1 < mm
+                    mm = x1
+                end
+            end
+        end
+    end
+    return m
+end
+
+function maximas_stable!(m, x)
+    fill!(m, 0.0)
+    for xx in x
+        xxx = abs(x)
+        if xxx < 1
+            x1 = 1 - xxx
+            for mm in m
+                if x1 > mm
+                    mm = 1 - x1
+                end
+            end
+        end
+    end
+    return m
+end
+
+optimum_work = Vector{Float64}(undef, context.models[1].endogenous_nbr)    
+function penalty(eigenvalues::Vector{C},
+                 forward_nbr::I) where {C <: Complex{Float64}, I <: Integer}
+    n = length(eigenvalues)
+    unstable_nbr = count(abs.(eigenvalues) .> 1.0)
+    excess_unstable_nbr = unstable_nbr - forward_nbr
+    if excess_unstable_nbr > 0
+        return sum(minimas_unstable!(view(optimum_work, 1:excess_unstable_nbr), eigenvalues))
+    else
+        return sum(minimas_unstable!(view(optimum_work, 1:-excess_unstable_nbr), eigenvalues))
+    end
+end
 
 function negative_loglikelihood(
     params::Vector{D},
     default_penality::D = D(0),
 ) where {D<:AbstractFloat}
     try
-        return -loglikelihood(params)
+        return -loglikelihood(params,
+                              params_indices,
+                              shock_variance_indices,
+                              measurement_variance_indices,
+                              varobs,
+                              observations,
+                              context,
+                              ssws)
     catch e
         if e isa Union{UndeterminateSystemException,UnstableSystemException}
-            return default_penality
+            model = context.models[1]
+            forward_nbr = model.n_fwrd + model.n_both
+            return penalty(context.results.model_results[1].linearrationalexpectations.eigenvalues,
+                           forward_nbr)
         else
             rethrow(e)
         end
@@ -236,7 +284,7 @@ end
 
 # objective function
 # estimated parameters: rho, alpha, theta,tau
-init_guess = [0.9, 0.4, 3, 0] 
+init_guess = [0.95, 0.36, 2.95, 0.025] 
 f(p) = negative_loglikelihood(p, eltype(p)(0))
 res = optimize(f, init_guess, NelderMead())
 
@@ -249,3 +297,4 @@ invhess = inv(hessian./(hsd*hsd'))./(hsd*hsd')
 println(diag(invhess))
 stdh = sqrt.(diag(invhess))
 println("variance: ", stdh)
+
