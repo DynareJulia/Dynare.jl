@@ -14,7 +14,7 @@ delta = 0.025;
 theta = 2.95;
 
 model;
-c*theta*h^(1+psi)=(1-alpha)*y;
+c*theta*h^(1)=(1-alpha)*y;
 k = beta*(((exp(b)*c)/(exp(b(+1))*0.5*(c(+1)+c(+2))))
     *(exp(b(+1))*alpha*y(+1)+(1-delta)*k));
 y = exp(a)*(k(-1)^alpha)*(h^(1-alpha));
