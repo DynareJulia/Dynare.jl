@@ -125,7 +125,6 @@ function perfect_foresight_solver!(context, field)
 end
 
 function get_dynamic_initialvalues(context::Context)
-    @show context.work.histval
     if context.modfileinfo.has_histval
         work = context.work
         y0 = zeros(context.models[1].endogenous_nbr)
