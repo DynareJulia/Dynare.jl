@@ -187,8 +187,8 @@ struct DynareFunctions
                 (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
         else
             # no auxiliary variables
-            set_dynamic_auxiliary_variables! = (a, b, c) -> nothing
-            set_auxiliary_variables! = (a, b, c) -> nothing
+            set_dynamic_auxiliary_variables! = (a, b) -> nothing
+            set_auxiliary_variables! = (a, b) -> nothing
         end
         if modfileinfo.has_steadystate_file
             steady_state! = load_steady_state_function(modfilename * "SteadyState2", compileoption)
