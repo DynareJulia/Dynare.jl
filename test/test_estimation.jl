@@ -2,7 +2,8 @@ using Dynare
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
 using Optim
 using FiniteDiff: finite_difference_hessian
-using LinearAlgebra: inv, diag
+using LinearAlgebra: inv, diag, eigvals
+#using ForwardDiff: hessian
 
 struct SSWs{D<:AbstractFloat,I<:Integer}
     a0::Vector{D}
@@ -245,8 +246,8 @@ function maximas_stable!(m, x)
 end
 
 optimum_work = Vector{Float64}(undef, context.models[1].endogenous_nbr)    
-function penalty(eigenvalues::Vector{C},
-                 forward_nbr::I) where {C <: Complex{Float64}, I <: Integer}
+function penalty(eigenvalues::AbstractVector,
+                 forward_nbr::Integer)
     n = length(eigenvalues)
     unstable_nbr = count(abs.(eigenvalues) .> 1.0)
     excess_unstable_nbr = unstable_nbr - forward_nbr
@@ -258,9 +259,8 @@ function penalty(eigenvalues::Vector{C},
 end
 
 function negative_loglikelihood(
-    params::Vector{D},
-    default_penality::D = D(0),
-) where {D<:AbstractFloat}
+    params::Vector{T}
+) where {T<:AbstractFloat}
     try
         return -loglikelihood(params,
                               params_indices,
@@ -274,7 +274,7 @@ function negative_loglikelihood(
         if e isa Union{UndeterminateSystemException,UnstableSystemException}
             model = context.models[1]
             forward_nbr = model.n_fwrd + model.n_both
-            return penalty(context.results.model_results[1].linearrationalexpectations.eigenvalues,
+            return penalty(eigvals(context.results.model_results[1].linearrationalexpectations.gs1),
                            forward_nbr)
         else
             rethrow(e)
@@ -285,15 +285,16 @@ end
 # objective function
 # estimated parameters: rho, alpha, theta,tau
 init_guess = [0.95, 0.36, 2.95, 0.025] 
-f(p) = negative_loglikelihood(p, eltype(p)(0))
+f(p) = negative_loglikelihood(p)
 res = optimize(f, init_guess, NelderMead())
 
-hessian = finite_difference_hessian(negative_loglikelihood, res.minimizer)
-#println(hessian)
-              inv_hessian = inv(hessian)
-println(diag(hessian))
-hsd = sqrt.(diag(hessian))
-invhess = inv(hessian./(hsd*hsd'))./(hsd*hsd')
+#hess = hessian(negative_loglikelihood, res.minimizer)
+hess = finite_difference_hessian(negative_loglikelihood, res.minimizer)
+#println(hess)
+inv_hess = inv(hess)
+println(diag(hess))
+hsd = sqrt.(diag(hess))
+invhess = inv(hess./(hsd*hsd'))./(hsd*hsd')
 println(diag(invhess))
 stdh = sqrt.(diag(invhess))
 println("variance: ", stdh)
