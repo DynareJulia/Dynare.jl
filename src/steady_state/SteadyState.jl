@@ -92,7 +92,7 @@ function steady!(context::Context, field::Dict{String,Any})
         x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
         copy!(results.trends.exogenous_steady_state,
               Float64.(vec(view(context.work.initval_exogenous, 1, :))))
-        solve_steady_state!(context, x0)
+        solve_steady_state!(context, x0, options)
     end
     if options.display
         steadystate_display(context)
@@ -169,7 +169,7 @@ end
 
 solves the static model to obtain the steady state
 """
-function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
+function solve_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
 
     ws = StaticWs(context)
     m = context.models[1]
@@ -183,18 +183,18 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64})
             A .= sparse_static_jacobian(ws, w.params, x, exogenous, m, df)
         end
         A0 = sparse_static_jacobian(ws, w.params, x0, exogenous, m, df)
-        solve_steady_state_core!(context, x0, J1!, A0)
+        solve_steady_state_core!(context, x0, J1!, A0, tolf=options.tolf)
     else
         function J2!(A::AbstractMatrix{Float64}, x::AbstractVector{Float64})
             A .= get_static_jacobian!(ws, w.params, x, exogenous, m, df)
         end
         A0 = Matrix{Float64}(undef, m.endogenous_nbr, m.endogenous_nbr)
         J2!(A0, x0)
-        solve_steady_state_core!(context, x0, J2!, A0)
+        solve_steady_state_core!(context, x0, J2!, A0, tolf=options.tolf)
     end
 end
 
-function solve_steady_state_core!(context, x0, J!, A0)
+function solve_steady_state_core!(context, x0, J!, A0; tolf = 1e-8)
 
     ws = StaticWs(context)
     m = context.models[1]
@@ -210,7 +210,8 @@ function solve_steady_state_core!(context, x0, J!, A0)
     residuals = zeros(m.endogenous_nbr)
     f!(residuals, x0)
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A0)
-    result = nlsolve(of, x0; method=:robust_trust_region, show_trace=true)
+    @show tolf
+    result = nlsolve(of, x0; method=:robust_trust_region, show_trace=true, ftol=tolf)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
     else
