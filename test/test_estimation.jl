@@ -3,7 +3,7 @@ using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemExc
 using Optim
 using FiniteDiff: finite_difference_hessian
 using LinearAlgebra: inv, diag, eigvals
-#using ForwardDiff: hessian
+using ForwardDiff: hessian
 
 struct SSWs{D<:AbstractFloat,I<:Integer}
     a0::Vector{D}
@@ -70,11 +70,11 @@ end
 
 function estimated_parameters!(
     context::Context,
-    estimated_params::Vector{D},
+    estimated_params::AbstractVector,
     param_indices::Vector{I},
     shock_variance_indices::Vector{I},
     measurement_variance_indices::Vector{I},
-)  where {D<:AbstractFloat,I<:Integer}
+)  where {I<:Integer}
     k = 1
     for j in param_indices
         context.work.params[j] = estimated_params[k]
@@ -92,7 +92,7 @@ function estimated_parameters!(
 end
 
 function loglikelihood(
-    estimated_params::Vector{D},
+    estimated_params::AbstractVector,
     params_indices::Vector{I},
     shock_variance_indices::Vector{I},
     measurement_variance_indices::Vector{I},
@@ -258,9 +258,7 @@ function penalty(eigenvalues::AbstractVector,
     end
 end
 
-function negative_loglikelihood(
-    params::Vector{T}
-) where {T<:AbstractFloat}
+function negative_loglikelihood(params::AbstractVector)
     try
         return -loglikelihood(params,
                               params_indices,
@@ -288,8 +286,8 @@ init_guess = [0.95, 0.36, 2.95, 0.025]
 f(p) = negative_loglikelihood(p)
 res = optimize(f, init_guess, NelderMead())
 
-#hess = hessian(negative_loglikelihood, res.minimizer)
-hess = finite_difference_hessian(negative_loglikelihood, res.minimizer)
+hess = hessian(negative_loglikelihood, res.minimizer)
+#hess = finite_difference_hessian(negative_loglikelihood, res.minimizer)
 #println(hess)
 inv_hess = inv(hess)
 println(diag(hess))
