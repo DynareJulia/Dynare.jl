@@ -43,18 +43,3 @@ Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
 
 A copy of the license can be found at
 <https://www.gnu.org/licenses/fdl.txt>.
-
-::: {.toctree numbered="" maxdepth="4"}
-introduction installation-and-configuration running-dynare
-the-model-file the-configuration-file time-series reporting examples
-dynare-misc-commands bibliography
-:::
-
-::: {.only}
-builder\_html
-
-Indices and tables
-==================
-
--   `genindex`{.interpreted-text role="ref"}
-:::

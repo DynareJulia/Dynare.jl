@@ -1,18 +1,7 @@
-::: {.default-domain}
-dynare
-:::
+# Installation and configuration
 
-Installation and configuration
-==============================
+## Software requirements
 
-Software requirements
----------------------
+## Installation of Dynare
 
-
-Installation of Dynare
-----------------------
-
-
-Configuration
--------------
-
+## Configuration
