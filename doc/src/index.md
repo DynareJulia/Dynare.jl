@@ -1,5 +1,4 @@
-The Dynare Julia Reference Manual, version
-==========================================
+# The Dynare Julia Reference Manual
 
 Currently the development team of Dynare is composed of:
 
