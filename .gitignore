@@ -14,5 +14,18 @@
 checksum
 LocalPreferences.toml
 Manifest.toml
-test/models/*.jl
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+
+doc/build/
+doc/site/
+doc/Manifest.toml
+
+.vscode
+.DS_Store
+Manifest.toml
+/test/Manifest.toml
+
+*/__pycache__
 

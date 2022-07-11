@@ -19,19 +19,25 @@ instructions are generated; in the second step, the program actually
 runs the computations. Both steps are triggered automatically by the
 `dynare` command.
 
-  ***MATLAB/Octave command***: **dynare** FILENAME\[.mod\] \[OPTIONS...\]
-  This command launches Dynare and executes the instructions included in
-  `FILENAME.mod`. This user-supplied file contains the model and the
-  processing instructions, as described in [The model file](@ref). The 
-  options, listed below, can be passed on the command line, following the 
-  name of the `.mod` file or in the first line of the `.mod` file itself 
-  (see below).
+**MATLAB/Octave command**: 
 
-  dynare begins by launching the preprocessor on the `.mod file`. By
-  default (unless the [use_dll](@ref) option has been given to `model`), the 
-  preprocessor creates three intermediary files:
+```
+dynare FILENAME [.mod ] [OPTIONS... ]
+```
+
+This command launches Dynare and executes the instructions included in
+`FILENAME.mod`. This user-supplied file contains the model and the
+processing instructions, as described in [The model file](@ref). The 
+options, listed below, can be passed on the command line, following the 
+name of the `.mod` file or in the first line of the `.mod` file itself 
+(see below).
+
+dynare begins by launching the preprocessor on the `.mod file`. By
+default (unless the [use_dll](@ref) option has been given to `model`), the 
+preprocessor creates three intermediary files:
 
    -   `+FILENAME/driver.m`
+        
         Contains variable declarations, and computing tasks.
 
    -   `+FILENAME/dynamic.m`
@@ -101,13 +107,12 @@ under Octave, it also means that the `.mod` file cannot be named
      *Example*
     
      Call Dynare with options containing spaces
-     ```
-     >> dynare <<modfile.mod>> '-DA=[ i in [1,2,3] when i > 1 ]' 'conffile=C:\User\My Documents\config.txt'
-     ```
 
-***Options***
+     julia> dynare <<modfile.mod>> '-DA=[ i in [1,2,3] when i > 1 ]' 'conffile=C:\User\My Documents\config.txt'
 
-- noclearall
+### Options
+
+- `noclearall`
 
   By default, `dynare` will issue a `clear all` command to MATLAB
   (\<R2015b) or Octave, thereby deleting all workspace variables and
@@ -118,7 +123,7 @@ under Octave, it also means that the `.mod` file cannot be named
   option instructs `dynare` not to clear the globals and functions.
 
 
-- onlyclearglobals
+- `onlyclearglobals`
 
   By default, `dynare` will issue a `clear all` command to MATLAB
   versions before 2015b and to Octave, thereby deleting all workspace
@@ -126,19 +131,19 @@ under Octave, it also means that the `.mod` file cannot be named
   variables (i.e. `M_, options_, oo_, estim_params_, bayestopt_`, and
   `dataset_`), leaving the other variables in the workspace.
 
-- debug
+- `debug`
 
   Instructs the preprocessor to write some debugging information about
   the scanning and parsing of the `.mod` file.
 
-- notmpterms
+- `notmpterms`
 
   Instructs the preprocessor to omit temporary terms in the static and
   dynamic files; this generally decreases performance, but is used for
   debugging purposes since it makes the static and dynamic files more
   readable.
 
-- savemacro\[=FILENAME\]
+- `savemacro\[=FILENAME\]`
 
   Instructs `dynare` to save the intermediary file which is obtained
   after macro processing (see [Macro processing language](@ref)); the 
@@ -146,20 +151,20 @@ under Octave, it also means that the `.mod` file cannot be named
   in `FILENAME-macroexp.mod`. See the [note on quotes](@ref) for info on 
   passing a `FILENAME` argument containing spaces.
 
-- onlymacro
+- `onlymacro`
 
   Instructs the preprocessor to only perform the macro processing step,
   and stop just after. Useful for debugging purposes or for using the
   macro processor independently of the rest of Dynare toolbox.
 
-- linemacro
+- `linemacro`
 
   Instructs the macro preprocessor include `@#line` directives
   specifying the line on which macro directives were encountered and
   expanded from. Only useful in conjunction with `savemacro
   <savemacro[=FILENAME]>`.
 
-- onlymodel
+- `onlymodel`
 
   Instructs the preprocessor to print only information about the model
   in the driver file; no Dynare commands (other than the shocks
@@ -167,22 +172,22 @@ under Octave, it also means that the `.mod` file cannot be named
   computational tasks performed. The same ancillary files are created as
   would otherwise be created (dynamic, static files, etc.).
 
-- nolog
+- `nolog`
 
   Instructs Dynare to no create a logfile of this run in `FILENAME.log.`
   The default is to create the logfile.
 
-- output=second\|third
+- `output=second\|third`
 
   Instructs the preprocessor to output derivatives of the dynamic model
   at least up to the given order.
 
-- language=matlab\|julia
+- `language=matlab\|julia`
  
   Instructs the preprocessor to write output for MATLAB or Julia.
   Default: MATLAB
 
-- params\_derivs\_order=02
+- `params\_derivs\_order=02`
 
   When [identification](@ref),[dynare_sensitivity](@ref) (with
   identification), or [estimation_cmd](@ref) are present, this option 
@@ -190,23 +195,23 @@ under Octave, it also means that the `.mod` file cannot be named
   parameters that are calculated by the preprocessor. 0 means no derivatives, 
   1 means first derivatives, and 2 means second derivatives. Default: 2
 
-- nowarn
+- `nowarn`
 
   Suppresses all warnings.
 
-- notime
+- `notime`
 
   Do not print the total computing time at the end of the driver, and do
   not save that total computing time to `oo_.time`.
 
-- transform\_unary\_ops
+- `transform\_unary\_ops`
 
   Transform the following operators in the model block into auxiliary
   variables: `exp`, `log`, `log10`, `cos`, `sin`, `tan`, `acos`, `asin`,
   `atan`, `cosh`, `sinh`, `tanh`, `acosh`, `asinh`, `atanh`, `sqrt`,
   `cbrt`, `abs`, `sign`, `erf`. Default: no obligatory transformation
 
-- json = parsetransform\|compute
+- `json = parsetransform\|compute`
 
   Causes the preprocessor to output a version of the `.mod` file in JSON
   format to `<<M_.fname>>/model/json/`. When the JSON output is created
@@ -233,23 +238,23 @@ under Octave, it also means that the `.mod` file cannot be named
   `FILENAME_original.json`, and the dynamic and static files are written
   to `FILENAME_dynamic.json` and `FILENAME_static.json`.
 
-- jsonstdout
+- `jsonstdout`
 
   Instead of writing output requested by `json` to files, write to
   standard out, i.e. to the MATLAB/Octave command window (and the
   log-file).
 
-- onlyjson
+- `onlyjson`
 
   Quit processing once the output requested by `json` has been written.
 
-- jsonderivsimple
+- `jsonderivsimple`
 
   Print a simplified version (excluding variable name(s) and lag
   information) of the static and dynamic files in `FILENAME_static.json`
   and `FILENAME_dynamic.`.
 
-- warn\_uninit
+- `warn\_uninit`
  
   Display a warning for each variable or parameter which is not
   initialized. See [Parameter initilization](@ref), or
@@ -257,21 +262,21 @@ under Octave, it also means that the `.mod` file cannot be named
   See [Initial and Terminal conditions](@ref), or [load_params_and_steady_state](@ref)
   for initialization of endogenous and exogenous variables.
 
-- console
+- `console`
 
   Activate console mode. In addition to the behavior of `nodisplay`,
   Dynare will not use graphical waitbars for long computations.
 
-- nograph
+- `nograph`
 
   Activate the `nograph` option (see [nograph](@ref)), so that 
   Dynare will not produce any graph.
 
-- nointeractive
+- `nointeractive`
 
   Instructs Dynare to not request user input.
 
-- nopathchange
+- `nopathchange`
 
   By default Dynare will change MATLAB/Octave's path if `dynare/matlab`
   directory is not on top and if Dynare's routines are overriden by
@@ -280,18 +285,18 @@ under Octave, it also means that the `.mod` file cannot be named
   Alternatively, the path can be temporarly modified by the user at the
   top of the `.mod` file (using MATLAB/Octave's `addpath` command).
 
-- nopreprocessoroutput
+- `nopreprocessoroutput`
 
   Prevent Dynare from printing the output of the steps leading up to the
   preprocessor as well as the preprocessor output itself.
 
-- mexext=mex|mexw32|mexw64|mexmaci64|mexa64
+- `mexext=mex|mexw32|mexw64|mexmaci64|mexa64`
 
   The mex extension associated with your platform to be used when
   compiling output associated with [use_dll](@ref). Dynare is able to set 
   this automatically, so you should not need to set it yourself.
 
-- matlabroot=\<\<path\>\>
+- `matlabroot=\<\<path\>\>`
 
   The path to the MATLAB installation for use with
   `use_dll`{.interpreted-text role="opt"}. Dynare is able to set this
@@ -299,7 +304,7 @@ under Octave, it also means that the `.mod` file cannot be named
   [note on quotes](@ref) for info on passing a `<<path>>` argument 
   containing spaces.
 
-- parallel\[=CLUSTER\_NAME\]
+- `parallel\[=CLUSTER\_NAME\]`
 
   Tells Dynare to perform computations in parallel. If CLUSTER\_NAME is
   passed, Dynare will use the specified cluster to perform parallel
@@ -307,7 +312,7 @@ under Octave, it also means that the `.mod` file cannot be named
   in the configuration file. See [The configuration file](@ref), for more 
   information about the configuration file.
 
-- conffile=FILENAME
+- `conffile=FILENAME`
 
   Specifies the location of the configuration file if it differs from
   the default. See [The configuration file](@ref), for more
@@ -315,19 +320,19 @@ under Octave, it also means that the `.mod` file cannot be named
   the [note on quotes](@ref) for info on passing
   a `FILENAME` argument containing spaces.
 
-- parallel\_follower\_open\_mode
+- `parallel\_follower\_open\_mode`
 
   Instructs Dynare to leave the connection to the follower node open
   after computation is complete, closing this connection only when
   Dynare finishes processing.
 
-- parallel\_test
+- `parallel\_test`
 
   Tests the parallel setup specified in the configuration file without
   executing the `.mod` file. See [The configuration file](@ref), for 
   more information about the configuration file.
 
-- -DMACRO\_VARIABLE\[=MACRO\_EXPRESSION\]
+- `-DMACRO\_VARIABLE\[=MACRO\_EXPRESSION\]`
 
   Defines a macro-variable from the command line (the same effect as
   using the Macro directive `@#define` in a model file, see
@@ -345,7 +350,7 @@ under Octave, it also means that the `.mod` file cannot be named
    julia> dynare <<modfile.mod>> -DA=true '-DB="A string with space"' -DC=[1,2,3] '-DD=[ i in C when i > 1 ]' -DE
    ```
 
-- -I\<\<path\>\>
+- `-I\<\<path\>\>`
 
   Defines a path to search for files to be included by the macro
   processor (using the `@#include` command). Multiple `-I` flags can be
@@ -355,7 +360,7 @@ under Octave, it also means that the `.mod` file cannot be named
   `@#includepath`. See the [note on quotes](@ref) for info on
   passing a `<<path>>` argument containing spaces.
 
-- nostrict
+- `nostrict`
 
   Allows Dynare to issue a warning and continue processing when
  
@@ -366,8 +371,8 @@ under Octave, it also means that the `.mod` file cannot be named
   4.  exogenous variables were declared but not used in the `model`
       block.
 
-- fast
-
+- `fast`
+  
   Only useful with model option `use_dll`{.interpreted-text role="opt"}.
   Don't recompile the MEX files when running again the same model file
   and the lists of variables and the equations haven't changed. We use a
@@ -375,19 +380,19 @@ under Octave, it also means that the `.mod` file cannot be named
   very small probability that the preprocessor misses a change in the
   model. In case of doubt, re-run without the fast option.
 
-- minimal\_workspace
+- `minimal\_workspace`
  
-  Instructs Dynare not to write parameter assignments to parameter names
-  in the .m file produced by the preprocessor. This is potentially
-  useful when running `dynare` on a large `.mod` file that runs into
-  workspace size limitations imposed by MATLAB.
+   Instructs Dynare not to write parameter assignments to parameter names
+   in the .m file produced by the preprocessor. This is potentially
+   useful when running `dynare` on a large `.mod` file that runs into
+   workspace size limitations imposed by MATLAB.
 
-- compute\_xrefs
+- `compute\_xrefs`
 
   Tells Dynare to compute the equation cross references, writing them to
   the output `.m` file.
 
-- stochastic
+- `stochastic`
 
   Tells Dynare that the model to be solved is stochastic. If no Dynare
   commands related to stochastic models (`stoch_simul`, `estimation`,
@@ -395,7 +400,7 @@ under Octave, it also means that the `.mod` file cannot be named
   that the model to be solved is deterministic.
 
 
-- exclude\_eqs=\<\<equation\_tags\_to\_exclude\>\>
+- `exclude\_eqs=\<\<equation\_tags\_to\_exclude\>\>`
 
   Tells Dynare to exclude all equations specified by the argument. As a
   `.mod` file must have the same number of endogenous variables as
@@ -443,7 +448,7 @@ under Octave, it also means that the `.mod` file cannot be named
 
   1.  One equation per line of the file, where every line represents the
       value passed to the `name` tag. e.g., a file such as:
-        ```    
+        ```julia    
           eq1
           eq 2
         ```
@@ -453,7 +458,7 @@ under Octave, it also means that the `.mod` file cannot be named
   2.  One equation per line of the file, where every line after the
       first line represents the value passed to the tag specified by the
       first line. e.g., a file such as:
-        ``` 
+        ``` julia
           tagname=
           a tag
           a tag with a, comma
@@ -462,7 +467,7 @@ under Octave, it also means that the `.mod` file cannot be named
       `[tagname='a tag with a, comma']`. Here note that the first line
       must end in an equal sign.
 
-- include\_eqs=\<\<equation\_tags\_to\_include\>\>
+- `include\_eqs=\<\<equation\_tags\_to\_include\>\>`
 
   Tells Dynare to run with only those equations specified by the
   argument; in other words, Dynare will exclude all equations not
@@ -472,14 +477,14 @@ under Octave, it also means that the `.mod` file cannot be named
   `include_eqs` is to find which equations to exclude then take actions
   in accord with [exclude_eqs](@ref).
 
-- use\_dll
+- `use\_dll`
 
   Instructs the preprocessor to create dynamic loadable libraries (DLL)
   containing the model equations and derivatives, instead of writing
   those in M-files. This is equivalent to the
   [use_dll](@ref) option of the `model` block.
 
-- nocommutativity
+- `nocommutativity`
  
   This option tells the preprocessor not to use the commutativity of
   addition and multiplication when looking for common subexpressions. As
@@ -515,24 +520,24 @@ under Octave, it also means that the `.mod` file cannot be named
   restriction by enabling the `save -v7.3`-option in
   `Preferences -> General -> MAT-Files`.
  
-- ***MATLAB/Octave variable*** : **M_**
+- **MATLAB/Octave variable** : **M_**
 
   Structure containing various information about the model.
 
-- ***MATLAB/Octave variable*** : **options_**
+- **MATLAB/Octave variable** : **options_**
 
   Structure contains the values of the various options used by Dynare
   during the computation.
 
-- ***MATLAB/Octave variable*** : **oo_**
+- **MATLAB/Octave variable** : **oo_**
  
   Structure containing the various results of the computations.
 
-- ***MATLAB/Octave variable*** : **dataset_**
+- **MATLAB/Octave variable** : **dataset_**
 
   A `dseries` object containing the data used for estimation.
 
-- ***MATLAB/Octave variable*** : **oo\__recursive_**
+- **MATLAB/Octave variable** : **oo\__recursive_**
 
   Cell array containing the `oo_` structures obtained when estimating
   the model for the different samples when performing recursive
@@ -540,21 +545,19 @@ under Octave, it also means that the `.mod` file cannot be named
   sample ranging to the *i* -th observation is saved in the
   *i* -th field. The fields for non-estimated endpoints are empty.
 
-- ***MATLAB/Octave variable*** : **oo_.time**
+- **MATLAB/Octave variable** : **oo_.time**
 
   Total computing time of the Dynare run, in seconds. This field is not
   set if the `notime`{.interpreted-text role="opt"} option has been
   used.
 
-  *Example*
- 
+  *Example*:
+
   Call dynare from the MATLAB or Octave prompt, without or with options:
-
   ```
-  >> dynare ramst
-  >> dynare ramst.mod savemacro
+  dynare ramst
+  dynare ramst.mod savemacro
   ```
-
   Alternatively the options can be passed in the first line of
   `ramst.mod`:
 
@@ -565,7 +568,7 @@ under Octave, it also means that the `.mod` file cannot be named
   and then dynare called without passing options on the command line:
 
   ``` 
-  >> dynare ramst
+  julia> dynare ramst
   ```
 
 ## Dynare hooks
@@ -594,10 +597,10 @@ parser works, this is not the case. The most common example of
 misleading line and column numbers (and error message for that matter)
 is the case of a missing semicolon, as seen in the following example:
 
-    ```
-    varexo a, b
-    parameters c, ...;
-    ```
+```julia
+varexo a, b
+parameters c, ...;
+```
 
 In this case, the parser doesn't know a semicolon is missing at the end
 of the `varexo` command until it begins parsing the second line and
