@@ -16,6 +16,7 @@ function load_set_dynamic_auxiliary_variables(modelname::String)
         if functionstart
             push!(source, line)
             if startswith(line, "end")
+                push!(source, "end")
                 break
             end
         end
