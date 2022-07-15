@@ -122,7 +122,7 @@ function plot_irfs(irfs, model, symboltable, filepath)
         (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
         firstvar = 1
         for p in 1:nbplt - 1
-            filename = "$(filepath)_$(exonenous_name)_$(nbplt).png"
+            filename = "$(filepath)_$(exogenous_name)_$(p).png"
             plot_irf_panel(x, irfs[Symbol(exogenous_name)], endogenous_names, exogenous_name,
                            firstvar, nr, nc, nr*nc, filename)
             firstvar += nr*nc
