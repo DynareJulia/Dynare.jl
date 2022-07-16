@@ -88,15 +88,24 @@ struct PerfectForesightWs
     permutations::Vector{Tuple{Int64, Int64}}
     function PerfectForesightWs(context, periods)
         m = context.models[1]
+        modfileinfo = context.modfileinfo
         y = Vector{Float64}(undef, (periods+2)*m.endogenous_nbr)
-        exogenous_steady_state = context.results.model_results[1].trends.exogenous_steady_state
-        x = repeat(transpose(exogenous_steady_state), periods+1, 1)
-        shocks_tmp = context.work.shocks
-        pmax = Int64(length(shocks_tmp)/m.exogenous_nbr)
-        shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
-        shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
-        # adding shocks to exogenous variables
-        view(x, 2:pmax+1,:) .+= shocks
+        if m.exogenous_nbr > 0
+            exogenous_steady_state = context.results.model_results[1].trends.exogenous_steady_state
+            x = repeat(transpose(exogenous_steady_state), periods+1, 1)
+        else
+            x = Matrix{Float64}(undef, 0, 0)
+        end
+        if length(context.work.shocks) > 0
+            shocks_tmp = context.work.shocks
+            pmax = Int64(length(shocks_tmp)/m.exogenous_nbr)
+            shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
+            shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
+            # adding shocks to exogenous variables
+            view(x, 2:pmax+1,:) .+= shocks
+        else
+            shocks = Matrix{Float64}(undef, 0, 0)
+        end
         J = Jacobian(context, periods)
         lb = Float64[]
         ub = Float64[]
