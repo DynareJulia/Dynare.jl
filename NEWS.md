@@ -1,3 +1,12 @@
+0.5.3
+=====
+- fix histval for auxiliary variables
+- fix histval for prefect foresight models
+- fix autocorrelation for stationary models
+- don't compute autocorrelation for non stationary models
+- add tolf option for steady and perfect foresight
+- fix IRFs plotting in several panels (more than 6 variables)
+- fix perfect foresight wit no exogenous variable or no shock
 0.5.2
 =====
 - change signature of steady_state_function
