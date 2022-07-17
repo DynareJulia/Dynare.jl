@@ -12,6 +12,6 @@ makedocs(
     ],
 )
 
-if get(ENV, "CI", nothing) == "true"
-    deploydocs(; repo="github.com/DynareJulia/Dynare.jl.git", push_preview=true)
-end
+#if get(ENV, "CI", nothing) == "true"
+#    deploydocs(; repo="github.com/DynareJulia/Dynare.jl.git", push_preview=true)
+#end
