@@ -1,11 +1,12 @@
 using PrettyTables
+using IntervalSets: ClosedInterval, ±
 
 function dynare_table_text(
     data::AbstractVecOrMat{Any},
     title::String;
     note::String = "",
     columnheader::Bool = true,
-    fmt::String = "%10.4f"
+    fmt::String = "%10.4f",
 )
     if length(title) > 0
         pretty_table(
@@ -16,7 +17,9 @@ function dynare_table_text(
             backend = Val(:text),
         )
     end
-    formatter = (v, i::Int64, j::Int64) -> (i > 1 && j > 1) ? round(v::Real, digits = 4) : v
+    formatter =
+        (v, i::Int64, j::Int64) ->
+            (i > 1 && j > 1) ? round(v::Union{Real,ClosedInterval}, digits = 4) : v
     if columnheader
         hlines = [:begin, 1, :end]
         highlighters = (hl_row(1, crayon"bold"), hl_col(1, crayon"bold"))
@@ -90,4 +93,10 @@ function dynare_table(
     else
         dynare_table_latex(data, title, note = note, fmt = fmt)
     end
+end
+
+function Base.round(s::ClosedInterval{T}; digits = 2) where {T<:Real}
+    left = round(s.left; digits = digits)
+    right = round(s.right; digits = digits)
+    ClosedInterval(left, right)
 end

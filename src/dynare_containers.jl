@@ -50,7 +50,8 @@ mutable struct ModFileInfo
         has_steadystate_file = false
         has_stoch_simul = false
         has_trends = false
-        new(modfilepath,
+        new(
+            modfilepath,
             has_auxiliary_variables,
             has_calib_smoother,
             has_check,
@@ -68,7 +69,8 @@ mutable struct ModFileInfo
             has_static_file,
             has_steadystate_file,
             has_stoch_simul,
-            has_trends)
+            has_trends,
+        )
     end
 end
 
@@ -158,7 +160,7 @@ struct Model
     exogenous_indices::Vector{Int64}
     NNZDerivatives::Vector{Int64}
     auxiliary_variables::Vector{Dict{String,Any}}
-    mcps::Vector{Tuple{Int64, String, String, String}}
+    mcps::Vector{Tuple{Int64,String,String,String}}
 end
 
 struct DynareFunctions
@@ -167,7 +169,13 @@ struct DynareFunctions
     set_auxiliary_variables!::Function
     set_dynamic_auxiliary_variables!::Function
     steady_state!::Module
-    function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
+    function DynareFunctions(
+        compileoption,
+        modfileinfo,
+        modfilename,
+        orig_maximum_lag,
+        orig_maximum_lead,
+    )
         if modfileinfo.has_dynamic_file
             dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
         else
@@ -195,11 +203,13 @@ struct DynareFunctions
         else
             steady_state! = Module()
         end
-        new(dynamic!,
+        new(
+            dynamic!,
             static!,
             set_auxiliary_variables!,
             set_dynamic_auxiliary_variables!,
-            steady_state!)
+            steady_state!,
+        )
     end
 end
 
@@ -230,7 +240,7 @@ function assemble_lead_lag_incidence_1!(
     n_current = 0
     n_bkwrd = 0
     n_static = 0
-    
+
     for (i, v) in enumerate(lead_lag_incidence)
         for j = 1:2
             lead_lag_incidence_matrix[j, i] = v[j]
@@ -265,7 +275,7 @@ function assemble_lead_lag_incidence_1!(
             end
         end
     end
-    return(max_lead_lag_incidence, n_bkwrd, n_current, n_static)
+    return (max_lead_lag_incidence, n_bkwrd, n_current, n_static)
 
 end
 
@@ -319,7 +329,7 @@ function assemble_lead_lag_incidence_3!(
     n_bkwrd = 0
     n_fwrd = 0
     n_static = 0
-    
+
     for (i, v) in enumerate(lead_lag_incidence)
         for j = 1:3
             lead_lag_incidence_matrix[j, i] = v[j]
@@ -400,7 +410,7 @@ function assemble_lead_lag_incidence_3!(
 
         end
     end
-    return(max_lead_lag_incidence, n_bkwrd, n_both, n_current, n_fwrd, n_static)
+    return (max_lead_lag_incidence, n_bkwrd, n_both, n_current, n_fwrd, n_static)
 
 end
 
@@ -605,7 +615,7 @@ function Model(
         backward_number + current_number + forward_number + 2 * both_number .+
         collect(1:exogenous_nbr)
     )
-    mcps = Tuple{Int64, String, String, String}[]
+    mcps = Tuple{Int64,String,String,String}[]
     Model(
         endogenous_nbr,
         exogenous_nbr,
@@ -743,7 +753,7 @@ Base.show(io::IO, t::Trends) = show_field_value(t)
 
 struct ModelResults
     endogenous_steady_state::Vector{Float64}
-    irfs::Dict{Symbol, TimeDataFrame}
+    irfs::Dict{Symbol,TimeDataFrame}
     trends::Trends
     stationary_variables::Vector{Bool}
     exogenous_steady_state::Vector{Float64}
@@ -774,7 +784,7 @@ mutable struct Work
     initval_exogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
     shocks::Vector{Float64}
-    perfect_foresight_setup::Dict{String, Any}
+    perfect_foresight_setup::Dict{String,Any}
     function Work(model, varobs)
         endo_nbr = model.endogenous_nbr
         exo_nbr = model.exogenous_nbr
@@ -787,28 +797,34 @@ mutable struct Work
         # reserve enough space for a single period computation
         exogenous_variables = Vector{Float64}(undef, 3 * model.exogenous_nbr)
         observed_variables = varobs
-#        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
-#        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+        #        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
+        #        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
         jacobian = Matrix{Float64}(undef, 0, 0)
         qr_jacobian = Matrix{Float64}(undef, 0, 0)
         model_has_trend = [false]
-        histval = Matrix{Union{Float64,Missing}}(
-            missing,
-            model.orig_maximum_lag,
-            endo_nbr,
-        )
+        histval = Matrix{Union{Float64,Missing}}(missing, model.orig_maximum_lag, endo_nbr)
         initval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         # shocks
         shocks = Vector{Float64}(undef, 0)
-        perfect_foresight_setup = Dict("periods" => 0,
-                                       "datafile" => "")
-        new(params, residuals, dynamic_variables,
-            exogenous_variables, observed_variables, jacobian,
-            qr_jacobian, model_has_trend, histval, initval_endogenous,
-            initval_exogenous, initval_exogenous_deterministic, shocks,
-            perfect_foresight_setup)
+        perfect_foresight_setup = Dict("periods" => 0, "datafile" => "")
+        new(
+            params,
+            residuals,
+            dynamic_variables,
+            exogenous_variables,
+            observed_variables,
+            jacobian,
+            qr_jacobian,
+            model_has_trend,
+            histval,
+            initval_endogenous,
+            initval_exogenous,
+            initval_exogenous_deterministic,
+            shocks,
+            perfect_foresight_setup,
+        )
     end
 end
 

@@ -2,13 +2,13 @@ using ExtendedDates
 
 function find_letter_in_period(period::AbstractString)
     for c in period
-        if 'A' <= c <=  'z'
+        if 'A' <= c <= 'z'
             return uppercase(c)
         end
     end
     return nothing
 end
-    
+
 function identify_period_type(period::AbstractString)
     c = find_letter_in_period(period)
     let period_type
@@ -50,19 +50,19 @@ end
 function periodparse(period::AbstractString)::ExtendedDates.SimpleDate
     period_type = identify_period_type(period)
     if period_type == YearDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yY"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yY"))
     elseif period_type == SemesterDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("ySs"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("ySs"))
     elseif period_type == QuarterDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yQq"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yQq"))
     elseif period_type == MonthDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yMm"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yMm"))
     elseif period_type == WeekDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yWw"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("yWw"))
     elseif period_type == DayDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("y-m-d"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("y-m-d"))
     elseif period_type == UndatedDate
-        return parse(period_type, period, ExtendedDates.SimpleDateFormat("x"));
+        return parse(period_type, period, ExtendedDates.SimpleDateFormat("x"))
     else
         throw(ErrorException)
     end
@@ -82,7 +82,11 @@ function MyTimeDataFrame(filename)
                 continuous = false
             end
         else
-            periods = range(UndatedDate(1), length=DataFrames.nrow(df), step= ExtendedDates.Undated(1)) 
+            periods = range(
+                UndatedDate(1),
+                length = DataFrames.nrow(df),
+                step = ExtendedDates.Undated(1),
+            )
         end
         break
     end

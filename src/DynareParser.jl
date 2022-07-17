@@ -132,12 +132,12 @@ function make_containers(
     model::Model,
     symboltable::SymbolTable,
     varobs::Vector{String},
-    commandlineoption
+    commandlineoption,
 )
     work = Work(model, varobs)
     modelresults = ModelResults(
         Vector{Float64}(undef, endo_nbr),
-        Dict{Symbol, TimeDataFrame}(),
+        Dict{Symbol,TimeDataFrame}(),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
         Vector{Float64}(undef, exo_nbr),
@@ -147,11 +147,13 @@ function make_containers(
         Dict{String,Matrix{Float64}}(),
     )
     results = Results([modelresults])
-    dynarefunctions = DynareFunctions(commandlineoption.compilemodule,
-                                      modelfileinfo,
-                                      modfilename,
-                                      model.orig_maximum_lag,
-                                      model.orig_maximum_lead)
+    dynarefunctions = DynareFunctions(
+        commandlineoption.compilemodule,
+        modelfileinfo,
+        modfilename,
+        model.orig_maximum_lag,
+        model.orig_maximum_lead,
+    )
     return Context(symboltable, [model], dynarefunctions, modelfileinfo, results, work)
 end
 
@@ -179,7 +181,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         aux_vars,
     )
     varobs = get_varobs(modeljson)
-    @debug "$(now()): make_container" 
+    @debug "$(now()): make_container"
     global context = make_containers(
         modfileinfo,
         modfilename,
@@ -190,7 +192,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         model,
         symboltable,
         varobs,
-        commandlineoptions
+        commandlineoptions,
     )
     get_mcps!(context.models[1].mcps, modeljson["model"])
     if haskey(modeljson, "statements")
@@ -215,7 +217,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
             deterministic_trends!(context, field)
             modfileinfo.has_trends = true
         elseif statementname == "estimated_params"
-#            parse_estimated_parameters!(context, field)
+            #            parse_estimated_parameters!(context, field)
             #            modfileinfo.has_trends = true
         elseif statementname == "estimation"
         elseif statementname == "histval"
@@ -278,7 +280,12 @@ function parse_statements!(context::Context, statements::Vector{Any})
     @info "$(now()): End $(nameof(var"#self#"))"
 end
 
-function dynare_parse_eval(s::String, context::Context; xs=SymbolType[], xw=Vector{Float64}[])
+function dynare_parse_eval(
+    s::String,
+    context::Context;
+    xs = SymbolType[],
+    xw = Vector{Float64}[],
+)
     e = Meta.parse(s)
     e = dynare_eval(e, context, xs, xw)
     try
@@ -301,7 +308,7 @@ function dynare_eval(s::Symbol, context::Context, xs, xw)::Union{Symbol,Float64}
     work = context.work
     params = work.params
     ss = string(s)
-    v = Union{Symbol, Float64}
+    v = Union{Symbol,Float64}
     try
         st = symboltable[ss]
         if st.symboltype == Parameter
@@ -407,21 +414,21 @@ function display_graphs(filepath::String)
     graphs = joinpath(filepath, "graphs")
     if Sys.islinux()
         if ENV["DESKTOP_SESSION"] == "gnome"
-            run(`/usr/bin/eog $graphs`, wait=false)
+            run(`/usr/bin/eog $graphs`, wait = false)
         elseif ENV["DESKTOP_SESSION"] == "kde"
-            run(`/usr/bin/Gwenview $graphs`, wait=false)
+            run(`/usr/bin/Gwenview $graphs`, wait = false)
         end
     elseif Sys.iswindows()
         for (i, f) in enumerate(readdir(graphs))
             i > 30 && break
             filename = joinpath(graphs, f)
-            run(`start $filename`, wait=false)
+            run(`start $filename`, wait = false)
         end
     elseif Sys.isapple()
         for (i, f) in enumerate(readdir(graphs))
             i > 30 && break
             filename = joinpath(graphs, f)
-            run(`open $filename`, wait=false)
+            run(`open $filename`, wait = false)
         end
     end
 end
@@ -437,11 +444,13 @@ struct SavedContext
 end
 
 function save_context(context::Context, filepath::String)
-    savedcontext = SavedContext(context.symboltable,
-                                context.models,
-                                context.modfileinfo,
-                                context.results,
-                                context.work)
+    savedcontext = SavedContext(
+        context.symboltable,
+        context.models,
+        context.modfileinfo,
+        context.results,
+        context.work,
+    )
     filename = split(filepath, "/")[end]
     outputpath = mkpath(joinpath(filepath, "output"))
     save(joinpath(outputpath, "$(filename).jld2"), "context", savedcontext)
@@ -451,10 +460,11 @@ end
 function last_steps(context::Context)
     filepath = context.modfileinfo.modfilepath
     # display graphs
-    if isinteractive() && (get(ENV, "TERM_PROGRAM", "") != "vscode") && ("graphs" in readdir(filepath))
+    if isinteractive() &&
+       (get(ENV, "TERM_PROGRAM", "") != "vscode") &&
+       ("graphs" in readdir(filepath))
         display_graphs(filepath)
     end
     # save context
     save_context(context, filepath)
 end
-    

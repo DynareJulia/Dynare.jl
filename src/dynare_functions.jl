@@ -9,7 +9,7 @@ RuntimeGeneratedFunctions.init(@__MODULE__)
 function load_set_dynamic_auxiliary_variables(modelname::String)
     source = []
     functionstart = false
-    for line in readlines("$(modelname)DynamicSetAuxiliarySeries.jl", keep=true)
+    for line in readlines("$(modelname)DynamicSetAuxiliarySeries.jl", keep = true)
         if startswith(line, "function")
             functionstart = true
         end
@@ -21,11 +21,11 @@ function load_set_dynamic_auxiliary_variables(modelname::String)
             end
         end
     end
-    exp1 = Meta.parse(join(source,"\n"))
-#    convert_expression(exp1)
+    exp1 = Meta.parse(join(source, "\n"))
+    #    convert_expression(exp1)
     return (@RuntimeGeneratedFunction(exp1))
 end
-    
+
 
 #=
 is_ds_var(e::Expr) =  e.head == :. && e.args[1] == :ds
