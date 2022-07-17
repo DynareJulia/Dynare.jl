@@ -8,6 +8,7 @@ makedocs(
         "Home" => "index.md",
         "Installation and Configuration" => "installation-and-configuration.md",
         "Running Dynare" => "running-dynare.md",
+        "The Model File" => "the-model-file.md",
     ],
 )
 
