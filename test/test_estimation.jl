@@ -251,7 +251,7 @@ function maximas_stable!(m, x)
 end
 
 optimum_work = Vector{Float64}(undef, context.models[1].endogenous_nbr)    
-function penalty(eigenvalues::AbstractVector{Complex{T}},
+function penalty(eigenvalues::AbstractVector{<:Union{T, Complex{T}}},
                  forward_nbr::Integer) where {T<:Real}
     n = length(eigenvalues)
     unstable_nbr = count(abs.(eigenvalues) .> 1.0)
