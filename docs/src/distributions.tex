@@ -1,0 +1,77 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb}
+
+\begin{document}
+\section{Inverse gamma}
+
+
+\subsection{Bauwens et (1999)}
+
+\begin{align*}
+X \sim IG_2(s, \nu) &\Leftrightarrow Y = \sqrt{X} \sim IG_1(s, \nu)\\
+& \Leftrightarrow Z = X^{-1} \sim G(\frac{\nu}{2}, \frac{2}{s})\\
+\mathbb{E}(X) &= \frac{s}{\nu - 2}\\
+\mathbb{V}ar(X) &= \frac{2}{\nu - 4}[\mathbb{E}(X)]^2 \mbox{ for }\nu > 4\\
+\mathbb{E}(Y) &= \sqrt{\frac{s}{2}}\frac{\Gamma\left(\frac{\nu
+-1}{2}\right)}{\Gamma\left(\frac{\nu}{2}\right)} \mbox{ for }\nu > 1 \\
+\mathbb{V}ar(Y) &= \frac{s}{\nu - 2} - [\mathbb{E}(Y)]^2 \mbox{ for }\nu > 2\\
+f_{IG_2}(x|\frac{\nu}{2}, \frac{2}{s}) &= \frac{1}{\Gamma(\frac{\nu}{2})\left(\frac{2}{s}\right)^{\frac{\nu}{2}}}x^{-\frac{1}{2}(\nu+2)}e^{-\frac{s}{2x}}    \\
+f_{IG_2}(x|\alpha,\theta) &=
+                                  \frac{1}{\Gamma(\alpha)\theta^\alpha}
+                                  x^{-(\alpha+1)}e^{-\frac{1}{sx}}    
+\end{align*}
+
+\subsection{Using Distributions.jl parameterization}
+
+\begin{itemize}
+\item shape: $\alpha$
+\item scale: $\theta$
+\end{itemize}
+\begin{align*}
+\alpha &= \frac{\nu}{2}\\
+\theta &= \frac{2}{s}\\
+X \sim IG_2(\alpha, \theta) &\Leftrightarrow Y = \sqrt{X} \sim IG_1(\alpha, \theta)\\
+& \Leftrightarrow Z = X^{-1} \sim G(\alpha, \theta)\\
+\mathbb{E}(X) &= \frac{1}{\theta(\alpha - 1)}\\
+\mathbb{V}ar(X) &= \frac{1}{\alpha - 2}[\mathbb{E}(X)]^2 \mbox{ for }\alpha > 2\\
+\mathbb{E}(Y) &= \sqrt{\frac{1}{\theta}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)}} \mbox{ for }\alpha > 2 \\
+\mathbb{V}ar(Y) &= \frac{1}{\theta(\alpha - 1)} - [\mathbb{E}(Y)]^2 \mbox{ for }\nu > 2\\
+\mbox{mode }Y &= \sqrt{\frac{\theta}{\alpha + \frac{1}{2}}}
+\end{align*}
+
+\subsection{PDF}
+\begin{align*}
+f_{IG_2}(x, \alpha, \theta) &=
+                      \frac{\theta^\alpha}{\Gamma(\alpha)}x^{-(\alpha+1)}e^{-\frac{\theta}{x}}\\
+  f_{IG_1}(y, \alpha, \theta) &= f_{IG_2}(y^2, \alpha, \theta)|2y|\\
+  &= 2\frac{\theta^\alpha}{\Gamma(\alpha)}y^{-(2\alpha+1)}e^{-\frac{\theta}{y^2}}\\
+\end{align*}
+
+\section*{Appendices}
+\subsection*{Inverse gamma type I}
+\subsubsection*{Mode derivation}
+\begin{align*}
+  \max_x y &=
+             2\frac{\theta^\alpha}{\Gamma(\alpha)}x^{-(2\alpha+1)}e^{-\frac{\theta}{x^2}}\\
+  \frac{dy}{dx} &= -\left[(2\alpha+1)x^{-1}-2\theta x^{-3}\right]y\\
+           &= 0\\
+  x^\star &= \sqrt{\frac{\theta}{\alpha + \frac{1}{2}}}
+\end{align*}
+\subsubsection*{Obtaining $\alpha$ and $\theta$ from mean and
+  variance}
+\begin{align*}
+  \frac{1}{\theta} &=
+  \frac{1}{\left[\mathbb{E}(Y)\right]^2}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)}\\
+  \frac{1}{\theta} &= (\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)
+\end{align*}
+Solve numerically
+\[
+(\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)-
+\frac{1}{\left[\mathbb{E}(Y)\right]^2}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)} =0
+\]
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
