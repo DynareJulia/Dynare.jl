@@ -25,9 +25,9 @@ shape(d)         # Get the shape parameter, i.e. α
 scale(d)         # Get the scale parameter, i.e. θ
 ```
 
-External links
+Referenc
 
-* [Inverse gamma distribution on Wikipedia](http://en.wikipedia.org/wiki/Inverse-gamma_distribution)
+* Bayesian Inference in Dynamic Econometric Models: Luc Bauwens, Michel Lubrano and Jean-Francois Richard, Oxford University Press, Oxford, 1999
 """
 struct InverseGamma1{T<:Real} <: Distributions.ContinuousUnivariateDistribution
     α::T
@@ -66,9 +66,9 @@ partype(::InverseGamma1{T}) where {T} = T
 
 #### Parameters
 
-mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d); α  > 1/2 ? sqrt(θ)*gamma(α - 1/2)/gamma(α)  : T(Inf))
+mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d); α  > 1/2 ? sqrt(θ*gamma(α - 1/2)/gamma(α))  : T(Inf))
 
-#mode(d::InverseGamma1) = scale(d) / (shape(d) + 1)
+mode(d::InverseGamma1) = sqrt(scale(d) / (shape(d) + 0.5))
 
 function var(d::InverseGamma1{T}) where T<:Real
     (α, θ) = params(d)

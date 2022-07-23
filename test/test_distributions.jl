@@ -1,7 +1,7 @@
 using Distributions
 using Test
 
-include("../src/distribution_parameters.jl")
+include("../src/distributions/distribution_parameters.jl")
 include("../src/distributions/inversegamma1.jl")
 
 ig1 = InverseGamma1(1.3, 2.5)

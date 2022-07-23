@@ -2,10 +2,48 @@
 \usepackage{amsmath,amssymb}
 
 \begin{document}
+
+Main results on distributions used in Dynare. We use the
+parametrization used in Distrubtions.jl
+
 \section{Inverse gamma}
+\begin{itemize}
+\item AKA inverse gamma type 2
+\item shape: $\alpha$
+\item scale: $\theta$
+\end{itemize}
+\begin{align*}
+\alpha &= \frac{\nu}{2}\\
+\theta &= \frac{s}{2}\\
+X \sim IG_2(\alpha, \theta) &\Leftrightarrow Z = X^{-1} \sim G(\alpha, \theta)\\
+\mathbb{E}(X) &= \frac{\theta}{\alpha - 1}\\
+\mathbb{V}ar(X) &= \frac{1}{\alpha - 2}[\mathbb{E}(X)]^2 \mbox{ for
+                  }\alpha > 2\\
+  \alpha &= 2+\frac{[\mathbb{E}(X)]^2}{\mathbb{V}ar(X)}\\
+  \theta &= (\alpha - 1)\mathbb{E}(X)\\
+f_{IG_2}(x, \alpha, \theta) &=
+                      \frac{\theta^\alpha}{\Gamma(\alpha)}x^{-(\alpha+1)}e^{-\frac{\theta}{x}}\\
+\end{align*}
 
+\section{Inverse gamma type I}
+\begin{align*}
+  X \sim IG_2(\alpha, \theta) &\Leftrightarrow Y = \sqrt{X} \sim IG_1(\alpha, \theta)\\
+                              & \Leftrightarrow Z = X^{-1} \sim G(\alpha, \theta)\\
+\mathbb{E}(Y) &= \sqrt{\theta\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)}} \mbox{ for }\alpha > \frac{1}{2} \\
+\mathbb{V}ar(Y) &= \frac{\theta}{\alpha - 1} - [\mathbb{E}(Y)]^2 \mbox{ for }\alpha > 1\\
+\mbox{mode }Y &= \sqrt{\frac{\theta}{\alpha + \frac{1}{2}}}\\
+  f_{IG_1}(y, \alpha, \theta) &= f_{IG_2}(y^2, \alpha, \theta)|2y|\\
+  &= 2\frac{\theta^\alpha}{\Gamma(\alpha)}y^{-(2\alpha+1)}e^{-\frac{\theta}{y^2}}\\
+\end{align*}
+$\alpha$ solves
+\[
+(\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)-
+\left[\mathbb{E}(Y)\right]^2\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})} =0
+\]
+and $\theta = (\alpha - 1)(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2)$
 
-\subsection{Bauwens et (1999)}
+\section*{Appendices}
+\subsection*{Bauwens et (1999)}
 
 \begin{align*}
 X \sim IG_2(s, \nu) &\Leftrightarrow Y = \sqrt{X} \sim IG_1(s, \nu)\\
@@ -21,33 +59,6 @@ f_{IG_2}(x|\alpha,\theta) &=
                                   x^{-(\alpha+1)}e^{-\frac{1}{sx}}    
 \end{align*}
 
-\subsection{Using Distributions.jl parameterization}
-
-\begin{itemize}
-\item shape: $\alpha$
-\item scale: $\theta$
-\end{itemize}
-\begin{align*}
-\alpha &= \frac{\nu}{2}\\
-\theta &= \frac{2}{s}\\
-X \sim IG_2(\alpha, \theta) &\Leftrightarrow Y = \sqrt{X} \sim IG_1(\alpha, \theta)\\
-& \Leftrightarrow Z = X^{-1} \sim G(\alpha, \theta)\\
-\mathbb{E}(X) &= \frac{1}{\theta(\alpha - 1)}\\
-\mathbb{V}ar(X) &= \frac{1}{\alpha - 2}[\mathbb{E}(X)]^2 \mbox{ for }\alpha > 2\\
-\mathbb{E}(Y) &= \sqrt{\frac{1}{\theta}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)}} \mbox{ for }\alpha > 2 \\
-\mathbb{V}ar(Y) &= \frac{1}{\theta(\alpha - 1)} - [\mathbb{E}(Y)]^2 \mbox{ for }\nu > 2\\
-\mbox{mode }Y &= \sqrt{\frac{\theta}{\alpha + \frac{1}{2}}}
-\end{align*}
-
-\subsection{PDF}
-\begin{align*}
-f_{IG_2}(x, \alpha, \theta) &=
-                      \frac{\theta^\alpha}{\Gamma(\alpha)}x^{-(\alpha+1)}e^{-\frac{\theta}{x}}\\
-  f_{IG_1}(y, \alpha, \theta) &= f_{IG_2}(y^2, \alpha, \theta)|2y|\\
-  &= 2\frac{\theta^\alpha}{\Gamma(\alpha)}y^{-(2\alpha+1)}e^{-\frac{\theta}{y^2}}\\
-\end{align*}
-
-\section*{Appendices}
 \subsection*{Inverse gamma type I}
 \subsubsection*{Mode derivation}
 \begin{align*}
@@ -60,14 +71,14 @@ f_{IG_2}(x, \alpha, \theta) &=
 \subsubsection*{Obtaining $\alpha$ and $\theta$ from mean and
   variance}
 \begin{align*}
-  \frac{1}{\theta} &=
-  \frac{1}{\left[\mathbb{E}(Y)\right]^2}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)}\\
-  \frac{1}{\theta} &= (\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)
+  \theta &=
+  \left[\mathbb{E}(Y)\right]^2\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})}\\
+  \theta &= (\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)
 \end{align*}
 Solve numerically
 \[
 (\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)-
-\frac{1}{\left[\mathbb{E}(Y)\right]^2}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)} =0
+\left[\mathbb{E}(Y)\right]^2\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})} =0
 \]
 \end{document}
 
