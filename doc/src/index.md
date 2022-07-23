@@ -42,3 +42,12 @@ Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
 
 A copy of the license can be found at
 <https://www.gnu.org/licenses/fdl.txt>.
+
+## Package Manual
+
+```@contents
+Pages = ["installation-and-configuration.md",
+         "running-dynare.md",
+         "the-model-file.md"]
+Depth = 2
+```
