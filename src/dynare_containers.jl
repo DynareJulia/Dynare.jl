@@ -1,4 +1,5 @@
 import Base
+using Distributions
 using LinearRationalExpectations
 using RuntimeGeneratedFunctions
 using Suppressor
@@ -765,6 +766,38 @@ struct Results
     model_results::Vector{ModelResults}
 end
 
+struct EstimatedParameters
+    name::Vector{String}
+    prior::Vector{Distribution}
+    initial_value::Vector{Float64}
+    ml_value::Vector{Float64}
+    posterior_mean::Vector{Float64}
+    posterior_median::Vector{Float64}
+    posterior_mode::Vector{Float64}
+    posterior_sd::Vector{Float64}
+    posterior_hpdi_lb::Vector{Float64}
+    posterior_hpdi_ub::Vector{Float64}
+    function EstimatedParameters()
+        name = Vector{String}(undef, 0)
+        prior = Vector{Distribution}(undef, 0)
+        initial_value = Vector{Float64}(undef, 0)
+        ml_value = Vector{Float64}(undef, 0)
+        posterior_mean = Vector{Float64}(undef, 0)
+        posterior_median = Vector{Float64}(undef, 0)
+        posterior_mode = Vector{Float64}(undef, 0)
+        posterior_sd = Vector{Float64}(undef, 0)
+        posterior_hpdi_lb = Vector{Float64}(undef, 0)
+        posterior_hpdi_ub = Vector{Float64}(undef, 0)
+        new(name, prior, initial_value,
+            ml_value,
+            posterior_mean,
+            posterior_median,
+            posterior_mode,
+            posterior_sd,
+            posterior_hpdi_lb,
+            posterior_hpdi_ub)
+    end
+end
 
 mutable struct Work
     params::Vector{Float64}
@@ -775,12 +808,13 @@ mutable struct Work
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
-    histval::Matrix{Union{Float64,Missing}}
-    initval_endogenous::Matrix{Union{Float64,Missing}}
-    initval_exogenous::Matrix{Union{Float64,Missing}}
-    initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
+    histval::Matrix{Union{Float64, Missing}}
+    initval_endogenous::Matrix{Union{Float64, Missing}}
+    initval_exogenous::Matrix{Union{Float64, Missing}}
+    initval_exogenous_deterministic::Matrix{Union{Float64, Missing}}
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String,Any}
+    estimated_parameters::EstimatedParameters
     function Work(model, varobs)
         endo_nbr = model.endogenous_nbr
         exo_nbr = model.exogenous_nbr
@@ -805,6 +839,7 @@ mutable struct Work
         # shocks
         shocks = Vector{Float64}(undef, 0)
         perfect_foresight_setup = Dict("periods" => 0, "datafile" => "")
+        estimated_parameters = EstimatedParameters()
         new(
             params,
             residuals,
@@ -820,6 +855,7 @@ mutable struct Work
             initval_exogenous_deterministic,
             shocks,
             perfect_foresight_setup,
+            estimated_parameters,
         )
     end
 end
