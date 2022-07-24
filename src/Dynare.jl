@@ -16,6 +16,8 @@ include("model.jl")
 export get_abc, get_de
 include("symboltable.jl")
 include("data.jl")
+include("distributions/distribution_parameters.jl")
+include("estimation/parse_prior.jl")
 include("initialization.jl")
 include("deterministic_trends.jl")
 include("DynareParser.jl")
