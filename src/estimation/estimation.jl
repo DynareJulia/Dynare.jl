@@ -1,3 +1,10 @@
+using AdvancedMH
+using Distributions
+using DynamicHMC
+using MCMCChains
+using Random
+
+
 function logpriordensity(x, estimated_parameters)
     logprior = 0.0
     @time sum((x) -> logpdf(x[1].distribution, x2), zip(estimated_parameters, x))
@@ -274,21 +281,6 @@ function get_symbol(symboltable, indx)
     end
 end
 
-function maximum_likelihood_result_table(symboltable, param_indices, estimated_params, stdh)
-    table = Matrix{Any}(undef, length(param_indices)+1, 4)
-    table[1, 1] = "Parameter"
-    table[1, 2] = "Estimated value"
-    table[1, 3] = "Standard error"
-    table[1, 4] = "80% confidence interval"
-    for (i, k) in enumerate(param_indices)
-        table[i+1, 1] = get_symbol(symboltable, k)
-        table[i+1, 2] = estimated_params[i]
-        table[i+1, 3] = stdh[i]
-        table[i+1, 4] = estimated_params[i] ± (1.28*stdh[i])
-    end
-    dynare_table(table, "Results from maximum likelihood estimation")
-end
-
 function maximum_likelihood(params::Vector{T},
                             params_indices,
                             shock_variance_indices,
@@ -350,6 +342,46 @@ function maximum_likelihood(params::Vector{T},
     maximum_likelihood_result_table(context.symboltable, params_indices, res.minimizer, stdh)
 end
 
+
+function metropolis_hastings()
+    function loglikelihood_density(params)
+        try
+            f = loglikelihood(
+                params,
+                params_indices,
+                shock_variance_indices,
+                measurement_variance_indices,
+                varobs,
+                observations,
+                context,
+                ssws,
+        )
+            return f
+        catch
+            return -Inf
+        end
+    end
+
+
+    model = DensityModel(loglikelihood_density)
+
+    spl = RWMH(MvNormal(zeros(length(params_indices)), 0.5 * (invhess + invhess')))
+
+    # Sample from the posterior.
+    chain = sample(model, spl, 50000; param_names = parameter_names, chain_type = Chains)
+end
+
+function hamiltonian_mcmc()
+    lg = LogDensity(loglikelihood_density, length(params_indices))
+    results = mcmc_with_warmup(
+        Random.GLOBAL_RNG,
+        lg,
+        100;
+        initialization = (q = res.minimizer, κ = GaussianKineticEnergy(Diagonal(invhess))),
+        reporter = ProgressMeterReport(),
+    )
+end
+
 function estimation(context)
     varobs = context.varobs
     observations = copy(transpose(Matrix(Dynare.simulation(varobs))))
@@ -362,7 +394,27 @@ function estimation(context)
     # no measurement errors in the model
     measurement_variance_indices = Vector{Int}(undef, 0)
 end
-
     
+function maximum_likelihood_result_table(symboltable, param_indices, estimated_params, stdh)
+    table = Matrix{Any}(undef, length(param_indices)+1, 4)
+    table[1, 1] = "Parameter"
+    table[1, 2] = "Estimated value"
+    table[1, 3] = "Standard error"
+    table[1, 4] = "80% confidence interval"
+    for (i, k) in enumerate(param_indices)
+        table[i+1, 1] = get_symbol(symboltable, k)
+        table[i+1, 2] = estimated_params[i]
+        table[i+1, 3] = stdh[i]
+        table[i+1, 4] = estimated_params[i] ± (1.28*stdh[i])
+    end
+    dynare_table(table, "Results from maximum likelihood estimation")
+end
+
+hmcmc_result_table(
+    parameter_names,
+    mean(results.chain),
+    sqrt.(diag(results.κ.M⁻¹)),
+    "Results from Bayesian estimation",
+)
 
                              
