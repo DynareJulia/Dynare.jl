@@ -33,9 +33,7 @@ Base.push!(t::SolverTrace, s::SolverState) = push!(t.states, s)
 
 Base.getindex(t::SolverTrace, i::Integer) = getindex(t.states, i)
 
-function Base.setindex!(t::SolverTrace,
-                        s::SolverState,
-                        i::Integer)
+function Base.setindex!(t::SolverTrace, s::SolverState, i::Integer)
     setindex!(t.states, s, i)
 end
 
@@ -48,13 +46,15 @@ function Base.show(io::IO, t::SolverTrace)
     return
 end
 
-function update!(tr::SolverTrace,
-                 iteration::Integer,
-                 fnorm::Real,
-                 stepnorm::Real,
-                 dt::Dict,
-                 store_trace::Bool,
-                 show_trace::Bool)
+function update!(
+    tr::SolverTrace,
+    iteration::Integer,
+    fnorm::Real,
+    stepnorm::Real,
+    dt::Dict,
+    store_trace::Bool,
+    show_trace::Bool,
+)
     ss = SolverState(iteration, fnorm, stepnorm, dt)
     if store_trace
         push!(tr, ss)
@@ -65,7 +65,12 @@ function update!(tr::SolverTrace,
     return
 end
 
-mutable struct SolverResults{rT<:Real,T<:Union{rT,Complex{rT}},I<:AbstractArray{T},Z<:AbstractArray{T}}
+mutable struct SolverResults{
+    rT<:Real,
+    T<:Union{rT,Complex{rT}},
+    I<:AbstractArray{T},
+    Z<:AbstractArray{T},
+}
     method::String
     initial_x::I
     zero::Z

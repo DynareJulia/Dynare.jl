@@ -1,21 +1,24 @@
-function robust_trust_region_(df::OnceDifferentiable,
-                              initial_x::AbstractArray{T},
-                              xtol::Real,
-                              ftol::Real,
-                              iterations::Integer,
-                              store_trace::Bool,
-                              show_trace::Bool,
-                              extended_trace::Bool,
-                              factor::Real,
-                              autoscale::Bool,
-                              cache = NewtonTrustRegionCache(df)) where T
+function robust_trust_region_(
+    df::OnceDifferentiable,
+    initial_x::AbstractArray{T},
+    xtol::Real,
+    ftol::Real,
+    iterations::Integer,
+    store_trace::Bool,
+    show_trace::Bool,
+    extended_trace::Bool,
+    factor::Real,
+    autoscale::Bool,
+    cache = NewtonTrustRegionCache(df),
+) where {T}
     copyto!(cache.x, initial_x)
     value_jacobian!!(df, cache.x)
     cache.r .= value(df)
     check_isfinite(cache.r)
 
     it = 0
-    x_converged, f_converged = assess_convergence(initial_x, cache.xold, value(df), NaN, ftol)
+    x_converged, f_converged =
+        assess_convergence(initial_x, cache.xold, value(df), NaN, ftol)
     stopped = any(isnan, cache.x) || any(isnan, value(df)) ? true : false
 
     converged = x_converged || f_converged
@@ -28,11 +31,21 @@ function robust_trust_region_(df::OnceDifferentiable,
             name *= " and autoscaling"
         end
 
-        return SolverResults(name,
-        #initial_x, reshape(cache.x, size(initial_x)...), norm(cache.r, Inf),
-        initial_x, copy(cache.x), norm(cache.r, Inf),
-        it, x_converged, xtol, f_converged, ftol, tr,
-        first(df.f_calls), first(df.df_calls))
+        return SolverResults(
+            name,
+            #initial_x, reshape(cache.x, size(initial_x)...), norm(cache.r, Inf),
+            initial_x,
+            copy(cache.x),
+            norm(cache.r, Inf),
+            it,
+            x_converged,
+            xtol,
+            f_converged,
+            ftol,
+            tr,
+            first(df.f_calls),
+            first(df.df_calls),
+        )
     end
 
     tr = SolverTrace()
@@ -69,7 +82,9 @@ function robust_trust_region_(df::OnceDifferentiable,
             # Ratio of actual to predicted reduction (equation 11.47 in N&W)
             mul!(vec(cache.r_predict), jacobian(df), vec(cache.p))
             cache.r_predict .+= cache.r
-            rho = (sum(abs2, cache.r) - sum(abs2, value(df))) / (sum(abs2, cache.r) - sum(abs2, cache.r_predict))
+            rho =
+                (sum(abs2, cache.r) - sum(abs2, value(df))) /
+                (sum(abs2, cache.r) - sum(abs2, cache.r_predict))
 
             if rho > eta
                 # Successful iteration
@@ -79,11 +94,15 @@ function robust_trust_region_(df::OnceDifferentiable,
                 # Update scaling vector
                 if autoscale
                     for j = 1:nn
-                        cache.d[j] = max(convert(real(T), 0.1) * real(cache.d[j]), norm(view(jacobian(df), :, j)))
+                        cache.d[j] = max(
+                            convert(real(T), 0.1) * real(cache.d[j]),
+                            norm(view(jacobian(df), :, j)),
+                        )
                     end
                 end
 
-                x_converged, f_converged = assess_convergence(cache.x, cache.xold, cache.r, xtol, ftol)
+                x_converged, f_converged =
+                    assess_convergence(cache.x, cache.xold, cache.r, xtol, ftol)
                 converged = x_converged || f_converged
             else
                 cache.x .-= cache.p
@@ -97,12 +116,12 @@ function robust_trust_region_(df::OnceDifferentiable,
             end
         catch e
             cache.x .-= cache.p
-            delta = delta/2
+            delta = delta / 2
             continue
         end
         # Update size of trust region
         if rho < 0.1
-            delta = delta/2
+            delta = delta / 2
         elseif rho >= 0.9
             delta = 2 * wnorm(cache.d, cache.p)
         elseif rho >= 0.5
@@ -114,22 +133,46 @@ function robust_trust_region_(df::OnceDifferentiable,
     if autoscale
         name *= " and autoscaling"
     end
-    return SolverResults(name,
-                         initial_x, copy(cache.x), maximum(abs, cache.r),
-                         it, x_converged, xtol, f_converged, ftol, tr,
-                         first(df.f_calls), first(df.df_calls))
+    return SolverResults(
+        name,
+        initial_x,
+        copy(cache.x),
+        maximum(abs, cache.r),
+        it,
+        x_converged,
+        xtol,
+        f_converged,
+        ftol,
+        tr,
+        first(df.f_calls),
+        first(df.df_calls),
+    )
 end
 
-function robust_trust_region(df::OnceDifferentiable,
-                      initial_x::AbstractArray{T},
-                      xtol::Real,
-                      ftol::Real,
-                      iterations::Integer,
-                      store_trace::Bool,
-                      show_trace::Bool,
-                      extended_trace::Bool,
-                      factor::Real,
-                      autoscale::Bool,
-                      cache = NewtonTrustRegionCache(df)) where T
-    robust_trust_region_(df, initial_x, convert(real(T), xtol), convert(real(T), ftol), iterations, store_trace, show_trace, extended_trace, convert(real(T), factor), autoscale, cache)
+function robust_trust_region(
+    df::OnceDifferentiable,
+    initial_x::AbstractArray{T},
+    xtol::Real,
+    ftol::Real,
+    iterations::Integer,
+    store_trace::Bool,
+    show_trace::Bool,
+    extended_trace::Bool,
+    factor::Real,
+    autoscale::Bool,
+    cache = NewtonTrustRegionCache(df),
+) where {T}
+    robust_trust_region_(
+        df,
+        initial_x,
+        convert(real(T), xtol),
+        convert(real(T), ftol),
+        iterations,
+        store_trace,
+        show_trace,
+        extended_trace,
+        convert(real(T), factor),
+        autoscale,
+        cache,
+    )
 end

@@ -76,11 +76,8 @@ exo_nbr = 2
 dynamic_nbr = 12
 tmp_nbr = length(temp_vec)
 
-ws_threaded = [Dynare.DynamicWs(endo_nbr,
-                                exo_nbr,
-                                dynamic_nbr,
-                                tmp_nbr)
-               for i = 1:Threads.nthreads()]
+ws_threaded =
+    [Dynare.DynamicWs(endo_nbr, exo_nbr, dynamic_nbr, tmp_nbr) for i = 1:Threads.nthreads()]
 
 params = context.work.params
 @btime begin

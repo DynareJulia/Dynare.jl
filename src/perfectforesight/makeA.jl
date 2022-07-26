@@ -242,7 +242,7 @@ function makeJacobian!(
     context::Context,
     periods::Int64,
     ws::Vector{DynamicWs};
-    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     I = JA.ss.I
     J = JA.ss.J
@@ -272,15 +272,24 @@ function makeJacobian!(
     @debug "any(isnan.(exogenous))=$(any(isnan.(exogenous)))"
     @debug "any(isnan.(steadystate))=$(any(isnan.(steadystate)))"
     function make_one_period!(r::Int64, t::Int64, tid::Int64)
-        jacobian = get_dynamic_jacobian!(ws[tid], params, endogenous, exogenous, JA.steadystate, md, df, t)
+        jacobian = get_dynamic_jacobian!(
+            ws[tid],
+            params,
+            endogenous,
+            exogenous,
+            JA.steadystate,
+            md,
+            df,
+            t,
+        )
         i, j, v = findnz(sparse(jacobian))
-        oc = (t - 1)*nvar
+        oc = (t - 1) * nvar
         @inbounds for el = 1:length(i)
             if j[el] <= maxcol
                 kjel = jacobian_columns[j[el]]
                 I[r] = permute_row(i[el], permutations) + oc
                 J[r] = kjel + oc - nvar
-                 V[r] = v[el]
+                V[r] = v[el]
                 r += 1
             end
         end

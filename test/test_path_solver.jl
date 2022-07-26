@@ -12,30 +12,30 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
         return Cint(0)
     end
 
-    function jacobian_callback(        
+    function jacobian_callback(
         n::Cint,
         nnz::Cint,
         z::Vector{Cdouble},
         col_start::Vector{Cint},
         col_len::Vector{Cint},
         row::Vector{Cint},
-        data::Vector{Cdouble}
+        data::Vector{Cdouble},
     )
         @assert n == length(z) == length(col_start) == length(col_len)
-        @assert nnz == length(row) == length(data)    
+        @assert nnz == length(row) == length(data)
 
         Jac = J(z)  # SparseMatrixCSC
 
         # Pouring Jac::SparseMatrixCSC to the format used in PATH
-        for i in 1:n
+        for i = 1:n
             col_start[i] = Jac.colptr[i]
-            col_len[i] = Jac.colptr[i + 1] - Jac.colptr[i]
+            col_len[i] = Jac.colptr[i+1] - Jac.colptr[i]
         end
 
         rv = rowvals(Jac)
         nz = nonzeros(Jac)
         num_nonzeros = SparseArrays.nnz(Jac)
-        for i in 1:num_nonzeros
+        for i = 1:num_nonzeros
             row[i] = rv[i]
             data[i] = nz[i]
         end
@@ -48,14 +48,14 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
     F_name = Vector{String}(undef, 0)
 
     # overestimating number of nonzeros in Jacobian
-    nnz = max( SparseArrays.nnz(J(lb)), SparseArrays.nnz(J(ub)) )
-    nnz = max( nnz, SparseArrays.nnz(J(initial_values)) )
-    for i in 1:2
+    nnz = max(SparseArrays.nnz(J(lb)), SparseArrays.nnz(J(ub)))
+    nnz = max(nnz, SparseArrays.nnz(J(initial_values)))
+    for i = 1:2
         z_rand = max.(lb, min.(ub, rand(Float64, n)))
         nnz_rand = SparseArrays.nnz(J(z_rand))
-        nnz = max( nnz, nnz_rand )
+        nnz = max(nnz, nnz_rand)
     end
-    nnz = min( 2 * nnz, n^2 )
+    nnz = min(2 * nnz, n^2)
 
 
     F_val = zeros(3)
@@ -63,15 +63,15 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
     @show F_val
     # Solve the MCP using PATHSolver
     status, z, info = PATHSolver.solve_mcp(
-        function_callback, 
-        jacobian_callback, 
-        lb, 
-        ub, 
-        initial_values; 
-        nnz = nnz, 
+        function_callback,
+        jacobian_callback,
+        lb,
+        ub,
+        initial_values;
+        nnz = nnz,
         variable_names = var_name,
         constraint_names = F_name,
-        kwargs...
+        kwargs...,
     )
 
     # This function has changed the content of m already.
@@ -80,7 +80,7 @@ end
 
 n = 3
 A = spdiagm(rand(3))
-F(x) = A*x
+F(x) = A * x
 J(x) = A
 lb = repeat([-Inf], n)
 lb[3] = 3
@@ -89,14 +89,16 @@ initial_values = rand(n)
 
 status, z, info = solve_path!(F, J, lb, ub, initial_values)
 
-modeljson = Dynare.parseJSON("/home/michel/projects/julia-packages/dynare.jl/test/models/irreversible/irbc1a")
+modeljson = Dynare.parseJSON(
+    "/home/michel/projects/julia-packages/dynare.jl/test/models/irreversible/irbc1a",
+)
 
 function ramsey_contraints(context, field)
     for c in field["ramsey_model_constraints"]
         push!(context.work.mcps, c["constraint"])
     end
 end
-    
+
 function get_tags!(mcps, modeljson)
     for (i, eq) in enumerate(modeljson["model"])
         tag = get(eq["tags"], "mcp", "")
@@ -108,9 +110,9 @@ end
 
 function mcp!(lb, ub, permutations, mcps, context)
     for m in mcps
-        (m1, m2) = m 
+        (m1, m2) = m
         (var, op, expr) = split(m2)
-        
+
         if op[1] == '<'
             ub[m1] = Dynare.dynare_parse_eval(String(expr), context)
         elseif op[1] == '>'

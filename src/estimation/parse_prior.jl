@@ -2,23 +2,23 @@ include("../distributions/inversegamma1.jl")
 
 mutable struct Prior
     boundaries::String
-    domain
-    init
-    interval
-    jscale
-    mean
-    median
-    mode
-    name
-    name1
-    name2
-    regimes
-    shape
-    shift
-    stdev
-    subsample
-    truncate
-    variance
+    domain::Any
+    init::Any
+    interval::Any
+    jscale::Any
+    mean::Any
+    median::Any
+    mode::Any
+    name::Any
+    name1::Any
+    name2::Any
+    regimes::Any
+    shape::Any
+    shift::Any
+    stdev::Any
+    subsample::Any
+    truncate::Any
+    variance::Any
     Prior() = new()
 end
 
@@ -31,7 +31,7 @@ function parse_prior!(context, field)
 end
 
 function _parse!(p, field)
-    for (k,v) in field
+    for (k, v) in field
         if k == "statementName"
             nothing
         elseif k == "options"
@@ -46,25 +46,25 @@ function _parse!(p, field)
 end
 
 function make_prior_distribution(p::Prior, ::Val{Symbol("beta")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev*p.stdev)
+    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
     α, β = beta_specification(p.mean, p.variance)
     return Beta(α, β)
 end
 
 function make_prior_distribution(p::Prior, ::Val{Symbol("gamma")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev*p.stdev)
+    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
     α, θ = gamma_specification(p.mean, p.variance)
     return Gamma(α, θ)
 end
 
 function make_prior_distribution(p::Prior, ::Val{Symbol("inv_gamma")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev*p.stdev)
+    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_1_specification(p.mean, p.variance)
     return InverseGamma1(α, θ)
 end
 
 function make_prior_distribution(p::Prior, ::Val{Symbol("inv_gamma2")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev*p.stdev)
+    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_2_specification(p.mean, p.variance)
     return InverseGamma(α, θ)
 end
@@ -74,12 +74,12 @@ function make_prior_distribution(p::Prior, ::Val{Symbol("normal")})
     !isdefined(p, :mean) && isdefined(p, :mode) && (p.mean = p["mode"])
     !isdefined(p, :stdev) && isdefined(p, :variance) && (σ = sqrt(p.variance))
     return Normal(p.mean, p.stdev)
-end                       
-    
+end
+
 function make_prior_distribution(p::Prior, ::Val{Symbol("uniform")})
     if !isdefined(p, :domain)
         !isdefined(p, :mean) && isdefined(p, :median) && (p.mean = p["median"])
-        !isdefined(p, :variance) && isdefined(p, :stdev) && (p.variance = p.stdev*p.stdev)
+        !isdefined(p, :variance) && isdefined(p, :stdev) && (p.variance = p.stdev * p.stdev)
         a, b = uniform_specification(p.mean, p.variance)
     else
         a, b = p.domain
@@ -88,11 +88,11 @@ function make_prior_distribution(p::Prior, ::Val{Symbol("uniform")})
 end
 
 function make_prior_distribution(p::Prior, ::Val{Symbol("weibull")})
-    !isdefined(p, :variance) && isdefined(p, :stdev) && (p.variance = p.stdev*p.stdev)
+    !isdefined(p, :variance) && isdefined(p, :stdev) && (p.variance = p.stdev * p.stdev)
     α, θ = weibull_specification(p.mean, p.variance)
     return Weibull(α, θ)
 end
-    
+
 #=
 testcase = [
 Dict("statementName" => "prior", "name" => "alpha", "subsample" => "", "shape" => "beta", "options" => Dict("mean" => 0.356, "stdev" => 0.02)), 
