@@ -1,2 +1,17 @@
 *~
+*.bin
+*.css
+*.csv
+*.cod
+*.eps
+*.html
+*.jld2
+*.js
+*.json
+*.log
+*.mat
+*.png
+checksum
 Manifest.toml
+test/models/*.jl
+
