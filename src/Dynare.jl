@@ -37,6 +37,7 @@ include("perfectforesight/perfectforesight.jl")
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
+include("estimation/estimation.jl")
 
 export @dynare
 

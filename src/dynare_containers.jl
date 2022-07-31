@@ -11,6 +11,8 @@ export Context,
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
+@enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
+
 mutable struct ModFileInfo
     modfilepath::String
     has_auxiliary_variables::Bool
@@ -766,12 +768,20 @@ struct Results
     model_results::Vector{ModelResults}
 end
 
+NTPrior = @NamedTuple{
+    index::Union{Int64,Pair{Int64,Int64}},
+    initialvalue::Union{Float64,Missing},
+    name::Union{String,Pair{String,String}},
+    prior::Distribution,
+    parametertype::SymbolType,
+}
+
 struct EstimatedParameters
-    name::Vector{Union{String,Tuple{String,String}}}
-    index::Vector{Union{Int64,Tuple{Int64,Int64}}}
-    prior::Vector{Distribution}
-    initial_value::Vector{Float64}
-    ml_value::Vector{Float64}
+    prior_R::Vector{NTPrior}
+    prior_Rplus::Vector{NTPrior}
+    prior_01::Vector{NTPrior}
+    prior_AB::Vector{NTPrior}
+    ml_maximizer::Vector{Float64}
     posterior_mean::Vector{Float64}
     posterior_median::Vector{Float64}
     posterior_mode::Vector{Float64}
@@ -779,11 +789,11 @@ struct EstimatedParameters
     posterior_hpdi_lb::Vector{Float64}
     posterior_hpdi_ub::Vector{Float64}
     function EstimatedParameters()
-        name = Vector{Union{String,Tuple{String,String}}}(undef, 0)
-        index = Vector{Union{Int64,Tuple{Int64,Int64}}}(undef, 0)
-        prior = Vector{Distribution}(undef, 0)
-        initial_value = Vector{Float64}(undef, 0)
-        ml_value = Vector{Float64}(undef, 0)
+        prior_R = Vector{Distribution}(undef, 0)
+        prior_Rplus = Vector{Distribution}(undef, 0)
+        prior_01 = Vector{Distribution}(undef, 0)
+        prior_AB = Vector{Distribution}(undef, 0)
+        ml_maximizer = Vector{Float64}(undef, 0)
         posterior_mean = Vector{Float64}(undef, 0)
         posterior_median = Vector{Float64}(undef, 0)
         posterior_mode = Vector{Float64}(undef, 0)
@@ -791,11 +801,11 @@ struct EstimatedParameters
         posterior_hpdi_lb = Vector{Float64}(undef, 0)
         posterior_hpdi_ub = Vector{Float64}(undef, 0)
         new(
-            name,
-            index,
-            prior,
-            initial_value,
-            ml_value,
+            prior_R,
+            prior_Rplus,
+            prior_01,
+            prior_AB,
+            ml_maximizer,
             posterior_mean,
             posterior_median,
             posterior_mode,
@@ -805,6 +815,10 @@ struct EstimatedParameters
         )
     end
 end
+
+import Base: length
+Base.length(ep::EstimatedParameters) =
+    length(ep.prior_R) + length(ep.prior_Rplus) + length(ep.prior_01) + length(ep.prior_AB)
 
 mutable struct Work
     params::Vector{Float64}
@@ -868,8 +882,6 @@ mutable struct Work
 end
 
 Base.show(io::IO, w::Work) = show_field_value(w)
-
-@enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
 
 struct DynareSymbol
     longname::String

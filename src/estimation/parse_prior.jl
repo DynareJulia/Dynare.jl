@@ -1,7 +1,7 @@
 include("../distributions/inversegamma1.jl")
 
 mutable struct Prior
-    boundaries::String
+    boundaries::Any
     domain::Any
     init::Any
     interval::Any
@@ -19,15 +19,22 @@ mutable struct Prior
     subsample::Any
     truncate::Any
     variance::Any
-    Prior() = new()
+    Prior() = new(repeat([missing], 18)...)
 end
 
 function parse_prior!(context, field)
     p = Prior()
     _parse!(p, field)
+    @assert !ismissing(p.name) || (!ismissing(p.name1) && !ismissing(p.name2))
     ep = context.work.estimated_parameters
-    push!(ep.name, p.name)
-    push!(ep.prior, make_prior_distribution(p, Val(Symbol(p.shape))))
+    symboltable = context.symboltable
+    if !ismissing(p.name)
+        parametertype = symboltable[p.name].symboltype
+    else
+        parametertype = symboltable[p.name1].symboltype
+    end
+    index, name = get_index_name(p, symboltable)
+    make_prior_distribution!(ep, p, Val(Symbol(p.shape)), index, name, parametertype)
 end
 
 function _parse!(p, field)
@@ -45,65 +52,181 @@ function _parse!(p, field)
     return p
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("beta")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
+function get_index_name(p, symboltable)
+    if !ismissing(p.name1)
+        return (
+            Pair(symboltable[p.name1].orderintype, symboltable[p.name2].orderintype),
+            Pair(p.name1, p.name2),
+        )
+    else
+        return (symboltable[p.name].orderintype, p.name)
+    end
+end
+
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("beta")},
+    index,
+    name,
+    parametertype,
+)
+    !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, β = beta_specification(p.mean, p.variance)
-    return Beta(α, β)
+    push!(
+        ep.prior_01,
+        (
+            index = index,
+            initialvalue = p.init,
+            name = name,
+            prior = Beta(α, β),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("gamma")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("gamma")},
+    index,
+    name,
+    parametertype,
+)
+    !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = gamma_specification(p.mean, p.variance)
-    return Gamma(α, θ)
+    push!(
+        ep.prior_Rplus,
+        (
+            index = index,
+            initialvalue = p.init,
+            name = name,
+            prior = Gamma(α, θ),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("inv_gamma")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("inv_gamma")},
+    index,
+    name,
+    parametertype,
+)
+    !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_1_specification(p.mean, p.variance)
-    return InverseGamma1(α, θ)
+    push!(
+        ep.prior_Rplus,
+        (
+            index = index,
+            initialvalue = p.init,
+            name = name,
+            prior = InverseGamma1(α, θ),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("inv_gamma2")})
-    isdefined(p, :stdev) && !isdefined(p, :variance) && (p.variance = p.stdev * p.stdev)
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("inv_gamma2")},
+    index,
+    name,
+    parametertype,
+)
+    !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_2_specification(p.mean, p.variance)
-    return InverseGamma(α, θ)
+    push!(
+        ep.prior_Rplus,
+        (
+            index = index,
+            initialvalue = p.init,
+            name = name,
+            prior = InverseGamma(α, θ),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("normal")})
-    !isdefined(p, :mean) && isdefined(p, :median) && (p.mean = p["median"])
-    !isdefined(p, :mean) && isdefined(p, :mode) && (p.mean = p["mode"])
-    !isdefined(p, :stdev) && isdefined(p, :variance) && (σ = sqrt(p.variance))
-    return Normal(p.mean, p.stdev)
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("normal")},
+    index,
+    name,
+    parametertype,
+)
+    ismissing(p.mean) && !ismissing(p.median) && (p.mean = p["median"])
+    ismissing(p.mean) && !ismissing(p.mode) && (p.mean = p["mode"])
+    ismissing(p.stdev) && !ismissing(p.variance) && (σ = sqrt(p.variance))
+
+    push!(
+        ep.prior_R,
+        (
+            index = index,
+            initialvalue = p.init,
+            name = name,
+            prior = Normal(p.mean, p.stdev),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("uniform")})
-    if !isdefined(p, :domain)
-        !isdefined(p, :mean) && isdefined(p, :median) && (p.mean = p["median"])
-        !isdefined(p, :variance) && isdefined(p, :stdev) && (p.variance = p.stdev * p.stdev)
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("uniform")},
+    index,
+    name,
+    parametertype,
+)
+    if ismissing(p.domain)
+        ismissing(p.mean) && !ismissing(p.median) && (p.mean = p["median"])
+        ismissing(p.variance) && !ismissing(p.stdev) && (p.variance = p.stdev * p.stdev)
         a, b = uniform_specification(p.mean, p.variance)
     else
         a, b = p.domain
     end
-    return Uniform(a, b)
+    push!(
+        ep.prior_AB,
+        (
+            index = index,
+            initialvalue = p.init,
+            name = name,
+            prior = Uniform(a, b),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
 
-function make_prior_distribution(p::Prior, ::Val{Symbol("weibull")})
-    !isdefined(p, :variance) && isdefined(p, :stdev) && (p.variance = p.stdev * p.stdev)
+function make_prior_distribution!(
+    ep::EstimatedParameters,
+    p::Prior,
+    ::Val{Symbol("weibull")},
+    index,
+    name,
+    parametertype,
+)
+    ismissing(p.variance) && !ismissing(p.stdev) && (p.variance = p.stdev * p.stdev)
     α, θ = weibull_specification(p.mean, p.variance)
-    return Weibull(α, θ)
+    push!(
+        ep.prior_Rplus,
+        (
+            index = index,
+            initialvalue = init,
+            name = p.name,
+            prior = Weibull(α, θ),
+            parametertype = parametertype,
+        ),
+    )
+    return nothing
 end
-
-#=
-testcase = [
-Dict("statementName" => "prior", "name" => "alpha", "subsample" => "", "shape" => "beta", "options" => Dict("mean" => 0.356, "stdev" => 0.02)), 
-Dict("statementName" => "prior", "name" => "beta", "subsample" => "", "shape" => "beta", "options" => Dict("mean" => 0.993, "stdev" => 0.002)), 
-Dict("statementName" => "prior", "name" => "rho", "subsample" => "", "shape" => "beta", "options" => Dict("mean" => 0.129, "stdev" => 0.223)), 
-Dict("statementName" => "prior", "name" => "delta", "subsample" => "", "shape" => "beta", "options" => Dict("mean" => 0.01, "stdev" => 0.005)), 
-Dict("statementName" => "prior", "name" => "theta", "subsample" => "", "shape" => "normal", "options" => Dict("mean" => 3.0, "stdev" => 1.0)), 
-Dict("statementName" => "prior", "name" => "tau", "subsample" => "", "shape" => "beta", "options" => Dict("mean" => 0.03, "stdev" => 0.01))
-]
-
-for c in testcase
-    @show parse_prior([], c)
-end  
-=#

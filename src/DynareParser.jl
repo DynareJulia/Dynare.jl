@@ -266,6 +266,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
             shocks!(context, field)
             modfileinfo.has_shocks = true
         elseif statementname == "std_prior"
+            field["name2"] = field["name1"] = field["name"]
             parse_prior!(context, field)
         elseif statementname == "steady"
             @debug "$(now()): start steady"
