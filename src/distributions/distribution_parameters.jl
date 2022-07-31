@@ -40,10 +40,7 @@ end
 function inverse_gamma_1_specification(μ, σ2)
     μ2 = μ * μ
     f(x) = (x - 1) * (σ2 + μ2) - μ2 * gamma(x) / gamma(x - 0.5)
-    @show f(1)
-    @show f(100)
     α = find_zero(f, (1, 100))
-    @show α
     θ = (α - 1) * (σ2 + μ2)
     return α, θ
 end
