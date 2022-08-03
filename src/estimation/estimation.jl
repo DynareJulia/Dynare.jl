@@ -135,7 +135,6 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
             lpd = logpriordensity(x, context.work.estimated_parameters)
             lpd += loglikelihood(x, context, observations, ssws)
         catch e
-            @show e
             lpd = -Inf
         end
         return lpd
@@ -147,11 +146,30 @@ end
 dimension(ld::DSGELogPosteriorDensity) = ld.dimension
 logdensity(ld::DSGELogPosteriorDensity, x) = ld.f(x)
 logdensity_and_gradient(ld::DSGELogPosteriorDensity, x) =
-    ld.f(collect(x)), finite_difference_gradient(ld.f, collect(x))
+    ld.f(x), finite_difference_gradient(ld.f, x)
+logdensity(tld::TransformedLogDensity, x) = tld.log_density_function(collect(TransformVariables.transform(tld.transformation, x)))
+function logdensity_and_gradient(tld::TransformedLogDensity, x)
+    tx = collect(TransformVariables.transform(tld.transformation, x))
+    return (tld.log_density_function(tx), finite_difference_gradient(tld.log_density_function, tx))
+end
 capabilities(ld::DSGELogPosteriorDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
+capabilities(ld::TransformedLogDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
 
-(problem::DSGELogPosteriorDensity)(θ) =
-    logposteriordensity(collect(θ), problem.context, problem.observations, problem.ssws)
+function (problem::DSGELogPosteriorDensity)(θ)
+    @show θ
+    lpd = -Inf
+    context = problem.context
+    try
+        lpd = logpriordensity(θ, context.work.estimated_parameters)
+        lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
+    catch e
+        @show θ
+        error(e)
+        lpd = -Inf
+    end
+    @show lpd
+    return lpd
+end    
 
 function set_estimated_parameters!(context::Context, value::Vector{T}) where {T<:Real}
     ep = context.work.estimated_parameters
@@ -201,6 +219,7 @@ function loglikelihood(
     ssws::SSWs{T,I},
 ) where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
 
+#    @show parameters
     model = context.models[1]
     results = context.results.model_results[1]
     work = context.work
@@ -277,6 +296,22 @@ function loglikelihood(
             data_pattern,
         )
     else
+#=
+        @show Dynare.kalman_likelihood(
+            Y,
+            ssws.Z,
+            ssws.H,
+            ssws.T,
+            ssws.R,
+            ssws.Q,
+            ssws.a0,
+            ssws.P,
+            start,
+            last,
+            presample,
+            klws,
+        )
+=#
         return Dynare.kalman_likelihood(
             Y,
             ssws.Z,
@@ -399,7 +434,6 @@ function maximum_likelihood(
                 )
             elseif e isa DomainError
                 @debug DomainError, p
-                rethrow(e)
                 msg = sprint(showerror, e, catch_backtrace())
                 x = parse(T, rsplit(rsplit(msg, ":")[1], " ")[3])
                 #println(x)
@@ -646,8 +680,10 @@ function hmc_estimation(
     transformation = DSGEtransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
     results = mcmc_with_warmup(
         Random.GLOBAL_RNG,
+        #        transformed_problem,
         problem,
         1000;
         initialization = (q = p0, κ = GaussianKineticEnergy(I(problem.dimension))),
@@ -660,6 +696,7 @@ function hmc_estimation(
         sqrt.(diag(results.κ.M⁻¹)),
         "Results from Bayesian estimation",
     )
+
 end
 
 function estimation_result_table(param_names, estimated_params, stdh, title)
@@ -676,3 +713,4 @@ function estimation_result_table(param_names, estimated_params, stdh, title)
     end
     dynare_table(table, title)
 end
+

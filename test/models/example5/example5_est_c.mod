@@ -27,15 +27,15 @@ b = tau*a(-1)+rho*b(-1) + u;
 end;
 
 steady_state_model;
-K_Y = beta*alpha /(1 - beta*(1 - delta));
-H_Y = K_Y^(-alpha/(1 - alpha));
-C_Y = 1 - delta*K_Y;
-y = (theta*C_Y*H_Y/(1 - alpha))^(-1);
-c = C_Y*y;
-lk = log(K_Y*y);
-lh = log(H_Y*y);
-a = 0;
-b = 0;
+  K_Y = beta*alpha /(1 - beta*(1 - delta));
+  H_Y = K_Y^(-alpha/(1 - alpha));
+  C_Y = 1 - delta*K_Y;
+  y = (1 - alpha)/(theta*C_Y*H_Y);
+  c = C_Y*y;
+  lk = log(K_Y*y);
+  lh = log(H_Y*y);
+  a = 0;
+  b = 0;
 end;
 
 shocks;
@@ -67,5 +67,6 @@ std(u).prior(shape=inv_gamma, mean=0.009, stdev=1);
 varobs y, c;
 //estimation(order=1,datafile=fsdata_simul);
 //ml_estimation(context; datafile="fsdata_simul.csv");
-datafile = "fsdata_simul.csv";
+//datafile = "fsdata_simul.csv";
 hmc_estimation(context, datafile="fsdata_simul.csv");
+
