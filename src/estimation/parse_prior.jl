@@ -74,7 +74,7 @@ function make_prior_distribution!(
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, β = beta_specification(p.mean, p.variance)
     push!(
-        ep.prior_01,
+        ep.prior,
         (
             index = index,
             initialvalue = p.init,
@@ -97,7 +97,7 @@ function make_prior_distribution!(
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = gamma_specification(p.mean, p.variance)
     push!(
-        ep.prior_Rplus,
+        ep.prior,
         (
             index = index,
             initialvalue = p.init,
@@ -120,7 +120,7 @@ function make_prior_distribution!(
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_1_specification(p.mean, p.variance)
     push!(
-        ep.prior_Rplus,
+        ep.prior,
         (
             index = index,
             initialvalue = p.init,
@@ -143,7 +143,7 @@ function make_prior_distribution!(
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_2_specification(p.mean, p.variance)
     push!(
-        ep.prior_Rplus,
+        ep.prior,
         (
             index = index,
             initialvalue = p.init,
@@ -168,7 +168,7 @@ function make_prior_distribution!(
     ismissing(p.stdev) && !ismissing(p.variance) && (σ = sqrt(p.variance))
 
     push!(
-        ep.prior_R,
+        ep.prior,
         (
             index = index,
             initialvalue = p.init,
@@ -196,7 +196,7 @@ function make_prior_distribution!(
         a, b = p.domain
     end
     push!(
-        ep.prior_AB,
+        ep.prior,
         (
             index = index,
             initialvalue = p.init,
@@ -219,7 +219,7 @@ function make_prior_distribution!(
     ismissing(p.variance) && !ismissing(p.stdev) && (p.variance = p.stdev * p.stdev)
     α, θ = weibull_specification(p.mean, p.variance)
     push!(
-        ep.prior_Rplus,
+        ep.prior,
         (
             index = index,
             initialvalue = init,
