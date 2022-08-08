@@ -777,10 +777,7 @@ NTPrior = @NamedTuple{
 }
 
 struct EstimatedParameters
-    prior_R::Vector{NTPrior}
-    prior_Rplus::Vector{NTPrior}
-    prior_01::Vector{NTPrior}
-    prior_AB::Vector{NTPrior}
+    prior::Vector{NTPrior}
     ml_maximizer::Vector{Float64}
     posterior_mean::Vector{Float64}
     posterior_median::Vector{Float64}
@@ -789,10 +786,7 @@ struct EstimatedParameters
     posterior_hpdi_lb::Vector{Float64}
     posterior_hpdi_ub::Vector{Float64}
     function EstimatedParameters()
-        prior_R = Vector{Distribution}(undef, 0)
-        prior_Rplus = Vector{Distribution}(undef, 0)
-        prior_01 = Vector{Distribution}(undef, 0)
-        prior_AB = Vector{Distribution}(undef, 0)
+        prior = Vector{Distribution}(undef, 0)
         ml_maximizer = Vector{Float64}(undef, 0)
         posterior_mean = Vector{Float64}(undef, 0)
         posterior_median = Vector{Float64}(undef, 0)
@@ -801,10 +795,7 @@ struct EstimatedParameters
         posterior_hpdi_lb = Vector{Float64}(undef, 0)
         posterior_hpdi_ub = Vector{Float64}(undef, 0)
         new(
-            prior_R,
-            prior_Rplus,
-            prior_01,
-            prior_AB,
+            prior,
             ml_maximizer,
             posterior_mean,
             posterior_median,
@@ -817,8 +808,7 @@ struct EstimatedParameters
 end
 
 import Base: length
-Base.length(ep::EstimatedParameters) =
-    length(ep.prior_R) + length(ep.prior_Rplus) + length(ep.prior_01) + length(ep.prior_AB)
+Base.length(ep::EstimatedParameters) = length(ep.prior)
 
 mutable struct Work
     params::Vector{Float64}

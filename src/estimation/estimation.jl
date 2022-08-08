@@ -123,41 +123,27 @@ end
 function logpriordensity(x, estimated_parameters)
     lpd = 0.0
     k = 1
-    for p in estimated_parameters.prior_R
+    for (k, p) in enumerate(estimated_parameters.prior)
         lpd += logpdf(p.prior, x[k])
-        k += 1
-    end
-    for p in estimated_parameters.prior_Rplus
-        lpd += logpdf(p.prior, x[k])
-        k += 1
-    end
-    for p in estimated_parameters.prior_01
-        lpd += logpdf(p.prior, x[k])
-        k += 1
-    end
-    for p in estimated_parameters.prior_AB
-        lpd += logpdf(p.prior, x[k])
-        k += 1
     end
     return lpd
 end
 
 function DSGETransformation(ep::EstimatedParameters)
     tvec = []
-    for p in ep.prior_R
-        push!(tvec, asℝ)
-    end
-    for p in ep.prior_Rplus
-        push!(tvec, asℝ₊)
-    end
-    for p in ep.prior_01
-        push!(tvec, as𝕀)
-    end
-    for p in ep.prior_AB
-        push!(tvec, as(Real, p.domain...))
+    for p in ep.prior
+        push_prior!(tvec, Val(typeof(p.prior)))
     end
     return as((tvec...,))
 end
+
+push_prior!(tvec, ::Val{Distributions.Beta{Float64}}) = push!(tvec, as𝕀) 
+push_prior!(tvec, ::Val{Distributions.Gamma{Float64}}) = push!(tvec, asℝ₊) 
+push_prior!(tvec, ::Val{Dynare.InverseGamma1{Float64}}) = push!(tvec, asℝ₊) 
+push_prior!(tvec, ::Val{Distributions.InverseGamma{Float64}}) = push!(tvec, asℝ₊) 
+push_prior!(tvec, ::Val{Distributions.Normal{Float64}}) = push!(tvec, asℝ) 
+push_prior!(tvec, ::Val{Distributions.Uniform{Float64}}) = push!(tvec, as(Real, p.domain...)) 
+push_prior!(tvec, ::Val{Distributions.Weibull{Float64}}) = push!(tvec, asℝ₊) 
 
 function get_eigenvalues(context)
     eigenvalues = context.results.model_results[1].linearrationalexpectations.eigenvalues
@@ -250,22 +236,8 @@ end
 
 function set_estimated_parameters!(context::Context, value::Vector{T}) where {T<:Real}
     ep = context.work.estimated_parameters
-    k = 1
-    for p in ep.prior_R
+    for (k, p) in enumerate(ep.prior)
         set_estimated_parameters!(context, p.index, value[k], Val(p.parametertype))
-        k += 1
-    end
-    for p in ep.prior_Rplus
-        set_estimated_parameters!(context, p.index, value[k], Val(p.parametertype))
-        k += 1
-    end
-    for p in ep.prior_01
-        set_estimated_parameters!(context, p.index, value[k], Val(p.parametertype))
-        k += 1
-    end
-    for p in ep.prior_AB
-        set_estimated_parameters!(context, p.index, value[k], Val(p.parametertype))
-        k += 1
     end
 end
 
@@ -575,29 +547,13 @@ end
 function get_initial_values(
     estimated_parameters::EstimatedParameters,
 )::Tuple{Vector{Float64},Vector{Float64}}
-    return (
-        [
-            mean.([p.prior for p in estimated_parameters.prior_R])
-            mean.([p.prior for p in estimated_parameters.prior_Rplus])
-            mean.([p.prior for p in estimated_parameters.prior_01])
-            mean.([p.prior for p in estimated_parameters.prior_AB])
-        ],
-        [
-            var.([p.prior for p in estimated_parameters.prior_R])
-            var.([p.prior for p in estimated_parameters.prior_Rplus])
-            var.([p.prior for p in estimated_parameters.prior_01])
-            var.([p.prior for p in estimated_parameters.prior_AB])
-        ],
-    )
+    return (mean.([p.prior for p in estimated_parameters.prior]),
+            var.([p.prior for p in estimated_parameters.prior])
+            )
 end
 
 function get_parameter_names(estimated_parameters::EstimatedParameters)
-    return [
-        [p.name for p in estimated_parameters.prior_R]
-        [p.name for p in estimated_parameters.prior_Rplus]
-        [p.name for p in estimated_parameters.prior_01]
-        [p.name for p in estimated_parameters.prior_AB]
-    ]
+    return [p.name for p in estimated_parameters.prior]
 end
 
 ## Estimation
