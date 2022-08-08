@@ -55,10 +55,10 @@ CSV.write("fsdata_simul.csv", dataframe(simulation(1)))
 //std(e).prior(shape=inv_gamma, mean=0.009, stdev=100);
 //std(u).prior(shape=inv_gamma, mean=0.009, stdev=100);
 
-alpha.prior(shape=beta, mean=0.356, stdev=0.02);
-beta.prior(shape=beta, mean=0.9, stdev=0.01);
+//alpha.prior(shape=beta, mean=0.356, stdev=0.02);
+//beta.prior(shape=beta, mean=0.9, stdev=0.01);
 rho.prior(shape=beta, mean=0.129, stdev=0.01);
-delta.prior(shape=beta, mean=0.01, stdev=0.005);
+//delta.prior(shape=beta, mean=0.01, stdev=0.005);
 theta.prior(shape=normal, mean=3.0, stdev=0.1);
 tau.prior(shape=beta, mean=0.03, stdev=0.01);
 std(e).prior(shape=inv_gamma, mean=0.009, stdev=1);
@@ -68,5 +68,6 @@ varobs y, c;
 //estimation(order=1,datafile=fsdata_simul);
 //ml_estimation(context; datafile="fsdata_simul.csv");
 //datafile = "fsdata_simul.csv";
-hmc_estimation(context, datafile="fsdata_simul.csv");
+//ml_estimation(context, datafile="fsdata_simul.csv");
+posterior_mode(context, datafile="fsdata_simul.csv");
 
