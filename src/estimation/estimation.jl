@@ -124,15 +124,16 @@ function logpriordensity(x, estimated_parameters)
     lpd = 0.0
     k = 1
     for (k, p) in enumerate(estimated_parameters.prior)
-        lpd += logpdf(p.prior, x[k])
+        lpd += logpdf(p, x[k])
     end
     return lpd
 end
 
+## Parameters transformation on ℝ
 function DSGETransformation(ep::EstimatedParameters)
     tvec = []
     for p in ep.prior
-        push_prior!(tvec, Val(typeof(p.prior)))
+        push_prior!(tvec, Val(typeof(p)))
     end
     return as((tvec...,))
 end
@@ -144,11 +145,6 @@ push_prior!(tvec, ::Val{Distributions.InverseGamma{Float64}}) = push!(tvec, as�
 push_prior!(tvec, ::Val{Distributions.Normal{Float64}}) = push!(tvec, asℝ) 
 push_prior!(tvec, ::Val{Distributions.Uniform{Float64}}) = push!(tvec, as(Real, p.domain...)) 
 push_prior!(tvec, ::Val{Distributions.Weibull{Float64}}) = push!(tvec, asℝ₊) 
-
-function get_eigenvalues(context)
-    eigenvalues = context.results.model_results[1].linearrationalexpectations.eigenvalues
-    return eigenvalues
-end
 
 function make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
     previous_value = 0.0
@@ -182,8 +178,7 @@ function make_negativelogposteriordensity(context, observations, first_obs, last
             eigenvalues = get_eigenvalues(context)
             model = context.models[1]
             backward_nbr = model.n_bkwrd + model.n_both
-            @show e
-#            lpd = previous_value + smooth_penalty(e, eigenvalues, backward_nbr)
+            @debug e
             lpd = -Inf
         end
         return -lpd
@@ -236,8 +231,8 @@ end
 
 function set_estimated_parameters!(context::Context, value::Vector{T}) where {T<:Real}
     ep = context.work.estimated_parameters
-    for (k, p) in enumerate(ep.prior)
-        set_estimated_parameters!(context, p.index, value[k], Val(p.parametertype))
+    for (k, p) in enumerate(zip(ep.index, ep.parametertype))
+        set_estimated_parameters!(context, p[1], value[k], Val(p[2]))
     end
 end
 
@@ -407,15 +402,27 @@ function smooth_penalty(e::DomainError,
 end
 
 """
+function penalty(e::LinearAlgebra.LAPACKException, eigenvalues, backward_nbr)
+
+catches unexpected exceptions and rethrow
+"""      
+function smooth_penalty(e::LinearAlgebra.LAPACKException, 
+                 eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
+                 backard_nbr::Integer,
+                 ) where {T<:Real}
+    return -Inf
+end
+
+"""
 function penalty(e::Exception, eigenvalues, backward_nbr)
 
 catches unexpected exceptions and rethrow
 """      
-function penalty(e::Exception, 
+function smooth_penalty(e::Exception, 
                  eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
                  backard_nbr::Integer,
                  ) where {T<:Real}
-
+    return -Inf
 end
 
 function get_symbol(symboltable, indx)
@@ -424,136 +431,6 @@ function get_symbol(symboltable, indx)
             return k[2].longname
         end
     end
-end
-
-
-function maximum_likelihood(
-    params::Vector{T},
-    params_indices,
-    shock_variance_indices,
-    measurement_variance_indices,
-    varobs,
-    observations,
-    context,
-    ssws,
-) where {T<:Real}
-
-    optimum_work = Vector{Float64}(undef, context.models[1].endogenous_nbr)
-    history = 0.0
-
-    # objective function
-    function negative_loglikelihood(p)
-        try
-            f =
-                -logposteriordensity(
-                    p,
-                    params_indices,
-                    shock_variance_indices,
-                    measurement_variance_indices,
-                    varobs,
-                    observations,
-                    context,
-                    ssws,
-                )
-            history = f
-            return f
-        catch e
-            if e isa Union{UndeterminateSystemException,UnstableSystemException}
-                @debug e, p
-                model = context.models[1]
-                forward_nbr = model.n_fwrd + model.n_both
-                return penalty(
-                    eigvals(
-                        context.results.model_results[1].linearrationalexpectations.gs1,
-                    ),
-                    forward_nbr,
-                )
-            elseif e isa DomainError
-                @debug DomainError, p
-                msg = sprint(showerror, e, catch_backtrace())
-                x = parse(T, rsplit(rsplit(msg, ":")[1], " ")[3])
-                #println(x)
-                return abs(x) + history
-            else
-                rethrow(e)
-            end
-        end
-    end
-
-    initial_values = get_initial_values(context.work.estimated_parameters)
-    f(p) = negative_loglikelihood(p)
-    res = optimize(
-        f,
-        initial_values,
-        NelderMead(),
-        Optim.Options(f_tol = 1e-5, show_trace = true),
-    )
-
-    hess = finite_difference_hessian(negative_loglikelihood, res.minimizer)
-    inv_hess = inv(hess)
-    hsd = sqrt.(diag(hess))
-    invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
-    stdh = sqrt.(diag(invhess))
-
-    maximum_likelihood_result_table(
-        context.symboltable,
-        params_indices,
-        res.minimizer,
-        stdh,
-    )
-end
-
-function get_observations(context, datafile, first_obs, last_obs)
-    results = context.results.model_results[1]
-    symboltable = context.symboltable
-    varobs = context.work.observed_variables
-    varobs_ids =
-        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
-
-    if datafile != ""
-        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig = get_data(datafile, varnames, start = first_obs, last = last_obs)
-    else
-        error("calib_smoother needs a data file or a TimeDataFrame!")
-    end
-    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
-
-    remove_linear_trend!(
-        Y,
-        Yorig,
-        results.trends.endogenous_steady_state[varobs_ids],
-        results.trends.endogenous_linear_trend[varobs_ids],
-    )
-    return Y
-end
-
-function get_indices(estimated_parameters, symboltable)
-    parameters_indices = Vector{Int64}(undef, 0)
-    shock_variance_indices = Vector{Int64}(undef, 0)
-    measurement_variance_indices = Vector{Int64}(undef, 0)
-
-    pp(i, ::Val{Endogenous}) = push!(measurement_variance_indices, i)
-    pp(i, ::Val{Exogenous}) = push!(shock_variance_indices, i)
-    pp(i, ::Val{Parameter}) = push!(parameters_indices, i)
-
-    for name in estimated_parameters.name
-        p = symboltable[name]
-        pp(p.orderintype, Val(p.symboltype))
-    end
-
-    return (parameters_indices, shock_variance_indices, measurement_variance_indices)
-end
-
-function get_initial_values(
-    estimated_parameters::EstimatedParameters,
-)::Tuple{Vector{Float64},Vector{Float64}}
-    return (mean.([p.prior for p in estimated_parameters.prior]),
-            var.([p.prior for p in estimated_parameters.prior])
-            )
-end
-
-function get_parameter_names(estimated_parameters::EstimatedParameters)
-    return [p.name for p in estimated_parameters.prior]
 end
 
 ## Estimation
@@ -612,6 +489,7 @@ function posterior_mode(
     iterations = 1000,
     show_trace = false
 )
+    @debug show_trace = true
     problem = DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
@@ -619,7 +497,6 @@ function posterior_mode(
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
-    @show ip0
     res = optimize(
         transformed_density,
         ip0,
@@ -627,29 +504,22 @@ function posterior_mode(
 #        Optim.Options(f_tol = 1e-5, show_trace = show_trace, iterations = iterations),
         Optim.Options(show_trace = show_trace, iterations = iterations),
     )
+    @show res
     hess = finite_difference_hessian(transformed_density, res.minimizer)
     inv_hess = inv(hess)
     hsd = sqrt.(diag(hess))
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
     stdh = sqrt.(diag(invhess))
-#=
-    maximum_likelihood_result_table(
-        context.symboltable,
-        params_indices,
-        res.minimizer,
-        stdh,
+    tstdh = transform_std(transformation, res.minimizer, stdh)
+
+    estimation_result_table(
+        context.work.estimated_parameters.name,
+        context.work.estimated_parameters.parametertype,
+        TransformVariables.transform(transformation, res.minimizer),
+        tstdh,
+        "Posterior mode"
     )
-    results = maximum_likelihood(
-        params,
-        params_indices,
-        shock_variance_indices,
-        measurement_variance_indices,
-        observed_variables,
-        observations,
-        context,
-        ssws,
-    )
-    =#
+
     return res
 end
 
@@ -709,17 +579,17 @@ function hmc_estimation(
 end
 
 ## Results
-function estimation_result_table(param_names, estimated_params, stdh, title)
+function estimation_result_table(param_names, param_type, estimated_value, stdh, title)
     table = Matrix{Any}(undef, length(param_names) + 1, 4)
     table[1, 1] = "Parameter"
     table[1, 2] = "Estimated value"
     table[1, 3] = "Standard error"
     table[1, 4] = "80% confidence interval"
-    for (i, k) in enumerate(param_names)
-        table[i+1, 1] = k
-        table[i+1, 2] = estimated_params[i]
+    for (i, k) in enumerate(zip(param_type, param_names))
+        table[i+1, 1] = print_parameter_name(Val(k[1]), k[2])
+        table[i+1, 2] = estimated_value[i]
         table[i+1, 3] = stdh[i]
-        table[i+1, 4] = estimated_params[i] ± (1.28 * stdh[i])
+        table[i+1, 4] = estimated_value[i] ± (1.28 * stdh[i])
     end
     dynare_table(table, title)
 end
@@ -745,3 +615,62 @@ function hmcmc_result_table(parameter_names)
     "Results from Bayesian estimation"
 end
 
+# Utilities
+function get_eigenvalues(context)
+    eigenvalues = context.results.model_results[1].linearrationalexpectations.eigenvalues
+    return eigenvalues
+end
+
+function get_initial_values(
+    estimated_parameters::EstimatedParameters,
+)::Tuple{Vector{Float64},Vector{Float64}}
+    return (mean.([p for p in estimated_parameters.prior]),
+            var.([p for p in estimated_parameters.prior])
+            )
+end
+
+function get_parameter_names(estimated_parameters::EstimatedParameters)
+    return [p.name for p in estimated_parameters.name]
+end
+
+function get_observations(context, datafile, first_obs, last_obs)
+    results = context.results.model_results[1]
+    symboltable = context.symboltable
+    varobs = context.work.observed_variables
+    varobs_ids =
+        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
+
+    if datafile != ""
+        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
+        Yorig = get_data(datafile, varnames, start = first_obs, last = last_obs)
+    else
+        error("calib_smoother needs a data file or a TimeDataFrame!")
+    end
+    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
+
+    remove_linear_trend!(
+        Y,
+        Yorig,
+        results.trends.endogenous_steady_state[varobs_ids],
+        results.trends.endogenous_linear_trend[varobs_ids],
+    )
+    return Y
+end
+
+# Pretty printing name of estimated parameters
+print_parameter_name(::Val{Parameter}, name) = name
+print_parameter_name(::Val{Endogenous}, name) = "Std($(name[1]))"
+print_parameter_name(::Val{Exogenous}, name) = "Std($(name[1]))"
+
+    # transformation of standard errors using delta approach
+function transform_std(T::TransformVariables.TransformTuple, x, std)
+    ts = []
+    for (i, t) in enumerate(T.transformations)
+        push!(ts, transform_std(t, x[i], std[i]))
+    end
+    return ts
+end
+
+#transform_std(::asℝ, x, std) = std
+transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp(x)*std
+transform_std(::TransformVariables.ScaledShiftedLogistic{Int64}, x, std) = logistic(x)*(1-logistic(x))*std

@@ -28,13 +28,17 @@ function parse_prior!(context, field)
     @assert !ismissing(p.name) || (!ismissing(p.name1) && !ismissing(p.name2))
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
+    index, name = get_index_name(p, symboltable)
+    push!(ep.index, index)
+    push!(ep.name, name)
+    push!(ep.initialvalue, p.init)
     if !ismissing(p.name)
         parametertype = symboltable[p.name].symboltype
     else
         parametertype = symboltable[p.name1].symboltype
     end
-    index, name = get_index_name(p, symboltable)
-    make_prior_distribution!(ep, p, Val(Symbol(p.shape)), index, name, parametertype)
+    push!(ep.parametertype, parametertype)
+    push!(ep.prior, make_prior_distribution(p, Val(Symbol(p.shape))))
 end
 
 function _parse!(p, field)
@@ -63,130 +67,56 @@ function get_index_name(p, symboltable)
     end
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("beta")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("beta")}
 )
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, β = beta_specification(p.mean, p.variance)
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = p.init,
-            name = name,
-            prior = Beta(α, β),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return Beta(α, β)
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("gamma")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("gamma")}
 )
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = gamma_specification(p.mean, p.variance)
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = p.init,
-            name = name,
-            prior = Gamma(α, θ),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return Gamma(α, θ)
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("inv_gamma")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("inv_gamma")}
 )
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_1_specification(p.mean, p.variance)
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = p.init,
-            name = name,
-            prior = InverseGamma1(α, θ),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return InverseGamma1(α, θ)
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("inv_gamma2")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("inv_gamma2")}
 )
     !ismissing(p.stdev) && ismissing(p.variance) && (p.variance = p.stdev * p.stdev)
     α, θ = inverse_gamma_2_specification(p.mean, p.variance)
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = p.init,
-            name = name,
-            prior = InverseGamma(α, θ),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return InverseGamma(α, θ)
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("normal")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("normal")}
 )
     ismissing(p.mean) && !ismissing(p.median) && (p.mean = p["median"])
     ismissing(p.mean) && !ismissing(p.mode) && (p.mean = p["mode"])
     ismissing(p.stdev) && !ismissing(p.variance) && (σ = sqrt(p.variance))
 
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = p.init,
-            name = name,
-            prior = Normal(p.mean, p.stdev),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return Normal(p.mean, p.stdev)
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("uniform")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("uniform")}
 )
     if ismissing(p.domain)
         ismissing(p.mean) && !ismissing(p.median) && (p.mean = p["median"])
@@ -195,38 +125,14 @@ function make_prior_distribution!(
     else
         a, b = p.domain
     end
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = p.init,
-            name = name,
-            prior = Uniform(a, b),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return Uniform(a, b)
 end
 
-function make_prior_distribution!(
-    ep::EstimatedParameters,
+function make_prior_distribution(
     p::Prior,
-    ::Val{Symbol("weibull")},
-    index,
-    name,
-    parametertype,
+    ::Val{Symbol("weibull")}
 )
     ismissing(p.variance) && !ismissing(p.stdev) && (p.variance = p.stdev * p.stdev)
     α, θ = weibull_specification(p.mean, p.variance)
-    push!(
-        ep.prior,
-        (
-            index = index,
-            initialvalue = init,
-            name = p.name,
-            prior = Weibull(α, θ),
-            parametertype = parametertype,
-        ),
-    )
-    return nothing
+    return Weibull(α, θ)
 end

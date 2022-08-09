@@ -768,41 +768,45 @@ struct Results
     model_results::Vector{ModelResults}
 end
 
-NTPrior = @NamedTuple{
-    index::Union{Int64,Pair{Int64,Int64}},
-    initialvalue::Union{Float64,Missing},
-    name::Union{String,Pair{String,String}},
-    prior::Distribution,
-    parametertype::SymbolType,
-}
-
 struct EstimatedParameters
-    prior::Vector{NTPrior}
+    index::Vector{Union{Int64,Pair{Int64,Int64}}}
+    initialvalue::Vector{Union{Float64, Missing}}
     ml_maximizer::Vector{Float64}
+    name::Vector{Union{String,Pair{String,String}}}
+    parametertype::Vector{SymbolType}
     posterior_mean::Vector{Float64}
     posterior_median::Vector{Float64}
     posterior_mode::Vector{Float64}
     posterior_sd::Vector{Float64}
     posterior_hpdi_lb::Vector{Float64}
     posterior_hpdi_ub::Vector{Float64}
+    prior::Vector{Distribution}
     function EstimatedParameters()
-        prior = Vector{Distribution}(undef, 0)
+        index = Vector{Union{Int64,Pair{Int64,Int64}}}(undef, 0)
+        initialvalue = Vector{Union{Float64, Missing}}(undef, 0)
         ml_maximizer = Vector{Float64}(undef, 0)
+        name = Vector{Union{String,Pair{String,String}}}(undef, 0)
+        parametertype = Vector{SymbolType}(undef, 0)
         posterior_mean = Vector{Float64}(undef, 0)
         posterior_median = Vector{Float64}(undef, 0)
         posterior_mode = Vector{Float64}(undef, 0)
         posterior_sd = Vector{Float64}(undef, 0)
         posterior_hpdi_lb = Vector{Float64}(undef, 0)
         posterior_hpdi_ub = Vector{Float64}(undef, 0)
+        prior = Vector{Distribution}(undef, 0)
         new(
-            prior,
+            index,
+            initialvalue,
             ml_maximizer,
+            name,
+            parametertype,
             posterior_mean,
             posterior_median,
             posterior_mode,
             posterior_sd,
             posterior_hpdi_lb,
             posterior_hpdi_ub,
+            prior,
         )
     end
 end
