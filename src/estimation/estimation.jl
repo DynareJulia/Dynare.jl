@@ -166,33 +166,20 @@ function make_negativeloglikelihood(context, observations, first_obs, last_obs, 
     return lognegativelikelihood
 end
 
-function make_negativelogposteriordensity(context, observations, first_obs, last_obs, ssws)
-    previous_value = 0.0
-    function negativelogposteriordensity(x)
-        lpd = Inf
-        (lpd = logpriordensity(x, context.work.estimated_parameters)) == -Inf && return -Inf
+function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
+    function logposteriordensity(x)
+        @debug @show x
+        lpd = logpriordensity(x, context.work.estimated_parameters)
+        if abs(lpd) == Inf
+            return lpd
+        end
         try
             lpd += loglikelihood(x, context, observations, ssws)
-            previous_value  = lpd
         catch e
             eigenvalues = get_eigenvalues(context)
             model = context.models[1]
             backward_nbr = model.n_bkwrd + model.n_both
             @debug e
-            lpd = -Inf
-        end
-        return -lpd
-    end
-    return negativelogposteriordensity
-end
-
-function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
-    function logposteriordensity(x)
-        lpd = -Inf
-        try
-            lpd = logpriordensity(x, context.work.estimated_parameters)
-            lpd += loglikelihood(x, context, observations, ssws)
-        catch e
             lpd = -Inf
         end
         return lpd
@@ -214,18 +201,16 @@ capabilities(ld::DSGELogPosteriorDensity) = LogDensityProblems.LogDensityOrder{1
 capabilities(ld::TransformedLogDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
 
 function (problem::DSGELogPosteriorDensity)(θ)
-    @show θ
+    @debug θ
     lpd = -Inf
     context = problem.context
     try
         lpd = logpriordensity(θ, context.work.estimated_parameters)
         lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
     catch e
-        @show θ
-        error(e)
+        @debug e
         lpd = -Inf
     end
-    @show lpd
     return lpd
 end    
 
@@ -439,7 +424,6 @@ function ml_estimation(
     datafile = "",
     first_obs = 1,
     last_obs = 0,
-    optim_algo = "optim",
     kwargs...,
 )
     problem = DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
@@ -485,15 +469,14 @@ function posterior_mode(
     datafile = "",
     first_obs = 1,
     last_obs = 0,
-    optim_algo = "optim",
     iterations = 1000,
     show_trace = false
 )
     @debug show_trace = true
-    problem = DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
+    problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
-    transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
+    transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
@@ -528,23 +511,27 @@ function mh_estimation(
     datafile = "",
     first_obs = 1,
     last_obs = 0,
-    optim_algo = "optim",
+    iterations = 100000,
     kwargs...,
 )
 
     problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
+    transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
+    transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
 
-    model = DensityModel(problem)
+    model = DensityModel(transformed_density)
 
-    spl = RWMH(MvNormal(zeros(length(params_indices)), 0.5 * (v0 + transpose(v0))))
+    spl = RWMH(MvNormal(zeros(length(p0)), v0))
 
     # Sample from the posterior.
-    chain = sample(model, spl, 50000; param_names = parameter_names, chain_type = Chains) 
-
+    chain = sample(model, spl, iterations;
+                   param_names = context.work.estimated_parameters.name,
+                   chain_type = Chains) 
+    return chain
 end
 
 function hmc_estimation(
@@ -552,20 +539,22 @@ function hmc_estimation(
     datafile = "",
     first_obs = 1,
     last_obs = 0,
-    optim_algo = "optim",
+    iterations = 1000,
     kwargs...,
 )
     problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
+    transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
     results = mcmc_with_warmup(
         Random.GLOBAL_RNG,
         #        transformed_problem,
-        problem,
+        transformed_problem,
         1000;
-        initialization = (q = p0, κ = GaussianKineticEnergy(I(problem.dimension))),
+        initialization = (ϵ = 0.1, q = p0, κ = GaussianKineticEnergy(I(problem.dimension))),
+        warmup_stages = fixed_stepsize_warmup_stages(),
         reporter = ProgressMeterReport(),
     )
     parameter_names = get_parameter_names(context.work.estimated_parameters)
@@ -575,7 +564,7 @@ function hmc_estimation(
         sqrt.(diag(results.κ.M⁻¹)),
         "Results from Bayesian estimation",
     )
-
+    return results
 end
 
 ## Results

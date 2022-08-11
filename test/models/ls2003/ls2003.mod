@@ -83,4 +83,6 @@ std(e_pies).prior(shape=inv_gamma, mean=1.88, stdev=0.9827);
 
 stoch_simul(order=1, irf=0);
 
-res = posterior_mode(context,datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86)
+res = posterior_mode(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86)
+chains = mh_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 10000)
+//results = hmc_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 1000)
