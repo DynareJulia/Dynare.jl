@@ -208,6 +208,7 @@ function (problem::DSGELogPosteriorDensity)(θ)
         lpd = logpriordensity(θ, context.work.estimated_parameters)
         lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
     catch e
+        @show e
         @debug e
         lpd = -Inf
     end
@@ -242,12 +243,12 @@ function set_estimated_parameters!(
 end
 
 function loglikelihood(
-    parameters::Vector{T},
+    θ,
     context::Context,
     observations::Matrix{D},
     ssws::SSWs{T,I},
 ) where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
-
+    parameters = collect(θ)
     model = context.models[1]
     results = context.results.model_results[1]
     work = context.work
@@ -494,16 +495,17 @@ function posterior_mode(
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
     stdh = sqrt.(diag(invhess))
     tstdh = transform_std(transformation, res.minimizer, stdh)
+    mode = TransformVariables.transform(transformation, res.minimizer)
 
     estimation_result_table(
         context.work.estimated_parameters.name,
         context.work.estimated_parameters.parametertype,
-        TransformVariables.transform(transformation, res.minimizer),
+        mode,
         tstdh,
         "Posterior mode"
     )
 
-    return res
+    return(res, mode, tstdh)
 end
 
 function mh_estimation(
@@ -540,27 +542,42 @@ function hmc_estimation(
     first_obs = 1,
     last_obs = 0,
     iterations = 1000,
+    initial_values = Vector{Float64}(undef, 0),
+    initial_energy = Vector{Float64}(undef, 0),
     kwargs...,
 )
     problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
-    transformed_problem = TransformedLogDensity(transformation, problem)
-    transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
-    (p0, v0) = get_initial_values(context.work.estimated_parameters)
-    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
-    results = mcmc_with_warmup(
+    transformed_problem = TransformedLogDensity(transformation, problem.f)
+    transformed_logdensity(θ) = TransformVariables.transform_logdensity(transformed_problem.transformation,
+                                                                        transformed_problem.log_density_function,
+                                                                        θ)
+    function logdensity_and_gradient(ℓ, x)
+        return(transformed_logdensity(x),
+               FiniteDiff.finite_difference_gradient(transformed_logdensity, x))
+    end
+
+    if ismissing(initial_values)
+        (p0, v0) = get_initial_values(context.work.estimated_parameters)
+        ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
+    else
+        p0, v0 = collect(initial_values), collect(initial_energy)
+    end
+    
+    results = DynamicHMC.mcmc_keep_warmup(
         Random.GLOBAL_RNG,
         #        transformed_problem,
         transformed_problem,
-        1000;
+        30;
         initialization = (ϵ = 0.1, q = p0, κ = GaussianKineticEnergy(I(problem.dimension))),
-        warmup_stages = fixed_stepsize_warmup_stages(),
-        reporter = ProgressMeterReport(),
+        warmup_stages = default_warmup_stages(; stepsize_search = nothing),
+#        reporter = ProgressMeterReport(),
     )
+    @show "OK"
     parameter_names = get_parameter_names(context.work.estimated_parameters)
     estimation_result_table(
         parameter_names,
-        mean(results.chain),
+        mean(results.inference.chain),
         sqrt.(diag(results.κ.M⁻¹)),
         "Results from Bayesian estimation",
     )
@@ -619,8 +636,11 @@ function get_initial_values(
 end
 
 function get_parameter_names(estimated_parameters::EstimatedParameters)
-    return [p.name for p in estimated_parameters.name]
+    return [get_parameter_name(n) for n in estimated_parameters.name]
 end
+
+get_parameter_name(name::String) = name
+get_parameter_name(name::Pair{String, String}) = name[1]
 
 function get_observations(context, datafile, first_obs, last_obs)
     results = context.results.model_results[1]
