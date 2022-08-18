@@ -65,27 +65,27 @@ varobs y_obs R_obs pie_obs dq de;
 //end;
 
 psi1.prior(shape= gamma, mean=1.5, stdev=0.5);
-psi2.prior(shape= gamma, mean=0.25, stdev=0.125);
-psi3.prior(shape= gamma, mean=0.25, stdev=0.125);
-rho_R.prior(shape=beta, mean=0.5, stdev=0.2);
-alpha.prior(shape=beta, mean=0.3, stdev=0.1);
-rr.prior(shape=gamma, mean=2.5, stdev=1);
-k.prior(shape= gamma, mean=0.5, stdev=0.25);
-tau.prior(shape=gamma, mean=0.5, stdev=0.2);
-rho_q.prior(shape=beta, mean=0.4, stdev=0.2);
-rho_A.prior(shape=beta, mean=0.5, stdev=0.2);
-rho_ys.prior(shape=beta, mean=0.8, stdev=0.1);
-rho_pies.prior(shape=beta, mean=0.7, stdev=0.15);
-std(e_R).prior(shape=inv_gamma, mean=1.2533, stdev=0.6551);
-std(e_q).prior(shape=inv_gamma, mean=2.5066, stdev=1.3103);
-std(e_A).prior(shape=inv_gamma, mean=1.2533, stdev=0.6551);
-std(e_ys).prior(shape=inv_gamma, mean=1.2533, stdev=0.6551);
-std(e_pies).prior(shape=inv_gamma, mean=1.88, stdev=0.9827);
+//psi2.prior(shape= gamma, mean=0.25, stdev=0.125);
+//psi3.prior(shape= gamma, mean=0.25, stdev=0.125);
+//rho_R.prior(shape=beta, mean=0.5, stdev=0.2);
+//alpha.prior(shape=beta, mean=0.3, stdev=0.1);
+//rr.prior(shape=gamma, mean=2.5, stdev=1);
+//k.prior(shape= gamma, mean=0.5, stdev=0.25);
+//tau.prior(shape=gamma, mean=0.5, stdev=0.2);
+//rho_q.prior(shape=beta, mean=0.4, stdev=0.2);
+//rho_A.prior(shape=beta, mean=0.5, stdev=0.2);
+//rho_ys.prior(shape=beta, mean=0.8, stdev=0.1);
+//rho_pies.prior(shape=beta, mean=0.7, stdev=0.15);
+//std(e_R).prior(shape=inv_gamma, mean=1.2533, stdev=0.6551);
+//std(e_q).prior(shape=inv_gamma, mean=2.5066, stdev=1.3103);
+//std(e_A).prior(shape=inv_gamma, mean=1.2533, stdev=0.6551);
+//std(e_ys).prior(shape=inv_gamma, mean=1.2533, stdev=0.6551);
+//std(e_pies).prior(shape=inv_gamma, mean=1.88, stdev=0.9827);
 
 //estimation(datafile=data_ca1,first_obs=8,nobs=79,mh_replic=0);
 
 stoch_simul(order=1, irf=0);
 
-//res = posterior_mode(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86)
+res = posterior_mode(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86)
 //chains = mh_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 10000)
-//results = hmc_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 1000)
+results = hmc_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 1000, initial_values = res[2], initial_energy = res[3])
