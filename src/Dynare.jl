@@ -34,6 +34,7 @@ include("filters/kalman/kalman.jl")
 include("optimal_policy.jl")
 include("perturbations.jl")
 include("perfectforesight/perfectforesight.jl")
+include("estimation/priorprediction.jl")
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
