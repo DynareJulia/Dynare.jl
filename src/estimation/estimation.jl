@@ -215,7 +215,7 @@ function (problem::DSGELogPosteriorDensity)(θ)
     return lpd
 end    
 
-function set_estimated_parameters!(context::Context, value::Vector{T}) where {T<:Real}
+function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Real}
     ep = context.work.estimated_parameters
     for (k, p) in enumerate(zip(ep.index, ep.parametertype))
         set_estimated_parameters!(context, p[1], value[k], Val(p[2]))
@@ -257,7 +257,6 @@ function loglikelihood(
     varobs = work.observed_variables
 
     set_estimated_parameters!(context, parameters)
-
     #compute steady state and first order solution
     Dynare.compute_stoch_simul!(
         context,
@@ -563,17 +562,17 @@ function hmc_estimation(
     else
         p0, v0 = collect(initial_values), collect(initial_energy)
     end
-    
+    @show v0
     results = DynamicHMC.mcmc_keep_warmup(
         Random.GLOBAL_RNG,
         #        transformed_problem,
         transformed_problem,
         30;
-        initialization = (ϵ = 0.1, q = p0, κ = GaussianKineticEnergy(I(problem.dimension))),
-        warmup_stages = default_warmup_stages(; stepsize_search = nothing),
+        initialization = (q = p0, κ = GaussianKineticEnergy(diagm(0 => Vector{Float64}(v0)))),
+        warmup_stages = default_warmup_stages(),
 #        reporter = ProgressMeterReport(),
     )
-    @show "OK"
+    @show results
     parameter_names = get_parameter_names(context.work.estimated_parameters)
     estimation_result_table(
         parameter_names,
