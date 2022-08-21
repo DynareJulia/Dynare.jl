@@ -3,7 +3,7 @@ varexo e_R e_q e_ys e_pies e_A;
 
 parameters psi1 psi2 psi3 rho_R tau alpha rr k rho_q rho_A rho_ys rho_pies;
 
-psi1 = 1.54;
+psi1 = 0.54;
 psi2 = 0.25;
 psi3 = 0.25;
 rho_R = 0.5;
@@ -21,7 +21,7 @@ model(linear);
 y = y(+1) - (tau +alpha*(2-alpha)*(1-tau))*(R-pie(+1))-alpha*(tau +alpha*(2-alpha)*(1-tau))*dq(+1) + alpha*(2-alpha)*((1-tau)/tau)*(y_s-y_s(+1))-A(+1);
 pie = exp(-rr/400)*pie(+1)+alpha*exp(-rr/400)*dq(+1)-alpha*dq+(k/(tau+alpha*(2-alpha)*(1-tau)))*y+alpha*(2-alpha)*(1-tau)/(tau*(tau+alpha*(2-alpha)*(1-tau)))*y_s;
 pie = de+(1-alpha)*dq+pie_s;
-R = rho_R*R(-1)+(1-rho_R)*(psi1*pie+psi2*(y+alpha*(2-alpha)*((1-tau)/tau)*y_s)+psi3*de)+e_R;
+R = rho_R*R(-1)+(1-rho_R)*((1+psi1)*pie+psi2*(y+alpha*(2-alpha)*((1-tau)/tau)*y_s)+psi3*de)+e_R;
 dq = rho_q*dq(-1)+e_q;
 y_s = rho_ys*y_s(-1)+e_ys;
 pie_s = rho_pies*pie_s(-1)+e_pies;
@@ -64,7 +64,7 @@ varobs y_obs R_obs pie_obs dq de;
 //stderr e_pies,inv_gamma_pdf,1.88,0.9827;
 //end;
 
-psi1.prior(shape= gamma, mean=1.5, stdev=0.5);
+psi1.prior(shape= gamma, mean=0.5, stdev=0.3);
 psi2.prior(shape= gamma, mean=0.25, stdev=0.125);
 psi3.prior(shape= gamma, mean=0.25, stdev=0.125);
 rho_R.prior(shape=beta, mean=0.5, stdev=0.2);
@@ -86,7 +86,7 @@ std(e_pies).prior(shape=inv_gamma, mean=1.88, stdev=0.9827);
 
 stoch_simul(order=1, irf=0);
 
-//res = posterior_mode(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86)
+//priorpredictivecheck(context, 10000)
+res = posterior_mode(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86)
 //chains = mh_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 10000)
-//results = hmc_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 1000)
-priorpredictivecheck(context, 10000)
+results = hmc_estimation(context, datafile = "test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations = 1000, initial_values = res[2], initial_energy = res[3])
