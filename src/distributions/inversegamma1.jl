@@ -27,6 +27,9 @@ import Distributions:
     cf
 using Random
 using SpecialFunctions
+import Base: size, length, convert, show, getindex, rand, vec, inv
+import Base: sum, maximum, minimum, extrema, +, -, *, ==
+    
 """
     InverseGamma1(α, θ)
 
