@@ -82,6 +82,8 @@ end
 
 function print(report::Report; texfilename::String = "report.tex")
     open(texfilename, "w") do io
+        print(io, "\\lstset{numbers=left}\n")
+        print(io, "\\begin{lstlisting}[escapechar = \|, breaklines = true]\n")
         print(io, "\\documentclass{report}\n")
         print(io, "\\usepackage{graphicx}\n")
         print(io, "\\usepackage{stackrel}")
@@ -98,6 +100,7 @@ function print(report::Report; texfilename::String = "report.tex")
         print(io, "\\end{center}\n")
         print(io, "$(Dates.now())\\\\\n")
         print(io, "\\clearpage\n")
+        print(io, "\\end{lstlisting}\n")
         for (i, page) in enumerate(report.pages)
             print(io, page)
             if i < length(report.pages)
@@ -134,7 +137,7 @@ function modelprintout(
                 elseif model_mode && stringtoken in symbols
                     if is_parameter(stringtoken, symboltable)
                         k = symboltable[stringtoken].orderintype
-                        stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$\\verb|"
+                        stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$|"
                     end
                 end
                 push!(elements, stringtoken)
@@ -151,12 +154,7 @@ function modelprintout(
                             continue
                         end
                         push!(elements, se)
-                        printfmt(
-                            out,
-                            "\\verb|{:4d}: {:s}|\\\\\n",
-                            linenumber,
-                            join(elements),
-                        )
+                        printfmt(out, join(elements))
                         elements = []
                         linenumber += 1
                     end
