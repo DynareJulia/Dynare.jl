@@ -82,12 +82,11 @@ end
 
 function print(report::Report; texfilename::String = "report.tex")
     open(texfilename, "w") do io
-        print(io, "\\lstset{numbers=left}\n")
-        print(io, "\\begin{lstlisting}[escapechar = \|, breaklines = true]\n")
         print(io, "\\documentclass{report}\n")
         print(io, "\\usepackage{graphicx}\n")
         print(io, "\\usepackage{stackrel}")
         print(io, "\\usepackage{threeparttable}\n")
+        print(io, "\\usepackage{listings}\n")
         print(io, "\\begin{document}\n")
         print(io, "\\vspace*{0.2\\textheight}\n")
         print(io, "\\begin{center}\n")
@@ -100,7 +99,6 @@ function print(report::Report; texfilename::String = "report.tex")
         print(io, "\\end{center}\n")
         print(io, "$(Dates.now())\\\\\n")
         print(io, "\\clearpage\n")
-        print(io, "\\end{lstlisting}\n")
         for (i, page) in enumerate(report.pages)
             print(io, page)
             if i < length(report.pages)
@@ -121,6 +119,8 @@ function modelprintout(
     parameters_value::Vector{Float64},
 )
     out = IOBuffer()
+    print(io, "\\lstset{numbers=left}\n")
+    print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true]\n")
     elements = []
     linenumber = 1
     model_mode = false
@@ -154,7 +154,7 @@ function modelprintout(
                             continue
                         end
                         push!(elements, se)
-                        printfmt(out, join(elements))
+                        println(out, join(elements))
                         elements = []
                         linenumber += 1
                     end
@@ -165,6 +165,7 @@ function modelprintout(
                 push!(elements, stringtoken)
             end
         end
+        print(out, "\\end{lstlisting}\n")
         return String(take!(out))
     end
 end
