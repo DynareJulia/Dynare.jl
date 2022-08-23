@@ -35,7 +35,7 @@ b = tau*a(-1)+rho*b(-1) + u;
 end;
 
 steady_state_model;
-  K_Y = beta*alpha /(1 - beta*(1 - delta));
+  K_Y = beta*alpha/(1 - beta*(1 - delta));
   H_Y = K_Y^(-alpha/(1 - alpha));
   C_Y = 1 - delta*K_Y;
   y = (theta*C_Y*H_Y^(1 + psi)/(1 - alpha))^(-1/(1 + psi));
@@ -72,7 +72,7 @@ page3 = Page()
 
 res = context.results.model_results[1]
 res1 = Matrix{Any}(permutedims(res.linearrationalexpectations.g1[1:6,1:6], [2, 1]))
-table = Table(res1, "Reduced form", ["y" "c" "k" "a" "h" "b"], ["\$ \\phi(c)\$", "\$ \\phi(k)\$", "\$ \\phi(a)\$", "\$ \\phi(b)\$", "e", "u"], "Note: \$ \\phi(x) = x_{t-1} - steady_state(x)\$")
+table = Table(res1, "Reduced form", ["y" "c" "k" "a" "h" "b"], ["\$ \\phi(c)\$", "\$ \\phi(k)\$", "\$ \\phi(a)\$", "\$ \\phi(b)\$", "e", "u"], "Note: \$ \\phi(x) = x_{t-1} - steady\\_state(x)\$")
 
 add_model!(page1, context, lastline = 58)
 

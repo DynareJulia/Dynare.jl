@@ -63,11 +63,13 @@ function add_graph!(page::Page, graph::Graph)
     push!(page.sections, graph)
 end
 
-function add_model!(page::Page, context::Context; lastline = 0)
+function add_model!(page::Page, context::Context; lastline = 0, format = 1)
     model = modelprintout(context.modfileinfo.modfilepath,
                           context.symboltable,
                           context.work.params,
-                          lastline)
+                          sqrt.(diag(context.models[1].Sigma_e)),
+                          lastline,
+                          format)
     push!(page.sections, model)
 end
 
@@ -83,7 +85,8 @@ function print(report::Report; texfilename::String = "report.tex")
     open(texfilename, "w") do io
         print(io, "\\documentclass{report}\n")
         print(io, "\\usepackage{graphicx}\n")
-        print(io, "\\usepackage{stackrel}")
+        print(io, "\\usepackage{xcolor}\n")
+        print(io, "\\usepackage{stackrel}\n")
         print(io, "\\usepackage{threeparttable}\n")
         print(io, "\\usepackage{listings}\n")
         print(io, "\\lstset{numbers=left}\n")
@@ -113,7 +116,7 @@ function print(report::Report; texfilename::String = "report.tex")
     return nothing
 end
 
-function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64}, lastline::Integer)
+function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64}, sd::Vector{Float64}, lastline::Integer, format::Integer)
     out = IOBuffer()
     if lastline > 0
         print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true, lastline = $(lastline)]\n")
@@ -134,9 +137,19 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
                 elseif stringtoken == "end"
                     model_mode = false
                 elseif model_mode && stringtoken in symbols
+                    k = symboltable[stringtoken].orderintype
                     if is_parameter(stringtoken, symboltable)
-                        k = symboltable[stringtoken].orderintype
-                        stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$|"
+                        if format == 1
+                            stringtoken = "$(stringtoken)|\$ {\\color{red}\\scriptstyle <$(parameters_value[k])>}\$|"
+                        elseif format == 2
+                            stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$|"
+                        else
+                            error("Wrong format value for printing model")
+                        end
+                    elseif is_exogenous(stringtoken, symboltable)
+                        if format == 1
+                            stringtoken = "$(stringtoken)|\$ {\\color{red}\\scriptstyle <\\sigma = $(sd[k])>}\$|"
+                        end
                     end
                 end
                 push!(elements, stringtoken)
