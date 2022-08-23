@@ -86,6 +86,7 @@ function print(report::Report; texfilename::String = "report.tex")
         print(io, "\\usepackage{stackrel}")
         print(io, "\\usepackage{threeparttable}\n")
         print(io, "\\usepackage{listings}\n")
+        print(io, "\\lstset{numbers=left}\n")
         print(io, "\\begin{document}\n")
         print(io, "\\vspace*{0.2\\textheight}\n")
         print(io, "\\begin{center}\n")
@@ -112,9 +113,8 @@ function print(report::Report; texfilename::String = "report.tex")
     return nothing
 end
 
-function modelprintout(modname::String, io::IO, symboltable::SymbolTable, parameters_value::Vector{Float64})
+function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64})
     out = IOBuffer()
-    print(io, "\\lstset{numbers=left}\n")
     print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true]\n")
     elements = []
     linenumber = 1
