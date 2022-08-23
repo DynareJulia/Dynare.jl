@@ -1,3 +1,9 @@
+0.5.4
+=====
+- add line breaks to model in Latex reports using lstlisting
+- provide an additional format where the parameter value is set after
+the parameter rather than below
+
 0.5.3
 =====
 - fix histval for auxiliary variables
@@ -7,6 +13,7 @@
 - add tolf option for steady and perfect foresight
 - fix IRFs plotting in several panels (more than 6 variables)
 - fix perfect foresight wit no exogenous variable or no shock
+
 0.5.2
 =====
 - change signature of steady_state_function
