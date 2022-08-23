@@ -85,6 +85,8 @@ function print(report::Report; texfilename::String = "report.tex")
         print(io, "\\usepackage{graphicx}\n")
         print(io, "\\usepackage{stackrel}")
         print(io, "\\usepackage{threeparttable}\n")
+        print(io, "\\usepackage{listings}\n")
+        print(io, "\\lstset{numbers=left}\n")
         print(io, "\\begin{document}\n")
         print(io, "\\vspace*{0.2\\textheight}\n")
         print(io, "\\begin{center}\n")
@@ -113,6 +115,7 @@ end
 
 function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64})
     out = IOBuffer()
+    print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true]\n")
     elements = []
     linenumber = 1
     model_mode = false
@@ -129,7 +132,7 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
                 elseif model_mode && stringtoken in symbols
                     if is_parameter(stringtoken, symboltable)
                         k = symboltable[stringtoken].orderintype
-                        stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$\\verb|"
+                        stringtoken = "|\$ \\stackrel[($(parameters_value[k]))]{}{\\hbox{$(stringtoken)}}\$|"
                     end
                 end
                 push!(elements, stringtoken)
@@ -146,7 +149,7 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
                             continue
                         end
                         push!(elements, se)
-                        printfmt(out, "\\verb|{:4d}: {:s}|\\\\\n", linenumber, join(elements))
+                        println(out, join(elements))
                         elements = []
                         linenumber += 1
                     end
@@ -157,6 +160,7 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
                 push!(elements, stringtoken)
             end
         end
+        print(out, "\\end{lstlisting}\n")
         return String(take!(out))
     end
 end
