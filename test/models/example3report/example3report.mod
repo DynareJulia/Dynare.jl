@@ -74,7 +74,7 @@ res = context.results.model_results[1]
 res1 = Matrix{Any}(permutedims(res.linearrationalexpectations.g1[1:6,1:6], [2, 1]))
 table = Table(res1, "Reduced form", ["y" "c" "k" "a" "h" "b"], ["\$ \\phi(c)\$", "\$ \\phi(k)\$", "\$ \\phi(a)\$", "\$ \\phi(b)\$", "e", "u"], "Note: \$ \\phi(x) = x_{t-1} - steady_state(x)\$")
 
-add_model!(page1, context)
+add_model!(page1, context, lastline = 58)
 
 add_table!(page2, table)
 
