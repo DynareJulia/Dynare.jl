@@ -61,11 +61,12 @@ end;
 
 shocks;
   var e; stderr 0.01;
-  var e_1; stderr 0.01;
-  var e_2; stderr 0.01;
+  @#for j in 1:N
+    var e_@{j}; stderr 0.01;
+  @#endfor
 end;
 
 check;
 
-stoch_simul(order=1);
+stoch_simul(order=1, irf=0);
 
