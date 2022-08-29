@@ -1,3 +1,4 @@
+using Optim
 
 mutable struct DynareSteadyStateComputationFailed <: Exception end
 Base.showerror(io::IO, e::DynareSteadyStateComputationFailed) = print("""
@@ -84,17 +85,23 @@ computes the steady state of the model and set the result in `context`
 function steady!(context::Context, field::Dict{String,Any})
     modfileinfo = context.modfileinfo
     options = SteadyOptions(get(field, "options", Dict{String,Any}()))
-    if modfileinfo.has_steadystate_file
+    if (modfileinfo.has_steadystate_file
+        && length(context.dynarefunctions.analytical_steady_state_variables) == context.models[1].original_endogenous_nbr)
+        @show "compute steady state"
         compute_steady_state!(context)
     else
         results = context.results.model_results[1]
         # will fail if missing values are encountered
         x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
-        copy!(
-            results.trends.exogenous_steady_state,
-            Float64.(vec(view(context.work.initval_exogenous, 1, :))),
-        )
-        solve_steady_state!(context, x0, options)
+        copy!(results.trends.exogenous_steady_state,
+              Float64.(vec(view(context.work.initval_exogenous, 1, :))))
+        if modfileinfo.has_ramsey_model
+            @show "solve ramsey"
+            solve_ramsey_steady_state!(context, x0, options)
+        else
+            @show "solve steady"
+            solve_steady_state!(context, x0, options)
+        end
     end
     if options.display
         steadystate_display(context)
@@ -131,11 +138,8 @@ function compute_steady_state!(context::Context)
     df = context.dynarefunctions
     results = context.results.model_results[1]
     work = context.work
-    steadystatemodule = df.steady_state!
-    if Symbol("steady_state!") in names(steadystatemodule)
-        # explicit steady state
-        evaluate_steady_state!(results, steadystatemodule, work.params)
-    end
+    # explicit steady state
+    evaluate_steady_state!(results, df.steady_state!, work.params)
 end
 
 """
@@ -147,16 +151,13 @@ evaluates the steady state function provided by the user
 """
 function evaluate_steady_state!(
     results::ModelResults,
-    static_module::Module,
+    steady_state!::Function,
     params::AbstractVector{Float64},
 )
     fill!(results.trends.exogenous_steady_state, 0.0)
-    Base.invokelatest(
-        static_module.steady_state!,
-        results.trends.endogenous_steady_state,
-        results.trends.exogenous_steady_state,
-        params,
-    )
+    steady_state!(results.trends.endogenous_steady_state,
+                  results.trends.exogenous_steady_state,
+                  params)
 end
 
 function sparse_static_jacobian(ws, params, x, exogenous, m, df)
@@ -203,20 +204,75 @@ function solve_steady_state_core!(context, x0, J!, A0; tolf = 1e-8)
     m = context.models[1]
     df = context.dynarefunctions
     w = context.work
+    params = w.params
     results = context.results.model_results[1]
     exogenous = results.trends.exogenous_steady_state
 
     function f!(residuals::AbstractVector{Float64}, x::AbstractVector{Float64})
-        residuals .= get_static_residuals!(ws, w.params, x, exogenous, df)
+        context.modfileinfo.has_auxiliary_variables &&
+            context.dynarefunctions.set_auxiliary_variables!(x, exogenous, params)
+        residuals .= get_static_residuals!(ws, params, x, exogenous, df)
     end
 
     residuals = zeros(m.endogenous_nbr)
     f!(residuals, x0)
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A0)
-    @show tolf
     result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = tolf)
     if converged(result)
         results.trends.endogenous_steady_state .= result.zero
+    else
+        @debug "Steady state computation failed with\n $result"
+        throw(DynareSteadyStateComputationFailed)
+    end
+end
+
+function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
+    ws = StaticWs(context)
+    m = context.models[1]
+    df = context.dynarefunctions
+    w = context.work
+    params = w.params
+    endogenous = zeros(m.endogenous_nbr)
+    results = context.results.model_results[1]
+    exogenous = results.trends.exogenous_steady_state
+    orig_endo_nbr = m.original_endogenous_nbr
+    mult_indices = orig_endo_nbr .+ findall(a -> a["type"] == 6, context.models[1].auxiliary_variables)
+    mult_nbr = length(mult_indices)
+    mult = zeros(mult_nbr)
+    orig_endo_aux_nbr = mult_indices[1] - 1
+    unknown_variable_indices = setdiff!(collect(1:m.original_endogenous_nbr), df.analytical_steady_state_variables)
+    unknown_variable_nbr = length(unknown_variable_indices)
+    M = zeros(orig_endo_nbr, mult_nbr)
+    U1 = zeros(orig_endo_nbr)
+    residuals = zeros(m.endogenous_nbr)
+    x00 = zeros(unknown_variable_nbr)
+    x00 .= view(x0, unknown_variable_indices)
+    
+    function f!(x::AbstractVector{Float64})
+        view(endogenous, unknown_variable_indices) .= x
+        # Lagrange multipliers are kept to zero
+        context.modfileinfo.has_auxiliary_variables &&
+            context.dynarefunctions.set_auxiliary_variables!(endogenous, exogenous, params)
+        context.modfileinfo.has_steadystate_file &&
+            context.dynarefunctions.steady_state!(endogenous, exogenous, params)
+        residuals = get_static_residuals!(ws, w.params, endogenous, exogenous, df)
+        U1 .= view(residuals, 1:orig_endo_nbr)
+        A = get_static_jacobian!(ws, w.params, endogenous, exogenous, m, df)
+        M .= view(A, 1:orig_endo_nbr, mult_indices)
+        mult = -M\U1
+        view(residuals, 1:orig_endo_nbr) .= U1 .+ M*mult
+        return sum(z -> z*z, residuals)
+    end
+
+    result = optimize(f!, x00, LBFGS())
+    @show result
+    if Optim.converged(result) && abs(result.minimum) < 1e-8
+        view(endogenous, unknown_variable_indices) .= result.minimizer
+        context.modfileinfo.has_auxiliary_variables &&
+            context.dynarefunctions.set_auxiliary_variables!(endogenous, exogenous, params)
+        context.modfileinfo.has_steadystate_file &&
+            context.dynarefunctions.steady_state!(endogenous, exogenous, params)
+        results.trends.endogenous_steady_state .= endogenous
     else
         @debug "Steady state computation failed with\n $result"
         throw(DynareSteadyStateComputationFailed)

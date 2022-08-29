@@ -168,6 +168,7 @@ struct DynareFunctions
     static!::Module
     set_auxiliary_variables!::Function
     set_dynamic_auxiliary_variables!::Function
+<<<<<<< HEAD
     steady_state!::Module
     function DynareFunctions(
         compileoption,
@@ -176,6 +177,11 @@ struct DynareFunctions
         orig_maximum_lag,
         orig_maximum_lead,
     )
+=======
+    steady_state!::Function
+    analytical_steady_state_variables::Vector{Int64}
+    function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
+>>>>>>> 41becb2 (solving steady state)
         if modfileinfo.has_dynamic_file
             dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
         else
@@ -199,10 +205,15 @@ struct DynareFunctions
             set_auxiliary_variables! = (a, b, c) -> nothing
         end
         if modfileinfo.has_steadystate_file
+<<<<<<< HEAD
             steady_state! =
                 load_steady_state_function(modfilename * "SteadyState2", compileoption)
+=======
+            (steady_state!, analytical_steadystate_variables) = load_steady_state_function(modfilename * "SteadyState2", compileoption)
+>>>>>>> 41becb2 (solving steady state)
         else
-            steady_state! = Module()
+            steady_state! = (a, b, c) -> nothing
+            analytical_steadystate_variables = Int64[]
         end
         new(
             dynamic!,
@@ -210,7 +221,11 @@ struct DynareFunctions
             set_auxiliary_variables!,
             set_dynamic_auxiliary_variables!,
             steady_state!,
+<<<<<<< HEAD
         )
+=======
+            analytical_steadystate_variables)
+>>>>>>> 41becb2 (solving steady state)
     end
 end
 
@@ -941,5 +956,24 @@ function load_steady_state_function(modname::String, compileoption::Bool)
         insert!(fun, 6, "using Dynare.StatsFuns")
     end
     fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
-    return eval(Meta.parse(join(fun, "\n")))
+    expr = Meta.parse(join(fun[8:end-1], "\n"))
+    analytical_variables = get_analytical_variables(expr)
+    return (@RuntimeGeneratedFunction(expr), analytical_variables)
+end
+
+function get_analytical_variables(expr::Expr)
+    block = expr.args[2]
+    @assert  block.head == :block
+    indices = Int64[]
+    
+    for a in block.args
+        if (isa(a, Expr)
+            && a.head == :(=)
+            && isa(a.args[1], Expr)
+            && a.args[1].args[1] == :ys_)
+            push!(indices, a.args[1].args[2])
+        end
+    end
+
+    return sort(unique(indices))
 end
