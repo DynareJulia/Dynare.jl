@@ -133,7 +133,11 @@ end
 
 function logpdf(d::InverseGamma1, x::Real)
     (α, θ) = params(d)
-    log(2) + α * log(θ) - loggamma(α) - (2 * α + 1) * log(x) - θ / (x * x)
+    if x >0
+        return log(2) + α * log(θ) - loggamma(α) - (2 * α + 1) * log(x) - θ / (x * x)
+    else
+        return -Inf
+    end
 end
 
 zval(::InverseGamma1, x::Real) = sqrt(max(x, 0))
@@ -147,7 +151,6 @@ quantile(d::InverseGamma1, p::Real) = sqrt(quantile(InversGamme(d.α, d.θ), p))
 cquantile(d::InverseGamma1, p::Real) = sqrt(cquantile(InversGamme(d.α, d.θ), p))
 invlogcdf(d::InverseGamma1, p::Real) = sqrt(invlogcdf(InversGamme(d.α, d.θ), p))
 invlogccdf(d::InverseGamma1, p::Real) = sqrt(invlogccdf(InversGamme(d.α, d.θ), p))
-
 #function mgf(d::InverseGamma1{T}, t::Real) where T<:Real
 #    (a, b) = params(d)
 #    t == zero(t) ? one(T) : 2(-b*t)^(0.5a) / gamma(a) * besselk(a, sqrt(-4*b*t))
