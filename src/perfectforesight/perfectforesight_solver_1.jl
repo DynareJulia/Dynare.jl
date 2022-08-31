@@ -32,7 +32,7 @@ function get_residuals_1!(
     lli = m.lead_lag_incidence
     dynamic! = m.dynamic!.dynamic!
     n = m.endogenous_nbr
-    
+
     Dynare.get_initial_dynamic_endogenous_variables!(
         dynamic_variables,
         endogenous,
@@ -221,7 +221,16 @@ function solve1(
             periods,
             temp_vec,
         )
-        A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+        A = makeJacobian!(
+            JJ,
+            vec(y),
+            initialvalues,
+            terminalvalues,
+            exogenous,
+            context,
+            periods,
+            ws_threaded,
+        )
         dy .= A \ vec(residuals)
         view(y, n+1:(periods+1)*n) .-= dy
         if norm(residuals) < 1e-10

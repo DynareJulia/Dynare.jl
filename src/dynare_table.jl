@@ -5,7 +5,7 @@ function dynare_table_text(
     title::String;
     note::String = "",
     columnheader::Bool = true,
-    fmt::String = "%10.4f"
+    fmt::String = "%10.4f",
 )
     if length(title) > 0
         pretty_table(

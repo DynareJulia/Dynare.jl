@@ -9,7 +9,7 @@ PerfectForesightSetupOptions type
 struct PerfectForesightSetupOptions
     periods::Int64
     datafile::String
-    function PerfectForesightSetupOptions(options::Dict{String, Any})
+    function PerfectForesightSetupOptions(options::Dict{String,Any})
         periods = 0
         datafile = ""
         for (k, v) in pairs(options)
@@ -23,10 +23,10 @@ struct PerfectForesightSetupOptions
             throw(DomainError(periods, "periods must be set to a number greater than zero"))
         end
         new(periods, datafile)
-    end 
+    end
 end
-             
-    
+
+
 function perfect_foresight_setup!(context, field)
     options = PerfectForesightSetupOptions(get(field, "options", Dict{String,Any}()))
     context.work.perfect_foresight_setup["periods"] = options.periods
@@ -74,7 +74,7 @@ struct PerfectForesightSolverOptions
                 tolf = v
             end
         end
-        new(algo, display, homotopy,  linear_solve_algo, maxit, tolf, tolx)
+        new(algo, display, homotopy, linear_solve_algo, maxit, tolf, tolx)
     end
 end
 
@@ -85,31 +85,32 @@ struct PerfectForesightWs
     J::Jacobian
     lb::Vector{Float64}
     ub::Vector{Float64}
-    permutations::Vector{Tuple{Int64, Int64}}
+    permutations::Vector{Tuple{Int64,Int64}}
     function PerfectForesightWs(context, periods)
         m = context.models[1]
         modfileinfo = context.modfileinfo
-        y = Vector{Float64}(undef, (periods+2)*m.endogenous_nbr)
+        y = Vector{Float64}(undef, (periods + 2) * m.endogenous_nbr)
         if m.exogenous_nbr > 0
-            exogenous_steady_state = context.results.model_results[1].trends.exogenous_steady_state
-            x = repeat(transpose(exogenous_steady_state), periods+1, 1)
+            exogenous_steady_state =
+                context.results.model_results[1].trends.exogenous_steady_state
+            x = repeat(transpose(exogenous_steady_state), periods + 1, 1)
         else
             x = Matrix{Float64}(undef, 0, 0)
         end
         if length(context.work.shocks) > 0
             shocks_tmp = context.work.shocks
-            pmax = Int64(length(shocks_tmp)/m.exogenous_nbr)
+            pmax = Int64(length(shocks_tmp) / m.exogenous_nbr)
             shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
             shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
             # adding shocks to exogenous variables
-            view(x, 2:pmax+1,:) .+= shocks
+            view(x, 2:pmax+1, :) .+= shocks
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
         J = Jacobian(context, periods)
         lb = Float64[]
         ub = Float64[]
-        permutations = Tuple{Int64, Int64}[]
+        permutations = Tuple{Int64,Int64}[]
         new(y, x, shocks, J, lb, ub, permutations)
     end
 end
@@ -125,11 +126,33 @@ function perfect_foresight_solver!(context, field)
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
     initialvalues = get_dynamic_initialvalues(context)
-    guess_values = perfect_foresight_initialization!(context, periods, datafile, X, perfect_foresight_ws, steadystate, dynamic_ws)
+    guess_values = perfect_foresight_initialization!(
+        context,
+        periods,
+        datafile,
+        X,
+        perfect_foresight_ws,
+        steadystate,
+        dynamic_ws,
+    )
     if haskey(field, "options") && get(field["options"], "lmmcp.status", false)
-        mcp_perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, initialvalues, dynamic_ws)
+        mcp_perfectforesight_core!(
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initialvalues,
+            dynamic_ws,
+        )
     else
-        perfectforesight_core!(perfect_foresight_ws, context, periods, guess_values, initialvalues, dynamic_ws)
+        perfectforesight_core!(
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initialvalues,
+            dynamic_ws,
+        )
     end
 end
 
@@ -146,12 +169,21 @@ function get_dynamic_initialvalues(context::Context)
     end
 end
 
-function perfect_foresight_initialization!(context, periods, datafile, exogenous, perfect_foresight_ws, algo::InitializationAlgo, dynamic_ws::DynamicWs)
+function perfect_foresight_initialization!(
+    context,
+    periods,
+    datafile,
+    exogenous,
+    perfect_foresight_ws,
+    algo::InitializationAlgo,
+    dynamic_ws::DynamicWs,
+)
     if algo == initvalfile
     elseif algo == linearinterpolation
     elseif algo == steadystate
         compute_steady_state!(context)
-        endogenous_steady_state = context.results.model_results[1].trends.endogenous_steady_state
+        endogenous_steady_state =
+            context.results.model_results[1].trends.endogenous_steady_state
         guess_values = repeat(endogenous_steady_state, 1, periods)
     elseif algo == firstorder
         guess_values = simul_first_order!(context, periods, exogenous, dynamic_ws)
@@ -160,8 +192,13 @@ function perfect_foresight_initialization!(context, periods, datafile, exogenous
     return guess_values
 end
 
-function simul_first_order!(context::Context, periods::Int64, X::AbstractMatrix{Float64}, dynamic_ws::DynamicWs)
-    pre_options = Dict{String, Any}("periods" => periods)
+function simul_first_order!(
+    context::Context,
+    periods::Int64,
+    X::AbstractMatrix{Float64},
+    dynamic_ws::DynamicWs,
+)
+    pre_options = Dict{String,Any}("periods" => periods)
     options = StochSimulOptions(pre_options)
     m = context.models[1]
     results = context.results.model_results[1]
@@ -193,64 +230,91 @@ function simul_first_order!(context::Context, periods::Int64, X::AbstractMatrix{
 end
 
 
-function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
-                                context::Context,
-                                periods::Int64,
-                                y0::Matrix{Float64},
-                                initialvalues::Vector{<:Real},
-                                dynamic_ws::DynamicWs)
+function perfectforesight_core!(
+    perfect_foresight_ws::PerfectForesightWs,
+    context::Context,
+    periods::Int64,
+    y0::Matrix{Float64},
+    initialvalues::Vector{<:Real},
+    dynamic_ws::DynamicWs,
+)
     m = context.models[1]
     ddf = context.dynarefunctions
     results = context.results.model_results[1]
     work = context.work
-    residuals = zeros(periods*m.endogenous_nbr)
+    residuals = zeros(periods * m.endogenous_nbr)
     dynamic_variables = dynamic_ws.dynamic_variables
     temp_vec = dynamic_ws.temporary_values
     steadystate = results.trends.endogenous_steady_state
     terminalvalues = view(y0, :, periods)
     params = work.params
     JJ = perfect_foresight_ws.J
-    
+
     exogenous = perfect_foresight_ws.x
 
-    ws_threaded = [Dynare.DynamicWs(m.endogenous_nbr,
-                                    m.exogenous_nbr,
-                                    length(dynamic_variables),
-                                    length(temp_vec))
-                   for i = 1:Threads.nthreads()]
+    ws_threaded = [
+        Dynare.DynamicWs(
+            m.endogenous_nbr,
+            m.exogenous_nbr,
+            length(dynamic_variables),
+            length(temp_vec),
+        ) for i = 1:Threads.nthreads()
+    ]
 
     function f!(residuals, y)
         @debug "$(now()): start f!"
-        get_residuals!(residuals,
-                       vec(y),
-                       initialvalues,
-                       terminalvalues,
-                       exogenous,
-                       dynamic_variables,
-                       steadystate,
-                       params,
-                       m,
-                       ddf,
-                       periods,
-                       temp_vec,
-                       )
+        get_residuals!(
+            residuals,
+            vec(y),
+            initialvalues,
+            terminalvalues,
+            exogenous,
+            dynamic_variables,
+            steadystate,
+            params,
+            m,
+            ddf,
+            periods,
+            temp_vec,
+        )
         @debug "$(now()): end f!"
     end
-    
-    function J!(A::SparseArrays.SparseMatrixCSC{Float64, Int64}, y::AbstractVecOrMat{Float64})
+
+    function J!(
+        A::SparseArrays.SparseMatrixCSC{Float64,Int64},
+        y::AbstractVecOrMat{Float64},
+    )
         @debug "$(now()): start J!"
-        A = makeJacobian!(JJ, vec(y), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
-        @debug count(!iszero, A)/prod(size(A))
+        A = makeJacobian!(
+            JJ,
+            vec(y),
+            initialvalues,
+            terminalvalues,
+            exogenous,
+            context,
+            periods,
+            ws_threaded,
+        )
+        @debug count(!iszero, A) / prod(size(A))
         @debug "$(now()): end J!"
     end
-    
+
     function fj!(residuals, JJ, y)
         f!(residuals, vec(y))
         J!(JJ, vec(y))
     end
 
     @debug "$(now()): start makeJacobian"
-    A0 = makeJacobian!(JJ, vec(y0), initialvalues, terminalvalues, exogenous, context, periods, ws_threaded)
+    A0 = makeJacobian!(
+        JJ,
+        vec(y0),
+        initialvalues,
+        terminalvalues,
+        exogenous,
+        context,
+        periods,
+        ws_threaded,
+    )
     @debug "$(now()): end makeJacobian"
     @debug "$(now()): start f!"
     f!(residuals, vec(y0))
@@ -263,13 +327,23 @@ function perfectforesight_core!(perfect_foresight_ws::PerfectForesightWs,
 
     rr = copy(residuals)
     F = lu(A0)
-    res = nlsolve(df, vec(y0), method=:robust_trust_region, show_trace=false)
+    res = nlsolve(df, vec(y0), method = :robust_trust_region, show_trace = false)
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
-    push!(context.results.model_results[1].simulations,
-          Simulation("Sim1", "", TimeDataFrame(DataFrame(transpose(reshape(res.zero, m.endogenous_nbr, periods)),
-                                                         endogenous_names),
-                                               UndatedDate(1))))
+    push!(
+        context.results.model_results[1].simulations,
+        Simulation(
+            "Sim1",
+            "",
+            TimeDataFrame(
+                DataFrame(
+                    transpose(reshape(res.zero, m.endogenous_nbr, periods)),
+                    endogenous_names,
+                ),
+                UndatedDate(1),
+            ),
+        ),
+    )
 end
 
 function get_residuals!(
@@ -285,7 +359,7 @@ function get_residuals!(
     df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64};
-    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     n = m.endogenous_nbr
 
@@ -301,7 +375,7 @@ function get_residuals!(
         df,
         periods,
         temp_vec,
-        permutations = permutations
+        permutations = permutations,
     )
     t1 = n + 1
     t2 = 2 * n
@@ -320,7 +394,7 @@ function get_residuals!(
             t,
             t1,
             t2,
-            permutations = permutations
+            permutations = permutations,
         )
         t1 += n
         t2 += n
@@ -340,7 +414,7 @@ function get_residuals!(
         periods,
         t1,
         t2,
-        permutations = permutations
+        permutations = permutations,
     )
     return residuals
 end
@@ -369,15 +443,15 @@ end
 
 @inline function reorder2!(x, permutations, t, n)
     isempty(permutations) && return
-    reorder!(x, permutations, (t - 2)*n)
-    reorder!(x, permutations, (t - 1)*n)
-    reorder!(x, permutations, t*n)
+    reorder!(x, permutations, (t - 2) * n)
+    reorder!(x, permutations, (t - 1) * n)
+    reorder!(x, permutations, t * n)
 end
 
 @inline function reorder3!(x, permutations, t, n)
     isempty(permutations) && return
-    reorder!(x, permutations, (t - 2)*n)
-    reorder!(x, permutations, (t - 1)*n)
+    reorder!(x, permutations, (t - 2) * n)
+    reorder!(x, permutations, (t - 1) * n)
 end
 
 
@@ -393,7 +467,7 @@ function get_residuals_1!(
     df::DynareFunctions,
     periods::Int64,
     temp_vec::AbstractVector{Float64};
-    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
@@ -434,7 +508,7 @@ function get_residuals_2!(
     t::Int64,
     t1::Int64,
     t2::Int64;
-    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
@@ -469,7 +543,7 @@ function get_residuals_3!(
     t::Int64,
     t1::Int64,
     t2::Int64;
-    permutations::Vector{Tuple{Int64, Int64}} = Tuple{Int64, Int64}[]
+    permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     lli = m.lead_lag_incidence
     dynamic! = df.dynamic!.dynamic!
@@ -496,4 +570,3 @@ function get_residuals_3!(
 end
 
 include("PATH_interface.jl")
-

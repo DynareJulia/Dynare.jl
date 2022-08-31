@@ -286,7 +286,7 @@ function get_static_residuals!(
     params::Vector{Float64},
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
-    df::DynareFunctions
+    df::DynareFunctions,
 )
     Base.invokelatest(
         df.static!.static!,
@@ -473,7 +473,7 @@ function get_static_jacobian!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     m::Model,
-    df::DynareFunctions
+    df::DynareFunctions,
 )
     @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
     jacobian = static_jacobian_matrix(ws, m.endogenous_nbr)

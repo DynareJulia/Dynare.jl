@@ -24,59 +24,63 @@ c = context.results.model_results[1].trends.endogenous_steady_state
 simul_first_order_1!(y, zeros(6), A, B, exogenous, window, periods, tmp1, tmp2)
 steadystate = context.results.model_results[1].trends.endogenous_steady_state
 y .+= steadystate
-residuals = zeros(n*(periods - 2))
+residuals = zeros(n * (periods - 2))
 dynamic_variables = zeros(12)
 temp_vec = context.work.temporary_values
 
 initialvalues = y[1:n]
-terminalvalues = y[(periods - 1)*n + 1:periods*n]
+terminalvalues = y[(periods-1)*n+1:periods*n]
 periods = 100
-tmp = zeros(n*periods)
-dy = zeros(n*periods)
+tmp = zeros(n * periods)
+dy = zeros(n * periods)
 params = context.work.params
 x = view(vec(y), n+1:(periods+1)*n)
-get_residuals!(residuals,
-               x,
-               initialvalues,
-               terminalvalues,
-               exogenous,
-               dynamic_variables,
-               steadystate,
-               params,
-               md,
-               periods,
-               temp_vec)
+get_residuals!(
+    residuals,
+    x,
+    initialvalues,
+    terminalvalues,
+    exogenous,
+    dynamic_variables,
+    steadystate,
+    params,
+    md,
+    periods,
+    temp_vec,
+)
 
 JJ = Jacobian(context, periods)
-ws_threaded = [JacTimesVec(context) for i=1:Threads.nthreads()]
+ws_threaded = [JacTimesVec(context) for i = 1:Threads.nthreads()]
 A = makeJacobian!(JJ, vec(y), exogenous, context, periods, ws_threaded)
 τ = 0.01
 my_lu = ilu(A, τ = τ)
 fill!(tmp, 0.0)
-Dynare.gmres!(dy, A, residuals, Pr=my_lu, verbose = true, maxiter=4)
+Dynare.gmres!(dy, A, residuals, Pr = my_lu, verbose = true, maxiter = 4)
 
 stpmx = 100
 
 tolx = 1e-5
-g = zeros(n*periods)
+g = zeros(n * periods)
 mul!(g, transpose(A), vec(residuals))
 x0 = view(vec(y), n+1:(periods+1)*n)
-x = zeros(n*periods)
+x = zeros(n * periods)
 params = context.work.params
 
-f!(x, x0) = get_residuals!(x,
-                          x0,
-                          initialvalues,
-                          terminalvalues,
-                          exogenous,
-                          dynamic_variables,
-                          steadystate,
-                          params,
-                          md,
-                          periods,
-                          temp_vec)
+f!(x, x0) = get_residuals!(
+    x,
+    x0,
+    initialvalues,
+    terminalvalues,
+    exogenous,
+    dynamic_variables,
+    steadystate,
+    params,
+    md,
+    periods,
+    temp_vec,
+)
 j!(x) = makeJacobian!(JJ, vec(x), exogenous, context, periods, ws_threaded)
 scal!(-1.0, dy)
-nn = md.endogenous_nbr*periods
-ws = NewtonWs(zeros(nn), JJ, zeros(nn), zeros(nn)
+nn = md.endogenous_nbr * periods
+ws = NewtonWs(zeros(nn), JJ, zeros(nn), zeros(nn))
 newton_solver!(x, x0, f!, j!, maxiter, tolf, tolx, ws)

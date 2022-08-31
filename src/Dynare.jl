@@ -37,7 +37,7 @@ using .NLsolve
 
 export @dynare
 
-macro dynare(modfile_arg::String, args...) 
+macro dynare(modfile_arg::String, args...)
     @info "Dynare version: $(module_version(Dynare))"
     modname = get_modname(modfile_arg)
     @info "$(now()): Starting @dynare $modfile_arg"

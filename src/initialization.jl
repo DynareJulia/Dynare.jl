@@ -7,7 +7,11 @@ function histval!(context::Context, field::Dict{String,Any})
         l = m.orig_maximum_lag + v["lag"]::Int64
         histval[l, k] = dynare_parse_eval(v["value"]::String, context)
     end
-    tdf = TimeDataFrame(Matrix{Union{Float64, Missing}}(histval), get_endogenous(symboltable), UndatedDate(1))
+    tdf = TimeDataFrame(
+        Matrix{Union{Float64,Missing}}(histval),
+        get_endogenous(symboltable),
+        UndatedDate(1),
+    )
     context.dynarefunctions.set_dynamic_auxiliary_variables!(tdf, context.work.params)
     context.work.histval .= Matrix(tdf)
 end
@@ -60,9 +64,7 @@ checks the following assertions if the fields exist:
     - last_obs >= last_simulation_periods + required
     - last_obs == first_obs + nobs
 """
-function check_periods_options(options;
-                               required_lags::Int64 = 0,
-                               required_leads::Int64 = 0)
+function check_periods_options(options; required_lags::Int64 = 0, required_leads::Int64 = 0)
     first_obs = get_date("first_obs", options)
     tf = typeof(first_obs)
     last_obs = get_date("last_obs", options)
@@ -73,7 +75,7 @@ function check_periods_options(options;
     tls = typeof(last_simulation_period)
     nobs_str = get(options, "nobs", nothing)
     nobs = !isnothing(nobs_str) ? parse(Int64, nobs_str) : nothing
- 
+
     common_type = UndatedDate
     for f in [first_obs, last_obs, first_simulation_period, last_simulation_period]
         if !isnothing(f)
@@ -87,33 +89,45 @@ function check_periods_options(options;
     end
 
     if !isnothing(first_obs) && !isnothing(first_simulation_period)
-        @assert first_simulation_period >=  first_obs + Delta(tf)(required_lags) "first_simulation_period should be greater or equal to first_obs + $required_lags."
+        @assert first_simulation_period >= first_obs + Delta(tf)(required_lags) "first_simulation_period should be greater or equal to first_obs + $required_lags."
     end
-        
+
     if !isnothing(last_obs) && !isnothing(last_simulation_period)
-        @assert last_obs >=  last_simulation_period + Delta(tf)(required_leads) "last_obs should be greater or equal to first_simulation_period + $required_leads."
+        @assert last_obs >= last_simulation_period + Delta(tf)(required_leads) "last_obs should be greater or equal to first_simulation_period + $required_leads."
     end
 
     if !isnothing(first_obs) && !isnothing(last_obs) && !isnothing(nobs)
         @assert first_obs + Delta(tf)(nobs - 1) == last_obs "last_obs must equal first_obs + nobs"
     end
-    
-    return (first_obs, last_obs, first_simulation_period, last_simulation_period, nobs, common_type)
+
+    return (
+        first_obs,
+        last_obs,
+        first_simulation_period,
+        last_simulation_period,
+        nobs,
+        common_type,
+    )
 
 end
 
-function add_auxiliary_variables(tdf::TimeDataFrame, symboltable::SymbolTable, endogenous_nbr::Int64, original_endogenous_nbr::Int64)
+function add_auxiliary_variables(
+    tdf::TimeDataFrame,
+    symboltable::SymbolTable,
+    endogenous_nbr::Int64,
+    original_endogenous_nbr::Int64,
+)
     df = getfield(tdf, :data)
     nrow = size(df, 1)
     vnames = names(tdf)
-    for v in get_endogenous(symboltable)[original_endogenous_nbr + 1:endogenous_nbr]
+    for v in get_endogenous(symboltable)[original_endogenous_nbr+1:endogenous_nbr]
         if !(v in vnames)
-            insertcols!(df, Symbol(v) => Vector{Union{Float64, Missing}}(missing, nrow))
+            insertcols!(df, Symbol(v) => Vector{Union{Float64,Missing}}(missing, nrow))
         end
     end
     for v in get_exogenous(symboltable)
         if !(v in vnames)
-            insertcols!(df, Symbol(v) => Vector{Union{Float64, Missing}}(missing, nrow))
+            insertcols!(df, Symbol(v) => Vector{Union{Float64,Missing}}(missing, nrow))
         end
     end
 end
@@ -125,7 +139,12 @@ function histval_file!(context::Context, field::Dict{String,Any})
 
     if haskey(options, "datafile")
         tdf = MyTimeDataFrame(options["datafile"])
-        add_auxiliary_variables(tdf, symboltable, m.endogenous_nbr, m.original_endogenous_nbr) 
+        add_auxiliary_variables(
+            tdf,
+            symboltable,
+            m.endogenous_nbr,
+            m.original_endogenous_nbr,
+        )
     elseif haskey(options, "series")
         tdf = options["series"]
     else
@@ -133,8 +152,7 @@ function histval_file!(context::Context, field::Dict{String,Any})
     end
 
     # if auxiliary variables are present, we need only one period of observations
-    auxiliary_variables_present =
-        check_predetermined_variables(symboltable, m, names(tdf))
+    auxiliary_variables_present = check_predetermined_variables(symboltable, m, names(tdf))
     required_lags = (auxiliary_variables_present) ? 1 : m.orig_maximum_lag
     # check options consistency
     (first_obs, last_obs, first_simulation_period, last_simulation_period, nobs, P) =
@@ -182,7 +200,7 @@ function histval_file!(context::Context, field::Dict{String,Any})
             view(m.i_bkwrd_b, 1:m.orig_endogenous_nbr)
         dnames = names(tdf)
         for (i, vname) in enumerate(endogenous_names)
-            colindex = findfirst(x -> x==vname, dnames)
+            colindex = findfirst(x -> x == vname, dnames)
             for j = istart:istop
                 histval[j, i] = tdf[j, colindex]
             end
@@ -203,7 +221,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
         error("option datafile or series must be provided")
     end
     tdf_nrow = TimeDataFrames.nrow(tdf)
-    
+
     # if auxiliary variables are present, we need only one period of observations
     auxiliary_variables_present =
         check_predetermined_variables(context.symboltable, m, names(tdf))
@@ -211,7 +229,12 @@ function initval_file!(context::Context, field::Dict{String,Any})
         required_lags = 1
     else
         required_lags = m.orig_maximum_lag
-        add_auxiliary_variables(tdf, symboltable, m.endogenous_nbr, m.original_endogenous_nbr) 
+        add_auxiliary_variables(
+            tdf,
+            symboltable,
+            m.endogenous_nbr,
+            m.original_endogenous_nbr,
+        )
         df.set_dynamic_auxiliary_variables!(tdf, work.params)
     end
 
@@ -252,32 +275,37 @@ function initval_file!(context::Context, field::Dict{String,Any})
         exogenous_names = get_exogenous(symboltable)
         exogenousdeterministic_names = get_exogenousdeterministic(symboltable)
         dnames = names(tdf)
-        work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr) 
-        work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr) 
-        work.initval_exogenous_deterministic = Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr)
+        work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr)
+        work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr)
+        work.initval_exogenous_deterministic =
+            Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr)
         lli = m.lead_lag_incidence
         for (i, vname) in enumerate(endogenous_names)
-            colindex = findfirst(x -> x==vname, dnames)
+            colindex = findfirst(x -> x == vname, dnames)
             if isnothing(colindex) && lli[1, i] > 0
-#                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+                #                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
             else
-                work.initval_endogenous[:, i] .= tdf[! , colindex][istart:istop]
+                work.initval_endogenous[:, i] .= tdf[!, colindex][istart:istop]
             end
         end
         for (i, vname) in enumerate(exogenous_names)
-            colindex = findfirst(x -> x==vname, dnames)
+            colindex = findfirst(x -> x == vname, dnames)
             if isnothing(colindex)
-                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+                @warn(
+                    "INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero"
+                )
             else
-                work.initval_exogenous[:, i] .= tdf[! , colindex][istart:istop]
+                work.initval_exogenous[:, i] .= tdf[!, colindex][istart:istop]
             end
         end
         for (i, vname) in enumerate(exogenousdeterministic_names)
-            colindex = findfirst(x -> x==vname, dnames)
+            colindex = findfirst(x -> x == vname, dnames)
             if isnothing(colindex)
-                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
+                @warn(
+                    "INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero"
+                )
             else
-                work.initval_exogenous_deterministic[:, i] .= tdf[! , colindex][istart:istop]
+                work.initval_exogenous_deterministic[:, i] .= tdf[!, colindex][istart:istop]
             end
         end
     end
@@ -300,7 +328,7 @@ function initval!(context::Context, field::Dict{String,Any})
     initval_exogenous = zeros(m.exogenous_nbr)
     initval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
     xs = [Endogenous, Exogenous, ExogenousDeterministic]
-    xw = [ initval_endogenous, initval_exogenous, initval_exogenous_det]
+    xw = [initval_endogenous, initval_exogenous, initval_exogenous_det]
     work.initval_endogenous = zeros(1, m.endogenous_nbr)
     work.initval_exogenous = zeros(1, m.exogenous_nbr)
     work.initval_exogenous_deterministic = zeros(1, m.exogenous_deterministic_nbr)
@@ -308,7 +336,7 @@ function initval!(context::Context, field::Dict{String,Any})
         s = symboltable[v["name"]::String]
         typ = s.symboltype
         k = s.orderintype::Int64
-        value = dynare_parse_eval(v["value"]::String, context, xs=xs, xw=xw)
+        value = dynare_parse_eval(v["value"]::String, context, xs = xs, xw = xw)
         if typ == Endogenous
             work.initval_endogenous[k] = value
         elseif typ == Exogenous
@@ -332,11 +360,13 @@ function shocks!(context::Context, field::Dict{String,Any})
     set_covariance!(Sigma, field["covariance"], symboltable)
     set_correlation!(Sigma, field["correlation"], symboltable)
     if haskey(field, "deterministic_shocks")
-        set_deterministic_shocks!(shocks,
-                                  field["deterministic_shocks"],
-                                  symboltable,
-                                  context.models[1].exogenous_nbr,
-                                  context.results.model_results[1].trends.exogenous_steady_state)
+        set_deterministic_shocks!(
+            shocks,
+            field["deterministic_shocks"],
+            symboltable,
+            context.models[1].exogenous_nbr,
+            context.results.model_results[1].trends.exogenous_steady_state,
+        )
     end
 end
 
@@ -385,14 +415,15 @@ function set_correlation!(
     end
 end
 
-function set_deterministic_shocks!(x::Vector{Float64},
-                                   shocks::Vector{Any},
-                                   symboltable::SymbolTable,
-                                   exogenous_nbr::Int64,
-                                   exogenous_steady_state::Vector{Float64})
-    pmax = maximum((s)->maximum(p -> p["period2"], s["values"]),
-                   shocks)::Int64
-    resize!(x, pmax*exogenous_nbr)
+function set_deterministic_shocks!(
+    x::Vector{Float64},
+    shocks::Vector{Any},
+    symboltable::SymbolTable,
+    exogenous_nbr::Int64,
+    exogenous_steady_state::Vector{Float64},
+)
+    pmax = maximum((s) -> maximum(p -> p["period2"], s["values"]), shocks)::Int64
+    resize!(x, pmax * exogenous_nbr)
     fill!(x, 0.0)
     for s in shocks
         for v in s["values"]
@@ -405,10 +436,17 @@ function set_deterministic_shocks!(x::Vector{Float64},
     end
 end
 
-function set_exogenous(x::Vector{Float64}, i::Int64, p1::Int64, p2::Int64, v::Real, pmax::Int64)
-    offset = (i-1)*pmax
-    for  p = p1:p2
-        x[offset + p] = v
+function set_exogenous(
+    x::Vector{Float64},
+    i::Int64,
+    p1::Int64,
+    p2::Int64,
+    v::Real,
+    pmax::Int64,
+)
+    offset = (i - 1) * pmax
+    for p = p1:p2
+        x[offset+p] = v
     end
 end
 
@@ -471,4 +509,3 @@ import Base: +, -, *, /
 *(a::Float64, t::TimeDataFrame) = a .* t     
 /(a::Float64, t::TimeDataFrame) = a ./ t     
 =#
-    

@@ -11,35 +11,28 @@ using LineSearches
 using LinearAlgebra
 using Printf
 
-import Base.show,
-       Base.push!,
-       Base.getindex,
-       Base.setindex!
+import Base.show, Base.push!, Base.getindex, Base.setindex!
 
-import NLSolversBase: OnceDifferentiable, InplaceObjective, NotInplaceObjective,
-       only_fj, only_fj!
+import NLSolversBase:
+    OnceDifferentiable, InplaceObjective, NotInplaceObjective, only_fj, only_fj!
 
 using Reexport
 @reexport using LineSearches
 using LinearAlgebra
 
 export OnceDifferentiable,
-       n_ary,
-       nlsolve,
-       mcpsolve,
-       converged,
-       only_fj,
-       only_fj!,
-       fixedpoint
+    n_ary, nlsolve, mcpsolve, converged, only_fj, only_fj!, fixedpoint
 
 abstract type AbstractSolverCache end
 
 struct IsFiniteException <: Exception
-  indices
+    indices::Any
 end
-show(io::IO, e::IsFiniteException) = print(io,
-  "During the resolution of the non-linear system, the evaluation" *
-  " of the following equation(s) resulted in a non-finite number: $(e.indices)")
+show(io::IO, e::IsFiniteException) = print(
+    io,
+    "During the resolution of the non-linear system, the evaluation" *
+    " of the following equation(s) resulted in a non-finite number: $(e.indices)",
+)
 
 include("objectives/helpers.jl")
 

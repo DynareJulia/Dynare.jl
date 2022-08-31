@@ -3,11 +3,15 @@ include("../src/reporting/report.jl")
 using Random
 using Test
 
-page1 = Page("This is the first paragraph\\begin{itemize}\\item Item 1 \\item Item 2 \\item Item 3\\end{itemize}")
-page2 = Page("This is the second paragraph\\begin{itemize}\\item Item 1 \\item Item 2 \\item Item 3\\end{itemize}")
+page1 = Page(
+    "This is the first paragraph\\begin{itemize}\\item Item 1 \\item Item 2 \\item Item 3\\end{itemize}",
+)
+page2 = Page(
+    "This is the second paragraph\\begin{itemize}\\item Item 1 \\item Item 2 \\item Item 3\\end{itemize}",
+)
 
 Random.seed!(111)
-data = randn(4,3)
+data = randn(4, 3)
 title = "Table title"
 cheaders = ["col1", "col2", "col3"]
 rheaders = ["row1", "row2", "row3", "row4"]
@@ -34,7 +38,7 @@ target = raw"""
 """
 @test table1.string == target
 
-report = Report("Report title", subtitle="Subtitle")
+report = Report("Report title", subtitle = "Subtitle")
 
 add_table!(page2, table1)
 add_page!(report, page1)

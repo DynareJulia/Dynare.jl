@@ -128,7 +128,14 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
         )
     else
         schur_ws = SchurWs(T)
-        F = Schur(LAPACK.gees!(schur_ws, 'V', T, select = (wr, wi) -> wr*wr + wi*wi > 1 - 1e-6)...)
+        F = Schur(
+            LAPACK.gees!(
+                schur_ws,
+                'V',
+                T,
+                select = (wr, wi) -> wr * wr + wi * wi > 1 - 1e-6,
+            )...,
+        )
         @show F
         td = transpose(F.Z) * d
         tR = transpose(F.Z) * R

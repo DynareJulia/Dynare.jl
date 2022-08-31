@@ -20,4 +20,3 @@ tinf = @snoopi_deep g(w)
 
 
 itrigs = inference_triggers(tinf)
-

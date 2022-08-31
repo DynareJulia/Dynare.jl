@@ -24,20 +24,32 @@ simul_first_order_1!(y, zeros(n), A, B, exogenous, window, periods, tmp1, tmp2)
 
 steadystate = context.results.model_results[1].trends.endogenous_steady_state
 y .+= steadystate
-residuals = zeros(n*(periods - 2))
+residuals = zeros(n * (periods - 2))
 dynamic_variables = zeros(7)
 temp_vec = context.work.temporary_values
 
 initialvalues = y[1:n]
-terminalvalues = y[(periods - 1)*n + 1:periods*n]
+terminalvalues = y[(periods-1)*n+1:periods*n]
 periods = 100
-tmp = zeros(n*periods)
-dy = zeros(n*periods)
+tmp = zeros(n * periods)
+dy = zeros(n * periods)
 params = context.work.params
 x = view(vec(y), n+1:(periods+1)*n)
-get_residuals!(residuals, x, initialvalues, terminalvalues, exogenous, dynamic_variables, steadystate, params, md, periods, temp_vec)
+get_residuals!(
+    residuals,
+    x,
+    initialvalues,
+    terminalvalues,
+    exogenous,
+    dynamic_variables,
+    steadystate,
+    params,
+    md,
+    periods,
+    temp_vec,
+)
 @show residuals[1:12]
-@show 0.5*dot(residuals, residuals)
+@show 0.5 * dot(residuals, residuals)
 #=
 JJ = Jacobian(context, periods)
 ws_threaded = [JacTimesVec(context) for i=1:Threads.nthreads()]

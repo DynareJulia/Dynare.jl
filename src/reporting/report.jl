@@ -22,8 +22,7 @@ struct Table
     string::String
     function Table(data, title, column_header, row_header, note)
         data = vcat(hcat("", column_header), hcat(row_header, data))
-        string =
-            dynare_table(data, title, note = note, backend = :latex)
+        string = dynare_table(data, title, note = note, backend = :latex)
         new(string)
     end
 end
@@ -65,15 +64,17 @@ function add_graph!(page::Page, graph::Graph)
 end
 
 function add_model!(page::Page, context::Context; lastline = 0, format = 1)
-    model = modelprintout(context.modfileinfo.modfilepath,
-                          context.symboltable,
-                          context.work.params,
-                          sqrt.(diag(context.models[1].Sigma_e)),
-                          lastline,
-                          format)
+    model = modelprintout(
+        context.modfileinfo.modfilepath,
+        context.symboltable,
+        context.work.params,
+        sqrt.(diag(context.models[1].Sigma_e)),
+        lastline,
+        format,
+    )
     push!(page.sections, model)
 end
-          
+
 function add_paragraph!(page::Page, paragraph::String)
     push!(page.sections, paragraph)
 end
@@ -117,10 +118,20 @@ function print(report::Report; texfilename::String = "report.tex")
     return nothing
 end
 
-function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64}, sd::Vector{Float64}, lastline::Integer, format::Integer)
+function modelprintout(
+    modname::String,
+    symboltable::SymbolTable,
+    parameters_value::Vector{Float64},
+    sd::Vector{Float64},
+    lastline::Integer,
+    format::Integer,
+)
     out = IOBuffer()
     if lastline > 0
-        print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true, lastline = $(lastline)]\n")
+        print(
+            out,
+            "\\begin{lstlisting}[escapechar = |, breaklines = true, lastline = $(lastline)]\n",
+        )
     else
         print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true]\n")
     end
@@ -128,7 +139,7 @@ function modelprintout(modname::String, symboltable::SymbolTable, parameters_val
     linenumber = 1
     model_mode = false
     symbols = keys(symboltable)
-    open(modname*".mod") do io
+    open(modname * ".mod") do io
         for token in tokenize(io)
             stringtoken = Tokens.untokenize(token)
             kind = Tokens.kind(token)

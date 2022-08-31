@@ -86,7 +86,7 @@ simulates the linear model
     y_t - c = A (y_{t-1} - c) + Bx_t
 ```
 for t = 1, ...,T
-""" 
+"""
 function simul_first_order!(
     Y::AbstractMatrix{Float64},
     y0::AbstractVector{Float64},
@@ -115,7 +115,8 @@ function is_jacobian_sparse(Y, context)
     ncol = model.n_bkwrd + model.n_current
     nvar = model.endogenous_nbr
     tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
-    dynamic_ws = DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+    dynamic_ws =
+        DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
     dynamic_variables = dynamic_ws.dynamic_variables
     params = work.params
     steadystate = results.trends.endogenous_steady_state
@@ -123,12 +124,14 @@ function is_jacobian_sparse(Y, context)
     period = 2
 end
 
-function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
-                                Y0::AbstractArray,
-                                exogenous::AbstractMatrix,
-                                periods::Int64,
-                                context::Context)
-    
+function dynamic_simulation_nl!(
+    Y::AbstractMatrix{Float64},
+    Y0::AbstractArray,
+    exogenous::AbstractMatrix,
+    periods::Int64,
+    context::Context,
+)
+
     dfunctions = context.dynarefunctions
     model = context.models[1]
     results = context.results.model_results[1]
@@ -136,7 +139,8 @@ function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
 
     ncol = model.n_bkwrd + model.n_current
     tmp_nbr = dfunctions.dynamic!.tmp_nbr::Vector{Int64}
-    dynamic_ws = DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+    dynamic_ws =
+        DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
     dynamic_variables = dynamic_ws.dynamic_variables
     lli = model.lead_lag_incidence
     nvar = model.endogenous_nbr
@@ -154,15 +158,23 @@ function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
     end
 
     YT = transpose(Y)
-    jacobian = get_dynamic_jacobian!(dynamic_ws, params, vec(YT),
-                                     exogenous, steadystate, model, dfunctions, 6)
+    jacobian = get_dynamic_jacobian!(
+        dynamic_ws,
+        params,
+        vec(YT),
+        exogenous,
+        steadystate,
+        model,
+        dfunctions,
+        6,
+    )
     A = view(jacobian, :, model.n_bkwrd .+ (1:nvar))
-    if count(!iszero, A) < 0.1*nvar*nvar
+    if count(!iszero, A) < 0.1 * nvar * nvar
         jacobian_is_sparse = true
         A = sparse(A)
     end
-#    jacobian_is_sparse = false
-    for it = 6:periods - 1
+    #    jacobian_is_sparse = false
+    for it = 6:periods-1
         @show it
         function f!(residuals, y)
             copyto!(dynamic_variables, model.n_bkwrd + 1, y, 1, nvar)
@@ -178,22 +190,41 @@ function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
             )
         end
 
-        function J!(A::SparseMatrixCSC{T, Int64}, y::AbstractVector{T})::SparseMatrixCSC{T, Int64} where T <: Real
-            copyto!(YT, (it - 1)*nvar + 1, y, 1, nvar)
-            jacobian = get_dynamic_jacobian!(dynamic_ws, params, vec(YT),
-                                             exogenous, steadystate, model, dfunctions, it)
+        function J!(
+            A::SparseMatrixCSC{T,Int64},
+            y::AbstractVector{T},
+        )::SparseMatrixCSC{T,Int64} where {T<:Real}
+            copyto!(YT, (it - 1) * nvar + 1, y, 1, nvar)
+            jacobian = get_dynamic_jacobian!(
+                dynamic_ws,
+                params,
+                vec(YT),
+                exogenous,
+                steadystate,
+                model,
+                dfunctions,
+                it,
+            )
             A = sparse(view(jacobian, :, model.n_bkwrd .+ (1:nvar)))
             return A
         end
 
-        function J!(A::Matrix{T}, y::AbstractMatrix{T})::Matrix{T} where T <: Real
-            copyto!(YT, (it - 1)*nvar + 1, y, 1, nvar)
-            jacobian = get_dynamic_jacobian!(dynamic_ws, params, vec(YT),
-                                             exogenous, steadystate, model, dfunctions, it)
+        function J!(A::Matrix{T}, y::AbstractMatrix{T})::Matrix{T} where {T<:Real}
+            copyto!(YT, (it - 1) * nvar + 1, y, 1, nvar)
+            jacobian = get_dynamic_jacobian!(
+                dynamic_ws,
+                params,
+                vec(YT),
+                exogenous,
+                steadystate,
+                model,
+                dfunctions,
+                it,
+            )
             A = view(jacobian, :, model.n_bkwrd .+ (1:nvar))
             return A
         end
-        
+
         if ndims(Y0) == 1
             # use previous result as guess value
             guess = view(YT, :, it - 1)
@@ -203,7 +234,14 @@ function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
         end
         df = OnceDifferentiable(f!, J!, guess, residuals, A)
         show_trace = false
-        results = nlsolve(df, guess, method=:robust_trust_region, iterations = 1000, show_trace = show_trace, extended_trace = show_trace)
+        results = nlsolve(
+            df,
+            guess,
+            method = :robust_trust_region,
+            iterations = 1000,
+            show_trace = show_trace,
+            extended_trace = show_trace,
+        )
         if !converged(results)
             error("Nonlinear solver didn't converge")
         end
@@ -211,4 +249,3 @@ function dynamic_simulation_nl!(Y::AbstractMatrix{Float64},
     end
 
 end
-
