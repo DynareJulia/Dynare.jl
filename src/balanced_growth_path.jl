@@ -1,19 +1,15 @@
 using FastLapackInterface
-using FastLapackInterface.QrAlgo
 using LinearAlgebra
+using LinearRationalExpectations
 
 struct BalancedGrowthWs
     A1::Matrix{Float64}
     A2::Matrix{Float64}
     dd::Vector{Float64}
-    ws::QrpWs
-    ws1::QrpWs
     function BalancedGrowthWs(n)
         A1 = Matrix{Float64}(undef, n, n)
         A2 = Matrix{Float64}(undef, n, n)
         dd = Vector{Float64}(undef, 2 * n)
-        qrws = QrpWs(n)
-        qrws1 = QrpWs(2 * n)
     end
 end
 
@@ -52,15 +48,15 @@ function balanced_growth_compute(
 )
     n = length(d)
     println("m $n")
-    ws = QrpWs(A1)
-    geqp3!(A1, ws)
+    ws = QRPivotedWs(A1)
+    FQR = QRPivoted(LAPACK.geqp3!(ws, A1)...)
 
     M1 = zeros(2 * n, 2 * n)
-    view(M1, 1:n, 1:n) .= A1
-    view(M1, n .+ (1:n), 1:n) .= A1
+    view(M1, 1:n, 1:n) .= FQR.R
+    view(M1, n .+ (1:n), 1:n) .= FQR.R
     view(M1, n .+ (1:n), n .+ (1:n)) .= A2
-    ws1 = QrpWs(M1)
-    geqp3!(M1, ws1)
+    ws1 = QRPivotedWs(M1)
+    FQR1 = QRPivoted(LAPACK.geqp3!(ws1, M1)...)
     println("triu(M1)")
     display(triu(M1))
     println(ws1.jpvt)
