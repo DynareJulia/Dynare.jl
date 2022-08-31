@@ -34,9 +34,7 @@ function mcmc_diagnostics(chains, context, names)
     posterior_pdfs = hcat(posterior_pdfs...)
     prior_pdfs = hcat(prior_pdfs...)
     x_axis = hcat(x_axis...)
-
-    names = hcat([e for e in context.work.estimated_parameters.name[1:n_plots]]...)
-
+    names = hcat(names...)
     f = plot(x_axis, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, legend=false, linewidth=3)
     plot!(f, x_axis, posterior_pdfs, layout=n_plots, linecolor=:darkblue, legend=false, linewidth=3)
 end
