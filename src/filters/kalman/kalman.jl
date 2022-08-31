@@ -1,3 +1,5 @@
+using FastLapackInterface
+
 struct CalibSmootherOptions
     datafile::String
     first_obs::Int64
@@ -125,14 +127,15 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             data_pattern,
         )
     else
-        dgees_ws = DgeesWs(ns)
-        dgees!(dgees_ws, T, >, 1 - 1e-6)
-        td = transpose(dgees_ws.vs) * d
-        tR = transpose(dgees_ws.vs) * R
-        tZ = Z * dgees_ws.vs
+        schur_ws = SchurWs(T)
+        F = Schur(LAPACK.gees!(schur_ws, 'V', T, select = (wr, wi) -> wr*wr + wi*wi > 1 - 1e-6)...)
+        @show F
+        td = transpose(F.Z) * d
+        tR = transpose(F.Z) * R
+        tZ = Z * F.Z
 
         P = zeros(ns, ns, nobs + 1)
-        k = count(abs.(dgees_ws.eigen_values) .> 1 - 1e-6)
+        k = count(abs.(F.values) .> 1 - 1e-6)
         vT = view(T, (k+1):ns, (k+1):ns)
         vP = view(P, (k+1):ns, (k+1):ns, 1)
         vtR = view(tR, (k+1):ns, :)
@@ -178,7 +181,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern,
         )
-        alphah = dgees_ws.vs * alphah
+        alphah = F.Z * alphah
     end
 
     results.smoother["alphah"] = Matrix{Float64}(undef, ns, nobs)
