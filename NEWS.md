@@ -1,3 +1,8 @@
+0.5.5
+=====
+- update version of FastLapackInterface, PolynomialMatrixEquations and
+  LinearRationalExpectations
+  
 0.5.4
 =====
 - add line breaks to model in Latex reports using lstlisting
