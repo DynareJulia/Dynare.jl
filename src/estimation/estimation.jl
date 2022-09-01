@@ -494,8 +494,13 @@ function posterior_mode(
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
     stdh = sqrt.(diag(invhess))
     tstdh = transform_std(transformation, res.minimizer, stdh)
-    mode = TransformVariables.transform(transformation, res.minimizer)
-
+    mode = collect(TransformVariables.transform(transformation, res.minimizer))
+    
+    if length(context.work.estimated_parameters.posterior_mode) == 0
+        resize!(context.work.estimated_parameters.posterior_mode, length(mode))
+    end
+    context.work.estimated_parameters.posterior_mode .= mode
+    
     estimation_result_table(
         context.work.estimated_parameters.name,
         context.work.estimated_parameters.parametertype,
