@@ -18,13 +18,21 @@ has_posterior_mode(context) = length(context.work.estimated_parameters.posterior
 
 function mcmc_diagnostics(chains, context, names)
     indices = [find(context.work.estimated_parameters.name, e) for e in names]
+    iterations, column_nbr = size(chains.value.data)
     prior_pdfs = []
     n_plots = length(indices)
     posterior_pdfs = []
     posterior_x_axes = []
     prior_x_axes = []
+    transformation = Dynare.DSGETransformation(context.work.estimated_parameters)
+    transformed_data = Matrix{Float64}(undef, iterations, column_nbr - 1)
+    
+    for it in 1:iterations
+        @views transformed_data[it, :] .= TransformVariables.transform(transformation, chains.value.data[it, 1:end-1])
+    end
+    
     for i in indices
-        U = kde(chains.value.data[:, i])
+        U = kde(transformed_data[:, i])
         prior = context.work.estimated_parameters.prior[i]
         m, v = mean(prior), var(prior)
         prior_x_axis = LinRange(m-15*v, m+15*v, length(U.x))
@@ -72,7 +80,7 @@ function plot_priors(context, names, n_points = 100)
 end
 
 
-f = mcmc_diagnostics(Dynare.chains, context, ["psi1", "psi2", "psi3", "rho_R"])
+f = mcmc_diagnostics(Dynare.my_chains, context, ["psi1", "psi2", "psi3", "rho_R"])
 display(f)
-g = plot_priors(context, ["psi1", "psi2", "psi3", "rho_R"])
-display(g)
+#g = plot_priors(context, ["psi1", "psi2", "psi3", "rho_R"])
+#display(g)

@@ -508,8 +508,7 @@ function posterior_mode(
         tstdh,
         "Posterior mode"
     )
-
-    return(res, mode, tstdh)
+    return(res, mode, tstdh, inv_hess)
 end
 
 function mh_estimation(
@@ -518,6 +517,8 @@ function mh_estimation(
     first_obs = 1,
     last_obs = 0,
     iterations = 100000,
+    initial_values = Vector{Float64}(undef, 0),
+    covariance = Matrix{Float64}(undef, 0, 0),
     kwargs...,
 )
 
@@ -526,17 +527,19 @@ function mh_estimation(
     transformed_problem = TransformedLogDensity(transformation, problem)
     transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-    (p0, v0) = get_initial_values(context.work.estimated_parameters)
-    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
+    #    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    #    ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
 
     model = DensityModel(transformed_density)
 
-    spl = RWMH(MvNormal(zeros(length(p0)), v0))
+    spl = RWMH(MvNormal(zeros(length(initial_values)), 0.5 .* Matrix(covariance)))
 
     # Sample from the posterior.
-    chain = sample(model, spl, iterations;
+    chain = sample(model, spl, iterations,
+                   init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
-                   chain_type = Chains) 
+                   chain_type = Chains)
+    @show chain
     return chain
 end
 
