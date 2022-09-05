@@ -10,8 +10,8 @@
 @#endfor
 
 var lambda;
-varexo e;
-parameters alpha beta delta phi rho A sigma;
+varexo A e;
+parameters alpha beta delta phi rho sigma;
 
 alpha = 0.36;
 beta  = 0.99;  
@@ -19,10 +19,10 @@ delta = 0.025;
 phi   = 0.5;
 rho   = 0.95;
 sigma = 0.01;
-A = (1 - beta)/(alpha*beta);
+Abar = (1 - beta)/(alpha*beta);
 @#for j in 1:N
-  t_@{j} = 1/(A^(-1/gamma_@{j}));
-  b_@{j} = (1 - alpha)*A^(1-1/gamma_@{j});
+  t_@{j} = 1/(Abar^(-1/gamma_@{j}));
+  b_@{j} = (1 - alpha)*Abar^(1-1/gamma_@{j});
 @#endfor
 
 model;
@@ -59,14 +59,10 @@ steady_state_model;
   lambda = 1;
 end;
 
-shocks;
-  var e; stderr 0.01;
-  @#for j in 1:N
-    var e_@{j}; stderr 0.01;
-  @#endfor
+initval;
+  A = Abar;
 end;
 
-check;
+steady;
 
-stoch_simul(order=1, irf=0);
 
