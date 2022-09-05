@@ -1,28 +1,26 @@
 # Running Dynare
 
 In order to give instructions to Dynare, the user has to write a *model
-file* whose filename extension must be `.mod` or `.dyn`. This file
+file* whose filename extension must be `.mod`. This file
 contains the description of the model and the computing tasks required
 by the user. Its contents are described in
 [The model file](@ref)
 
 ## Dynare invocation
 
-Once the model file is written, Dynare is invoked using the `dynare`
-command at the MATLAB or Octave prompt (with the filename of the `.mod`
+Once the model file is written, Dynare is invoked using the `@dynare`
+Julia macro (with the filename of the `.mod`
 given as argument).
 
 In practice, the handling of the model file is done in two steps: in the
 first one, the model and the processing instructions written by the user
-in a *model file* are interpreted and the proper MATLAB or Octave
+in a *model file* are interpreted and the proper Julia 
 instructions are generated; in the second step, the program actually
 runs the computations. Both steps are triggered automatically by the
-`dynare` command.
-
-**MATLAB/Octave command**: 
+`@dynare` macro:
 
 ```
-dynare FILENAME [.mod ] [OPTIONS... ]
+context = @dynare "FILENAME [.mod ]" [OPTIONS... ]";
 ```
 
 This command launches Dynare and executes the instructions included in
@@ -32,7 +30,7 @@ options, listed below, can be passed on the command line, following the
 name of the `.mod` file or in the first line of the `.mod` file itself 
 (see below).
 
-dynare begins by launching the preprocessor on the `.mod file`. By
+Dynare begins by launching the preprocessor on the `.mod file`. By
 default (unless the [use_dll](@ref) option has been given to `model`), the 
 preprocessor creates three intermediary files:
 
@@ -78,10 +76,10 @@ preprocessor creates three intermediary files:
 These files may be looked at to understand errors reported at the
 simulation stage.
 
-`dynare` will then run the computing tasks by executing
+Dynare will then run the computing tasks by executing
 `+FILENAME/driver.m`. If a user needs to rerun the computing tasks
 without calling the preprocessor (or without calling the
-`dynare`{.interpreted-text role="mcomm"} command), for instance
+Dynare{.interpreted-text role="mcomm"} command), for instance
 because he has modified the script, he just have to type the following
 on the command line:
 ```julia
@@ -114,20 +112,20 @@ under Octave, it also means that the `.mod` file cannot be named
 
 - `noclearall`
 
-  By default, `dynare` will issue a `clear all` command to MATLAB
+  By default, Dynare will issue a `clear all` command to MATLAB
   (\<R2015b) or Octave, thereby deleting all workspace variables and
-  functions; this option instructs `dynare` not to clear the workspace.
-  Note that starting with MATLAB 2015b `dynare` only deletes the global
+  functions; this option instructs Dynare not to clear the workspace.
+  Note that starting with MATLAB 2015b Dynare only deletes the global
   variables and the functions using persistent variables, in order to
   benefit from the JIT (Just In Time) compilation. In this case the
-  option instructs `dynare` not to clear the globals and functions.
+  option instructs Dynare not to clear the globals and functions.
 
 
 - `onlyclearglobals`
 
-  By default, `dynare` will issue a `clear all` command to MATLAB
+  By default, Dynare will issue a `clear all` command to MATLAB
   versions before 2015b and to Octave, thereby deleting all workspace
-  variables; this option instructs `dynare` to clear only the global
+  variables; this option instructs Dynare to clear only the global
   variables (i.e. `M_, options_, oo_, estim_params_, bayestopt_`, and
   `dataset_`), leaving the other variables in the workspace.
 
@@ -145,7 +143,7 @@ under Octave, it also means that the `.mod` file cannot be named
 
 - `savemacro\[=FILENAME\]`
 
-  Instructs `dynare` to save the intermediary file which is obtained
+  Instructs Dynare to save the intermediary file which is obtained
   after macro processing (see [Macro processing language](@ref)); the 
   saved output will go in the file specified, or if no file is specified 
   in `FILENAME-macroexp.mod`. See the [note on quotes](@ref) for info on 
@@ -384,7 +382,7 @@ under Octave, it also means that the `.mod` file cannot be named
  
    Instructs Dynare not to write parameter assignments to parameter names
    in the .m file produced by the preprocessor. This is potentially
-   useful when running `dynare` on a large `.mod` file that runs into
+   useful when running Dynare on a large `.mod` file that runs into
    workspace size limitations imposed by MATLAB.
 
 - `compute\_xrefs`
@@ -509,7 +507,7 @@ under Octave, it also means that the `.mod` file cannot be named
   *Output*
  
   Depending on the computing tasks requested in the `.mod` file,
-  executing the `dynare` command will leave variables containing results
+  executing the Dynare command will leave variables containing results
   in the workspace available for further processing. More details are
   given under the relevant computing tasks. The `M_`,`oo_`, and
   `options_` structures are saved in a file called
