@@ -4,7 +4,8 @@ function mcp_perfectforesight_core!(
     perfect_foresight_ws::PerfectForesightWs,
     context::Context,
     periods::Int64,
-    y0::Matrix{Float64},
+    guess_values::Matrix{Float64},
+    initialvalues::Vector{Float64},
     dynamic_ws::DynamicWs,
 )
     m = context.models[1]
@@ -15,8 +16,7 @@ function mcp_perfectforesight_core!(
     dynamic_variables = dynamic_ws.dynamic_variables
     temp_vec = dynamic_ws.temporary_values
     steadystate = results.trends.endogenous_steady_state
-    initialvalues = steadystate
-    terminalvalues = view(y0, :, periods)
+    terminalvalues = view(guess_values, :, periods)
     params = work.params
     JJ = perfect_foresight_ws.J
     lb = perfect_foresight_ws.lb
@@ -86,7 +86,7 @@ function mcp_perfectforesight_core!(
     @debug "$(now()): start makeJacobian"
     A0 = makeJacobian!(
         JJ,
-        vec(y0),
+        vec(guess_values),
         initialvalues,
         terminalvalues,
         exogenous,
@@ -96,10 +96,10 @@ function mcp_perfectforesight_core!(
     )
     @debug "$(now()): end makeJacobian"
     @debug "$(now()): start f!"
-    f!(residuals, vec(y0))
+    f!(residuals, vec(guess_values))
     @debug "$(now()): end f!"
     @debug "$(now()): start J!"
-    JA!(A0, y0)
+    JA!(A0, guess_values)
 
     function J!(y::AbstractVecOrMat{Float64})
         JA!(A0, y)
@@ -107,12 +107,12 @@ function mcp_perfectforesight_core!(
     end
 
     @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
+    df = OnceDifferentiable(f!, J!, vec(guess_values), residuals, A0)
     @debug "$(now()): start nlsolve"
 
     rr = copy(residuals)
     F = lu(A0)
-    (status, results, info) = solve_path!(f!, J!, lb, ub, vec(y0))
+    (status, results, info) = solve_path!(f!, J!, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(
