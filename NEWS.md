@@ -1,3 +1,7 @@
+0.5.6
+=====
+- fix mcp simulations
+
 0.5.5
 =====
 - update version of FastLapackInterface, PolynomialMatrixEquations and
