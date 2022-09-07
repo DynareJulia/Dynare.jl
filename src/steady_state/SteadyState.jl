@@ -5,7 +5,7 @@ Base.showerror(io::IO, e::DynareSteadyStateComputationFailed) = print("""
                                                                       Dynare couldn't compute the steady state.
                                                                       Either there is no solution or the guess values
                                                                       are too far from the solution
-                                                                      """)
+                                                                       """)
 
 """
 NonLinearSolveAlgos - enumerate
@@ -78,23 +78,28 @@ struct SteadyOptions
 end
 
 """
-    function `steady!`(context::Context, field::Dict{String, Any})
+    steady!(context::Context, field::Dict{String, Any})
 
-computes the steady state of the model and set the result in `context`
+Compute the steady state of the model and set the result in `context`
 """
 function steady!(context::Context, field::Dict{String,Any})
     modfileinfo = context.modfileinfo
     options = SteadyOptions(get(field, "options", Dict{String,Any}()))
-    if (modfileinfo.has_steadystate_file
-        && length(context.dynarefunctions.analytical_steady_state_variables) == context.models[1].original_endogenous_nbr)
+    if (
+        modfileinfo.has_steadystate_file &&
+        length(context.dynarefunctions.analytical_steady_state_variables) ==
+        context.models[1].original_endogenous_nbr
+    )
         @show "compute steady state"
         compute_steady_state!(context)
     else
         results = context.results.model_results[1]
         # will fail if missing values are encountered
         x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
-        copy!(results.trends.exogenous_steady_state,
-              Float64.(vec(view(context.work.initval_exogenous, 1, :))))
+        copy!(
+            results.trends.exogenous_steady_state,
+            Float64.(vec(view(context.work.initval_exogenous, 1, :))),
+        )
         if modfileinfo.has_ramsey_model
             @show "solve ramsey"
             solve_ramsey_steady_state!(context, x0, options)
@@ -109,9 +114,9 @@ function steady!(context::Context, field::Dict{String,Any})
 end
 
 """
-    function `steadystate_display`(context::Context)
+    steadystate_display(context::Context)
 
-displays the steady state of the model
+Display the steady state of the model
 """
 function steadystate_display(context::Context)
     m = context.models[1]
@@ -132,7 +137,7 @@ end
 """
     function `compute_steady_state!`(context::Context)
 
-computes the steady state of the model using solution provided by the user
+Compute the steady state of the model using solution provided by the user
 """
 function compute_steady_state!(context::Context)
     df = context.dynarefunctions
@@ -147,7 +152,7 @@ end
                                 static_module::Module,
                                 params::AbstractVector{Float64})
 
-evaluates the steady state function provided by the user
+Evaluate the steady state function provided by the user
 """
 function evaluate_steady_state!(
     results::ModelResults,
@@ -155,11 +160,18 @@ function evaluate_steady_state!(
     params::AbstractVector{Float64},
 )
     fill!(results.trends.exogenous_steady_state, 0.0)
-    steady_state!(results.trends.endogenous_steady_state,
-                  results.trends.exogenous_steady_state,
-                  params)
+    steady_state!(
+        results.trends.endogenous_steady_state,
+        results.trends.exogenous_steady_state,
+        params,
+    )
 end
 
+"""
+    sparse_static_jacobian(ws, params, x, exogenous, m, df)
+
+Return the sparse Jacobina of a static model
+"""
 function sparse_static_jacobian(ws, params, x, exogenous, m, df)
     J = get_static_jacobian!(ws, params, x, exogenous, m, df)
     return sparse(J)
@@ -167,13 +179,12 @@ end
 
 
 """
-    function solve_steady_state!(context::Context,
+    solve_steady_state!(context::Context,
                                  x0::Vector{Float64})
 
-solves the static model to obtain the steady state
+Solve the static model to obtain the steady state
 """
 function solve_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
-
     ws = StaticWs(context)
     m = context.models[1]
     df = context.dynarefunctions
@@ -198,7 +209,18 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64}, opti
     end
 end
 
-function solve_steady_state_core!(context, x0, J!, A0; tolf = 1e-8)
+"""
+    solve_steady_state_core!(context::Context, x0::AbstractVector{T}, J!::Function, A0::AbstractMatrix{T}; tolf = 1e-8) where T <: Real
+
+Call the nonlinear solver to solve for the steady state
+"""
+function solve_steady_state_core!(
+    context::Context,
+    x0::AbstractVector{T},
+    J!::Function,
+    A0::AbstractMatrix{T};
+    tolf = 1e-8,
+) where {T<:Real}
 
     ws = StaticWs(context)
     m = context.models[1]
@@ -224,8 +246,14 @@ function solve_steady_state_core!(context, x0, J!, A0; tolf = 1e-8)
         @debug "Steady state computation failed with\n $result"
         throw(DynareSteadyStateComputationFailed)
     end
+    return nothing
 end
 
+"""
+    solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
+
+Solve numerically for the steady state of a Ramsey problem
+"""
 function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
     ws = StaticWs(context)
     m = context.models[1]
@@ -236,18 +264,20 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     results = context.results.model_results[1]
     exogenous = results.trends.exogenous_steady_state
     orig_endo_nbr = m.original_endogenous_nbr
-    mult_indices = orig_endo_nbr .+ findall(a -> a["type"] == 6, context.models[1].auxiliary_variables)
+    mult_indices =
+        orig_endo_nbr .+ findall(a -> a["type"] == 6, context.models[1].auxiliary_variables)
     mult_nbr = length(mult_indices)
     mult = zeros(mult_nbr)
     orig_endo_aux_nbr = mult_indices[1] - 1
-    unknown_variable_indices = setdiff!(collect(1:m.original_endogenous_nbr), df.analytical_steady_state_variables)
+    unknown_variable_indices =
+        setdiff!(collect(1:m.original_endogenous_nbr), df.analytical_steady_state_variables)
     unknown_variable_nbr = length(unknown_variable_indices)
     M = zeros(orig_endo_nbr, mult_nbr)
     U1 = zeros(orig_endo_nbr)
     residuals = zeros(m.endogenous_nbr)
     x00 = zeros(unknown_variable_nbr)
     x00 .= view(x0, unknown_variable_indices)
-    
+
     function f!(x::AbstractVector{Float64})
         view(endogenous, unknown_variable_indices) .= x
         # Lagrange multipliers are kept to zero
@@ -259,9 +289,9 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         U1 .= view(residuals, 1:orig_endo_nbr)
         A = get_static_jacobian!(ws, w.params, endogenous, exogenous, m, df)
         M .= view(A, 1:orig_endo_nbr, mult_indices)
-        mult = -M\U1
-        view(residuals, 1:orig_endo_nbr) .= U1 .+ M*mult
-        return sum(z -> z*z, residuals)
+        mult = -M \ U1
+        view(residuals, 1:orig_endo_nbr) .= U1 .+ M * mult
+        return sum(z -> z * z, residuals)
     end
 
     result = optimize(f!, x00, LBFGS())
