@@ -168,20 +168,9 @@ struct DynareFunctions
     static!::Module
     set_auxiliary_variables!::Function
     set_dynamic_auxiliary_variables!::Function
-<<<<<<< HEAD
-    steady_state!::Module
-    function DynareFunctions(
-        compileoption,
-        modfileinfo,
-        modfilename,
-        orig_maximum_lag,
-        orig_maximum_lead,
-    )
-=======
     steady_state!::Function
     analytical_steady_state_variables::Vector{Int64}
     function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
->>>>>>> 41becb2 (solving steady state)
         if modfileinfo.has_dynamic_file
             dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
         else
@@ -205,12 +194,7 @@ struct DynareFunctions
             set_auxiliary_variables! = (a, b, c) -> nothing
         end
         if modfileinfo.has_steadystate_file
-<<<<<<< HEAD
-            steady_state! =
-                load_steady_state_function(modfilename * "SteadyState2", compileoption)
-=======
             (steady_state!, analytical_steadystate_variables) = load_steady_state_function(modfilename * "SteadyState2", compileoption)
->>>>>>> 41becb2 (solving steady state)
         else
             steady_state! = (a, b, c) -> nothing
             analytical_steadystate_variables = Int64[]
@@ -221,11 +205,7 @@ struct DynareFunctions
             set_auxiliary_variables!,
             set_dynamic_auxiliary_variables!,
             steady_state!,
-<<<<<<< HEAD
-        )
-=======
             analytical_steadystate_variables)
->>>>>>> 41becb2 (solving steady state)
     end
 end
 
