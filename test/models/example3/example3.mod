@@ -1,5 +1,7 @@
-// one auxiliary variable
-// Generalized Schur algorithm
+// lead > 2
+// stoch_simul simulation
+// calib smoother
+
 using CSV
 
 var y, c, k, a, h, b;

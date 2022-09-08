@@ -1,5 +1,5 @@
 // lead > 2
-// numerical steady state
+// numerical steady state with some analytical results
 var y, c, k, a, h, b;
 varexo e, u;
 
@@ -32,6 +32,15 @@ a = rho*a(-1)+tau*b(-1) + e;
 b = tau*a(-1)+rho*b(-1) + u;
 end;
 
+steady_state_model;
+  K_Y = beta*alpha /(1 - beta*(1 - delta));
+  H_Y = K_Y^(-alpha/(1 - alpha));
+  C_Y = 1 - delta*K_Y;
+  y = (theta*C_Y*H_Y^(1 + psi)/(1 - alpha))^(-1/(1 + psi));
+  a = 0;
+  b = 0;
+end;
+
 initval;
   y = 1;
   c = 1;
@@ -48,5 +57,3 @@ var e, u = 0.1*0.009*0.009;
 end;
 
 steady;
-
-

@@ -1,14 +1,8 @@
 // lead > 2
-// numerical steady state
+// analytical steady state
+
 var y, c, k, a, h, b;
 varexo e, u;
-
-verbatim;
-% I want these comments included in
-% example1.m 1999q1 1999y
-%
-var = 1;
-end;
 
 parameters beta, rho, alpha, delta, theta, psi, tau;
 
@@ -32,15 +26,18 @@ a = rho*a(-1)+tau*b(-1) + e;
 b = tau*a(-1)+rho*b(-1) + u;
 end;
 
-initval;
-  y = 1;
-  c = 1;
-  k = 1;
-  h = 1;
-  a = 1;
-  b = 1;
+steady_state_model;
+  K_Y = beta*alpha /(1 - beta*(1 - delta));
+  H_Y = K_Y^(-alpha/(1 - alpha));
+  C_Y = 1 - delta*K_Y;
+  y = (theta*C_Y*H_Y^(1 + psi)/(1 - alpha))^(-1/(1 + psi));
+  c = C_Y*y;
+  k = K_Y*y;
+  h = H_Y*y;
+  a = 0;
+  b = 0;
 end;
-
+  
 shocks;
 var e; stderr 0.009;
 var u; stderr 0.009;
@@ -48,5 +45,4 @@ var e, u = 0.1*0.009*0.009;
 end;
 
 steady;
-
 
