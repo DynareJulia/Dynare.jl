@@ -2522,13 +2522,22 @@ works from Julia scripts.
 
 ## Steady state
 
-There are two ways of computing the steady state (i.e. the static
-equilibrium) of a model. The first way is to let Dynare compute the
-steady state using a nonlinear Newton-type solver; this should work for
-most models, and is relatively simple to use. The second way is to give
-more guidance to Dynare, using your knowledge of the model, by providing
-it with a method to compute the steady state, either using a
-[steady_state_model]{.title-ref} block or writing matlab routine.
+There are three ways of computing the steady state (i.e. the static
+equilibrium) of a model. The first way is to provide the equations of
+the steady state in a [steady_state_model]{.title-ref} block. When it
+is possible to derive the steady state by hand, this is the
+recommended way as it faster and more accurate.
+
+The second way is to provide only a partial solution in the
+[steady_state_model]{.title-ref} block and to compute the solution for
+the other variables numerically. Guess values for these other
+variables must be declared in a [initval]{.title-ref} block. The less
+variables the better.
+
+The third way is to compute the steady state value of all variables
+numerically. There is no [steady_state_model] block and a guess value
+must be declared for all variables. A guess value of 0 can be omitted,
+but be careful with variables appearing at the denominator of a fraction. 
 
 ### Finding the steady state with Dynare nonlinear solver
 
