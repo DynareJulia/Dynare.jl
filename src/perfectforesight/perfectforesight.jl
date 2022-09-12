@@ -327,7 +327,7 @@ function perfectforesight_core!(
 
     rr = copy(residuals)
     F = lu(A0)
-    res = nlsolve(df, vec(y0), method = :robust_trust_region, show_trace = false)
+    @time res = nlsolve(df, vec(y0), method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(

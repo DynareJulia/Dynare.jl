@@ -2,9 +2,11 @@ using AdvancedMH
 using Distributions
 using DynamicHMC
 using FiniteDiff: finite_difference_gradient, finite_difference_hessian
+using KernelDensity
 using LogDensityProblems
 using MCMCChains
 using Optim
+using Plots
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
 using Random
 using TransformVariables
@@ -532,14 +534,15 @@ function mh_estimation(
 
     model = DensityModel(transformed_density)
 
-    spl = RWMH(MvNormal(zeros(length(initial_values)), 0.5 .* Matrix(covariance)))
+    spl = RWMH(MvNormal(zeros(length(initial_values)), Matrix(covariance)))
 
     # Sample from the posterior.
     chain = sample(model, spl, iterations,
                    init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-    @show chain
+    @show spl.n_acceptances
+    display(my_chains)
     return chain
 end
 
@@ -690,3 +693,77 @@ end
 #transform_std(::asℝ, x, std) = std
 transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp(x)*std
 transform_std(::TransformVariables.ScaledShiftedLogistic{Int64}, x, std) = logistic(x)*(1-logistic(x))*std
+
+function find(names::Vector, s)
+    for (i, n) in enumerate(names)
+        if n == s
+            return i
+        end
+    end
+end
+
+has_posterior_mode(context) = length(context.work.estimated_parameters.posterior_mode)>0
+
+function mcmc_diagnostics(chains, context, names)
+    indices = [find(context.work.estimated_parameters.name, e) for e in names]
+    iterations, column_nbr = size(chains.value.data)
+    prior_pdfs = []
+    n_plots = length(indices)
+    posterior_pdfs = []
+    posterior_x_axes = []
+    prior_x_axes = []
+    transformation = Dynare.DSGETransformation(context.work.estimated_parameters)
+    transformed_data = Matrix{Float64}(undef, iterations, column_nbr - 1)
+    
+    for it in 1:iterations
+        @views transformed_data[it, :] .= TransformVariables.transform(transformation, chains.value.data[it, 1:end-1])
+    end
+    
+    for i in indices
+        U = kde(transformed_data[:, i])
+        prior = context.work.estimated_parameters.prior[i]
+        m, v = mean(prior), var(prior)
+        prior_x_axis = LinRange(m-15*v, m+15*v, length(U.x))
+        prior_pdf = [pdf(prior, e) for e in prior_x_axis]
+        push!(posterior_pdfs, U.density*(U.x[2] - U.x[1]))
+        push!(posterior_x_axes, U.x)
+        push!(prior_pdfs, prior_pdf/sum(prior_pdf))
+        push!(prior_x_axes, prior_x_axis)
+    end
+
+    posterior_pdfs = hcat(posterior_pdfs...)
+    posterior_x_axes = hcat(posterior_x_axes...)
+    prior_pdfs = hcat(prior_pdfs...)
+    prior_x_axes = hcat(prior_x_axes...)
+    names = hcat(names...)
+
+    f = Plots.plot(posterior_x_axes, posterior_pdfs, layout=n_plots, linecolor=:darkblue, legend=false, linewidth=3)
+    plot!(f, prior_x_axes, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, legend=false, linewidth=3)
+    if has_posterior_mode(context)
+        posterior_modes = [context.work.estimated_parameters.posterior_mode[i] for i in indices]
+        Plots.plot!(f, hcat(posterior_modes...), layout=n_plots, seriestype=:vline, line=(:dot,3), linecolor=:green, legend=false, linewidth=3)
+    end
+    f
+end
+
+
+function plot_priors(context, names, n_points = 100)
+    indices = [find(context.work.estimated_parameters.name, e) for e in names]
+    prior_pdfs = []
+    n_plots = length(indices)
+    prior_x_axes = []
+    for i in indices
+        prior = context.work.estimated_parameters.prior[i]
+        m, v = mean(prior), var(prior)
+        prior_x_axis = LinRange(m-15*v, m+15*v, n_points)
+        prior_pdf = [pdf(prior, e) for e in prior_x_axis]
+        push!(prior_pdfs, prior_pdf/sum(prior_pdf))
+        push!(prior_x_axes, prior_x_axis)
+    end
+    prior_pdfs = hcat(prior_pdfs...)
+    prior_x_axes = hcat(prior_x_axes...)
+    names = hcat(names...)
+    f = Plots.plot(prior_x_axes, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, legend=false, linewidth=3)
+    f
+end
+
