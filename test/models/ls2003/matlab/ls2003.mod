@@ -63,5 +63,6 @@ end;
 
 stoch_simul(order=1, irf=0);
 
+options_.silent_optimizer = 1;
 estimation(datafile=data_ca1,first_obs=8,nobs=79,mh_replic=0);
 

@@ -3,7 +3,7 @@ varexo e_R e_q e_ys e_pies e_A;
 
 parameters psi1 psi2 psi3 rho_R tau alpha rr k rho_q rho_A rho_ys rho_pies;
 
-psi1 = 1.54;
+psi1 = 0.54;
 psi2 = 0.25;
 psi3 = 0.25;
 rho_R = 0.5;
@@ -21,7 +21,7 @@ model(linear);
 y = y(+1) - (tau +alpha*(2-alpha)*(1-tau))*(R-pie(+1))-alpha*(tau +alpha*(2-alpha)*(1-tau))*dq(+1) + alpha*(2-alpha)*((1-tau)/tau)*(y_s-y_s(+1))-A(+1);
 pie = exp(-rr/400)*pie(+1)+alpha*exp(-rr/400)*dq(+1)-alpha*dq+(k/(tau+alpha*(2-alpha)*(1-tau)))*y+alpha*(2-alpha)*(1-tau)/(tau*(tau+alpha*(2-alpha)*(1-tau)))*y_s;
 pie = de+(1-alpha)*dq+pie_s;
-R = rho_R*R(-1)+(1-rho_R)*(psi1*pie+psi2*(y+alpha*(2-alpha)*((1-tau)/tau)*y_s)+psi3*de)+e_R;
+R = rho_R*R(-1)+(1-rho_R)*((1+psi1)*pie+psi2*(y+alpha*(2-alpha)*((1-tau)/tau)*y_s)+psi3*de)+e_R;
 dq = rho_q*dq(-1)+e_q;
 y_s = rho_ys*y_s(-1)+e_ys;
 pie_s = rho_pies*pie_s(-1)+e_pies;
@@ -42,7 +42,7 @@ end;
 varobs y_obs R_obs pie_obs dq de;
 
 estimated_params;
-psi1 , gamma_pdf,1.5,0.5;
+psi1 , gamma_pdf,0.5,0.5;
 psi2 , gamma_pdf,0.25,0.125;
 psi3 , gamma_pdf,0.25,0.125;
 rho_R ,beta_pdf,0.5,0.2;
@@ -61,13 +61,28 @@ stderr e_ys,inv_gamma_pdf,1.2533,0.6551;
 stderr e_pies,inv_gamma_pdf,1.88,0.9827;
 end;
 
-estimation(datafile=data_ca1,first_obs=8,nobs=79,mh_replic=0,mode_compute=0,plot_priors=0);
 
+//estimation(datafile=data_ca1,first_obs=8,nobs=79,mh_replic=0,mode_compute=0,plot_priors=0);
+
+//[dataset_, dataset_info, xparam1, hh, M_, options_, oo_, estim_params_, bayestopt_, bounds] = ...
+//    dynare_estimation_init(var_list_, 'fsdat_simul', [], M_, options_, oo_, estim_params_, bayestopt_);
+
+//options_.analytic_derivation = 0;
+
+//f1 = @() dsge_likelihood(xparam1,dataset_,dataset_info,options_,M_,estim_params_,bayestopt_,bounds,oo_);
+//timeit(f1)
+
+
+estimation(datafile=data_ca1,first_obs=8,nobs=79,mh_replic=100, mh_jscale=0.5, mh_nblocks=1, mode_compute=0, mode_file='ls2003_bench/Output/ls2003_bench_mode.mat', plot_priors=0);
+
+options_.mh_replic=10000;
 [dataset_, dataset_info, xparam1, hh, M_, options_, oo_, estim_params_, bayestopt_, bounds] = ...
     dynare_estimation_init(var_list_, 'fsdat_simul', [], M_, options_, oo_, estim_params_, bayestopt_);
 
-options_.analytic_derivation = 0;
+objective_function = str2func('dsge_likelihood');
+posterior_sampler_options = options_.posterior_sampler_options.current_options;
+posterior_sampler_options.invhess = oo_.posterior.optimization.Variance;
 
-f = @() dsge_likelihood(xparam1,dataset_,dataset_info,options_,M_,estim_params_,bayestopt_,bounds,oo_);
-timeit(f)
+f2 = @() posterior_sampler(objective_function,posterior_sampler_options.proposal_distribution,xparam1,posterior_sampler_options,bounds,dataset_,dataset_info,options_,M_,estim_params_,bayestopt_,oo_);
+timeit(f2)
 
