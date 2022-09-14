@@ -2,7 +2,7 @@ using BenchmarkTools
 using Dynare
 using SparseArrays
 
-context = @dynare "../test/models/irbc/irbc_pf" "-DN=20"
+context = @dynare "../test/models/irbc/irbc_pf" "-DN=100"
 
 periods = 300
 
