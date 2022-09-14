@@ -12,7 +12,6 @@ ip0 = collect(Dynare.TransformVariables.inverse(transformation, tuple(p0...)))
 
 @btime transformed_density(ip0)
 
-#=
 @benchmark res = Dynare.optimize(
     transformed_density,
     $ip0,
@@ -24,8 +23,6 @@ res = Dynare.optimize(
     Dynare.LBFGS(),
     Dynare.Optim.Options(f_tol=1e-5)
 )
-
-=#
 
 (res, mode, tstdh, inv_hess) = Dynare.posterior_mode(context, datafile="../test/models/ls2003/data_ca1.csv", first_obs=8, last_obs=86, iterations=1000, show_trace=false)
 
