@@ -1,6 +1,4 @@
 using LinearAlgebra
-using FastLapackInterface
-using FastLapackInterface.LinSolveAlgo
 
 import LinearAlgebra.BLAS: @blasfunc, BlasInt, BlasFloat, libblas
 

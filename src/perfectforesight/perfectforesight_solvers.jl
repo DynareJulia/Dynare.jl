@@ -1,5 +1,3 @@
-using FastLapackInterface
-using FastLapackInterface.LinSolveAlgo
 using IterativeSolvers
 using LinearAlgebra
 using LinearAlgebra.BLAS
