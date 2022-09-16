@@ -113,11 +113,7 @@ function print(report::Report; texfilename::String = "report.tex")
     return nothing
 end
 
-function modelprintout(
-    modname::String,
-    symboltable::SymbolTable,
-    parameters_value::Vector{Float64},
-)
+function modelprintout(modname::String, io::IO, symboltable::SymbolTable, parameters_value::Vector{Float64})
     out = IOBuffer()
     print(io, "\\lstset{numbers=left}\n")
     print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true]\n")
