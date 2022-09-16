@@ -12,7 +12,7 @@ ip0 = collect(Dynare.TransformVariables.inverse(transformation, tuple(p0...)))
 
 @btime transformed_density(ip0)
 
-@benchmark res = Dynare.optimize(
+@btime res = Dynare.optimize(
     transformed_density,
     $ip0,
     Dynare.LBFGS(),
