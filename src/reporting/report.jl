@@ -64,12 +64,14 @@ function add_graph!(page::Page, graph::Graph)
 end
 
 function add_model!(page::Page, context::Context; lastline = 0, format = 1)
-    model = modelprintout(context.modfileinfo.modfilepath,
-                          context.symboltable,
-                          context.work.params,
-                          sqrt.(diag(context.models[1].Sigma_e)),
-                          lastline,
-                          format)
+    model = modelprintout(
+        context.modfileinfo.modfilepath,
+        context.symboltable,
+        context.work.params,
+        sqrt.(diag(context.models[1].Sigma_e)),
+        lastline,
+        format,
+    )
     push!(page.sections, model)
 end
 
@@ -116,10 +118,20 @@ function print(report::Report; texfilename::String = "report.tex")
     return nothing
 end
 
-function modelprintout(modname::String, symboltable::SymbolTable, parameters_value::Vector{Float64}, sd::Vector{Float64}, lastline::Integer, format::Integer)
+function modelprintout(
+    modname::String,
+    symboltable::SymbolTable,
+    parameters_value::Vector{Float64},
+    sd::Vector{Float64},
+    lastline::Integer,
+    format::Integer,
+)
     out = IOBuffer()
     if lastline > 0
-        print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true, lastline = $(lastline)]\n")
+        print(
+            out,
+            "\\begin{lstlisting}[escapechar = |, breaklines = true, lastline = $(lastline)]\n",
+        )
     else
         print(out, "\\begin{lstlisting}[escapechar = |, breaklines = true]\n")
     end
