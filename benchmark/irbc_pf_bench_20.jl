@@ -2,10 +2,9 @@ using BenchmarkTools
 using Dynare
 using SparseArrays
 
-context = @dynare "../test/models/irbc/irbc_pf" "-DN=100"
+context = @dynare "../test/models/irbc/irbc_pf" "-DN=20"
 
 periods = 300
-
 
 m = context.models[1]
 ddf = context.dynarefunctions
@@ -113,4 +112,5 @@ df = Dynare.OnceDifferentiable(f!, J!, vec(guess_values), residuals, A0)
 rr = copy(residuals)
 F = Dynare.lu(A0)
 b = @benchmark res = Dynare.nlsolve(df, vec(guess_values), method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()));
+
 
