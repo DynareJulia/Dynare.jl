@@ -235,6 +235,12 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "deterministic_trends"
             deterministic_trends!(context, field)
             modfileinfo.has_trends = true
+        elseif statementname == "endval"
+            @debug "$(now()): start endval"
+            endval!(context, field)
+            modfileinfo.has_endval = true
+            modfileinfo.endval_is_reset = true
+            @debug "$(now()): end endval"
         elseif statementname == "estimated_params"
             #            parse_estimated_parameters!(context, field)
             #            modfileinfo.has_trends = true
@@ -246,6 +252,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
             @debug "$(now()): start initval"
             initval!(context, field)
             modfileinfo.has_initval = true
+            modfileinfo.initval_is_reset = true
             @debug "$(now()): end initval"
         elseif statementname == "initval_file"
             @debug "$(now()): start initval_file"

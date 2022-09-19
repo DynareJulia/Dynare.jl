@@ -347,6 +347,38 @@ function initval!(context::Context, field::Dict{String,Any})
     DFunctions.static_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
 end
 
+function endval!(context::Context, field::Dict{String,Any})
+    symboltable = context.symboltable
+    m = context.models[1]
+    df = context.dynarefunctions
+    work = context.work
+    endval_endogenous = zeros(m.endogenous_nbr)
+    endval_exogenous = zeros(m.exogenous_nbr)
+    endval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
+    xs = [Endogenous, Exogenous, ExogenousDeterministic]
+    xw = [endval_endogenous, endval_exogenous, endval_exogenous_det]
+    work.endval_endogenous = zeros(1, m.endogenous_nbr)
+    work.endval_exogenous = zeros(1, m.exogenous_nbr)
+    work.endval_exogenous_deterministic = zeros(1, m.exogenous_deterministic_nbr)
+    for v in field["vals"]
+        s = symboltable[v["name"]::String]
+        typ = s.symboltype
+        k = s.orderintype::Int64
+        value = dynare_parse_eval(v["value"]::String, context, xs = xs, xw = xw)
+        if typ == Endogenous
+            work.endval_endogenous[k] = value
+        elseif typ == Exogenous
+            work.endval_exogenous[k] = value
+        elseif typ == ExogenousDeterministic
+            work.endval_exogenous_determinisitic[k] = value
+        else
+            throw(error("$(v["name"]) can't be set in ENDVAL"))
+        end
+    end
+    params = context.work.params
+    df.set_auxiliary_variables!(work.endval_endogenous, work.endval_exogenous, params)
+end
+
 function shocks!(context::Context, field::Dict{String,Any})
     Sigma = context.models[1].Sigma_e
     shocks = context.work.shocks
