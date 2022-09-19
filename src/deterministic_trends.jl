@@ -18,8 +18,12 @@ function remove_linear_trend!(
     row::Int64 = 1,
 )
     n = size(data_in, 2)
-    linear_trend = collect(row - 1 .+ (1:n))
-    data_out .= data_in .- steady_state .- linear_trend_coeffs .* transpose(linear_trend)
+    linear_trend = row - 1 .+ (1:n)
+    @simd for i in axes(data_out, 2)
+        for j in axes(data_out, 1)
+            data_out[j, i] = data_in[j, i] - (steady_state[j] - linear_trend_coeffs[j]) * linear_trend[i]
+        end
+    end
 end
 
 function add_linear_trend!(
