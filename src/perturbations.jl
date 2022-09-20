@@ -137,13 +137,10 @@ function display_variance_decomposition(
     n = model.original_endogenous_nbr
     LREws = LinearRationalExpectations.LinearRationalExpectationsWs(
         options.dr_algo,
-        model.endogenous_nbr,
         model.exogenous_nbr,
-        model.exogenous_deterministic_nbr,
         model.i_fwrd_b,
         model.i_current,
         model.i_bkwrd_b,
-        model.i_both,
         model.i_static,
     )
     VD = variance_decomposition(
@@ -421,24 +418,15 @@ function compute_first_order_solution!(
         2,
     )
     algo = options.dr_algo
-    wsLRE = LREWs(
-        algo,
-        model.endogenous_nbr,
-        model.exogenous_nbr,
-        model.exogenous_deterministic_nbr,
-        model.i_fwrd_b,
-        model.i_current,
-        model.i_bkwrd_b,
-        model.i_both,
-        model.i_static,
-    )
+    wsLRE = LinearRationalExpectationsWs(algo,
+                                         model.exogenous_nbr,
+                                         model.i_fwrd_b,
+                                         model.i_current,
+                                         model.i_bkwrd_b,
+                                         model.i_static,
+                                         )
     LRE.remove_static!(jacobian, wsLRE)
-    if algo == "GS"
-        LRE.get_de!(wsLRE, jacobian)
-    else
-        LRE.get_abc!(wsLRE, jacobian)
-    end
-    LRE.first_order_solver!(LRE_results, algo, jacobian, options.LRE_options, wsLRE)
+    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options, wsLRE)
     lre_variance_ws = LRE.VarianceWs(
         model.endogenous_nbr,
         model.n_bkwrd + model.n_both,
