@@ -85,6 +85,8 @@ end
 
 function print(report::Report; texfilename::String = "report.tex")
     open(texfilename, "w") do io
+        print(io, "\\lstset{numbers=left}\n")
+        print(io, "\\begin{lstlisting}[escapechar = \|, breaklines = true]\n")
         print(io, "\\documentclass{report}\n")
         print(io, "\\usepackage{graphicx}\n")
         print(io, "\\usepackage{xcolor}\n")
@@ -104,6 +106,7 @@ function print(report::Report; texfilename::String = "report.tex")
         print(io, "\\end{center}\n")
         print(io, "$(Dates.now())\\\\\n")
         print(io, "\\clearpage\n")
+        print(io, "\\end{lstlisting}\n")
         for (i, page) in enumerate(report.pages)
             print(io, page)
             if i < length(report.pages)
@@ -161,7 +164,7 @@ function modelprintout(
                     elseif is_exogenous(stringtoken, symboltable)
                         if format == 1
                             stringtoken = "$(stringtoken)|\$ {\\color{red}\\scriptstyle <\\sigma = $(sd[k])>}\$|"
-                        end
+                        end 
                     end
                 end
                 push!(elements, stringtoken)
