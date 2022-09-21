@@ -38,11 +38,11 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             sum(tmp_nbr[1:2]),
         )
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
-        varobs_ids = [
+        varobs_ids0 = [
             symboltable[v].orderintype for
-            v in varobs if Dynare.is_endogenous(v, symboltable)
-        ]
-        state_ids = union(varobs_ids, model.i_bkwrd_b)
+            v in varobs]
+        state_ids = sort!(union(varobs_ids0, model.i_bkwrd_b))
+        varobs_ids = [findfirst(isequal(symboltable[v].orderintype), state_ids) for v in varobs]
         lagged_state_ids = findall(in(model.i_bkwrd_b), state_ids)
         np = model.exogenous_nbr
         ns = length(state_ids)
@@ -74,6 +74,22 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     end
 end
 
+## Estimation problems
+struct DSGENegativeLogLikelihood
+    f::Function
+    dimension::Integer
+    context::Context
+    observations::Matrix{Union{Missing,<:Real}}
+    ssws::SSWs
+    function DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
+        n = length(context.work.estimated_parameters)
+        observations = get_observations(context, datafile, first_obs, last_obs)
+        ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
+        f = make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
+        new(f, n, context, observations, ssws)
+    end
+end
+
 struct DSGELogPosteriorDensity
     f::Function
     dimension::Integer
@@ -85,6 +101,21 @@ struct DSGELogPosteriorDensity
         observations = get_observations(context, datafile, first_obs, last_obs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
+        new(f, n, context, observations, ssws)
+    end
+end
+
+struct DSGENegativeLogPosteriorDensity
+    f::Function
+    dimension::Integer
+    context::Context
+    observations::Matrix{Union{Missing,<:Real}}
+    ssws::SSWs
+    function DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
+        n = length(context.work.estimated_parameters)
+        observations = get_observations(context, datafile, first_obs, last_obs)
+        ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
+        f = make_negativelogposteriordensity(context, observations, first_obs, last_obs, ssws)
         new(f, n, context, observations, ssws)
     end
 end
@@ -111,7 +142,7 @@ function logpriordensity(x, estimated_parameters)
     return lpd
 end
 
-function DSGEtransformation(ep::EstimatedParameters)
+function DSGETransformation(ep::EstimatedParameters)
     tvec = []
     for p in ep.prior_R
         push!(tvec, asℝ)
@@ -126,6 +157,52 @@ function DSGEtransformation(ep::EstimatedParameters)
         push!(tvec, as(Real, p.domain...))
     end
     return as((tvec...,))
+end
+
+function get_eigenvalues(context)
+    eigenvalues = context.results.model_results[1].linearrationalexpectations.eigenvalues
+    return eigenvalues
+end
+
+function make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
+    previous_value = 0.0
+    function lognegativelikelihood(x)
+        lll = Inf
+        try
+            lll = loglikelihood(x, context, observations, ssws)
+            previous_value  = lll
+        catch e
+            eigenvalues = get_eigenvalues(context)
+            model = context.models[1]
+            backward_nbr = model.n_bkwrd + model.n_both
+            #            lll = previous_value + penalty(e, eigenvalues, backward_nbr)
+            @show e
+            lll = Inf
+        end
+        return -lll
+    end
+    return lognegativelikelihood
+end
+
+function make_negativelogposteriordensity(context, observations, first_obs, last_obs, ssws)
+    previous_value = 0.0
+    function negativelogposteriordensity(x)
+        lpd = Inf
+        (lpd = logpriordensity(x, context.work.estimated_parameters)) == -Inf && return -Inf
+        try
+            lpd += loglikelihood(x, context, observations, ssws)
+            previous_value  = lpd
+        catch e
+            eigenvalues = get_eigenvalues(context)
+            model = context.models[1]
+            backward_nbr = model.n_bkwrd + model.n_both
+            @show e
+#            lpd = previous_value + smooth_penalty(e, eigenvalues, backward_nbr)
+            lpd = -Inf
+        end
+        return -lpd
+    end
+    return negativelogposteriordensity
 end
 
 function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
@@ -208,7 +285,7 @@ function set_estimated_parameters!(
     value::T,
     ::Val{Exogenous},
 ) where {T<:Real,N<:Integer}
-    context.models[1].Sigma_e[index[1], index[2]] = value
+    context.models[1].Sigma_e[index[1], index[2]] = value*value
     return nothing
 end
 
@@ -219,7 +296,6 @@ function loglikelihood(
     ssws::SSWs{T,I},
 ) where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
 
-#    @show parameters
     model = context.models[1]
     results = context.results.model_results[1]
     work = context.work
@@ -249,7 +325,6 @@ function loglikelihood(
         results.trends.endogenous_steady_state[ssws.varobs_ids],
         results.trends.endogenous_linear_trend[ssws.varobs_ids],
     )
-    kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
@@ -296,22 +371,6 @@ function loglikelihood(
             data_pattern,
         )
     else
-#=
-        @show Dynare.kalman_likelihood(
-            Y,
-            ssws.Z,
-            ssws.H,
-            ssws.T,
-            ssws.R,
-            ssws.Q,
-            ssws.a0,
-            ssws.P,
-            start,
-            last,
-            presample,
-            klws,
-        )
-=#
         return Dynare.kalman_likelihood(
             Y,
             ssws.Z,
@@ -329,57 +388,62 @@ function loglikelihood(
     end
 end
 
+## Smooth penalty functions
+"""
+function penalty(e::UndeterminateSystemException, eigenvalues, backward_nbr)
 
-pervious_optimum = Inf
-function minimas_unstable!(m, x)
-    fill!(m, Inf)
-    for xx in x
-        xxx = abs(xx)
-        if xxx > 1
-            x1 = xxx - 1
-            for mm in m
-                x1 = xxx - 1
-                if x1 < mm
-                    mm = x1
-                end
-            end
-        end
-    end
-    return m
-end
-
-function maximas_stable!(m, x)
-    fill!(m, 0.0)
-    for xx in x
-        xxx = abs(x)
-        if xxx < 1
-            x1 = 1 - xxx
-            for mm in m
-                if x1 > mm
-                    mm = 1 - x1
-                end
-            end
-        end
-    end
-    return m
-end
-
-function penalty(
-    eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
-    forward_nbr::Integer,
-) where {T<:Real}
+returns the sum of the modulus of the forward_nbr largest eigenvalues smaller or equal to 1.0 in modulus 
+"""      
+function smooth_penalty(e::UndeterminateSystemException,  
+                 eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
+                 backward_nbr::Integer,
+                 ) where {T<:Real}
     n = length(eigenvalues)
-    unstable_nbr = count(abs.(eigenvalues) .> 1.0)
-    excess_unstable_nbr = unstable_nbr - forward_nbr
-    if excess_unstable_nbr > 0
-        return sum(
-            minimas_unstable!(view(optimum_work, 1:excess_unstable_nbr), eigenvalues),
-        )
-    else
-        return sum(
-            minimas_unstable!(view(optimum_work, 1:-excess_unstable_nbr), eigenvalues),
-        )
-    end
+    sort!(eigenvalues, by=abs)
+    first_unstable_root = findfirst(x -> x > 1.0, eigenvalues)
+    return sum(eigenvalues, backward_nbr + 1, first_unstable_root)
+end
+
+"""
+function penalty(e::UnstableSystemException, eigenvalues, backward_nbr)
+
+returns the sum of the modulus of the backward_nbr smallest eigenvalues larger than 1.0 in modulus 
+"""      
+function smooth_penalty(e::UnstableSystemException,  
+                 eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
+                 backward_nbr::Integer,
+                 ) where {T<:Real}
+    n = length(eigenvalues)
+    sort!(eigenvalues, by=abs)
+    first_unstable_root = findfirst(x -> x > 1.0, eigenvalues)
+    return sum(view(eigenvalues, first_unstable_root, backward_nbr))
+end
+
+
+"""
+function penalty(e::DomainError, eigenvalues, backward_nbr)
+
+returns the absolute value of the argument triggering a DomainError exception
+"""      
+function smooth_penalty(e::DomainError, 
+                 eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
+                 backard_nbr::Integer,
+                 ) where {T<:Real}
+    msg = sprint(showerror, e, catch_backtrace())
+    x = parse(Float64, rsplit(rsplit(msg, ":")[1], " ")[3])
+    return abs(x)
+end
+
+"""
+function penalty(e::Exception, eigenvalues, backward_nbr)
+
+catches unexpected exceptions and rethrow
+"""      
+function penalty(e::Exception, 
+                 eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
+                 backard_nbr::Integer,
+                 ) where {T<:Real}
+
 end
 
 function get_symbol(symboltable, indx)
@@ -467,82 +531,6 @@ function maximum_likelihood(
     )
 end
 
-
-function metropolis_hastings(
-    params,
-    params_indices,
-    shock_variance_indices,
-    measurement_variance_indices,
-    varobs,
-    observations,
-    mh_iter,
-    invhess,
-    context,
-    ssws,
-)
-    function loglikelihood_density(params)
-        try
-            f = loglikelihood(
-                params,
-                params_indices,
-                shock_variance_indices,
-                measurement_variance_indices,
-                varobs,
-                observations,
-                context,
-                ssws,
-            )
-            return f
-        catch
-            return -Inf
-        end
-    end
-
-
-    model = DensityModel(loglikelihood_density)
-
-    spl = RWMH(MvNormal(zeros(length(params_indices)), 0.5 * (invhess + invhess')))
-
-    # Sample from the posterior.
-    chain = sample(model, spl, 50000; param_names = parameter_names, chain_type = Chains)
-end
-
-function hamiltonian_mcmc(problem, p0) end
-
-function estimation(context)
-    varobs = context.varobs
-    observations = copy(transpose(Matrix(Dynare.simulation(varobs))))
-    nobs = size(observations, 2)
-    ssws = SSWs(context, nobs, varobs)
-    # estimated parameters: rho, alpha, theta, tau
-    params_indices = [2, 3, 5, 6]
-    # no shock_variance estimated
-    shock_variance_indices = Vector{Int}(undef, 0)
-    # no measurement errors in the model
-    measurement_variance_indices = Vector{Int}(undef, 0)
-end
-
-function maximum_likelihood_result_table(symboltable, param_indices, estimated_params, stdh)
-    table = Matrix{Any}(undef, length(param_indices) + 1, 4)
-    table[1, 1] = "Parameter"
-    table[1, 2] = "Estimated value"
-    table[1, 3] = "Standard error"
-    table[1, 4] = "80% confidence interval"
-    for (i, k) in enumerate(param_indices)
-        table[i+1, 1] = get_symbol(symboltable, k)
-        table[i+1, 2] = estimated_params[i]
-        table[i+1, 3] = stdh[i]
-        table[i+1, 4] = estimated_params[i] ± (1.28 * stdh[i])
-    end
-    dynare_table(table, "Results from maximum likelihood estimation")
-end
-
-function hmcmc_result_table(parameter_names)
-    mean(results.chain)
-    sqrt.(diag(results.κ.M⁻¹))
-    "Results from Bayesian estimation"
-end
-
 function get_observations(context, datafile, first_obs, last_obs)
     results = context.results.model_results[1]
     symboltable = context.symboltable
@@ -584,30 +572,6 @@ function get_indices(estimated_parameters, symboltable)
     return (parameters_indices, shock_variance_indices, measurement_variance_indices)
 end
 
-function ml_estimation(
-    context;
-    datafile = "",
-    first_obs = 1,
-    last_obs = 0,
-    optim_algo = "optim",
-    kwargs...,
-)
-    problem = DSGELogPosteriorDensity(logposteriordensity, datafile, first_obs, last_obs)
-    transformation = DSGETransformation(context.work.estimated_parameters)
-    transformed_problem = TransformedLogDensity(transformation, problem)
-
-    results = maximum_likelihood(
-        params,
-        params_indices,
-        shock_variance_indices,
-        measurement_variance_indices,
-        observed_variables,
-        observations,
-        context,
-        ssws,
-    )
-end
-
 function get_initial_values(
     estimated_parameters::EstimatedParameters,
 )::Tuple{Vector{Float64},Vector{Float64}}
@@ -636,6 +600,103 @@ function get_parameter_names(estimated_parameters::EstimatedParameters)
     ]
 end
 
+## Estimation
+function ml_estimation(
+    context;
+    datafile = "",
+    first_obs = 1,
+    last_obs = 0,
+    optim_algo = "optim",
+    kwargs...,
+)
+    problem = DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
+    transformation = DSGETransformation(context.work.estimated_parameters)
+    transformed_problem = TransformedLogDensity(transformation, problem)
+    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
+
+    res = optimize(
+        problem.f,
+        p0,
+        NelderMead(),
+        Optim.Options(f_tol = 1e-5, show_trace = true),
+    )
+
+    hess = finite_difference_hessian(problem.f, res.minimizer)
+    inv_hess = inv(hess)
+    hsd = sqrt.(diag(hess))
+    invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
+    stdh = sqrt.(diag(invhess))
+#=
+    maximum_likelihood_result_table(
+        context.symboltable,
+        params_indices,
+        res.minimizer,
+        stdh,
+    )
+    results = maximum_likelihood(
+        params,
+        params_indices,
+        shock_variance_indices,
+        measurement_variance_indices,
+        observed_variables,
+        observations,
+        context,
+        ssws,
+    )
+=#
+end
+
+function posterior_mode(
+    context;
+    datafile = "",
+    first_obs = 1,
+    last_obs = 0,
+    optim_algo = "optim",
+    iterations = 1000,
+    show_trace = false
+)
+    problem = DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
+    transformation = DSGETransformation(context.work.estimated_parameters)
+    transformed_problem = TransformedLogDensity(transformation, problem)
+    transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
+    transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
+    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
+    @show ip0
+    res = optimize(
+        transformed_density,
+        ip0,
+        LBFGS(),
+#        Optim.Options(f_tol = 1e-5, show_trace = show_trace, iterations = iterations),
+        Optim.Options(show_trace = show_trace, iterations = iterations),
+    )
+    hess = finite_difference_hessian(transformed_density, res.minimizer)
+    inv_hess = inv(hess)
+    hsd = sqrt.(diag(hess))
+    invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
+    stdh = sqrt.(diag(invhess))
+#=
+    maximum_likelihood_result_table(
+        context.symboltable,
+        params_indices,
+        res.minimizer,
+        stdh,
+    )
+    results = maximum_likelihood(
+        params,
+        params_indices,
+        shock_variance_indices,
+        measurement_variance_indices,
+        observed_variables,
+        observations,
+        context,
+        ssws,
+    )
+    =#
+    return res
+end
+
 function mh_estimation(
     context;
     datafile = "",
@@ -645,27 +706,19 @@ function mh_estimation(
     kwargs...,
 )
 
-    observations = get_observations(context, datafile, first_obs, last_obs)
-    observed_variables = context.work.observed_variables
-    estimated_parameters = context.work.estimated_parameters
-    params = get_initial_values(estimated_parameters)
-    (params_indices, shock_variance_indices, measurement_variance_indices) =
-        get_indices(estimated_parameters, context.symboltable)
-    ssws = SSWs(context, size(observations, 2), observed_variables)
-    mh_iter = 10000
+    problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
+    transformation = DSGETransformation(context.work.estimated_parameters)
+    transformed_problem = TransformedLogDensity(transformation, problem)
+    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
 
-    metropolis_hastings(
-        params,
-        params_indices,
-        shock_variance_indices,
-        measurement_variance_indices,
-        observed_variables,
-        observations,
-        mh_iter,
-        invhess,
-        context,
-        ssws,
-    )
+    model = DensityModel(problem)
+
+    spl = RWMH(MvNormal(zeros(length(params_indices)), 0.5 * (v0 + transpose(v0))))
+
+    # Sample from the posterior.
+    chain = sample(model, spl, 50000; param_names = parameter_names, chain_type = Chains) 
+
 end
 
 function hmc_estimation(
@@ -677,7 +730,7 @@ function hmc_estimation(
     kwargs...,
 )
     problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
-    transformation = DSGEtransformation(context.work.estimated_parameters)
+    transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
@@ -699,6 +752,7 @@ function hmc_estimation(
 
 end
 
+## Results
 function estimation_result_table(param_names, estimated_params, stdh, title)
     table = Matrix{Any}(undef, length(param_names) + 1, 4)
     table[1, 1] = "Parameter"
@@ -712,5 +766,26 @@ function estimation_result_table(param_names, estimated_params, stdh, title)
         table[i+1, 4] = estimated_params[i] ± (1.28 * stdh[i])
     end
     dynare_table(table, title)
+end
+
+function maximum_likelihood_result_table(symboltable, param_indices, estimated_params, stdh)
+    table = Matrix{Any}(undef, length(param_indices) + 1, 4)
+    table[1, 1] = "Parameter"
+    table[1, 2] = "Estimated value"
+    table[1, 3] = "Standard error"
+    table[1, 4] = "80% confidence interval"
+    for (i, k) in enumerate(param_indices)
+        table[i+1, 1] = get_symbol(symboltable, k)
+        table[i+1, 2] = estimated_params[i]
+        table[i+1, 3] = stdh[i]
+        table[i+1, 4] = estimated_params[i] ± (1.28 * stdh[i])
+    end
+    dynare_table(table, "Results from maximum likelihood estimation")
+end
+
+function hmcmc_result_table(parameter_names)
+    mean(results.chain)
+    sqrt.(diag(results.κ.M⁻¹))
+    "Results from Bayesian estimation"
 end
 

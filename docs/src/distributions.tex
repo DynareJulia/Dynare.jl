@@ -29,7 +29,7 @@ f_{IG_2}(x, \alpha, \theta) &=
 \begin{align*}
   X \sim IG_2(\alpha, \theta) &\Leftrightarrow Y = \sqrt{X} \sim IG_1(\alpha, \theta)\\
                               & \Leftrightarrow Z = X^{-1} \sim G(\alpha, \theta)\\
-\mathbb{E}(Y) &= \sqrt{\theta\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)}} \mbox{ for }\alpha > \frac{1}{2} \\
+\mathbb{E}(Y) &= \sqrt{\theta}\frac{\Gamma(\alpha-\frac{1}{2})}{\Gamma(\alpha)} \mbox{ for }\alpha > \frac{1}{2} \\
 \mathbb{V}ar(Y) &= \frac{\theta}{\alpha - 1} - [\mathbb{E}(Y)]^2 \mbox{ for }\alpha > 1\\
 \mbox{mode }Y &= \sqrt{\frac{\theta}{\alpha + \frac{1}{2}}}\\
   f_{IG_1}(y, \alpha, \theta) &= f_{IG_2}(y^2, \alpha, \theta)|2y|\\
@@ -72,14 +72,20 @@ f_{IG_2}(x|\alpha,\theta) &=
   variance}
 \begin{align*}
   \theta &=
-  \left[\mathbb{E}(Y)\right]^2\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})}\\
+  \left[\mathbb{E}(Y)\right]^2\left(\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})}\right)^2\\
   \theta &= (\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)
 \end{align*}
 Solve numerically
 \[
 (\alpha - 1)\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)-
-\left[\mathbb{E}(Y)\right]^2\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})} =0
+\left[\mathbb{E}(Y)\right]^2\left(\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})}\right)^2 =0
 \]
+or taking the logarithm for numerical stabilitye:
+\[
+\ln(\alpha - 1) + \ln\left(\mathbb{V}ar(Y) + [\mathbb{E}(Y)]^2\right)-
+\ln\left[\mathbb{E}(Y)\right]^2 - 2*\ln\left(\frac{\Gamma(\alpha)}{\Gamma(\alpha-\frac{1}{2})}\right) =0
+\]
+
 \end{document}
 
 %%% Local Variables:
