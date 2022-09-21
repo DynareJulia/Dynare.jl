@@ -217,7 +217,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
             deterministic_trends!(context, field)
             modfileinfo.has_trends = true
         elseif statementname == "estimated_params"
-#            parse_estimated_parameters!(context, field)
+            #            parse_estimated_parameters!(context, field)
             #            modfileinfo.has_trends = true
         elseif statementname == "estimation"
         elseif statementname == "histval"

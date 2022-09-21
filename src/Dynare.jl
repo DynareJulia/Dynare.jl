@@ -25,6 +25,7 @@ export dynare_preprocess
 include("steady_state/SteadyState.jl")
 export steady_state!
 include("dynare_table.jl")
+export round
 include("reporting/report.jl")
 include("graphics.jl")
 include("filters/kalman/kalman.jl")
