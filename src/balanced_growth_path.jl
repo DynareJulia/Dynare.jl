@@ -1,6 +1,5 @@
 using FastLapackInterface
 using LinearAlgebra
-using LinearRationalExpectations
 
 struct BalancedGrowthWs
     A1::Matrix{Float64}

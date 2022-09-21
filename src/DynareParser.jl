@@ -1,12 +1,9 @@
 using CSV
 using DataFrames
-#using .DynareContainers
 using ExtendedDates
 using FastLapackInterface
 using JLD2
 using JSON
-using KalmanFilterTools
-using LinearRationalExpectations
 using Plots
 using StatsFuns
 using TimeDataFrames
@@ -163,7 +160,7 @@ function make_containers(
         Dict{String,Matrix{Float64}}(),
     )
     results = Results([modelresults])
-    return Context(symboltable, [model], modelfileinfo, results, work)
+    return Context(symboltable, [model], modelfileinfo, results, work, Dict())
 end
 
 function make_context(modeljson, modfilename, commandlineoptions)

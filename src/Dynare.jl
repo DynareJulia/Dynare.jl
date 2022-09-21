@@ -8,6 +8,11 @@ Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
 end
 
+using LinearRationalExpectations
+const LRE = LinearRationalExpectations
+
+using KalmanFilterTools
+
 include("utils.jl")
 include("dynare_functions.jl")
 include("dynare_containers.jl")
