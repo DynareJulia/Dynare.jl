@@ -767,8 +767,8 @@ struct Results
 end
 
 struct EstimatedParameters
-    name::Vector{Union{String, Tuple{String, String}}}
-    index::Vector{Union{Int64, Tuple{Int64, Int64}}}
+    name::Vector{Union{String,Tuple{String,String}}}
+    index::Vector{Union{Int64,Tuple{Int64,Int64}}}
     prior::Vector{Distribution}
     initial_value::Vector{Float64}
     ml_value::Vector{Float64}
@@ -779,8 +779,8 @@ struct EstimatedParameters
     posterior_hpdi_lb::Vector{Float64}
     posterior_hpdi_ub::Vector{Float64}
     function EstimatedParameters()
-        name = Vector{Union{String, Tuple{String, String}}}(undef, 0)
-        index::Vector{Union{Int64, Tuple{Int64, Int64}}}(undef, 0)
+        name = Vector{Union{String,Tuple{String,String}}}(undef, 0)
+        index = Vector{Union{Int64,Tuple{Int64,Int64}}}(undef, 0)
         prior = Vector{Distribution}(undef, 0)
         initial_value = Vector{Float64}(undef, 0)
         ml_value = Vector{Float64}(undef, 0)
@@ -790,14 +790,19 @@ struct EstimatedParameters
         posterior_sd = Vector{Float64}(undef, 0)
         posterior_hpdi_lb = Vector{Float64}(undef, 0)
         posterior_hpdi_ub = Vector{Float64}(undef, 0)
-        new(name, index, prior, initial_value,
+        new(
+            name,
+            index,
+            prior,
+            initial_value,
             ml_value,
             posterior_mean,
             posterior_median,
             posterior_mode,
             posterior_sd,
             posterior_hpdi_lb,
-            posterior_hpdi_ub)
+            posterior_hpdi_ub,
+        )
     end
 end
 
@@ -810,10 +815,10 @@ mutable struct Work
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
-    histval::Matrix{Union{Float64, Missing}}
-    initval_endogenous::Matrix{Union{Float64, Missing}}
-    initval_exogenous::Matrix{Union{Float64, Missing}}
-    initval_exogenous_deterministic::Matrix{Union{Float64, Missing}}
+    histval::Matrix{Union{Float64,Missing}}
+    initval_endogenous::Matrix{Union{Float64,Missing}}
+    initval_exogenous::Matrix{Union{Float64,Missing}}
+    initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String,Any}
     estimated_parameters::EstimatedParameters

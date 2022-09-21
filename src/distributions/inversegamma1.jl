@@ -1,5 +1,30 @@
 using Distributions
-import Distributions: zval, cdf, ccdf, logcdf, logccdf, quantile, cquantile, invlogcdf, invlogccdf, rand, params, shape, scale, rate, pdf, logpdf, mean, var, mode, skewness, kurtosis, entropy, kldivergence, mgf, cf 
+import Distributions:
+    zval,
+    cdf,
+    ccdf,
+    logcdf,
+    logccdf,
+    quantile,
+    cquantile,
+    invlogcdf,
+    invlogccdf,
+    rand,
+    params,
+    shape,
+    scale,
+    rate,
+    pdf,
+    logpdf,
+    mean,
+    var,
+    mode,
+    skewness,
+    kurtosis,
+    entropy,
+    kldivergence,
+    mgf,
+    cf
 using Random
 using SpecialFunctions
 """
@@ -35,20 +60,24 @@ struct InverseGamma1{T<:Real} <: Distributions.ContinuousUnivariateDistribution
     InverseGamma1{T}(α::T, θ::T) where {T<:Real} = new{T}(α, θ)
 end
 
-function InverseGamma1(α::T, θ::T; check_args::Bool=true) where {T <: Real}
-    @Distributions.check_args InverseGamma1 (α, α > zero(α)) (θ, θ > zero(θ))
+function InverseGamma1(α::T, θ::T; check_args::Bool = true) where {T<:Real}
+    Distributions.@check_args InverseGamma1 (α, α > zero(α)) (θ, θ > zero(θ))
     return InverseGamma1{T}(α, θ)
 end
 
-InverseGamma1(α::Real, θ::Real; check_args::Bool=true) = InverseGamma1(promote(α, θ)...; check_args=check_args)
-InverseGamma1(α::Integer, θ::Integer; check_args::Bool=true) = InverseGamma1(float(α), float(θ); check_args=check_args)
-InverseGamma1(α::Real; check_args::Bool=true) = InverseGamma1(α, one(α); check_args=check_args)
+InverseGamma1(α::Real, θ::Real; check_args::Bool = true) =
+    InverseGamma1(promote(α, θ)...; check_args = check_args)
+InverseGamma1(α::Integer, θ::Integer; check_args::Bool = true) =
+    InverseGamma1(float(α), float(θ); check_args = check_args)
+InverseGamma1(α::Real; check_args::Bool = true) =
+    InverseGamma1(α, one(α); check_args = check_args)
 InverseGamma1() = InverseGamma1{Float64}(1.0, 1.0)
 
-@Distributions.distr_support InverseGamma1 0.0 Inf
+Distributions.@distr_support InverseGamma1 0.0 Inf
 
 #### Conversions
-convert(::Type{InverseGamma1{T}}, α::S, θ::S) where {T <: Real, S <: Real} = InverseGamma1(T(α), T(θ))
+convert(::Type{InverseGamma1{T}}, α::S, θ::S) where {T<:Real,S<:Real} =
+    InverseGamma1(T(α), T(θ))
 function Base.convert(::Type{InverseGamma1{T}}, d::InverseGamma1) where {T<:Real}
     return InverseGamma1{T}(T(shape(d)), T(d.θ))
 end
@@ -66,13 +95,14 @@ partype(::InverseGamma1{T}) where {T} = T
 
 #### Parameters
 
-mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d); α  > 1/2 ? sqrt(θ*gamma(α - 1/2)/gamma(α))  : T(Inf))
+mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d);
+α > 1 / 2 ? sqrt(θ * gamma(α - 1 / 2) / gamma(α)) : T(Inf))
 
 mode(d::InverseGamma1) = sqrt(scale(d) / (shape(d) + 0.5))
 
-function var(d::InverseGamma1{T}) where T<:Real
+function var(d::InverseGamma1{T}) where {T<:Real}
     (α, θ) = params(d)
-    α > 1 ? θ / (α - 1) - mean(d)*mean(d) : T(Inf)
+    α > 1 ? θ / (α - 1) - mean(d) * mean(d) : T(Inf)
 end
 
 #function skewness(d::InverseGamma1{T}) where T<:Real
@@ -106,9 +136,9 @@ end
 zval(::InverseGamma1, x::Real) = sqrt(max(x, 0))
 
 cdf(d::InverseGamma1, x::Real) = cdf(InverseGamma(d.α, d.θ), zval(d, x))
-ccdf(d::InverseGamma1, x::Real) = ccdf(InverseGamma(d.α, d.θ), zval(d. x))
-logcdf(d::InverseGamma1, x::Real) = logcdf(InverseGamma(d.α, d.θ), zval(d. x))
-logccdf(d::InverseGamma1, x::Real) = logccdf(InverseGamma(d.α, d.θ), zval(d. x))
+ccdf(d::InverseGamma1, x::Real) = ccdf(InverseGamma(d.α, d.θ), zval(d.x))
+logcdf(d::InverseGamma1, x::Real) = logcdf(InverseGamma(d.α, d.θ), zval(d.x))
+logccdf(d::InverseGamma1, x::Real) = logccdf(InverseGamma(d.α, d.θ), zval(d.x))
 
 quantile(d::InverseGamma1, p::Real) = sqrt(quantile(InversGamme(d.α, d.θ), p))
 cquantile(d::InverseGamma1, p::Real) = sqrt(cquantile(InversGamme(d.α, d.θ), p))
