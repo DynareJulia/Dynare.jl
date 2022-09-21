@@ -14,14 +14,16 @@ function logpriordensity(x, estimated_parameters)
     return logprior
 end
 
-function logposteriordensity(estimated_params,
-                             params_indices,
-                             shock_variance_indices,
-                             measurement_variance_indices,
-                             varobs,
-                             observations,
-                             context,
-                             ssws)
+function logposteriordensity(
+    estimated_params,
+    params_indices,
+    shock_variance_indices,
+    measurement_variance_indices,
+    varobs,
+    observations,
+    context,
+    ssws,
+)
     lpd = logpriordens(estimated_params, context.work.estimated_parameters)
     lpd += loglikelihood(
         estimated_params::AbstractVector,
@@ -31,7 +33,8 @@ function logposteriordensity(estimated_params,
         varobs::Tuple{String,String},
         observations::Matrix{D},
         context::Dynare.Context,
-        ssws::SSWs{D,I})
+        ssws::SSWs{D,I},
+    )
     return lpd
 end
 
@@ -104,7 +107,7 @@ function estimated_parameters!(
     param_indices::Vector{I},
     shock_variance_indices::Vector{I},
     measurement_variance_indices::Vector{I},
-)  where {I<:Integer}
+) where {I<:Integer}
     k = 1
     for j in param_indices
         context.work.params[j] = estimated_params[k]
@@ -131,11 +134,13 @@ function loglikelihood(
     context::Dynare.Context,
     ssws::SSWs{D,I},
 ) where {D<:AbstractFloat,I<:Integer}
-    estimated_parameters!(context,
-                          estimated_params,
-                          params_indices,
-                          shock_variance_indices,
-                          measurement_variance_indices)
+    estimated_parameters!(
+        context,
+        estimated_params,
+        params_indices,
+        shock_variance_indices,
+        measurement_variance_indices,
+    )
     model = context.models[1]
     params = context.work.params
     results = context.results.model_results[1]
@@ -258,16 +263,22 @@ function maximas_stable!(m, x)
     return m
 end
 
-optimum_work = Vector{Float64}(undef, context.models[1].endogenous_nbr)    
-function penalty(eigenvalues::AbstractVector{<:Union{T, Complex{T}}},
-                 forward_nbr::Integer) where {T<:Real}
+optimum_work = Vector{Float64}(undef, context.models[1].endogenous_nbr)
+function penalty(
+    eigenvalues::AbstractVector{<:Union{T,Complex{T}}},
+    forward_nbr::Integer,
+) where {T<:Real}
     n = length(eigenvalues)
     unstable_nbr = count(abs.(eigenvalues) .> 1.0)
     excess_unstable_nbr = unstable_nbr - forward_nbr
     if excess_unstable_nbr > 0
-        return sum(minimas_unstable!(view(optimum_work, 1:excess_unstable_nbr), eigenvalues))
+        return sum(
+            minimas_unstable!(view(optimum_work, 1:excess_unstable_nbr), eigenvalues),
+        )
     else
-        return sum(minimas_unstable!(view(optimum_work, 1:-excess_unstable_nbr), eigenvalues))
+        return sum(
+            minimas_unstable!(view(optimum_work, 1:-excess_unstable_nbr), eigenvalues),
+        )
     end
 end
 
@@ -281,14 +292,16 @@ function get_symbol(symboltable, indx)
     end
 end
 
-function maximum_likelihood(params::Vector{T},
-                            params_indices,
-                            shock_variance_indices,
-                            measurement_variance_indices,
-                            varobs,
-                            observations,
-                            context,
-                            ssws) where T <: Real
+function maximum_likelihood(
+    params::Vector{T},
+    params_indices,
+    shock_variance_indices,
+    measurement_variance_indices,
+    varobs,
+    observations,
+    context,
+    ssws,
+) where {T<:Real}
 
     history = 0.0
 
@@ -300,25 +313,32 @@ function maximum_likelihood(params::Vector{T},
         varobs,
         observations,
         context,
-        ssws
+        ssws,
     ) where {T<:AbstractFloat}
         try
-            f = -loglikelihood(params,
-                               params_indices,
-                               shock_variance_indices,
-                               measurement_variance_indices,
-                               varobs,
-                               observations,
-                               context,
-                               ssws)
+            f =
+                -loglikelihood(
+                    params,
+                    params_indices,
+                    shock_variance_indices,
+                    measurement_variance_indices,
+                    varobs,
+                    observations,
+                    context,
+                    ssws,
+                )
             history = f
             return f
         catch e
             if e isa Union{UndeterminateSystemException,UnstableSystemException}
                 model = context.models[1]
                 forward_nbr = model.n_fwrd + model.n_both
-                return penalty(eigvals(context.results.model_results[1].linearrationalexpectations.gs1),
-                               forward_nbr)
+                return penalty(
+                    eigvals(
+                        context.results.model_results[1].linearrationalexpectations.gs1,
+                    ),
+                    forward_nbr,
+                )
             elseif e isa DomainError
                 msg = sprint(showerror, e, catch_backtrace())
                 x = parse(T, rsplit(rsplit(msg, ":")[1], " ")[3])
@@ -336,10 +356,15 @@ function maximum_likelihood(params::Vector{T},
     hess = finite_difference_hessian(negative_loglikelihood, res.minimizer)
     inv_hess = inv(hess)
     hsd = sqrt.(diag(hess))
-    invhess = inv(hess./(hsd*hsd'))./(hsd*hsd')
+    invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
     stdh = sqrt.(diag(invhess))
 
-    maximum_likelihood_result_table(context.symboltable, params_indices, res.minimizer, stdh)
+    maximum_likelihood_result_table(
+        context.symboltable,
+        params_indices,
+        res.minimizer,
+        stdh,
+    )
 end
 
 
@@ -355,7 +380,7 @@ function metropolis_hastings()
                 observations,
                 context,
                 ssws,
-        )
+            )
             return f
         catch
             return -Inf
@@ -394,9 +419,9 @@ function estimation(context)
     # no measurement errors in the model
     measurement_variance_indices = Vector{Int}(undef, 0)
 end
-    
+
 function maximum_likelihood_result_table(symboltable, param_indices, estimated_params, stdh)
-    table = Matrix{Any}(undef, length(param_indices)+1, 4)
+    table = Matrix{Any}(undef, length(param_indices) + 1, 4)
     table[1, 1] = "Parameter"
     table[1, 2] = "Estimated value"
     table[1, 3] = "Standard error"
@@ -405,7 +430,7 @@ function maximum_likelihood_result_table(symboltable, param_indices, estimated_p
         table[i+1, 1] = get_symbol(symboltable, k)
         table[i+1, 2] = estimated_params[i]
         table[i+1, 3] = stdh[i]
-        table[i+1, 4] = estimated_params[i] ± (1.28*stdh[i])
+        table[i+1, 4] = estimated_params[i] ± (1.28 * stdh[i])
     end
     dynare_table(table, "Results from maximum likelihood estimation")
 end
@@ -416,5 +441,3 @@ hmcmc_result_table(
     sqrt.(diag(results.κ.M⁻¹)),
     "Results from Bayesian estimation",
 )
-
-                             
