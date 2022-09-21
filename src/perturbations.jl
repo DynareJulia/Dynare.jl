@@ -367,7 +367,7 @@ function compute_stoch_simul!(
     ws::DynamicWs,
     params::Vector{Float64},
     options::StochSimulOptions;
-    variance_decomposition::Bool = false,
+    kwargs...
 )
     model = context.models[1]
     results = context.results.model_results[1]
@@ -383,8 +383,7 @@ function compute_stoch_simul!(
         params,
         model,
         ws,
-        options,
-        variance_decomposition,
+        options; kwargs...
     )
 end
 
@@ -396,13 +395,9 @@ function compute_first_order_solution!(
     params::AbstractVector{Float64},
     model::Model,
     ws::DynamicWs,
-    options::StochSimulOptions,
-    variance_decomposition::Bool,
+    options::StochSimulOptions;
+    variance_decomposition::Bool = true,
 )
-
-    # abbreviations
-    LRE = LinearRationalExpectations
-    LREWs = LinearRationalExpectationsWs
 
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
@@ -417,23 +412,11 @@ function compute_first_order_solution!(
         context.dynarefunctions,
         2,
     )
-    algo = options.dr_algo
-    wsLRE = LinearRationalExpectationsWs(algo,
-                                         model.exogenous_nbr,
-                                         model.i_fwrd_b,
-                                         model.i_current,
-                                         model.i_bkwrd_b,
-                                         model.i_static,
-                                         )
-    LRE.remove_static!(jacobian, wsLRE)
-    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options, wsLRE)
-    lre_variance_ws = LRE.VarianceWs(
-        model.endogenous_nbr,
-        model.n_bkwrd + model.n_both,
-        model.exogenous_nbr,
-        wsLRE,
-    )
-    compute_variance!(LRE_results, model.Sigma_e, lre_variance_ws)
+    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options,
+                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
+    if variance_decomposition
+        compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
+    end
 end
 
 

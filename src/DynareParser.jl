@@ -5,8 +5,6 @@ using ExtendedDates
 using FastLapackInterface
 using JLD2
 using JSON
-using KalmanFilterTools
-using LinearRationalExpectations
 using Plots
 using StatsFuns
 using TimeDataFrames
@@ -154,7 +152,7 @@ function make_containers(
         model.orig_maximum_lag,
         model.orig_maximum_lead,
     )
-    return Context(symboltable, [model], dynarefunctions, modelfileinfo, results, work)
+    return Context(symboltable, [model], dynarefunctions, modelfileinfo, results, work, Dict())
 end
 
 function parser(modfilename::String, commandlineoptions::CommandLineOptions)
