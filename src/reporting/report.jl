@@ -63,7 +63,6 @@ function add_graph!(page::Page, graph::Graph)
     push!(page.sections, graph)
 end
 
-<<<<<<< HEAD
 function add_model!(page::Page, context::Context; lastline = 0, format = 1)
     model = modelprintout(
         context.modfileinfo.modfilepath,
@@ -73,13 +72,11 @@ function add_model!(page::Page, context::Context; lastline = 0, format = 1)
         lastline,
         format,
     )
-=======
 function add_model!(page::Page, context::Context; lastline = 0)
     model = modelprintout(context.modfileinfo.modfilepath,
                           context.symboltable,
                           context.work.params,
                           lastline)
->>>>>>> 413104e (add lastline option to report addmodel!)
     push!(page.sections, model)
 end
 
