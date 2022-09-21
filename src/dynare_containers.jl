@@ -3,8 +3,9 @@ using Distributions
 using LinearRationalExpectations
 using RuntimeGeneratedFunctions
 using Suppressor
-using TimeDataFrames
 using StatsFuns
+using TimeDataFrames
+using KalmanFilterTools: KalmanLikelihoodWs
 
 export Context,
     DynareSymbol, Model, ModelResults, Results, Simulation, SymbolType, Work, Trends
@@ -164,6 +165,7 @@ struct Model
     NNZDerivatives::Vector{Int64}
     auxiliary_variables::Vector{Dict{String,Any}}
     mcps::Vector{Tuple{Int64,String,String,String}}
+    ids::LRE.Indices
 end
 
 struct DynareFunctions
@@ -620,6 +622,7 @@ function Model(
         collect(1:exogenous_nbr)
     )
     mcps = Tuple{Int64,String,String,String}[]
+    ids = LRE.Indices(exogenous_nbr, i_fwrd_b, i_current, i_bkwrd_b, i_static)
     Model(
         endogenous_nbr,
         exogenous_nbr,
@@ -705,6 +708,7 @@ function Model(
         NNZDerivatives,
         aux_vars,
         mcps,
+        ids
     )
 
 end
@@ -901,6 +905,76 @@ struct Context
     modfileinfo::ModFileInfo
     results::Results
     work::Work
+    workspaces::Dict
+end
+
+# For now workspace assumes that only 1 model is present.
+# In the future, if more models should exist, there should
+# be a dict with the model id as key and each time a specific
+# Ws for a specific model is needed that one is taken, or generated.
+for ws_t in (:LinearCyclicReductionWs, :LinearGsSolverWs)
+    @eval function workspace(::Type{LRE.$ws_t}, c::Context; model_id = 1)
+        m = c.models[model_id]
+        if !haskey(c.workspaces, LRE.$ws_t)
+            c.workspaces[LRE.$ws_t] = LRE.$ws_t(m.ids)
+        end
+        return c.workspaces[LRE.$ws_t]
+    end
+end
+
+# Probably should think of using an Algo type so that we can  dispatch rather than if elseif below
+# IF more algos than 2 appear.
+function workspace(::Type{LRE.LinearRationalExpectationsWs}, c::Context; model_id=1, algo="GS")
+    m = c.models[model_id]
+    if !haskey(c.workspaces, LRE.LinearRationalExpectationsWs)
+        c.workspaces[LRE.LinearRationalExpectationsWs] = Dict{String, LRE.LinearRationalExpectationsWs}()
+    end
+    if !haskey(c.workspaces[LRE.LinearRationalExpectationsWs], algo)
+        if algo == "GS"
+            solver_ws = workspace(LRE.LinearGsSolverWs, c; model_id=model_id)
+        elseif algo == "CR"
+            solver_ws = workspace(LRE.LinearCyclicReductionWs, c; model_id=model_id)
+        else
+            error("Linear solving algorithm $algo not recognized, allowed: \"GS\", \"CR\"")
+        end
+        c.workspaces[LRE.LinearRationalExpectationsWs][algo] =
+        LRE.LinearRationalExpectationsWs(solver_ws, m.ids)
+    end
+    return c.workspaces[LRE.LinearRationalExpectationsWs][algo]
+end
+
+function workspace(::Type{LRE.LyapdWs}, c::Context; model_id=1)
+    m = c.models[model_id]
+    if !haskey(c.workspaces, LRE.LyapdWs)
+        c.workspaces[LRE.LyapdWs] = LRE.LyapdWs(m.n_bkwrd + m.n_both)
+    end
+    return c.workspaces[LRE.LyapdWs]
+end
+function workspace(::Type{LRE.VarianceWs}, c::Context; model_id=1, algo="GS")
+    m = c.models[model_id]
+    if !haskey(c.workspaces, LRE.VarianceWs)
+        c.workspaces[LRE.VarianceWs] = Dict{String, LRE.VarianceWs}()
+    end
+    if !haskey(c.workspaces[LRE.VarianceWs], algo)
+        lya = workspace(LRE.LyapdWs, c; model_id=model_id)
+        lre = workspace(LRE.LinearRationalExpectationsWs, c; model_id=model_id, algo=algo)
+        c.workspaces[LRE.VarianceWs][algo] = LRE.VarianceWs(m.endogenous_nbr, lya, m.exogenous_nbr, lre)
+    end
+    return c.workspaces[LRE.VarianceWs][algo]
+end
+function workspace(::Type{KalmanLikelihoodWs}, c::Context; model_id=1)
+    m = c.models[model_id]
+    if !haskey(c.workspaces, KalmanLikelihoodWs)
+        varobs = c.work.observed_variables
+        symboltable = c.symboltable
+        varobs_ids0 = [symboltable[v].orderintype for v in varobs]
+        np = m.exogenous_nbr
+        state_ids = sort!(union(varobs_ids0, m.i_bkwrd_b))
+        ns = length(state_ids)
+        ny = length(varobs)
+        c.workspaces[KalmanLikelihoodWs] = KalmanLikelihoodWs(ny, ns, np, varobs)
+    end
+    return c.workspaces[KalmanLikelihoodWs]
 end
 
 """
