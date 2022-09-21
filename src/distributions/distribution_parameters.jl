@@ -32,14 +32,14 @@ function beta_specification(μ, σ2; lb = 0, ub = 1, name = "")
 end
 
 function gamma_specification(μ, σ2)
-    θ = μ / σ2
-    α = μ * θ
+    θ = σ2 / μ
+    α = μ / θ
     return α, θ
 end
 
 function inverse_gamma_1_specification(μ, σ2)
     μ2 = μ * μ
-    f(x) = (x - 1) * (σ2 + μ2) - μ2 * gamma(x) / gamma(x - 0.5)
+    f(x) = log(x - 1) + log(σ2 + μ2) - log(μ2) - 2*(loggamma(x) - loggamma(x - 0.5))
     α = find_zero(f, (1, 100))
     θ = (α - 1) * (σ2 + μ2)
     return α, θ

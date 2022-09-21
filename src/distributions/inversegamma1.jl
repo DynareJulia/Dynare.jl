@@ -96,7 +96,7 @@ partype(::InverseGamma1{T}) where {T} = T
 #### Parameters
 
 mean(d::InverseGamma1{T}) where {T} = ((α, θ) = params(d);
-α > 1 / 2 ? sqrt(θ * gamma(α - 1 / 2) / gamma(α)) : T(Inf))
+α > 1 / 2 ? sqrt(θ) * gamma(α - 1 / 2) / gamma(α) : T(Inf))
 
 mode(d::InverseGamma1) = sqrt(scale(d) / (shape(d) + 0.5))
 
