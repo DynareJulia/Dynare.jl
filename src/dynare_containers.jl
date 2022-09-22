@@ -962,20 +962,6 @@ function workspace(::Type{LRE.VarianceWs}, c::Context; model_id=1, algo="GS")
     end
     return c.workspaces[LRE.VarianceWs][algo]
 end
-function workspace(::Type{KalmanLikelihoodWs}, c::Context; model_id=1)
-    m = c.models[model_id]
-    if !haskey(c.workspaces, KalmanLikelihoodWs)
-        varobs = c.work.observed_variables
-        symboltable = c.symboltable
-        varobs_ids0 = [symboltable[v].orderintype for v in varobs]
-        np = m.exogenous_nbr
-        state_ids = sort!(union(varobs_ids0, m.i_bkwrd_b))
-        ns = length(state_ids)
-        ny = length(varobs)
-        c.workspaces[KalmanLikelihoodWs] = KalmanLikelihoodWs(ny, ns, np, varobs)
-    end
-    return c.workspaces[KalmanLikelihoodWs]
-end
 
 """
 parameters obtained from modfile.json
