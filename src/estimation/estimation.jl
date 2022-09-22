@@ -28,6 +28,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     varobs_ids::Vector{I}
     Y::Matrix{Union{D,Missing}}
     Z::Matrix{D}
+    kalman_ws::KalmanLikelihoodWs{D, I}
     function SSWs(context, nobs, varobs)
         model = context.models[1]
         D = eltype(context.work.params)
@@ -74,6 +75,13 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             varobs_ids,
             Y,
             Z,
+            KalmanLikelihoodWs(
+                ny,
+                ns,
+                np,
+                nobs
+            )
+                
         )
     end
 end
@@ -312,13 +320,13 @@ function loglikelihood(
         end
         return Dynare.kalman_likelihood(
             Y,
-            swws.Z,
+            ssws.Z,
             ssws.H,
             ssws.T,
             ssws.R,
             ssws.Q,
             ssws.a0,
-            swws.P,
+            ssws.P,
             start,
             last,
             presample,
