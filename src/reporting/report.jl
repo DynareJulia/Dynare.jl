@@ -72,11 +72,6 @@ function add_model!(page::Page, context::Context; lastline = 0, format = 1)
         lastline,
         format,
     )
-function add_model!(page::Page, context::Context; lastline = 0)
-    model = modelprintout(context.modfileinfo.modfilepath,
-                          context.symboltable,
-                          context.work.params,
-                          lastline)
     push!(page.sections, model)
 end
 
