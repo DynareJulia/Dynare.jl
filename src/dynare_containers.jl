@@ -164,11 +164,18 @@ struct Model
     NNZDerivatives::Vector{Int64}
     auxiliary_variables::Vector{Dict{String,Any}}
     mcps::Vector{Tuple{Int64,String,String,String}}
+    dynamic_g1_sparse_rowval::Vector{Int64}
+    dynamic_g1_sparse_colptr::Vector{Int64}
+    static_g1_sparse_rowval::Vector{Int64}
+    static_g1_sparse_colptr::Vector{Int64}    
 end
 
 struct DynareFunctions
     dynamic!::Module
     static!::Module
+    SparseDynamicG1TT!::Function
+    SparseDynamicResidTT!::Function
+    SparseDynamicG1!::Function
     set_auxiliary_variables!::Function
     set_dynamic_auxiliary_variables!::Function
     steady_state!::Function
@@ -176,6 +183,9 @@ struct DynareFunctions
     function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
         if modfileinfo.has_dynamic_file
             dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
+            SparseDynamicG1TT! = load_dynare_function3(modfilename * "/model/julia/SparseDynamicG1TT!")
+            SparseDynamicResidTT! = load_dynare_function3(modfilename * "/model/julia/SparseDynamicResidTT!")
+            SparseDynamicG1! = load_dynare_function3(modfilename * "/model/julia/SparseDynamicG1!")
         else
             dynamic! = Module()
         end
@@ -205,6 +215,9 @@ struct DynareFunctions
         new(
             dynamic!,
             static!,
+            SparseDynamicG1TT!,
+            SparseDynamicResidTT!,
+            SparseDynamicG1!,
             set_auxiliary_variables!,
             set_dynamic_auxiliary_variables!,
             steady_state!,
@@ -430,7 +443,7 @@ function Model(
     maximum_exo_lead::Int64,
     maximum_exo_det_lag::Int64,
     maximum_exo_det_lead::Int64,
-    maximum_lag,
+    maximum_lag::Int64,
     maximum_lead::Int64,
     orig_maximum_endo_lag::Int64,
     orig_maximum_endo_lead::Int64,
@@ -442,6 +455,10 @@ function Model(
     orig_maximum_lead::Int64,
     NNZDerivatives::Vector{Int64},
     compileoption::Bool,
+    dynamic_g1_sparse_rowval::Vector{Int64},
+    dynamic_g1_sparse_colptr::Vector{Int64},
+    static_g1_sparse_rowval::Vector{Int64},
+    static_g1_sparse_colptr::Vector{Int64},    
 )
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
@@ -700,6 +717,10 @@ function Model(
         NNZDerivatives,
         aux_vars,
         mcps,
+        dynamic_g1_sparse_rowval,
+        dynamic_g1_sparse_colptr,
+        static_g1_sparse_rowval,
+        static_g1_sparse_colptr,
     )
 
 end
@@ -975,6 +996,11 @@ end
 function load_dynare_function2(modname::String)::Function
     fun = readlines(modname * ".jl")
     return (@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
+end
+
+function load_dynare_function3(modname::String)::Function
+    fun = readlines(modname * ".jl")
+    return (@RuntimeGeneratedFunction(Meta.parse(join(fun, "\n"))))
 end
 
 function load_steady_state_function(modname::String, compileoption::Bool)

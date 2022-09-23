@@ -45,6 +45,10 @@ function get_model(
     param_nbr::Int64,
     orig_endo_nbr::Int64,
     aux_vars::Vector{Any},
+    dynamic_g1_sparse_rowval::Vector{Int64},
+    dynamic_g1_sparse_colptr::Vector{Int64},
+    static_g1_sparse_rowval::Vector{Int64},
+    static_g1_sparse_colptr::Vector{Int64},
 )
     model_info = get_model_info(dynare_model_info)
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
@@ -89,6 +93,10 @@ function get_model(
         model_info.orig_maximum_lead,
         NNZDerivatives,
         commandlineoptions.compilemodule,
+        dynamic_g1_sparse_rowval,
+        dynamic_g1_sparse_colptr,
+        static_g1_sparse_rowval,
+        static_g1_sparse_colptr
     )
     return model
 end
@@ -179,6 +187,10 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         param_nbr,
         orig_endo_nbr,
         aux_vars,
+        Vector{Int64}(modeljson["dynamic_g1_sparse_rowval"]),
+        Vector{Int64}(modeljson["dynamic_g1_sparse_colptr"]),
+        Vector{Int64}(modeljson["static_g1_sparse_rowval"]),
+        Vector{Int64}(modeljson["static_g1_sparse_colptr"]),
     )
     varobs = get_varobs(modeljson)
     @debug "$(now()): make_container"

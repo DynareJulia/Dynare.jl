@@ -116,7 +116,7 @@ function is_jacobian_sparse(Y, context)
     nvar = model.endogenous_nbr
     tmp_nbr = model.dynamic!.tmp_nbr::Vector{Int64}
     dynamic_ws =
-        DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+        DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]), length(model.dynamic_g1_dynamic_rowval))
     dynamic_variables = dynamic_ws.dynamic_variables
     params = work.params
     steadystate = results.trends.endogenous_steady_state
@@ -140,7 +140,7 @@ function dynamic_simulation_nl!(
     ncol = model.n_bkwrd + model.n_current
     tmp_nbr = dfunctions.dynamic!.tmp_nbr::Vector{Int64}
     dynamic_ws =
-        DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+        DynamicWs(model.endogenous_nbr, model.exogenous_nbr, ncol, sum(tmp_nbr[1:2]), length(model.dynamic_g1_dynamic_rowval))
     dynamic_variables = dynamic_ws.dynamic_variables
     lli = model.lead_lag_incidence
     nvar = model.endogenous_nbr

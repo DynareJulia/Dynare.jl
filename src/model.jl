@@ -5,28 +5,35 @@ export get_de, get_abc, inverse_order_of_dynare_decision_rule
 
 struct DynamicWs
     dynamic_variables::Vector{Float64}
+    dynamic_variables2::Vector{Float64}
     exogenous_variables::Vector{Float64}
     residuals::Vector{Float64}
     derivatives::Vector{Vector{Float64}}
     temporary_values::Vector{Float64}
+    nzval::Vector{Float64}
     function DynamicWs(
         endogenous_nbr::Int64,
         exogenous_nbr::Int64,
         dynamic_nbr::Int64,
         tmp_nbr::Int64,
+        nzval_nbr::Int64
     )
         dynamic_variables = Vector{Float64}(undef, dynamic_nbr)
+        dynamic_variables2 = Vector{Float64}(undef, 3*endogenous_nbr)
         exogenous_variables = Vector{Float64}(undef, exogenous_nbr)
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = Vector{Vector{Float64}}(undef, 1)
         derivatives[1] = Vector{Float64}(undef, 0)
         temporary_values = Vector{Float64}(undef, tmp_nbr)
+        nzval = Vector{Float64}(undef, nzval_nbr)
         new(
             dynamic_variables,
+            dynamic_variables2,
             exogenous_variables,
             residuals,
             derivatives,
             temporary_values,
+            nzval
         )
     end
 end
@@ -36,7 +43,8 @@ function DynamicWs(context::Context)
     df = context.dynarefunctions
     dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = sum(df.dynamic!.tmp_nbr[1:2])
-    return DynamicWs(m.endogenous_nbr, m.exogenous_nbr, dynamic_nbr, tmp_nbr)
+    nzval_nbr = length(m.dynamic_g1_dynamic_rowval)
+    return DynamicWs(m.endogenous_nbr, m.exogenous_nbr, dynamic_nbr, tmp_nbr, nzval_nbr)
 end
 
 struct StaticWs
@@ -156,6 +164,16 @@ function get_dynamic_endogenous_variables!(
     end
 end
 
+function get_dynamic_endogenous_variables2!(
+    y::AbstractVector{Float64},
+    data::AbstractVector{Float64},
+    endogenous_nbr,
+    period::Int64,
+)
+    p = (period - 2) * endogenous_nbr
+    y .= view(data, p .+ (1:3*endogenous_nbr))
+end
+
 
 """
 `get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64})
@@ -177,6 +195,23 @@ function get_dynamic_endogenous_variables!(
             end
         end
     end
+end
+
+function get_dynamic_endogenous_variables2!(
+    y::Vector{Float64},
+    data::AbstractVector{Float64},
+    endogenous_nbr::Int64,
+)
+    @views begin
+        k = 1:endogenous_nbr
+        @show k
+        @show data
+        @show y[k]
+        y[k] .= data
+        y[endogenous_nbr .+ k] .= data
+        y[2*endogenous_nbr .+ k] .= data
+    end
+    return y
 end
 
 """
@@ -244,6 +279,7 @@ function get_dynamic_variables!(
     period::Int64,
 )
     lli = m.lead_lag_incidence
+    @show endogenous
     get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli)
     lx = length(ws.exogenous_variables)
     nrx = period + m.maximum_exo_lead
@@ -441,6 +477,7 @@ function get_dynamic_jacobian!(
     period::Int64,
 )
     lli = m.lead_lag_incidence
+    @show length(endogenous)
     get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli, m, period)
     dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     jacobian = dynamic_jacobian_matrix(ws, m)
@@ -460,7 +497,6 @@ function get_dynamic_jacobian!(
     )
     return jacobian
 end
-
 
 """
 `get_static_jacobian!`(ws::StaticWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64})
@@ -519,3 +555,52 @@ function get_de!(ws::LinearRationalExpectationsWs, jacobian::AbstractMatrix{Floa
     ws.d[i_rows, ws.colsUD] .= u
     ws.e[i_rows, ws.colsUE] .= u
 end
+
+function get_sparse_dynamic_jacobian!(
+    ws::DynamicWs,
+    params::Vector{Float64},
+    endogenous::AbstractVecOrMat{Float64},
+    exogenous::Matrix{Float64},
+    steady_state::Vector{Float64},
+    m::Model,
+    df::DynareFunctions,
+    period::Int64,
+)
+    get_dynamic_endogenous_variables2!(ws.dynamic_variables2, endogenous, m.endogenous_nbr)
+    global SparseDynamicResidTT! = df.SparseDynamicResidTT!
+    global SparseDynamicG1TT! = df.SparseDynamicG1TT!
+    df.SparseDynamicG1!(ws.temporary_values,
+                        ws.nzval,
+                        ws.dynamic_variables2,
+                        exogenous,
+                        params,
+                        steady_state,
+                        length(ws.temporary_values) > 0)
+    @show m.endogenous_nbr
+    @show 3*m.endogenous_nbr + m.exogenous_nbr
+    @show m.dynamic_g1_sparse_colptr
+    @show m.dynamic_g1_sparse_rowval
+    @show ws.nzval
+    jacobian = SparseMatrixCSC{Float64, Int64}(m.endogenous_nbr,
+                                               3*m.endogenous_nbr + m.exogenous_nbr,
+                                               1 .+ m.dynamic_g1_sparse_colptr,
+                                               1 .+ m.dynamic_g1_sparse_rowval,
+                                               ws.nzval)
+    return jacobian
+end
+
+nearbyint(x::T) where T <: Real  = (abs((x)-floor(x)) < abs((x)-ceil(x)) ? floor(x) : ceil(x))
+
+function get_power_deriv(x::T, p::T, k::Int64) where T <: Real
+    if (abs(x) < 1e-12 && p > 0 && k > p && abs(p-nearbyint(p)) < 1e-12 )
+        return 0.0
+    else
+        dxp = x^(p-k)
+        for i = 1:k
+	     dxp *= p
+	     p -= 1
+	 end
+	 return dxp
+    end
+end
+
