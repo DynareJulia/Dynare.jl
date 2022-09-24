@@ -47,6 +47,6 @@ var u; stderr 0.009;
 var e, u = 0.1*0.009*0.009;
 end;
 
-steady;
+steady(tolf=1e-12);
 
 

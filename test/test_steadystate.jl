@@ -6,7 +6,7 @@ Dynare.compute_steady_state!(context1)
 target = context1.results.model_results[1].trends.endogenous_steady_state
 
 context2 = @dynare "models/example3ss/example3ss.mod"
-@test context2.results.model_results[1].trends.endogenous_steady_state ≈ target
+@test isapprox(context2.results.model_results[1].trends.endogenous_steady_state, target)
 
 context3 = @dynare "models/example3ss/example3ss_partial.mod"
-@test context3.results.model_results[1].trends.endogenous_steady_state ≈ target
+@test isapprox(context3.results.model_results[1].trends.endogenous_steady_state, target)
