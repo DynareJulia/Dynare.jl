@@ -37,7 +37,7 @@ The results are in the ``context`` structure.
 1. planner_objective
 1. ramsey\_model
 1. shocks
-1. steady
+1. steady (including numerical solution)
 1. stoch_simul (only order=1)
 
 ## Output
