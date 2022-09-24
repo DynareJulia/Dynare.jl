@@ -59,9 +59,9 @@ struct SteadyOptions
                 display = false
             elseif k == "maxit" && v::Bool
                 maxit = v::Int64
-            elseif k == "tolf"
+            elseif k == "solve_tolf"
                 tolf = v::Float64
-            elseif k == "tolx"
+            elseif k == "solve_tolx"
                 tolx = v::Float64
             elseif k == "solve_algo"
                 solve_algo = v::NonLinearSolveAlgos
@@ -262,7 +262,6 @@ function solve_steady_state_core!(
     A0::AbstractMatrix{T};
     tolf = 1e-8,
 ) where {T<:Real}
-
     ws = StaticWs(context)
     m = context.models[1]
     df = context.dynarefunctions
