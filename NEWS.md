@@ -1,3 +1,7 @@
+0.5.7
+=====
+- add numerical solution for steady state
+
 0.5.6
 =====
 - fix mcp simulations
