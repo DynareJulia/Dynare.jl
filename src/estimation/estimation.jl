@@ -130,7 +130,7 @@ struct DSGENegativeLogPosteriorDensity{F <:Function, UT}
     end
 end
 
-function logpriordensity(x, estimated_parameters)::Float64
+function logpriordensity(x, estimated_parameters)
     lpd = 0.0
     k = 1
     for (k, p) in enumerate(estimated_parameters.prior)
@@ -177,7 +177,7 @@ function make_negativeloglikelihood(context, observations, first_obs, last_obs, 
 end
 
 function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
-    function logposteriordensity(x)::Float64
+    function logposteriordensity(x)
         lpd = logpriordensity(x, context.work.estimated_parameters)
         if abs(lpd) == Inf
             return lpd
