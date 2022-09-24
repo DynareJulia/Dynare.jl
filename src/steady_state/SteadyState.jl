@@ -159,12 +159,6 @@ function evaluate_steady_state!(
     )
 end
 
-function sparse_static_jacobian(ws, params, x, exogenous, m, df)
-    J = get_static_jacobian!(ws, params, x, exogenous, m, df)
-    return sparse(J)
-end
-
-
 """
     function solve_steady_state!(context::Context,
                                  x0::Vector{Float64})
@@ -180,16 +174,17 @@ function solve_steady_state!(context::Context, x0::AbstractVector{Float64}, opti
     results = context.results.model_results[1]
     exogenous = results.trends.exogenous_steady_state
 
-    if count(!iszero, get_static_jacobian!(ws, w.params, x0, exogenous, m, df)) <
+    if count(!iszero, get_static_jacobian!(ws, w.params, x0, exogenous, df)) <
        0.1 * m.endogenous_nbr * m.endogenous_nbr
         function J1!(A, x::AbstractVector{Float64})
-            A .= sparse_static_jacobian(ws, w.params, x, exogenous, m, df)
+            J = get_static_jacobian!(ws, params, x, exogenous, df)
+            A .= sparse(J)
         end
-        A0 = sparse_static_jacobian(ws, w.params, x0, exogenous, m, df)
+        A0 = sparse(get_static_jacobian(ws, w.params, x0, exogenous, df))
         solve_steady_state_core!(context, x0, J1!, A0, tolf = options.tolf)
     else
         function J2!(A::AbstractMatrix{Float64}, x::AbstractVector{Float64})
-            A .= get_static_jacobian!(ws, w.params, x, exogenous, m, df)
+            A .= get_static_jacobian!(ws, w.params, x, exogenous, df)
         end
         A0 = Matrix{Float64}(undef, m.endogenous_nbr, m.endogenous_nbr)
         J2!(A0, x0)
