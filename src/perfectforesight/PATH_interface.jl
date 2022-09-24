@@ -191,7 +191,6 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
 
     F_val = zeros(n)
     # Solve the MCP using PATHSolver
-    @show lb[1:12]
     status, z, info = PATHSolver.solve_mcp(
         function_callback,
         jacobian_callback,

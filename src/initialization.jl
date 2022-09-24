@@ -282,9 +282,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
         lli = m.lead_lag_incidence
         for (i, vname) in enumerate(endogenous_names)
             colindex = findfirst(x -> x == vname, dnames)
-            if isnothing(colindex) && lli[1, i] > 0
-                #                @warn("INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero")
-            else
+            if !isnothing(colindex)
                 work.initval_endogenous[:, i] .= tdf[!, colindex][istart:istop]
             end
         end
@@ -348,7 +346,9 @@ function initval!(context::Context, field::Dict{String,Any})
         end
     end
     params = context.work.params
+    @show work.initval_endogenous
     df.set_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
+    @show work.initval_endogenous
 end
 
 function shocks!(context::Context, field::Dict{String,Any})

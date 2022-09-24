@@ -136,7 +136,6 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
                 select = (wr, wi) -> wr * wr + wi * wi > 1 - 1e-6,
             )...,
         )
-        @show F
         td = transpose(F.Z) * d
         tR = transpose(F.Z) * R
         tZ = Z * F.Z
