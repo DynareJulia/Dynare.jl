@@ -251,24 +251,23 @@ function makeJacobian!(
         2,
     )
     r = 1
-    @debug "any(isnan, ws[1].jacobian)=$(any(isnan, ws[1].jacobian))"
+    @debug "any(isnan, ws[1].jacobian)=$(any(isnan, jacobian))"
     jacobian_columns =
         [i for (i, x) in enumerate(transpose(md.lead_lag_incidence)) if x > 0]
-    i, j, v = findnz(jacobian)
-    @debug "period 2: isnan.(v) = $(findall(isnan, v))"
     fill!(V, 0.0)
-    @inbounds for el = 1:length(i)
-        i_, j_ = i[el], j[el]
-        if j_ <= maxcol
-            kjel = jacobian_columns[j_]
-            if kjel > nvar
-                I[r] = permute_row(i_, permutations)
+    @inbounds for j in 1:maxcol, i in axes(jacobian, 1)
+        kjel = jacobian_columns[j]
+        if kjel > nvar
+            t = jacobian[i, j]
+            if t != 0
+                I[r] = permute_row(i, permutations)
                 J[r] = kjel - nvar
-                V[r] = v[el]
+                V[r] = t
                 r += 1
             end
         end
     end
+    @debug "period 2: isnan.(V) = $(findall(isnan, V))"
     #    @Threads.threads
     for t = 2:(periods-1)
         #        tid = Threads.threadid()
@@ -284,13 +283,13 @@ function makeJacobian!(
             t,
         )
         oc = (t - 1) * nvar
-        @inbounds for el = 1:length(i)
-            i_, j_ = i[el], j[el]
-            if j_ <= maxcol
-                kjel = jacobian_columns[j_]
-                I[r] = permute_row(i_, permutations) + oc
+        @inbounds for j in 1:maxcol, i in axes(jacobian, 1)
+            t = jacobian[i, j]
+            if t != 0
+                kjel = jacobian_columns[j]
+                I[r] = permute_row(i, permutations) + oc
                 J[r] = kjel + oc - nvar
-                V[r] = jacobian[i_, j_]
+                V[r] = t
                 r += 1
             end
         end
@@ -308,14 +307,14 @@ function makeJacobian!(
     )
     @debug "period $periods: isnan.(v) = $(findall(isnan, v))"
     oc = (periods - 1) * nvar
-    @inbounds for el = 1:length(i)
-        i_, j_ = i[el], j[el]
-        if j_ <= maxcol
-            kjel = jacobian_columns[j_]
-            if kjel <= 2 * nvar
-                I[r] = permute_row(i_, permutations) + oc
+    @inbounds for j in 1:maxcol, i in axes(jacobian, 1)
+        kjel = jacobian_columns[j]
+        if kjel <= 2 * nvar
+            t = jacobian[i, j]
+            if t != 0
+                I[r] = permute_row(i, permutations) + oc
                 J[r] = kjel + oc - nvar
-                V[r] = jacobian[i_, j_]
+                V[r] = jacobian[i, j]
                 r += 1
             end
         end
