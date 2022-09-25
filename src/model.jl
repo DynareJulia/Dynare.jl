@@ -9,7 +9,6 @@ struct DynamicWs
     residuals::Vector{Float64}
     derivatives::Vector{Vector{Float64}}
     dynamic_jacobian::Matrix{Float64}
-    static_jacobian::Matrix{Float64}
     temporary_values::Vector{Float64}
     function DynamicWs(
         endogenous_nbr::Int,
@@ -22,7 +21,6 @@ struct DynamicWs
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = [Vector{Float64}(undef, 0)]
         dynamic_jacobian = Matrix{Float64}(undef,endogenous_nbr, dynamic_nbr + exogenous_nbr)
-        static_jacobian = Matrix{Float64}(undef,endogenous_nbr, endogenous_nbr)
         temporary_values = Vector{Float64}(undef, tmp_nbr)
         new(
             dynamic_variables,
@@ -30,7 +28,6 @@ struct DynamicWs
             residuals,
             derivatives,
             dynamic_jacobian,
-            static_jacobian,
             temporary_values,
         )
     end
@@ -47,13 +44,15 @@ end
 struct StaticWs
     residuals::Vector{Float64}
     derivatives::Vector{Vector{Float64}}
+    static_jacobian::Matrix{Float64}
     temporary_values::Vector{Float64}
     function StaticWs(endogenous_nbr::Int, tmp_nbr::Int)
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = Vector{Vector{Float64}}(undef, 1)
         derivatives[1] = Vector{Float64}(undef, 0)
+        static_jacobian = Matrix{Float64}(undef,endogenous_nbr, endogenous_nbr)
         temporary_values = Vector{Float64}(undef, tmp_nbr)
-        new(residuals, derivatives, temporary_values)
+        new(residuals, derivatives, static_jacobian, temporary_values)
     end
 end
 
@@ -235,9 +234,9 @@ function get_dynamic_endogenous_variables!(
 end
 
 function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int)
-    @debug "any(isnan.(x))=$(any(isnan.(x))) "
+    @debug "any(isnan, x)=$(any(isnan, x)) "
     x1 = reshape(x, Int(length(x) / exogenous_nbr), exogenous_nbr)
-    @debug "any(isnan.(x1))=$(any(isnan.(x1))) "
+    @debug "any(isnan, x1)=$(any(isnan, x1)) "
     return x1
 end
 
@@ -257,7 +256,7 @@ function get_dynamic_variables!(
         resize!(ws.exogenous_variables, required_lx)
         lx = required_lx
     end
-    @debug "any(isnan.(ws.exognoues_variables))=$(any(isnan.(ws.exogenous_variables)))"
+    @debug "any(isnan, ws.exognoues_variables)=$(any(isnan, ws.exogenous_variables))"
     x = get_exogenous_matrix(ws.exogenous_variables, m.exogenous_nbr)
     x .= transpose(exogenous)
 end
@@ -272,7 +271,7 @@ function get_dynamic_residuals!(
     df::DynareFunctions,
     period::Int,
 )
-    x = get_dynamic_variables!(ws, endegenous, exogenous, m, period)
+    x = get_dynamic_variables!(ws, endogenous, exogenous, m, period)
     Base.invokelatest(
         df.dynamic!.dynamic!,
         ws.temporary_values,
@@ -302,13 +301,6 @@ function get_static_residuals!(
         params,
     )
     return ws.residuals
-end
-
-function static_jacobian_matrix(ws::StaticWs, n::Int)
-    vecjacobian = resize!(ws.derivatives[1], n * n)
-    jacobian = reshape(vecjacobian, n, n)
-    fill!(jacobian, 0.0)
-    return jacobian
 end
 
 """
@@ -439,11 +431,7 @@ function get_dynamic_jacobian!(
 )
     lli = m.lead_lag_incidence
     get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli, m, period)
-    dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     jacobian = ws.dynamic_jacobian
-    y = ws.dynamic_variables
-    x = exogenous
-    it_ = period
     Base.invokelatest(
         df.dynamic!.dynamic!,
         ws.temporary_values,
