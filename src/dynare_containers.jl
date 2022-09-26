@@ -168,6 +168,8 @@ struct Model
     dynamic_g1_sparse_colptr::Vector{Int64}
     static_g1_sparse_rowval::Vector{Int64}
     static_g1_sparse_colptr::Vector{Int64}    
+    dynamic_tmp_nbr::Vector{Int64}
+    static_tmp_nbr::Vector{Int64}
 end
 
 struct DynareFunctions
@@ -458,7 +460,9 @@ function Model(
     dynamic_g1_sparse_rowval::Vector{Int64},
     dynamic_g1_sparse_colptr::Vector{Int64},
     static_g1_sparse_rowval::Vector{Int64},
-    static_g1_sparse_colptr::Vector{Int64},    
+    static_g1_sparse_colptr::Vector{Int64},
+    dynamic_tmp_nbr::Vector{Int64},
+    static_tmp_nbr::Vector{Int64}
 )
     i_static = Vector{Int64}(undef, 0)
     p_static = similar(i_static)
@@ -721,6 +725,8 @@ function Model(
         dynamic_g1_sparse_colptr,
         static_g1_sparse_rowval,
         static_g1_sparse_colptr,
+        dynamic_tmp_nbr,
+        static_tmp_nbr
     )
 
 end

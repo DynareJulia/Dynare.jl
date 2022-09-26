@@ -293,7 +293,7 @@ function stoch_simul!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     df = context.dynarefunctions
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    tmp_nbr = df.dynamic!.tmp_nbr::Vector{Int64}
+    tmp_nbr = m.dynamic_tmp_nbr
     ws = DynamicWs(m.endogenous_nbr, m.exogenous_nbr, ncol, sum(tmp_nbr[1:2]), length(m.dynamic_g1_sparse_rowval))
     stoch_simul_core!(context, ws, options)
 end

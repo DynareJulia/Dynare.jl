@@ -49,6 +49,8 @@ function get_model(
     dynamic_g1_sparse_colptr::Vector{Int64},
     static_g1_sparse_rowval::Vector{Int64},
     static_g1_sparse_colptr::Vector{Int64},
+    dynamic_tmp_nbr::Vector{Int64},
+    static_tmp_nbr::Vector{Int64}
 )
     model_info = get_model_info(dynare_model_info)
     NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
@@ -96,7 +98,9 @@ function get_model(
         dynamic_g1_sparse_rowval,
         dynamic_g1_sparse_colptr,
         static_g1_sparse_rowval,
-        static_g1_sparse_colptr
+        static_g1_sparse_colptr,
+        dynamic_tmp_nbr,
+        static_tmp_nbr
     )
     return model
 end
@@ -191,6 +195,8 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         Vector{Int64}(modeljson["dynamic_g1_sparse_colptr"]),
         Vector{Int64}(modeljson["static_g1_sparse_rowval"]),
         Vector{Int64}(modeljson["static_g1_sparse_colptr"]),
+        Vector{Int64}(modeljson["dynamic_tmp_nbr"]),
+        Vector{Int64}(modeljson["static_tmp_nbr"]),
     )
     varobs = get_varobs(modeljson)
     @debug "$(now()): make_container"

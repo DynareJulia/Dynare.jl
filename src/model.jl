@@ -583,8 +583,8 @@ function get_sparse_dynamic_jacobian!(
     @show ws.nzval
     jacobian = SparseMatrixCSC{Float64, Int64}(m.endogenous_nbr,
                                                3*m.endogenous_nbr + m.exogenous_nbr,
-                                               1 .+ m.dynamic_g1_sparse_colptr,
-                                               1 .+ m.dynamic_g1_sparse_rowval,
+                                               m.dynamic_g1_sparse_colptr,
+                                               m.dynamic_g1_sparse_rowval,
                                                ws.nzval)
     return jacobian
 end
