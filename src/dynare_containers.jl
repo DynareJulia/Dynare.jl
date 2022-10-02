@@ -175,9 +175,6 @@ end
 struct DynareFunctions
     dynamic!::Module
     static!::Module
-    SparseDynamicG1TT!::Function
-    SparseDynamicResidTT!::Function
-    SparseDynamicG1!::Function
     set_auxiliary_variables!::Function
     set_dynamic_auxiliary_variables!::Function
     steady_state!::Function
@@ -185,9 +182,6 @@ struct DynareFunctions
     function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
         if modfileinfo.has_dynamic_file
             dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
-            SparseDynamicG1TT! = load_dynare_function3(modfilename * "/model/julia/SparseDynamicG1TT!")
-            SparseDynamicResidTT! = load_dynare_function3(modfilename * "/model/julia/SparseDynamicResidTT!")
-            SparseDynamicG1! = load_dynare_function3(modfilename * "/model/julia/SparseDynamicG1!")
         else
             dynamic! = Module()
         end
@@ -217,9 +211,6 @@ struct DynareFunctions
         new(
             dynamic!,
             static!,
-            SparseDynamicG1TT!,
-            SparseDynamicResidTT!,
-            SparseDynamicG1!,
             set_auxiliary_variables!,
             set_dynamic_auxiliary_variables!,
             steady_state!,
@@ -1002,11 +993,6 @@ end
 function load_dynare_function2(modname::String)::Function
     fun = readlines(modname * ".jl")
     return (@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
-end
-
-function load_dynare_function3(modname::String)::Function
-    fun = readlines(modname * ".jl")
-    return (@RuntimeGeneratedFunction(Meta.parse(join(fun, "\n"))))
 end
 
 function load_steady_state_function(modname::String, compileoption::Bool)

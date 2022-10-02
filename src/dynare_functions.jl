@@ -1,50 +1,125 @@
 module DFunctions
 
 using RuntimeGeneratedFunctions
+using SparseArrays
 using StatsFuns
 using TimeDataFrames
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
-function load_set_dynamic_auxiliary_variables(modelname::String)
-    source = []
-    functionstart = false
-    for line in readlines("$(modelname)DynamicSetAuxiliarySeries.jl", keep = true)
-        if startswith(line, "function")
-            functionstart = true
-        end
-        if functionstart
-            push!(source, line)
-            if startswith(line, "end")
-                #                push!(source, "end")
-                break
-            end
-        end
+function load_model_functions(modelname::String)
+    function_root = "$(modelname)/model/julia/"
+    @show function_root
+    @show "$(function_root)SparseDynamicG1!.jl"
+    global SparseDynamicG1! = load_dynare_function("$(function_root)SparseDynamicG1!.jl") 
+    global SparseDynamicG1TT! = load_dynare_function("$(function_root)SparseDynamicG1TT!.jl")  
+    global SparseDynamicG2! = load_dynare_function("$(function_root)SparseDynamicG2!.jl")  
+    global SparseDynamicG2TT! = load_dynare_function("$(function_root)SparseDynamicG2TT!.jl")  
+    global SparseDynamicG3! = load_dynare_function("$(function_root)SparseDynamicG3!.jl")  
+    global SparseDynamicG3TT! = load_dynare_function("$(function_root)SparseDynamicG3TT!.jl")  
+    global SparseDynamicResid! = load_dynare_function("$(function_root)SparseDynamicResid!.jl") 
+    global SparseDynamicResidTT! = load_dynare_function("$(function_root)SparseDynamicResidTT!.jl") 
+    global SparseStaticG1! = load_dynare_function("$(function_root)SparseStaticG1!.jl") 
+    global SparseStaticG1TT! = load_dynare_function("$(function_root)SparseStaticG1TT!.jl") 
+    global SparseStaticG2! = load_dynare_function("$(function_root)SparseStaticG2!.jl") 
+    global SparseStaticG2TT! = load_dynare_function("$(function_root)SparseStaticG2TT!.jl") 
+    global SparseStaticG3! = load_dynare_function("$(function_root)SparseStaticG3!.jl") 
+    global SparseStaticG3TT! = load_dynare_function("$(function_root)SparseStaticG3TT!.jl") 
+    global SparseStaticResid! = load_dynare_function("$(function_root)SparseStaticResid!.jl")  
+    global SparseStaticResidTT! = load_dynare_function("$(function_root)SparseStaticResidTT!.jl")
+    global SparseDynamicParametersDerivatives! = load_dynare_function("$(modelname)DynamicParamsDerivs.jl", head = 8, tail = 1)
+    global SparseStaticParametersDerivatives! = load_dynare_function("$(modelname)StaticParamsDerivs.jl", head = 8, tail = 1)
+    global steady_state! = load_dynare_function("$(modelname)SteadyState2.jl", head = 8, tail = 1)
+    global dynamic_auxiliary_variables! = load_dynare_function("$(modelname)DynamicSetAuxiliarySeries.jl", head = 3, tail =1 )
+    global static_auxiliary_variables! = load_dynare_function("$(modelname)SetAuxiliaryVariables.jl", head = 3, tail =1 )
+    return nothing
+end
+    
+    
+nearbyint(x::T) where T <: Real  = (abs((x)-floor(x)) < abs((x)-ceil(x)) ? floor(x) : ceil(x))
+
+function get_power_deriv(x::T, p::T, k::Int64) where T <: Real
+    if (abs(x) < 1e-12 && p > 0 && k > p && abs(p-nearbyint(p)) < 1e-12 )
+        return 0.0
+    else
+        dxp = x^(p-k)
+        for i = 1:k
+	     dxp *= p
+	     p -= 1
+	 end
+	 return dxp
     end
-    exp1 = Meta.parse(join(source, "\n"))
-    #    convert_expression(exp1)
-    return (@RuntimeGeneratedFunction(exp1))
+end
+
+function dynamic!(T::AbstractVector{<: Real}, residual::AbstractVector{<: Real},
+                  y::AbstractVector{<: Real}, x::AbstractVector{<: Real}, params::AbstractVector{<: Real}, steady_state::AbstractVector{<: Real})
+    SparseDynamicResid!(T, residual, y, x, params, steady_state, true)
+    return nothing
+end
+
+function dynamic!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseDynamicG1!(T, g1.nzval, y, x, params, steady_state, true)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state, false)
+    return nothing
+end
+
+function dynamic!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseDynamicG2!(T, g2, y, x, params, steady_state, true)
+    SparseDynamicG1!(T, g1, y, x, params, steady_state, false)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state, false)
+    return nothing
+end
+
+function dynamic!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real}, g3::AbstractMatrix{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseDynamicG3!(T, g3, y, x, params, steady_state, true)
+    SparseDynamicG2!(T, g2, y, x, params, steady_state, false)
+    SparseDynamicG1!(T, g1, y, x, params, steady_state, false)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state, false)
+    return nothing
+end
+
+function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseStaticResid!(T, residual, y, x, params, steady_state, true)
+    return nothing
+end
+
+function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseStaticG1!(T, g1.nzval, y, x, params, steady_state, true)
+    SparseStaticResid!(T, residual, y, x, params, steady_state, false)
+    return nothing
+end
+
+function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseStaticG2!(T, g2, y, x, params, steady_state, true)
+    SparseStaticG1!(T, g1, y, x, params, steady_state, false)
+    SparseStaticResid!(T, residual, y, x, params, steady_state, false)
+    return nothing
+end
+
+function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real}, g3::AbstractMatrix{<: Real},
+                  y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
+    SparseStaticG3!(T, g3, y, x, params, steady_state, true)
+    SparseStaticG2!(T, g2, y, x, params, steady_state, false)
+    SparseStaticG1!(T, g1, y, x, params, steady_state, false)
+    SparseStaticResid!(T, residual, y, x, params, steady_state, false)
+    return nothing
+end
+
+function load_dynare_function(modname::String; head=1, tail=0)::Function
+    if isfile(modname)
+        fun = readlines(modname)
+        return (@RuntimeGeneratedFunction(Meta.parse(join(fun[head:end-tail], "\n"))))
+    else
+        return (x...) -> nothing
+    end
+            
 end
 
 
-#=
-is_ds_var(e::Expr) =  e.head == :. && e.args[1] == :ds
-is_ds_arg(e::Expr) = e.head == :call && typeof(e.args[1]) == Expr && is_ds_var(e.args[1])
-
-function convert_expression(e)
-    if is_ds_arg(e)
-        k = e.args[2]
-        e.args[2] = e.args[1]
-        e.args[1] = (k < 0) ? :lag : :lead 
-        if abs(k) > 1
-            push!(e.args, abs(k))
-        end
-    end
-    for a in e.args
-        if typeof(a) == Expr
-            convert_expression(a)
-        end
-    end
-end
-=#
 end # end module

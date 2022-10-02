@@ -233,6 +233,9 @@ function make_one_period!(
 end
 =#
 
+
+                            
+    
 function makeJacobian!(
     JA::Jacobian,
     endogenous::AbstractVector{Float64},
