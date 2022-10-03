@@ -122,7 +122,9 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
         @show exogenous[rx]
         G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state, true)
         copyto!(J.nzval, offset, nzval, r1, n1)
+        display(Matrix(SparseMatrixCSC(endogenous_nbr, 3*endogenous_nbr + exogenous_nbr, m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval, nzval)))
         offset += n1
+        @show offset
         oy += endogenous_nbr
         ox += exogenous_nbr
         
@@ -132,6 +134,7 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
             G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
             copyto!(J.nzval, offset, nzval, 1, n)
             offset += n
+            @show offset
             oy += endogenous_nbr
             ox += exogenous_nbr
         end
@@ -139,7 +142,8 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
         ry1 = ry .+ oy
         rx1 = rx .+ ox
         G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
-        copyto!(J.nzval, 1, nzval, 1, n2)
+        @show offset, n2
+        copyto!(J.nzval, offset, nzval, 1, n2)
     end
 end
 
@@ -157,19 +161,14 @@ J = makeJacobian(A.colptr, A.rowval, 5, 4)
 @test J.rowval == AA.rowval
 
 
-Dynare.dynare_preprocess("test/models/example1/example1.mod", [])
-modfilename = "test/models/example1/example1"
-modeljson = Dynare.parseJSON(modfilename)
-context = Dynare.make_context(modeljson, modfilename, Dynare.CommandLineOptions())
-Dynare.DFunctions.load_model_functions(modfilename)
-
+context = @dynare "test/models/example1pf/example1pf_sparse.mod"
 
 m = context.models[1]
 
 periods = 4
 
 results = context.results.model_results[1]
-steady_state = results.endogenous_steady_state
+steady_state = results.trends.endogenous_steady_state
 endogenous = repeat(steady_state, periods + 2)
 exogenous = repeat(results.exogenous_steady_state, periods + 2)
 temporary_var = Vector{Float64}(undef, sum(m.dynamic_tmp_nbr[1:2]))
