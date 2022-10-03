@@ -169,10 +169,7 @@ function make_containers(
     return Context(symboltable, [model], dynarefunctions, modelfileinfo, results, work)
 end
 
-function parser(modfilename::String, commandlineoptions::CommandLineOptions)
-    @debug "$(now()): Start $(nameof(var"#self#"))"
-
-    modeljson = parseJSON(modfilename)
+function make_context(modeljson, modfilename, commandlineoptions)
     @debug "$(now()): get symbol_table"
     (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars) =
         get_symbol_table(modeljson)
@@ -213,6 +210,15 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
         commandlineoptions,
     )
     get_mcps!(context.models[1].mcps, modeljson["model"])
+    return context
+end
+
+function parser(modfilename::String, commandlineoptions::CommandLineOptions)
+    @debug "$(now()): Start $(nameof(var"#self#"))"
+
+    modeljson = parseJSON(modfilename)
+    context = make_context(modeljson, modfilename, commandlineoptions)
+    DFunctions.load_model_functions(modfilename)
     if haskey(modeljson, "statements")
         parse_statements!(context, modeljson["statements"])
     end

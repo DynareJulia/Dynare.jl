@@ -15,7 +15,7 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
     startv = colptr[endogenous_nbr + 1]
     endv = colptr[2*endogenous_nbr + 1]
 
-    rowval_length = length(rowval)
+    rowval_length = colptr[3*endogenous_nbr + 1] - 1
     nnz = (periods - 1)*rowval_length - startv + endv
     bigcolptr = Vector{Int64}(undef, periods*endogenous_nbr + 1)
     bigrowval = Vector{Int64}(undef, nnz)
@@ -60,7 +60,6 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                             + colptr[i + 1]
                             - colptr[i])
             r1 = colptr[endogenous_nbr + i]
-            @show colptr[endogenous_nbr + i]:colptr[endogenous_nbr + i + 1] - 1
             r= rowval_column!(bigrowval,
                               r,
                               rowval,
@@ -91,7 +90,6 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                         + colptr[endogenous_nbr + i + 1]
                         - colptr[endogenous_nbr + i])
         r1 = colptr[endogenous_nbr + i]
-        @show colptr[endogenous_nbr + i]:colptr[endogenous_nbr + i + 1] - 1
         r= rowval_column!(bigrowval,
                           r,
                           rowval,
@@ -109,35 +107,39 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
 
     b1 = colptr[endogenous_nbr + 1]
     b2 = (periods - 1)*rowval_length + colptr[2*endogenous_nbr + 1] - 1
-    @show length(bignzval)
-    @show length(bigrowval)
-    @show b2
     nperiods = periods*endogenous_nbr
     return SparseMatrixCSC(nperiods, nperiods, bigcolptr, bigrowval, bignzval)
-
 end
 
-function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods, temporary_var, params, steady_state, rowval, r1, r2, n, n1, n2)
+function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods, temporary_var, params, steady_state, nzval, r1, n, n1, n2, endogenous_nbr, exogenous_nbr)
     offset = 1
     ry = 1:3*endogenous_nbr
     rx = 1:exogenous_nbr
+    oy = 0
+    ox = 0
     @views begin
-        G1!(temporary_var, rowval, endogenous[ry], exogenous[rx], params, steady_state, true)
-        copyto!(J.nzval, offset, rowval, c1, n1)
+        @show endogenous[ry]
+        @show exogenous[rx]
+        G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state, true)
+        copyto!(J.nzval, offset, nzval, r1, n1)
         offset += n1
-        ry .+= 1
-        rx .+= 1
+        oy += endogenous_nbr
+        ox += exogenous_nbr
         
         for p in 2:periods - 1
-            G1!(temporary_var, rowval, endogenous[ry], exogenous[rx], params, steady_state, true)
-            copyto!(J.nzval, offset, rowval, 1, n)
+            ry1 = ry .+ oy
+            rx1 = rx .+ ox
+            G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
+            copyto!(J.nzval, offset, nzval, 1, n)
             offset += n
-            ry .+= 1
-            rx .+= 1
+            oy += endogenous_nbr
+            ox += exogenous_nbr
         end
         
-        G1!(temporary_var, rowval, endogenous[ry], exogenous[rx], params, steady_state, true)
-        copyto!(J.nzval, 1, rowval, c2, n2)
+        ry1 = ry .+ oy
+        rx1 = rx .+ ox
+        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
+        copyto!(J.nzval, 1, nzval, 1, n2)
     end
 end
 
@@ -155,27 +157,36 @@ J = makeJacobian(A.colptr, A.rowval, 5, 4)
 @test J.rowval == AA.rowval
 
 
-context = @dynare "test/models/example1/example1"
+Dynare.dynare_preprocess("test/models/example1/example1.mod", [])
+modfilename = "test/models/example1/example1"
+modeljson = Dynare.parseJSON(modfilename)
+context = Dynare.make_context(modeljson, modfilename, Dynare.CommandLineOptions())
+Dynare.DFunctions.load_model_functions(modfilename)
+
 
 m = context.models[1]
 
 periods = 4
-J = makeJacobian(m.dynamic_g1_sparse_colptr,
-                 m.dynamic_g1_sparse_rowval,
-                 m.endoegnous_nbr,
-                 periods)
 
 results = context.results.model_results[1]
 steady_state = results.endogenous_steady_state
-endogenous = repeat(steady_state, periods)
-exogenous = repeat(results.exogenous_steady_state, periods)
+endogenous = repeat(steady_state, periods + 2)
+exogenous = repeat(results.exogenous_steady_state, periods + 2)
 temporary_var = Vector{Float64}(undef, sum(m.dynamic_tmp_nbr[1:2]))
 params = context.work.params
-rowval = m.dynare_g1_sparse_rowval
-colptr = m.dynare_g1_sparse_colptr
+@show params
+rowval = m.dynamic_g1_sparse_rowval
+colptr = m.dynamic_g1_sparse_colptr
+
+J = makeJacobian(colptr,
+                 rowval,
+                 m.endogenous_nbr,
+                 periods)
+
 r1 = colptr[m.endogenous_nbr + 1]
-r2 = colptr[2*m.endogenous_nbr + 1] - 1
 n = colptr[3*m.endogenous_nbr + 1] - 1
-n1 = colptr[3*m.endogenous_nbr  + 1] - colptr[m.endogenous_nbr + 1]
-n2 = r2
-updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, rowval, r1, r2, n, n1, n2)                  
+n1 = colptr[3*m.endogenous_nbr  + 1] - colptr[m.endogenous_nbr + 1] + 1
+n2 = colptr[2*m.endogenous_nbr + 1]
+df = Dynare.DFunctions
+nzval = Vector{Float64}(undef, colptr[end] - 1)
+updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, nzval, r1, n, n1, n2, m.endogenous_nbr, m.exogenous_nbr)                  
