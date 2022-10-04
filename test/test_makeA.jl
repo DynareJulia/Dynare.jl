@@ -3,14 +3,18 @@ using LinearAlgebra
 using SparseArrays
 using Test
 
-function rowval_column!(bigrowval, r, rowval, c1, c2, offset)
-    for j in c1:c2
-        bigrowval[r] = rowval[j] + offset 
+function bigindex!(bigindex, r, c1, c2)
+    for c in c1:c2
+        bigrowval[r] = j
         r += 1
     end
     return r
 end
 
+function reorder_blocks!(y, x, k, periods, offset)
+    y[k1] .= 
+    for p in 1:periods
+        
 function makeJacobian(colptr, rowval, endogenous_nbr, periods)
     startv = colptr[endogenous_nbr + 1]
     endv = colptr[2*endogenous_nbr + 1]
@@ -19,7 +23,12 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
     nnz = (periods - 1)*rowval_length - startv + endv
     bigcolptr = Vector{Int64}(undef, periods*endogenous_nbr + 1)
     bigrowval = Vector{Int64}(undef, nnz)
-    bignzval = Vector{Float64}(undef, nnz)
+    bignzval = similar(bigrowval, Float64)
+    index1 = Vector{Int64}(undef, rowval_length - colptr[endogenous_nbr + 1] + 1)
+    index2 = Vector{Int64}(undef, rowval_length)
+    index3 = Vector{Int64}(undef, colptr[2*endogenous_nbr + 1] - 1)
+    
+                           
     r = 1
     c = 1
     # first periods
@@ -32,19 +41,34 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                         + colptr[i + 1]
                         - colptr[i])
         r1 = colptr[endogenous_nbr + i]
-        r= rowval_column!(bigrowval,
-                          r,
-                          rowval,
-                          colptr[endogenous_nbr + i],
-                          colptr[endogenous_nbr + i + 1] - 1,
-                          0)
-        r= rowval_column!(bigrowval,
-                          r,
-                          rowval,
-                          colptr[i],
-                          colptr[i + 1] - 1,
-                          endogenous_nbr)
-
+        r= bigindex!(index1,
+                     r,
+                     colptr[endogenous_nbr + i],
+                     colptr[endogenous_nbr + i + 1] - 1)
+        r= bigindex!(index1,
+                     r,
+                     colptr[2*endogenous_nbr + i],
+                     colptr[2*endogenous_nbr + i + 1] - 1)
+        r= bigindex!(index2,
+                     r,
+                     colptr[i],
+                     colptr[i + 1] - 1)
+        r= bigindex!(index2,
+                     r,
+                     colptr[endogenous_nbr + i],
+                     colptr[endogenous_nbr + i + 1] - 1)
+        r= bigindex!(index2,
+                     r,
+                     colptr[2*endogenous_nbr + i],
+                     colptr[2*endogenous_nbr + i + 1] - 1)
+        r= bigindex!(index3,
+                     r,
+                     colptr[i],
+                     colptr[i + 1] - 1)
+        r= bigindex!(index3,
+                     r,
+                     colptr[endogenous_nbr + i],
+                     colptr[endogenous_nbr + i + 1] - 1)
     end
 
     # intermediary periods
