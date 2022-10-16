@@ -3,17 +3,15 @@ using LinearAlgebra
 using SparseArrays
 using Test
 
-function bigindex!(bigindex, r, c1, c2)
+function bigindex!(bigrowval, r, rowval, c1, c2, offset)
     for c in c1:c2
-        bigrowval[r] = j
+        @show r
+        bigrowval[r] = c + offset
         r += 1
     end
     return r
 end
 
-function reorder_blocks!(y, x, k, periods, offset)
-    y[k1] .= 
-    for p in 1:periods
         
 function makeJacobian(colptr, rowval, endogenous_nbr, periods)
     startv = colptr[endogenous_nbr + 1]
@@ -21,18 +19,17 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
 
     rowval_length = colptr[3*endogenous_nbr + 1] - 1
     nnz = (periods - 1)*rowval_length - startv + endv
+    @show nnz
     bigcolptr = Vector{Int64}(undef, periods*endogenous_nbr + 1)
     bigrowval = Vector{Int64}(undef, nnz)
     bignzval = similar(bigrowval, Float64)
-    index1 = Vector{Int64}(undef, rowval_length - colptr[endogenous_nbr + 1] + 1)
-    index2 = Vector{Int64}(undef, rowval_length)
-    index3 = Vector{Int64}(undef, colptr[2*endogenous_nbr + 1] - 1)
     
                            
     r = 1
     c = 1
     # first periods
     bigcolptr[1] = 1
+    offset = 0
     for i in 1:endogenous_nbr
         c += 1
         bigcolptr[c] = (bigcolptr[c - 1]
@@ -41,39 +38,55 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                         + colptr[i + 1]
                         - colptr[i])
         r1 = colptr[endogenous_nbr + i]
-        r= bigindex!(index1,
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[endogenous_nbr + i],
-                     colptr[endogenous_nbr + i + 1] - 1)
-        r= bigindex!(index1,
+                     colptr[endogenous_nbr + i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[2*endogenous_nbr + i],
-                     colptr[2*endogenous_nbr + i + 1] - 1)
-        r= bigindex!(index2,
+                     colptr[2*endogenous_nbr + i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[i],
-                     colptr[i + 1] - 1)
-        r= bigindex!(index2,
+                     colptr[i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[endogenous_nbr + i],
-                     colptr[endogenous_nbr + i + 1] - 1)
-        r= bigindex!(index2,
+                     colptr[endogenous_nbr + i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[2*endogenous_nbr + i],
-                     colptr[2*endogenous_nbr + i + 1] - 1)
-        r= bigindex!(index3,
+                     colptr[2*endogenous_nbr + i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[i],
-                     colptr[i + 1] - 1)
-        r= bigindex!(index3,
+                     colptr[i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
                      r,
+                     rowval,
                      colptr[endogenous_nbr + i],
-                     colptr[endogenous_nbr + i + 1] - 1)
+                     colptr[endogenous_nbr + i + 1] - 1,
+                     offset)
+        offset += endogenous_nbr
     end
 
     # intermediary periods
-    offset = 0
     for p in 2:periods - 1
+        @show p
+        offset = 0
         for i in 1:endogenous_nbr
             c += 1
             bigcolptr[c] = (bigcolptr[c - 1]
@@ -84,24 +97,24 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                             + colptr[i + 1]
                             - colptr[i])
             r1 = colptr[endogenous_nbr + i]
-            r= rowval_column!(bigrowval,
-                              r,
-                              rowval,
-                              colptr[2*endogenous_nbr + i],
-                              colptr[2*endogenous_nbr + i + 1] - 1,
-                              offset)
-            r= rowval_column!(bigrowval,
-                              r,
-                              rowval,
-                              colptr[endogenous_nbr + i],
-                              colptr[endogenous_nbr + i + 1] - 1,
-                              offset + endogenous_nbr)
-            r= rowval_column!(bigrowval,
-                              r,
-                              rowval,
-                              colptr[i],
-                              colptr[i + 1] - 1,
-                              offset + 2*endogenous_nbr)
+            r= bigindex!(bigrowval,
+                         r,
+                         rowval,
+                         colptr[2*endogenous_nbr + i],
+                         colptr[2*endogenous_nbr + i + 1] - 1,
+                         offset)
+            r= bigindex!(bigrowval,
+                         r,
+                         rowval,
+                         colptr[endogenous_nbr + i],
+                         colptr[endogenous_nbr + i + 1] - 1,
+                         offset + endogenous_nbr)
+            r= bigindex!(bigrowval,
+                         r,
+                         rowval,
+                         colptr[i],
+                         colptr[i + 1] - 1,
+                         offset + 2*endogenous_nbr)
         end
         offset += endogenous_nbr
     end
@@ -114,24 +127,27 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                         + colptr[endogenous_nbr + i + 1]
                         - colptr[endogenous_nbr + i])
         r1 = colptr[endogenous_nbr + i]
-        r= rowval_column!(bigrowval,
-                          r,
-                          rowval,
-                          colptr[2*endogenous_nbr + i],
-                          colptr[2*endogenous_nbr + i + 1] - 1,
-                          offset)
-        r= rowval_column!(bigrowval,
-                          r,
-                          rowval,
-                          colptr[endogenous_nbr + i],
-                          colptr[endogenous_nbr + i + 1] - 1,
-                          offset + endogenous_nbr)
+        r= bigindex!(bigrowval,
+                     r,
+                     rowval,
+                     colptr[2*endogenous_nbr + i],
+                     colptr[2*endogenous_nbr + i + 1] - 1,
+                     offset)
+        r= bigindex!(bigrowval,
+                     r,
+                     rowval,
+                     colptr[endogenous_nbr + i],
+                     colptr[endogenous_nbr + i + 1] - 1,
+                     offset + endogenous_nbr)
 
     end
 
     b1 = colptr[endogenous_nbr + 1]
     b2 = (periods - 1)*rowval_length + colptr[2*endogenous_nbr + 1] - 1
     nperiods = periods*endogenous_nbr
+    @show size(bigcolptr)
+    @show size(bigrowval)
+    @show size(bignzval)
     return SparseMatrixCSC(nperiods, nperiods, bigcolptr, bigrowval, bignzval)
 end
 
