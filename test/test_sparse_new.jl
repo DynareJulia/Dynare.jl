@@ -1,5 +1,5 @@
 using Dynare
-
+using SparseArrays
 
 Dynare.dynare_preprocess("models/example1/example1_sparse.mod", [])
 
@@ -22,7 +22,7 @@ steadystate = endogenous
 
 
 
-ws = Dynare.DynamicWs(endo_nbr, exo_nbr, ncol, tmp_nbr, nzval_nbr)
+ws = Dynare.DynamicWs(endo_nbr, exo_nbr, tmp_nbr, m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval)
 T = zeros(tmp_nbr)
 resid = zeros(endo_nbr)
 y = repeat(steadystate, 3)
