@@ -4,9 +4,12 @@ using SparseArrays
 using Test
 
 function bigindex!(bigrowval, r, rowval, c1, c2, offset)
+    c1 > length(rowval) && return r
+    @show c1, c2
+    offset1 = offset - rowval[c1] + 1
     for c in c1:c2
-        @show r
-        bigrowval[r] = c + offset
+        @show r, rowval[c] + offset
+        bigrowval[r] = rowval[c] + offset
         r += 1
     end
     return r
@@ -29,14 +32,15 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
     c = 1
     # first periods
     bigcolptr[1] = 1
-    offset = 0
     for i in 1:endogenous_nbr
         c += 1
+        offset = 0
         bigcolptr[c] = (bigcolptr[c - 1]
                         + colptr[endogenous_nbr + i + 1]
                         - colptr[endogenous_nbr + i]
                         + colptr[i + 1]
                         - colptr[i])
+        @show bigcolptr
         r1 = colptr[endogenous_nbr + i]
         r= bigindex!(bigrowval,
                      r,
@@ -47,48 +51,17 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
         r= bigindex!(bigrowval,
                      r,
                      rowval,
-                     colptr[2*endogenous_nbr + i],
-                     colptr[2*endogenous_nbr + i + 1] - 1,
-                     offset)
-        r= bigindex!(bigrowval,
-                     r,
-                     rowval,
                      colptr[i],
                      colptr[i + 1] - 1,
-                     offset)
-        r= bigindex!(bigrowval,
-                     r,
-                     rowval,
-                     colptr[endogenous_nbr + i],
-                     colptr[endogenous_nbr + i + 1] - 1,
-                     offset)
-        r= bigindex!(bigrowval,
-                     r,
-                     rowval,
-                     colptr[2*endogenous_nbr + i],
-                     colptr[2*endogenous_nbr + i + 1] - 1,
-                     offset)
-        r= bigindex!(bigrowval,
-                     r,
-                     rowval,
-                     colptr[i],
-                     colptr[i + 1] - 1,
-                     offset)
-        r= bigindex!(bigrowval,
-                     r,
-                     rowval,
-                     colptr[endogenous_nbr + i],
-                     colptr[endogenous_nbr + i + 1] - 1,
-                     offset)
-        offset += endogenous_nbr
+                     offset + endogenous_nbr)
     end
 
     # intermediary periods
     for p in 2:periods - 1
         @show p
-        offset = 0
         for i in 1:endogenous_nbr
             c += 1
+            offset = (p - 2)*endogenous_nbr
             bigcolptr[c] = (bigcolptr[c - 1]
                             + colptr[2*endogenous_nbr + i + 1]
                             - colptr[2*endogenous_nbr + i]
@@ -96,6 +69,7 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
                             - colptr[endogenous_nbr + i]
                             + colptr[i + 1]
                             - colptr[i])
+            @show bigcolptr
             r1 = colptr[endogenous_nbr + i]
             r= bigindex!(bigrowval,
                          r,
@@ -121,11 +95,13 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods)
     #terminal period
     for i in 1:endogenous_nbr
         c += 1
+        offset = (periods - 2)*endogenous_nbr
         bigcolptr[c] = (bigcolptr[c - 1]
                         + colptr[2*endogenous_nbr + i + 1]
                         - colptr[2*endogenous_nbr + i]
                         + colptr[endogenous_nbr + i + 1]
                         - colptr[endogenous_nbr + i])
+        @show bigcolptr
         r1 = colptr[endogenous_nbr + i]
         r= bigindex!(bigrowval,
                      r,
@@ -231,7 +207,7 @@ AA = vcat(hcat(A[:, 6:15], zeros(5, 10)),
           hcat(A, zeros(5, 5)),
           hcat(zeros(5, 5), A),
           hcat(zeros(5, 10), A[:, 1:10]))
-
+display(AA[1:10,1:10])
 
 J = makeJacobian(A.colptr, A.rowval, 5, 4)
 
@@ -265,6 +241,7 @@ n1 = colptr[3*m.endogenous_nbr  + 1] - colptr[m.endogenous_nbr + 1] + 1
 n2 = colptr[2*m.endogenous_nbr + 1]
 df = Dynare.DFunctions
 nzval = Vector{Float64}(undef, colptr[end] - 1)
+@show steady_state
 df.SparseDynamicG1!(temporary_var, nzval, endogenous[1:18], exogenous[1:2], params, steady_state, true)
 A = SparseMatrixCSC(m.endogenous_nbr, 3*m.endogenous_nbr + m.exogenous_nbr, colptr, rowval, nzval)
 AA = vcat(hcat(A[:, 7:18], zeros(6, 12)),
