@@ -82,7 +82,7 @@ struct PerfectForesightWs
     y::Vector{Float64}
     x::Matrix{Float64}
     shocks::Matrix{Float64}
-    J::Jacobian
+    J::SparseMatrixCSC
     lb::Vector{Float64}
     ub::Vector{Float64}
     permutations::Vector{Tuple{Int64,Int64}}
@@ -107,7 +107,11 @@ struct PerfectForesightWs
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
-        J = Jacobian(context, periods)
+        J = makeJacobian(m.dynamic_g1_sparse_colptr,
+                         m.dynamic_g1_sparse_rowval,
+                         m.endogenous_nbr,
+                         periods,
+                         permutations)
         lb = Float64[]
         ub = Float64[]
         permutations = Tuple{Int64,Int64}[]
