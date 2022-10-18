@@ -53,61 +53,81 @@ end
 
 function dynamic!(T::AbstractVector{<: Real}, residual::AbstractVector{<: Real},
                   y::AbstractVector{<: Real}, x::AbstractVector{<: Real}, params::AbstractVector{<: Real}, steady_state::AbstractVector{<: Real})
-    SparseDynamicResid!(T, residual, y, x, params, steady_state, true)
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state)
     return nothing
 end
 
 function dynamic!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseDynamicG1!(T, g1.nzval, y, x, params, steady_state, true)
-    SparseDynamicResid!(T, residual, y, x, params, steady_state, false)
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state)
+    SparseDynamicG1TT!(T, y, x, params, steady_state)
+    SparseDynamicG1!(T, g1.nzval, y, x, params, steady_state)
     return nothing
 end
 
 function dynamic!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseDynamicG2!(T, g2, y, x, params, steady_state, true)
-    SparseDynamicG1!(T, g1, y, x, params, steady_state, false)
-    SparseDynamicResid!(T, residual, y, x, params, steady_state, false)
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state)
+    SparseDynamicG1TT!(T, y, x, params, steady_state)
+    SparseDynamicG1!(T, g1.nzval, y, x, params, steady_state)
+    SparseDynamicG2TT!(T, y, x, params, steady_state)
+    SparseDynamicG2!(T, g2.nzval, y, x, params, steady_state)
     return nothing
 end
 
 function dynamic!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real}, g3::AbstractMatrix{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseDynamicG3!(T, g3, y, x, params, steady_state, true)
-    SparseDynamicG2!(T, g2, y, x, params, steady_state, false)
-    SparseDynamicG1!(T, g1, y, x, params, steady_state, false)
-    SparseDynamicResid!(T, residual, y, x, params, steady_state, false)
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
+    SparseDynamicResid!(T, residual, y, x, params, steady_state)
+    SparseDynamicG1TT!(T, y, x, params, steady_state)
+    SparseDynamicG1!(T, g1.nzval, y, x, params, steady_state)
+    SparseDynamicG2TT!(T, y, x, params, steady_state)
+    SparseDynamicG2!(T, g2.nzval, y, x, params, steady_state)
+    SparseDynamicG3TT!(T, y, x, params, steady_state)
+    SparseDynamicG3!(T, g3.nzval, y, x, params, steady_state)
     return nothing
 end
 
 function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseStaticResid!(T, residual, y, x, params, steady_state, true)
+    SparseStaticResidTT!(T, y, x, params, steady_state)
+    SparseStaticResid!(T, residual, y, x, params, steady_state)
     return nothing
 end
 
 function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseStaticG1!(T, g1.nzval, y, x, params, steady_state, true)
-    SparseStaticResid!(T, residual, y, x, params, steady_state, false)
+    SparseStaticResidTT!(T, y, x, params, steady_state)
+    SparseStaticResid!(T, residual, y, x, params, steady_state)
+    SparseStaticG1TT!(T, y, x, params, steady_state)
+    SparseStaticG1!(T, g1.nzval, y, x, params, steady_state)
     return nothing
 end
 
 function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseStaticG2!(T, g2, y, x, params, steady_state, true)
-    SparseStaticG1!(T, g1, y, x, params, steady_state, false)
-    SparseStaticResid!(T, residual, y, x, params, steady_state, false)
+    SparseStaticResidTT!(T, y, x, params, steady_state)
+    SparseStaticResid!(T, residual, y, x, params, steady_state)
+    SparseStaticG1TT!(T, y, x, params, steady_state)
+    SparseStaticG1!(T, g1,nzval, y, x, params, steady_state)
+    SparseStaticG2TT!(T, y, x, params, steady_state)
+    SparseStaticG2!(T, g2.nzval, y, x, params, steady_state)
     return nothing
 end
 
 function static!(T::Vector{<: Real}, residual::AbstractVector{<: Real}, g1::AbstractMatrix{<: Real}, g2::AbstractMatrix{<: Real}, g3::AbstractMatrix{<: Real},
                   y::Vector{<: Real}, x::AbstractVector{<: Real}, params::Vector{<: Real}, steady_state::Vector{<: Real})
-    SparseStaticG3!(T, g3, y, x, params, steady_state, true)
-    SparseStaticG2!(T, g2, y, x, params, steady_state, false)
-    SparseStaticG1!(T, g1, y, x, params, steady_state, false)
-    SparseStaticResid!(T, residual, y, x, params, steady_state, false)
+    SparseStaticResidTT!(T, y, x, params, steady_state)
+    SparseStaticResid!(T, residual, y, x, params, steady_state)
+    SparseStaticG1TT!(T, y, x, params, steady_state)
+    SparseStaticG1!(T, g1.nzval, y, x, params, steady_state)
+    SparseStaticG2TT!(T, y, x, params, steady_state)
+    SparseStaticG2!(T, g2.nzval, y, x, params, steady_state)
+    SparseStaticG3TT!(T, y, x, params, steady_state)
+    SparseStaticG3!(T, g3.nzval, y, x, params, steady_state)
     return nothing
 end
 

@@ -32,6 +32,7 @@ params = context.work.params
 rowval = m.dynamic_g1_sparse_rowval
 colptr = m.dynamic_g1_sparse_colptr
 
+@show colptr
 J = Dynare.makeJacobian(colptr,
                         rowval,
                         m.endogenous_nbr,
@@ -45,8 +46,11 @@ n2 = colptr[2*m.endogenous_nbr + 1]
 df = Dynare.DFunctions
 nzval = Vector{Float64}(undef, colptr[end] - 1)
 @show steady_state
-df.SparseDynamicG1!(temporary_var, nzval, endogenous[1:18], exogenous[1:2], params, steady_state, true)
+residual = zeros(m.endogenous_nbr)
+
+#df.SparseDynamicG1!(temporary_var, nzval, endogenous[1:18], exogenous[1:2], params, steady_state, false)
 A = SparseMatrixCSC(m.endogenous_nbr, 3*m.endogenous_nbr + m.exogenous_nbr, colptr, rowval, nzval)
+df.dynamic!(temporary_var, residual, A, endogenous[1:18], exogenous[1:2], params, steady_state) 
 AA = vcat(hcat(A[:, 7:18], zeros(6, 12)),
           hcat(A[:,1:18], zeros(6, 6)),
           hcat(zeros(6, 6), A[:,1:18]),
@@ -54,6 +58,8 @@ AA = vcat(hcat(A[:, 7:18], zeros(6, 12)),
 
 @test J.colptr == AA.colptr
 @test J.rowval == AA.rowval
+@show nzval
 Dynare.updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, m.endogenous_nbr, m.exogenous_nbr)
-
+@show nzval
 @test J == AA
+
