@@ -72,15 +72,28 @@ for i in 1:length(colptr) - 1
     if colptr[i + 1] > colptr[i]
         vr = view(rowval1, colptr[i]:colptr[i+1]-1)
         for p in permutations
-            p1, p2 = p[i]
-            for (j,r) in enumerate(vr)
-                if r == p1 || r = p2
-                    vr[p2], vr[p1] = vr[p1], vr[p2]
-                end
-                if !issorted(vr)
-                    sort!(vr)
-                    @show colptr[i] - 1 .+ p
-                    push!(permutations1, colptr[i] - 1 .+ p)
+            p1, p2 = p
+            let j1, j2 = 0
+                for (j,r) in enumerate(vr)
+                    if r == p1
+                        j1 = r
+                    elseif r == p2
+                        j2 = r
+                        !issorted(r) && sort!(vr)
+                        break
+                    end
+                    
+                        vr[j] = p1
+                        if j1 != 0
+                            vr[j1] = p1
+                        end
+                        if !issorted(vr)
+                            sort!(vr)
+                            @show colptr[j] - 1 .+ p
+                            push!(permutations1, colptr[j] - 1 .+ p)
+                        end
+                        break
+                    end
                 end
             end
         end
