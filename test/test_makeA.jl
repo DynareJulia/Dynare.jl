@@ -63,3 +63,26 @@ Dynare.updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, t
 @show nzval
 @test J == AA
 
+permutations =[(1, 3), (2, 5)]
+
+rowval1 = copy(rowval)
+permutations1 = Tuple{Int64, Int64}[]
+k = 1
+for i in 1:length(colptr) - 1
+    if colptr[i + 1] > colptr[i]
+        vr = view(rowval1, colptr[i]:colptr[i+1]-1)
+        for p in permutations
+            p1, p2 = p[i]
+            for (j,r) in enumerate(vr)
+                if r == p1 || r = p2
+                    vr[p2], vr[p1] = vr[p1], vr[p2]
+                end
+                if !issorted(vr)
+                    sort!(vr)
+                    @show colptr[i] - 1 .+ p
+                    push!(permutations1, colptr[i] - 1 .+ p)
+                end
+            end
+        end
+    end
+end
