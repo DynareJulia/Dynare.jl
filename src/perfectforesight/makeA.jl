@@ -1,13 +1,5 @@
 using SparseArrays
 
-function permute_row(ir, permutations)
-    for p in permutations
-        ir == p[1] && return p[2]
-        ir == p[2] && return p[1]
-    end
-    return ir
-end
-
 function bigindex!(bigrowval, r, rowval, c1, c2, offset)
     c1 > length(rowval) && return r
     @show c1, c2
@@ -20,7 +12,43 @@ function bigindex!(bigrowval, r, rowval, c1, c2, offset)
     return r
 end
 
-        
+function permutation(permutations, colptr, rowval)
+    permutations1 = Tuple{Int64, Int64}[]
+    rowval1 = copy(rowval)
+    k = 1
+    for i in 1:length(colptr) - 1
+        if colptr[i + 1] > colptr[i]
+            vr = view(rowval1, colptr[i]:colptr[i+1]-1)
+            @show vr
+            for p in permutations
+                p1, p2 = p
+                p0 = Tuple{Int64, Int64}[]
+                for (j,r) in enumerate(vr)
+                    if r == p1
+                        vr[j] = p2
+                        push!(p0, p)
+                    elseif r == p2
+                        vr[j] = p1
+                        push!(p0, p)
+                        break
+                    end
+                end
+                if !issorted(vr)
+                    sort!(vr)
+                    np0 = length(p0)
+                    if np0 > 0
+                        push!(permutations1, colptr[i] - 1 .+ p0[1])
+                    end
+                    if np0 > 1
+                        push!(permutations1, colptr[i] - 1 .+ (p0[2][2], p0[2][1]))
+                    end
+                end
+            end
+        end
+    end
+    return(permutations1, rowval1)
+end
+
 function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations)
     startv = colptr[endogenous_nbr + 1]
     endv = colptr[2*endogenous_nbr + 1]
@@ -31,10 +59,12 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations)
     bigcolptr = Vector{Int64}(undef, periods*endogenous_nbr + 1)
     bigrowval = Vector{Int64}(undef, nnz)
     bignzval = similar(bigrowval, Float64)
+    permutations1 = []
     
-    for (i, r) in enumerate(rowval)
-        rowval[i] = permute_row(r, permutations)
+    if !isempty(permutations)
+        (permutations1, rowval) = permutation(permutations, colptr, rowval)
     end
+
     r = 1
     c = 1
     # first periods
@@ -131,7 +161,7 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations)
     @show size(bigcolptr)
     @show size(bigrowval)
     @show size(bignzval)
-    return SparseMatrixCSC(nperiods, nperiods, bigcolptr, bigrowval, bignzval)
+    return (SparseMatrixCSC(nperiods, nperiods, bigcolptr, bigrowval, bignzval), permutations1)
 end
 
 function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, endogenous_nbr, exogenous_nbr)
@@ -205,6 +235,14 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
             n = colptr[c+1] - colptr[c]
             copyto!(J.nzval, k, nzval, colptr[c], n)
         end
+    end
+end
+
+function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, endogenous_nbr, exogenous_nbr, permutations)
+    updateJacobian!(J, G1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, endogenous_nbr, exogenous_nbr)
+    for p in permutations
+        p1, p2 = p
+        J[p2], J[p1] = J[p1], J[p2]
     end
 end
 
