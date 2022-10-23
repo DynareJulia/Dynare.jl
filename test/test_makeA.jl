@@ -16,6 +16,26 @@ display(AA[1:10,1:10])
 @test J.colptr == AA.colptr
 @test J.rowval == AA.rowval
 
+permutations =[(1,3), (2, 5)]
+sort!(permutations, by=x->x[1])
+
+(permutations1, rowval1) = Dynare.permutation(permutations, A.colptr, A.rowval)
+A1 = A[[3, 5, 1, 4, 2], :]
+@test rowval1 == A1.rowval
+@show permutations1
+
+AP = copy(A)
+AP.rowval .= rowval1
+for p in permutations1
+    p1, p2 = p
+    @show p1, p2
+    @show AP.nzval[p1], A.nzval[p2]
+    AP.nzval[p1] = A.nzval[p2]
+end
+@test AP == A1
+
+@show A.colptr
+
 
 context = @dynare "test/models/example1pf/example1pf_sparse.mod"
 
@@ -59,20 +79,20 @@ AA = vcat(hcat(A[:, 7:18], zeros(6, 12)),
 @test J.colptr == AA.colptr
 @test J.rowval == AA.rowval
 @show nzval
-Dynare.updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, m.endogenous_nbr, m.exogenous_nbr)
+Dynare.updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, m.endogenous_nbr, m.exogenous_nbr, [], [])
 @show nzval
 @test J == AA
 
 permutations =[(1,3), (2, 5)]
 sort!(permutations, by=x->x[1])
-                      
-(J1, permutations1) = Dynare.makeJacobian(colptr,
-                                          rowval,
+
+(J1, permutations1) = Dynare.makeJacobian(A.colptr,
+                                          A.rowval,
                                           m.endogenous_nbr,
                                           periods,
                                           permutations)
-
-Dynare.updateJacobian!(J1, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, m.endogenous_nbr, m.exogenous_nbr, permutations1)
+ws = similar(A.nzval)
+Dynare.updateJacobian!(J1, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, A.nzval, m.endogenous_nbr, m.exogenous_nbr, permutations1, ws)
 let kk = []
     for i = 1:periods
         kk = vcat(kk, [3, 5, 1, 4, 2, 6] .+ (i - 1)*m.endogenous_nbr)
