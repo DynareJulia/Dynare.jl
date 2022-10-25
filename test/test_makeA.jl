@@ -79,7 +79,7 @@ AA = vcat(hcat(A[:, 7:18], zeros(6, 12)),
 @test J.colptr == AA.colptr
 @test J.rowval == AA.rowval
 @show nzval
-Dynare.updateJacobian!(J, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, m.endogenous_nbr, m.exogenous_nbr, [], [])
+Dynare.updateJacobian!(J, df.dynamic_derivatives!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, m.endogenous_nbr, m.exogenous_nbr, [], [])
 @show nzval
 @test J == AA
 
@@ -92,7 +92,7 @@ sort!(permutations, by=x->x[1])
                                           periods,
                                           permutations)
 ws = similar(A.nzval)
-Dynare.updateJacobian!(J1, df.SparseDynamicG1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, A.nzval, m.endogenous_nbr, m.exogenous_nbr, permutations1, ws)
+Dynare.updateJacobian!(J1, df.dynamic_derivatives!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, A.nzval, m.endogenous_nbr, m.exogenous_nbr, permutations1, ws)
 let kk = []
     for i = 1:periods
         kk = vcat(kk, [3, 5, 1, 4, 2, 6] .+ (i - 1)*m.endogenous_nbr)

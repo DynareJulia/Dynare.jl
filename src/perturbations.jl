@@ -373,11 +373,12 @@ function compute_stoch_simul!(
     results = context.results.model_results[1]
     compute_steady_state!(context)
     endogenous = results.trends.endogenous_steady_state
+    endogenous3 = repeat(endogenous, 3)
     exogenous = results.trends.exogenous_steady_state
     fill!(exogenous, 0.0)
     compute_first_order_solution!(
         context,
-        endogenous,
+        endogenous3,
         exogenous,
         endogenous,
         params,
@@ -425,8 +426,17 @@ function compute_first_order_solution!(
                                          model.i_bkwrd_b,
                                          model.i_static,
                                          )
-    LRE.remove_static!(jacobian, wsLRE)
-    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options, wsLRE)
+    lli = model.lead_lag_incidence
+    display(lli)
+    display(Matrix(jacobian))
+    @views J = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
+                    Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
+                    Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
+                    Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
+    display(J)                    
+    LRE.remove_static!(J, wsLRE)
+    display(J)
+    LRE.first_order_solver!(LRE_results, J, options.LRE_options, wsLRE)
     lre_variance_ws = LRE.VarianceWs(
         model.endogenous_nbr,
         model.n_bkwrd + model.n_both,

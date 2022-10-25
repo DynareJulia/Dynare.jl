@@ -167,7 +167,7 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
     ry = 1:3*endogenous_nbr
     rx = 1:exogenous_nbr
     @views begin
-        G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state, true)
+        G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         oy = endogenous_nbr
         ox = exogenous_nbr
@@ -179,7 +179,7 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
         ry1 = ry .+ oy
         rx1 = rx .+ ox
 
-        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
+        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         for c in 1:2*endogenous_nbr
             k = bigcolptr[c] + colptr[endogenous_nbr + c + 1] - colptr[endogenous_nbr + c]
@@ -195,7 +195,7 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
         for p in 1:periods - 3
             ry1 = ry .+ oy
             rx1 = rx .+ ox
-            G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
+            G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state)
             !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
             oy += endogenous_nbr
             ox += exogenous_nbr
@@ -221,7 +221,7 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
         
         ry1 = ry .+ oy
         rx1 = rx .+ ox
-        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state, true)
+        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         for c in 1:endogenous_nbr
             k = (bigcolptr[c + (periods - 2)*endogenous_nbr]
@@ -237,6 +237,7 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
             copyto!(J.nzval, k, nzval, colptr[c], n)
         end
     end
+    return J
 end
 
 function CmultG!(

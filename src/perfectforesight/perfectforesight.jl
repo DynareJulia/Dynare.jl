@@ -107,15 +107,17 @@ struct PerfectForesightWs
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
-        J = makeJacobian(m.dynamic_g1_sparse_colptr,
-                         m.dynamic_g1_sparse_rowval,
-                         m.endogenous_nbr,
-                         periods,
-                         permutations)
+        permutations = Tuple{Int64,Int64}[]
+        colptr = m.dynamic_g1_sparse_colptr
+        rowval = m.dynamic_g1_sparse_rowval
+        (J, permutations1) = makeJacobian(colptr,
+                                          rowval,
+                                          m.endogenous_nbr,
+                                          periods,
+                                          m.mcps)
         lb = Float64[]
         ub = Float64[]
-        permutations = Tuple{Int64,Int64}[]
-        new(y, x, shocks, J, lb, ub, permutations)
+        new(y, x, shocks, J, lb, ub, permutations1)
     end
 end
 
@@ -125,8 +127,13 @@ function perfect_foresight_solver!(context, field)
     m = context.models[1]
     df = context.dynarefunctions
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    tmp_nbr = df.dynamic!.tmp_nbr::Vector{Int64}
-    dynamic_ws = DynamicWs(m.endogenous_nbr, m.exogenous_nbr, ncol, sum(tmp_nbr[1:2]))
+    tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
+    dynamic_ws = DynamicWs(m.endogenous_nbr,
+                           m.exogenous_nbr,
+                           sum(tmp_nbr[1:2]),
+                           m.dynamic_g1_sparse_colptr,
+                           m.dynamic_g1_sparse_rowval)
+
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
     initialvalues = get_dynamic_initialvalues(context)
@@ -260,11 +267,14 @@ function perfectforesight_core!(
         Dynare.DynamicWs(
             m.endogenous_nbr,
             m.exogenous_nbr,
-            length(dynamic_variables),
             length(temp_vec),
+            m.dynamic_g1_sparse_colptr,
+            m.dynamic_g1_sparse_rowval
         ) for i = 1:Threads.nthreads()
     ]
-
+    nzval = similar(m.dynamic_g1_sparse_rowval, Float64)
+    nzval1 = similar(nzval)
+    
     function f!(residuals, y)
         @debug "$(now()): start f!"
         get_residuals!(
@@ -289,15 +299,22 @@ function perfectforesight_core!(
         y::AbstractVecOrMat{Float64},
     )
         @debug "$(now()): start J!"
-        A = makeJacobian!(
+        A = updateJacobian!(
             JJ,
+            df.dynamic_derivatives!,
             vec(y),
-            initialvalues,
-            terminalvalues,
             exogenous,
-            context,
             periods,
-            ws_threaded,
+            temp_vec,
+            params,
+            steady_state,
+            m.dynamic_g1_sparse_colptr,
+            m.dynamic_g1_sparse_rowval,
+            nzval,
+            m.endogenous_nbr,
+            m.exogenous_nbr,
+            perfect_foresight_ws.permutations,
+            nzval1
         )
         @debug count(!iszero, A) / prod(size(A))
         @debug "$(now()): end J!"
@@ -309,16 +326,7 @@ function perfectforesight_core!(
     end
 
     @debug "$(now()): start makeJacobian"
-    A0 = makeJacobian!(
-        JJ,
-        vec(y0),
-        initialvalues,
-        terminalvalues,
-        exogenous,
-        context,
-        periods,
-        ws_threaded,
-    )
+    A0 = JJ
     @debug "$(now()): end makeJacobian"
     @debug "$(now()): start f!"
     f!(residuals, vec(y0))
@@ -375,32 +383,22 @@ function get_residuals!(
         dynamic_variables,
         steadystate,
         params,
-        m,
-        df,
-        periods,
         temp_vec,
         permutations = permutations,
     )
-    t1 = n + 1
-    t2 = 2 * n
+    base = 1
     for t = 2:periods-1
         get_residuals_2!(
             residuals,
             endogenous,
             exogenous,
-            dynamic_variables,
             steadystate,
             params,
-            m,
-            df,
-            periods,
             temp_vec,
-            t,
-            t1,
-            t2,
+            base,
             permutations = permutations,
         )
-        t1 += n
+        rr += n
         t2 += n
     end
     get_residuals_3!(
@@ -463,37 +461,24 @@ function get_residuals_1!(
     residuals::AbstractVector{Float64},
     endogenous::AbstractVector{Float64},
     initialvalues::AbstractVector{Float64},
-    exogenous::AbstractMatrix{Float64},
+    exogenous::AbstractVector{Float64},
     dynamic_variables::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    periods::Int64,
     temp_vec::AbstractVector{Float64};
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
-    lli = m.lead_lag_incidence
-    dynamic! = df.dynamic!.dynamic!
-    n = m.endogenous_nbr
-
-    get_initial_dynamic_endogenous_variables!(
-        dynamic_variables,
-        endogenous,
-        initialvalues,
-        lli,
-        2,
-    )
+    n = length(steadystate)
+    copy!(dynamic_variables, initialvalues)
+    copyto!(dynamic_variables, n + 1, endogenous, 1, 2*n)
     vr = view(residuals, 1:n)
-    @inbounds Base.invokelatest(
-        dynamic!,
+    DFunctions.dynamic!(
         temp_vec,
         vr,
         dynamic_variables,
         exogenous,
         params,
         steadystate,
-        2,
     )
     reorder!(vr, permutations)
 end
@@ -502,32 +487,22 @@ function get_residuals_2!(
     residuals::AbstractVector{Float64},
     endogenous::AbstractVector{Float64},
     exogenous::AbstractMatrix{Float64},
-    dynamic_variables::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    periods::Int64,
     temp_vec::AbstractVector{Float64},
-    t::Int64,
-    t1::Int64,
-    t2::Int64;
+    base::Int64,
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
-    lli = m.lead_lag_incidence
-    dynamic! = df.dynamic!.dynamic!
-
-    get_dynamic_endogenous_variables!(dynamic_variables, endogenous, lli, t)
-    vr = view(residuals, t1:t2)
-    @inbounds Base.invokelatest(
-        dynamic!,
+    n = length(steadystate)
+    k1 = (t - 1)*n 
+    k2 = (t1 - 2)*n .+ 1:3*n
+    @views DFunctions.dynamic!(
         temp_vec,
-        vr,
-        dynamic_variables,
+        residuals[k1],
+        endogenous[k2],
         exogenous,
         params,
         steadystate,
-        t + 1,
     )
     reorder!(vr, permutations)
 end
@@ -540,35 +515,21 @@ function get_residuals_3!(
     dynamic_variables::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    periods::Int64,
     temp_vec::AbstractVector{Float64},
-    t::Int64,
-    t1::Int64,
-    t2::Int64;
+    periods::Int64,
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
-    lli = m.lead_lag_incidence
-    dynamic! = df.dynamic!.dynamic!
-
-    get_terminal_dynamic_endogenous_variables!(
-        dynamic_variables,
-        endogenous,
-        terminalvalues,
-        lli,
-        t,
-    )
-    vr = view(residuals, t1:t2)
-    @inbounds Base.invokelatest(
-        dynamic!,
+    n = length(steadystate)
+    copyto!(dynamic_variables, 1, endogenous, (periods - 2)*n + 1, 2*n)
+    copyto!(dynamic_variables, 2*n + 1, terminalvalues)
+    vr = view(residuals, (periods - 1)*n .+ 1:n)
+    DFunctions.dynamic!(
         temp_vec,
         vr,
         dynamic_variables,
         exogenous,
         params,
         steadystate,
-        t + 1,
     )
     reorder!(vr, permutations)
 end

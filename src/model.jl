@@ -48,7 +48,7 @@ end
 
 struct StaticWs
     residuals::Vector{Float64}
-    derivatives::Vector{Vector{Float64}}
+    derivatives::Vector{SparseMatrixCSC}
     temporary_values::Vector{Float64}
     function StaticWs(
         endogenous_nbr::Int64,
@@ -62,7 +62,6 @@ struct StaticWs
                                        colptr,
                                        rowval,
                                        similar(rowval, Float64))]
-        derivatives[1] = Vector{Float64}(undef, 0)
         temporary_values = Vector{Float64}(undef, tmp_nbr)
         new(residuals, derivatives, temporary_values)
     end
@@ -70,13 +69,11 @@ end
 
 function StaticWs(context::Context)
     m = context.models[1]
-    df = context.dynarefunctions
-    tmp_nbr = sum(df.static!.tmp_nbr[1:2])
+    tmp_nbr = sum(m.static_tmp_nbr[1:2])
     return StaticWs(m.endogenous_nbr,
-                     m.exogenous_nbr,
-                     tmp_nbr,
-                     m.dynamic_g1_dynamic_colptr,
-                     m.dynamic_g1_dynamic_rowval)
+                    tmp_nbr,
+                    m.static_g1_sparse_colptr,
+                    m.static_g1_sparse_rowval)
 end
 
 #= UNUSED
@@ -114,6 +111,7 @@ function get_initial_dynamic_endogenous_variables!(
     lli::Matrix{Int64},
     period::Int64,
 )
+    copy!(y, initii
     m, n = size(lli)
     p = (period - 2) * n
     for j = 1:n
@@ -340,7 +338,7 @@ function get_static_residuals!(
     exogenous::AbstractVector{Float64},
     df::DynareFunctions,
 )
-    df.static!(
+    DFunctions.static!(
         ws.temporary_values,
         ws.residuals,
         endogenous,
@@ -383,15 +381,14 @@ function get_dynamic_jacobian!(
     df::DynareFunctions,
     period::Int64,
 )
-    df.dynamic!(
+    DFunctions.dynamic!(
         ws.temporary_values,
         ws.residuals,
         ws.derivatives[1],
-        ws.dynamic_variables,
+        endogenous,
         exogenous,
         params,
         steadystate,
-        period,
     )
     return ws.derivatives[1]
 end
@@ -526,17 +523,15 @@ function get_static_jacobian!(
     df::DynareFunctions,
 )
     @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
-    jacobian = static_jacobian_matrix(ws, m.endogenous_nbr)
-    Base.invokelatest(
-        df.static!.static!,
+    DFunctions.static!(
         ws.temporary_values,
         ws.residuals,
-        jacobian,
+        ws.derivatives[1],
         endogenous,
         exogenous,
         params,
     )
-    return jacobian
+    return ws.derivatives[1]
 end
 
 function get_abc!(

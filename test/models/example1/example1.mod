@@ -1,4 +1,4 @@
-b// cyclic reduction algorithm
+// cyclic reduction algorithm
 var y, c, k, a, h, b;
 varexo e, u;
 
