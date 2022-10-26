@@ -89,11 +89,11 @@ struct PerfectForesightWs
     function PerfectForesightWs(context, periods)
         m = context.models[1]
         modfileinfo = context.modfileinfo
-        y = Vector{Float64}(undef, (periods + 2) * m.endogenous_nbr)
+        y = Vector{Float64}(undef, m.endogenous_nbr)
         if m.exogenous_nbr > 0
             exogenous_steady_state =
                 context.results.model_results[1].trends.exogenous_steady_state
-            x = repeat(transpose(exogenous_steady_state), periods + 1, 1)
+            x = repeat(transpose(exogenous_steady_state), periods, 1)
         else
             x = Matrix{Float64}(undef, 0, 0)
         end
@@ -103,7 +103,7 @@ struct PerfectForesightWs
             shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
             shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
             # adding shocks to exogenous variables
-            view(x, 2:pmax+1, :) .+= shocks
+            view(x, 1:pmax, :) .+= shocks
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
