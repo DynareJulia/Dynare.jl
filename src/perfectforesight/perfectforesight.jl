@@ -301,15 +301,17 @@ function perfectforesight_core!(
         @debug "$(now()): start J!"
         A = updateJacobian!(
             JJ,
-            df.dynamic_derivatives!,
+            DFunctions.dynamic_derivatives!,
             vec(y),
+            initialvalues,
+            terminalvalues,
+            dynamic_variables,
             exogenous,
             periods,
             temp_vec,
             params,
-            steady_state,
+            steadystate,
             m.dynamic_g1_sparse_colptr,
-            m.dynamic_g1_sparse_rowval,
             nzval,
             m.endogenous_nbr,
             m.exogenous_nbr,
@@ -375,47 +377,39 @@ function get_residuals!(
 )
     n = m.endogenous_nbr
 
-    get_residuals_1!(
+    @views get_residuals_1!(
         residuals,
         endogenous,
         initialvalues,
-        exogenous,
+        exogenous[1, :],
         dynamic_variables,
         steadystate,
         params,
         temp_vec,
         permutations = permutations,
     )
-    base = 1
     for t = 2:periods-1
-        get_residuals_2!(
+        @views get_residuals_2!(
             residuals,
             endogenous,
-            exogenous,
+            exogenous[t, :],
             steadystate,
             params,
             temp_vec,
-            base,
+            t,
             permutations = permutations,
         )
-        rr += n
-        t2 += n
     end
-    get_residuals_3!(
+    @views get_residuals_3!(
         residuals,
         endogenous,
         terminalvalues,
-        exogenous,
+        exogenous[periods, :],
         dynamic_variables,
         steadystate,
         params,
-        m,
-        df,
-        periods,
         temp_vec,
         periods,
-        t1,
-        t2,
         permutations = permutations,
     )
     return residuals
@@ -469,7 +463,7 @@ function get_residuals_1!(
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     n = length(steadystate)
-    copy!(dynamic_variables, initialvalues)
+    copyto!(dynamic_variables, initialvalues)
     copyto!(dynamic_variables, n + 1, endogenous, 1, 2*n)
     vr = view(residuals, 1:n)
     DFunctions.dynamic!(
@@ -486,19 +480,20 @@ end
 function get_residuals_2!(
     residuals::AbstractVector{Float64},
     endogenous::AbstractVector{Float64},
-    exogenous::AbstractMatrix{Float64},
+    exogenous::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     temp_vec::AbstractVector{Float64},
-    base::Int64,
+    t::Int64;
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     n = length(steadystate)
-    k1 = (t - 1)*n 
-    k2 = (t1 - 2)*n .+ 1:3*n
-    @views DFunctions.dynamic!(
+    k1 = (t - 1)*n  .+ (1:n)
+    k2 = (t - 2)*n .+ (1:3*n)
+    @views vr = residuals[k1]
+    DFunctions.dynamic!(
         temp_vec,
-        residuals[k1],
+        vr,
         endogenous[k2],
         exogenous,
         params,
@@ -511,18 +506,18 @@ function get_residuals_3!(
     residuals::AbstractVector{Float64},
     endogenous::AbstractVector{Float64},
     terminalvalues::AbstractVector{Float64},
-    exogenous::AbstractMatrix{Float64},
+    exogenous::AbstractVector{Float64},
     dynamic_variables::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
     temp_vec::AbstractVector{Float64},
-    periods::Int64,
+    periods::Int64;
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
     n = length(steadystate)
     copyto!(dynamic_variables, 1, endogenous, (periods - 2)*n + 1, 2*n)
     copyto!(dynamic_variables, 2*n + 1, terminalvalues)
-    vr = view(residuals, (periods - 1)*n .+ 1:n)
+    @views vr = residuals[(periods - 1)*n .+ (1:n)]
     DFunctions.dynamic!(
         temp_vec,
         vr,

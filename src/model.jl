@@ -111,7 +111,7 @@ function get_initial_dynamic_endogenous_variables!(
     lli::Matrix{Int64},
     period::Int64,
 )
-    copy!(y, initii
+    copy!(y, initialvalues)
     m, n = size(lli)
     p = (period - 2) * n
     for j = 1:n

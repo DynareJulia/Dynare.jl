@@ -161,13 +161,30 @@ function reorder_derivatives!(nzval, permutations, ws)
     end
 end
 
-function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods, temporary_var, params, steady_state, colptr, nzval, endogenous_nbr, exogenous_nbr, permutations, ws)
+function updateJacobian!(J::SparseMatrixCSC,
+                         G1!,
+                         endogenous::AbstractVector{<: Real},
+                         initialvalues::AbstractVector{<: Real},
+                         terminalvalues::AbstractVector{<: Real},
+                         dynamic_variables::AbstractVector{<: Real},
+                         exogenous::AbstractMatrix{<: Real},
+                         periods,
+                         temporary_var::AbstractVector{<: Real},
+                         params::AbstractVector{<: Real},
+                         steady_state::AbstractVector{<: Real},
+                         colptr::AbstractVector{Int},
+                         nzval::AbstractVector{<: Real},
+                         endogenous_nbr,
+                         exogenous_nbr,
+                         permutations,
+                         ws::AbstractVector{<: Real})
     bigcolptr = J.colptr
     offset = 1
-    ry = 1:3*endogenous_nbr
     rx = 1:exogenous_nbr
     @views begin
-        G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state)
+        copyto!(dynamic_variables, initialvalues)
+        copyto!(dynamic_variables, endogenous_nbr + 1, endogenous, 1, 2*endogenous_nbr)
+        G1!(temporary_var, nzval, dynamic_variables, exogenous[rx], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         oy = endogenous_nbr
         ox = exogenous_nbr
@@ -176,10 +193,10 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
             n = colptr[endogenous_nbr + c+1] - colptr[endogenous_nbr + c]
             copyto!(J.nzval, k, nzval, colptr[endogenous_nbr + c], n)
         end
-        ry1 = ry .+ oy
+        
+        ry = 1:3*endogenous_nbr
         rx1 = rx .+ ox
-
-        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state)
+        G1!(temporary_var, nzval, endogenous[ry], exogenous[rx1], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         for c in 1:2*endogenous_nbr
             k = bigcolptr[c] + colptr[endogenous_nbr + c + 1] - colptr[endogenous_nbr + c]
@@ -219,9 +236,10 @@ function updateJacobian!(J::SparseMatrixCSC, G1!, endogenous, exogenous, periods
             end
         end
         
-        ry1 = ry .+ oy
         rx1 = rx .+ ox
-        G1!(temporary_var, nzval, endogenous[ry1], exogenous[rx1], params, steady_state)
+        copyto!(dynamic_variables, 1, endogenous, (periods - 2)*endogenous_nbr + 1, 2*endogenous_nbr)
+        copyto!(dynamic_variables, 2*endogenous_nbr + 1, terminalvalues)
+        G1!(temporary_var, nzval, dynamic_variables, exogenous[rx1], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         for c in 1:endogenous_nbr
             k = (bigcolptr[c + (periods - 2)*endogenous_nbr]
