@@ -12,7 +12,7 @@ function histval!(context::Context, field::Dict{String,Any})
         get_endogenous(symboltable),
         UndatedDate(1),
     )
-    context.dynarefunctions.set_dynamic_auxiliary_variables!(tdf, context.work.params)
+    DFunctions.dynamic_auxiliary_variables!(tdf, context.work.params)
     context.work.histval .= Matrix(tdf)
 end
 
@@ -210,7 +210,6 @@ end
 
 function initval_file!(context::Context, field::Dict{String,Any})
     m = context.models[1]
-    df = context.dynarefunctions
     work = context.work
     options = field["options"]
     symboltable = context.symboltable
@@ -235,7 +234,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
             m.endogenous_nbr,
             m.original_endogenous_nbr,
         )
-        df.set_dynamic_auxiliary_variables!(tdf, work.params)
+        DFunctions.dynamic_auxiliary_variables!(tdf, work.params)
     end
 
     # check options consistency
@@ -320,7 +319,6 @@ end
 function initval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
-    df = context.dynarefunctions
     work = context.work
     initval_endogenous = zeros(m.endogenous_nbr)
     initval_exogenous = zeros(m.exogenous_nbr)
@@ -346,9 +344,7 @@ function initval!(context::Context, field::Dict{String,Any})
         end
     end
     params = context.work.params
-    @show work.initval_endogenous
-    df.set_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
-    @show work.initval_endogenous
+    DFunctions.static_auxiliary_variables!(work.initval_endogenous, work.initval_exogenous, params)
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
@@ -474,7 +470,6 @@ function load_steadystate!(context::Context, filename::String)
     endogenous = context.results.model_results[1].trends.endogenous_steady_state
     exogenous = context.results.model_results[1].trends.exogenous_steady_state
     exogenous_det = context.results.model_results[1].trends.exogenous_det_steady_state
-    m = context.dynarefunctions
     parameters = context.work.params
     symboltable = context.symboltable
     open(filename) do io
@@ -495,7 +490,7 @@ function load_steadystate!(context::Context, filename::String)
             end
         end
     end
-    df.set_auxiliary_variables!(endogenous, exogenous, parameters)
+    DFunctions.static_auxiliary_variables!(endogenous, exogenous, parameters)
 end
 #=
 import Base: +, -, *, /

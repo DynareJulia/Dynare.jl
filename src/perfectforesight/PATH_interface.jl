@@ -9,7 +9,7 @@ function mcp_perfectforesight_core!(
     dynamic_ws::DynamicWs,
 )
     m = context.models[1]
-    ddf = context.dynarefunctions
+#    ddf = context.dynarefunctions
     results = context.results.model_results[1]
     work = context.work
     residuals = zeros(periods * m.endogenous_nbr)
@@ -49,7 +49,7 @@ function mcp_perfectforesight_core!(
             steadystate,
             params,
             m,
-            ddf,
+ #           ddf,
             periods,
             temp_vec,
             permutations = permutations,

@@ -291,7 +291,6 @@ end
 function stoch_simul!(context::Context, field::Dict{String,Any})
     options = StochSimulOptions(field["options"])
     m = context.models[1]
-    df = context.dynarefunctions
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
     ws = DynamicWs(context)
@@ -415,7 +414,6 @@ function compute_first_order_solution!(
         exogenous,
         steadystate,
         model,
-        context.dynarefunctions,
         2,
     )
     algo = options.dr_algo
@@ -427,15 +425,11 @@ function compute_first_order_solution!(
                                          model.i_static,
                                          )
     lli = model.lead_lag_incidence
-    display(lli)
-    display(Matrix(jacobian))
     @views J = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
                     Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
                     Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
                     Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
-    display(J)                    
     LRE.remove_static!(J, wsLRE)
-    display(J)
     LRE.first_order_solver!(LRE_results, J, options.LRE_options, wsLRE)
     lre_variance_ws = LRE.VarianceWs(
         model.endogenous_nbr,

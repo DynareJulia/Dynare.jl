@@ -159,14 +159,7 @@ function make_containers(
         Dict{String,Matrix{Float64}}(),
     )
     results = Results([modelresults])
-    dynarefunctions = DynareFunctions(
-        commandlineoption.compilemodule,
-        modelfileinfo,
-        modfilename,
-        model.orig_maximum_lag,
-        model.orig_maximum_lead,
-    )
-    return Context(symboltable, [model], dynarefunctions, modelfileinfo, results, work)
+    return Context(symboltable, [model], modelfileinfo, results, work)
 end
 
 function make_context(modeljson, modfilename, commandlineoptions)

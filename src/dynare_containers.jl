@@ -172,6 +172,7 @@ struct Model
     static_tmp_nbr::Vector{Int64}
 end
 
+#=
 struct DynareFunctions
     dynamic!::Module
     static!::Module
@@ -217,6 +218,7 @@ struct DynareFunctions
             analytical_steadystate_variables)
     end
 end
+=#
 
 # purely backward model
 function assemble_lead_lag_incidence_1!(
@@ -910,7 +912,7 @@ const SymbolTable = Dict{String,DynareSymbol}
 struct Context
     symboltable::SymbolTable
     models::Vector{Model}
-    dynarefunctions::DynareFunctions
+#    dynarefunctions::DynareFunctions
     modfileinfo::ModFileInfo
     results::Results
     work::Work

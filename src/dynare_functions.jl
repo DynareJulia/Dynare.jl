@@ -41,9 +41,9 @@ function load_model_functions(modelname::String)
     global steady_state! =
         load_dynare_function("$(modelname)SteadyState2.jl", head = 8, tail = 1)
     global dynamic_auxiliary_variables! =
-        load_dynare_function("$(modelname)DynamicSetAuxiliarySeries.jl", head = 3, tail = 1)
+        load_dynare_function("$(modelname)DynamicSetAuxiliarySeries.jl")
     global static_auxiliary_variables! =
-        load_dynare_function("$(modelname)SetAuxiliaryVariables.jl", head = 3, tail = 1)
+        load_dynare_function("$(modelname)SetAuxiliaryVariables.jl")
     return nothing
 end
 
@@ -321,7 +321,6 @@ function load_set_dynamic_auxiliary_variables(modelname::String)
         end
     end
     exp1 = Meta.parse(join(source, "\n"))
-    #    convert_expression(exp1)
     return (@RuntimeGeneratedFunction(exp1))
 end
 

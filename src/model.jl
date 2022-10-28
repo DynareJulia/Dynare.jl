@@ -76,206 +76,6 @@ function StaticWs(context::Context)
                     m.static_g1_sparse_rowval)
 end
 
-#= UNUSED
-function inverse_order_of_dynare_decision_rule(m::Model)
-    inverse_order_var = Vector{Int64}(undef, m.endogenous_nbr)
-    for i = 1:m.n_static
-        inverse_order_var[m.i_static[i]] = i
-    end
-
-    offset = m.n_static
-    for i = 1:m.n_bkwrd
-        inverse_order_var[m.i_bkwrd[i]] = i + offset
-    end
-
-    offset += m.n_bkwrd
-    for i = 1:m.n_both
-        inverse_order_var[m.i_both[i]] = i + offset
-    end
-
-    offset += m.n_both
-    for i = 1:m.n_fwrd
-        inverse_order_var[m.i_fwrd[i]] = i + offset
-    end
-
-    inverse_order_states = sortperm(cat(m.i_bkwrd, m.i_both; dims = 1))
-
-    (inverse_order_var, inverse_order_states)
-end
-=#
-
-function get_initial_dynamic_endogenous_variables!(
-    y::AbstractVector{Float64},
-    data::AbstractVector{Float64},
-    initialvalues::AbstractVector{Float64},
-    lli::Matrix{Int64},
-    period::Int64,
-)
-    copy!(y, initialvalues)
-    m, n = size(lli)
-    p = (period - 2) * n
-    for j = 1:n
-        k = lli[1, j]
-        if k > 0
-            y[k] = initialvalues[p+j]
-        end
-    end
-    @inbounds for i = 2:m
-        for j = 1:n
-            k = lli[i, j]
-            if k > 0
-                y[k] = data[p+j]
-            end
-        end
-        p += n
-    end
-end
-
-function get_terminal_dynamic_endogenous_variables!(
-    y::AbstractVector{Float64},
-    data::AbstractVector{Float64},
-    terminalvalues::AbstractVector{Float64},
-    lli::Matrix{Int64},
-    period::Int64,
-)
-    m, n = size(lli)
-    p = (period - 2) * n
-    @inbounds for i = 1:m-1
-        for j = 1:n
-            k = lli[i, j]
-            if k > 0
-                y[k] = data[p+j]
-            end
-        end
-        p += n
-    end
-    for j = 1:n
-        k = lli[m, j]
-        if k > 0
-            y[k] = terminalvalues[j]
-        end
-    end
-end
-
-function get_dynamic_endogenous_variables!(
-    y::AbstractVector{Float64},
-    data::AbstractVector{Float64},
-    lli::Matrix{Int64},
-    period::Int64,
-)
-    m, n = size(lli)
-    p = (period - 2) * n
-    @inbounds for i = 1:m
-        for j = 1:n
-            k = lli[i, j]
-            if k > 0
-                y[k] = data[p+j]
-            end
-        end
-        p += n
-    end
-end
-
-function get_dynamic_endogenous_variables2!(
-    y::AbstractVector{Float64},
-    data::AbstractVector{Float64},
-    endogenous_nbr,
-    period::Int64,
-)
-    p = (period - 2) * endogenous_nbr
-    y .= view(data, p .+ (1:3*endogenous_nbr))
-end
-
-
-"""
-`get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64})
-
-sets the vector of dynamic variables ``y``, evaluated at the same values 
-for all leads and lags and taken in ``data`` vector 
-"""
-function get_dynamic_endogenous_variables!(
-    y::Vector{Float64},
-    data::AbstractVector{Float64},
-    lli::Matrix{Int64},
-)
-    for i = 1:size(lli, 2)
-        value = data[i]
-        for j = 1:size(lli, 1)
-            k = lli[j, i]
-            if k > 0
-                y[k] = value
-            end
-        end
-    end
-end
-
-function get_dynamic_endogenous_variables2!(
-    y::Vector{Float64},
-    data::AbstractVector{Float64},
-    endogenous_nbr::Int64,
-)
-    @views begin
-        k = 1:endogenous_nbr
-        @show k
-        @show data
-        @show y[k]
-        y[k] .= data
-        y[endogenous_nbr .+ k] .= data
-        y[2*endogenous_nbr .+ k] .= data
-    end
-    return y
-end
-
-"""
-`get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Matrix{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
-
-sets the vector of dynamic variables ``y`` with values in as many rows of ``data`` matrix
-as there are leads and lags in the model. ``period`` is the current period.
-"""
-function get_dynamic_endogenous_variables!(
-    y::Vector{Float64},
-    data::AbstractMatrix{Float64},
-    lli::Matrix{Int64},
-    m::Model,
-    period::Int64,
-)
-    for i = 1:size(lli, 2)
-        p = period - m.maximum_lag - 1
-        for j = 1:size(lli, 1)
-            k = lli[j, i]
-            if k > 0
-                y[k] = data[p+j, i]
-            end
-        end
-    end
-end
-
-"""
-`get_dynamic_endogenous_variables!`(y::Vector{Float64}, data::Vector{Float64}, lli::Matrix{Int64}, m::Model, period::Int64)
-
-sets the vector of dynamic variables ``y`` with values in as many rows of ``data`` matrix
-as there are leads and lags in the model. ``period`` is the current period.
-"""
-function get_dynamic_endogenous_variables!(
-    y::Vector{Float64},
-    data::AbstractVector{Float64},
-    lli::Matrix{Int64},
-    m::Model,
-    period::Int64,
-)
-    n = m.endogenous_nbr
-    p = (period - m.maximum_lag - 1) * n
-    for j = 1:size(lli, 1)
-        for i = 1:n
-            k = lli[j, i]
-            if k > 0
-                y[k] = data[p+i]
-            end
-        end
-        p += n
-    end
-end
-
 function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
     @debug "any(isnan.(x))=$(any(isnan.(x))) "
     x1 = reshape(x, Int(length(x) / exogenous_nbr), exogenous_nbr)
@@ -283,60 +83,12 @@ function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
     return x1
 end
 
-function get_dynamic_variables!(
-    ws::DynamicWs,
-    endogenous::AbstractVector{Float64},
-    exogenous::AbstractVector{Float64},
-    m::Model,
-    period::Int64,
-)
-    lli = m.lead_lag_incidence
-    @show endogenous
-    get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli)
-    lx = length(ws.exogenous_variables)
-    nrx = period + m.maximum_exo_lead
-    required_lx = nrx * m.exogenous_nbr
-    if lx < required_lx
-        resize!(ws.exogenous_variables, required_lx)
-        lx = required_lx
-    end
-    @debug "any(isnan.(ws.exognoues_variables))=$(any(isnan.(ws.exogenous_variables)))"
-    x = get_exogenous_matrix(ws.exogenous_variables, m.exogenous_nbr)
-    x .= transpose(exogenous)
-end
-
-#= UNUSED x is wrong!
-function get_dynamic_residuals!(
-    ws::DynamicWs,
-    params::Vector{Float64},
-    endogenous::AbstractVector{Float64},
-    exogenous::AbstractVector{Float64},
-    steadystate::Vector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    period::Int64,
-)
-    x = get_dynamic_variables!(ws, endegenous, exogenous, m, period)
-    Base.invokelatest(
-        df.dynamic!.dynamic!,
-        ws.temporary_values,
-        ws.residuals,
-        ws.dynamic_variables,
-        x,
-        params,
-        steadystate,
-        period,
-    )
-    return ws.residuals
-end
-=#
-
 function get_static_residuals!(
     ws::StaticWs,
     params::Vector{Float64},
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
-    df::DynareFunctions,
+#    df::DynareFunctions,
 )
     DFunctions.static!(
         ws.temporary_values,
@@ -347,24 +99,6 @@ function get_static_residuals!(
     )
     return ws.residuals
 end
-
-#= UNUSED
-function dynamic_jacobian_matrix(ws::DynamicWs, m::Model)
-    dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    vecjacobian =
-        resize!(ws.derivatives[1], m.endogenous_nbr * (dynamic_nbr + m.exogenous_nbr))
-    jacobian = reshape(vecjacobian, m.endogenous_nbr, dynamic_nbr + m.exogenous_nbr)
-    fill!(jacobian, 0.0)
-    return jacobian
-end
-
-function static_jacobian_matrix(ws::StaticWs, n::Int64)
-    vecjacobian = resize!(ws.derivatives[1], n * n)
-    jacobian = reshape(vecjacobian, n, n)
-    fill!(jacobian, 0.0)
-    return jacobian
-end
-=#
 
 """
 `get_dynamic_jacobian!`(ws::DynamicWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
@@ -378,7 +112,7 @@ function get_dynamic_jacobian!(
     exogenous::AbstractVector{Float64},
     steadystate::Vector{Float64},
     m::Model,
-    df::DynareFunctions,
+#    df::DynareFunctions,
     period::Int64,
 )
     DFunctions.dynamic!(
@@ -393,122 +127,6 @@ function get_dynamic_jacobian!(
     return ws.derivatives[1]
 end
 
-function get_initial_jacobian!(
-    ws::DynamicWs,
-    params::Vector{Float64},
-    endogenous::AbstractVector{Float64},
-    initialvalues::AbstractVector{Float64},
-    exogenous::AbstractMatrix{Float64},
-    steadystate::Vector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    period::Int64,
-)
-    lli = m.lead_lag_incidence
-    get_initial_dynamic_endogenous_variables!(
-        ws.dynamic_variables,
-        endogenous,
-        initialvalues,
-        lli,
-        period,
-    )
-    jacobian = dynamic_jacobian_matrix(ws, m)
-    fill!(jacobian, 0.0)
-    Base.invokelatest(
-        df.dynamic!.dynamic!,
-        ws.temporary_values,
-        ws.residuals,
-        jacobian,
-        ws.dynamic_variables,
-        exogenous,
-        params,
-        steadystate,
-        period,
-    )
-    return jacobian
-end
-
-function get_terminal_jacobian!(
-    ws::DynamicWs,
-    params::Vector{Float64},
-    endogenous::AbstractVector{Float64},
-    terminalvalues::AbstractVector{Float64},
-    exogenous::AbstractMatrix{Float64},
-    steadystate::Vector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    period::Int64,
-)
-    lli = m.lead_lag_incidence
-    get_terminal_dynamic_endogenous_variables!(
-        ws.dynamic_variables,
-        endogenous,
-        terminalvalues,
-        lli,
-        period,
-    )
-    jacobian = dynamic_jacobian_matrix(ws, m)
-    Base.invokelatest(
-        df.dynamic!.dynamic!,
-        ws.temporary_values,
-        ws.residuals,
-        jacobian,
-        ws.dynamic_variables,
-        exogenous,
-        params,
-        steadystate,
-        period,
-    )
-    return jacobian
-end
-
-
-"""
-`get_dynamic_jacobian!`(ws::DynamicWs,
-                        params::Vector{Float64},
-                        endogenous::AbstractVecOrMat{Float64},
-                        exogenous::Matrix{Float64},
-                        steadystate::Vector{Float64},
-                        m::Model,
-                        df::DynareFunctions,
-                        period::Int64
-                       )
-
-sets the dynamic Jacobian matrix ``ws.jacobian``, evaluated with ``endogenous`` and ``exogenous`` values taken
-around ``period`` 
-"""
-function get_dynamic_jacobian!(
-    ws::DynamicWs,
-    params::Vector{Float64},
-    endogenous::AbstractVecOrMat{Float64},
-    exogenous::Matrix{Float64},
-    steadystate::Vector{Float64},
-    m::Model,
-    df::DynareFunctions,
-    period::Int64,
-)
-    lli = m.lead_lag_incidence
-    @show length(endogenous)
-    get_dynamic_endogenous_variables!(ws.dynamic_variables, endogenous, lli, m, period)
-    dynamic_nbr = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    jacobian = dynamic_jacobian_matrix(ws, m)
-    y = ws.dynamic_variables
-    x = exogenous
-    it_ = period
-    Base.invokelatest(
-        df.dynamic!.dynamic!,
-        ws.temporary_values,
-        ws.residuals,
-        jacobian,
-        ws.dynamic_variables,
-        exogenous,
-        params,
-        steadystate,
-        period,
-    )
-    return jacobian
-end
-
 """
 `get_static_jacobian!`(ws::StaticWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64})
 
@@ -520,7 +138,7 @@ function get_static_jacobian!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     m::Model,
-    df::DynareFunctions,
+#    df::DynareFunctions,
 )
     @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
     DFunctions.static!(
