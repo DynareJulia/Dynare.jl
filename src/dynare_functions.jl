@@ -9,8 +9,6 @@ RuntimeGeneratedFunctions.init(@__MODULE__)
 
 function load_model_functions(modelname::String)
     function_root = "$(modelname)/model/julia/"
-    @show function_root
-    @show "$(function_root)SparseDynamicG1!.jl"
     global SparseDynamicG1! = load_dynare_function("$(function_root)SparseDynamicG1!.jl")
     global SparseDynamicG1TT! =
         load_dynare_function("$(function_root)SparseDynamicG1TT!.jl")
