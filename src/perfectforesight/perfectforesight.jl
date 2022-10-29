@@ -80,7 +80,7 @@ end
 
 struct PerfectForesightWs
     y::Vector{Float64}
-    x::Matrix{Float64}
+    x::Vector{Float64}
     shocks::Matrix{Float64}
     J::SparseMatrixCSC
     lb::Vector{Float64}
@@ -93,9 +93,9 @@ struct PerfectForesightWs
         if m.exogenous_nbr > 0
             exogenous_steady_state =
                 context.results.model_results[1].trends.exogenous_steady_state
-            x = repeat(transpose(exogenous_steady_state), periods, 1)
+            x = repeat(exogenous_steady_state, periods)
         else
-            x = Matrix{Float64}(undef, 0, 0)
+            x = Vector{Float64}(undef, 0, 0)
         end
         if length(context.work.shocks) > 0
             shocks_tmp = context.work.shocks
@@ -205,7 +205,7 @@ end
 function simul_first_order!(
     context::Context,
     periods::Int64,
-    X::AbstractMatrix{Float64},
+    X::AbstractVector{Float64},
     dynamic_ws::DynamicWs,
 )
     pre_options = Dict{String,Any}("periods" => periods)
@@ -362,7 +362,7 @@ function get_residuals!(
     endogenous::AbstractVector{Float64},
     initialvalues::AbstractVector{Float64},
     terminalvalues::AbstractVector{Float64},
-    exogenous::AbstractMatrix{Float64},
+    exogenous::AbstractVector{Float64},
     dynamic_variables::AbstractVector{Float64},
     steadystate::AbstractVector{Float64},
     params::AbstractVector{Float64},
@@ -373,11 +373,12 @@ function get_residuals!(
 )
     n = m.endogenous_nbr
 
+    rx = 1:m.exogenous_nbr
     @views get_residuals_1!(
         residuals,
         endogenous,
         initialvalues,
-        exogenous[1, :],
+        exogenous[rx],
         dynamic_variables,
         steadystate,
         params,
@@ -385,10 +386,11 @@ function get_residuals!(
         permutations = permutations,
     )
     for t = 2:periods-1
+        rx = rx .+ m.exogenous_nbr
         @views get_residuals_2!(
             residuals,
             endogenous,
-            exogenous[t, :],
+            exogenous[rx],
             steadystate,
             params,
             temp_vec,
@@ -396,11 +398,12 @@ function get_residuals!(
             permutations = permutations,
         )
     end
+    rx = rx .+ m.exogenous_nbr
     @views get_residuals_3!(
         residuals,
         endogenous,
         terminalvalues,
-        exogenous[periods, :],
+        exogenous[rx],
         dynamic_variables,
         steadystate,
         params,

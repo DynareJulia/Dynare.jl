@@ -92,6 +92,7 @@ function dynamic_derivatives!(
     params::AbstractVector{<:Real},
     steady_state::AbstractVector{<:Real},
 )
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
     SparseDynamicG1TT!(T, y, x, params, steady_state)
     SparseDynamicG1!(T, nzval, y, x, params, steady_state)
     return nothing
@@ -107,6 +108,8 @@ function dynamic_derivatives2!(
     params::AbstractVector{<:Real},
     steady_state::AbstractVector{<:Real},
 )
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
+    SparseDynamicG1TT!(T, y, x, params, steady_state)
     SparseDynamicG2TT!(T, y, x, params, steady_state)
     SparseDynamicG2!(T, g2.nzval, y, x, params, steady_state)
     return nothing
@@ -123,6 +126,9 @@ function dynamic_derivatives3!(
     params::Vector{<:Real},
     steady_state::Vector{<:Real},
 )
+    SparseDynamicResidTT!(T, y, x, params, steady_state)
+    SparseDynamicG1TT!(T, y, x, params, steady_state)
+    SparseDynamicG2TT!(T, y, x, params, steady_state)
     SparseDynamicG3TT!(T, y, x, params, steady_state)
     SparseDynamicG3!(T, g3.nzval, y, x, params, steady_state)
     return nothing
@@ -207,6 +213,7 @@ function static_derivatives!(
     x::AbstractVector{<:Real},
     params::Vector{<:Real},
 )
+    SparseStaticResidTT!(T, y, x, params)
     SparseStaticG1TT!(T, y, x, params)
     SparseStaticG1!(T, g1.nzval, y, x, params)
     return nothing
@@ -219,6 +226,8 @@ function static_derivatives2!(
     x::AbstractVector{<:Real},
     params::Vector{<:Real},
 )
+    SparseStaticResidTT!(T, y, x, params)
+    SparseStaticG1TT!(T, y, x, params)
     SparseStaticG2TT!(T, y, x, params)
     SparseStaticG2!(T, g2.nzval, y, x, params)
     return nothing
@@ -231,6 +240,9 @@ function static_derivatives3!(
     x::AbstractVector{<:Real},
     params::Vector{<:Real},
 )
+    SparseStaticResidTT!(T, y, x, params)
+    SparseStaticG1TT!(T, y, x, params)
+    SparseStaticG2TT!(T, y, x, params)
     SparseStaticG3TT!(T, y, x, params)
     SparseStaticG3!(T, g3.nzval, y, x, params)
     return nothing
