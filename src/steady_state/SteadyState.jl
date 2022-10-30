@@ -85,9 +85,10 @@ Compute the steady state of the model and set the result in `context`
 function steady!(context::Context, field::Dict{String,Any})
     modfileinfo = context.modfileinfo
     options = SteadyOptions(get(field, "options", Dict{String,Any}()))
+    @show context.work.analytical_steadystate_variables
     if (
         modfileinfo.has_steadystate_file &&
-        length(context.dynarefunctions.analytical_steady_state_variables) ==
+        length(context.work.analytical_steadystate_variables) ==
         context.models[1].endogenous_nbr
     )
         compute_steady_state!(context)
@@ -299,7 +300,7 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     mult = zeros(mult_nbr)
     orig_endo_aux_nbr = mult_indices[1] - 1
     unknown_variable_indices =
-        setdiff!(collect(1:m.original_endogenous_nbr), df.analytical_steady_state_variables)
+        setdiff!(collect(1:m.original_endogenous_nbr), w.analytical_steady_state_variables)
     unknown_variable_nbr = length(unknown_variable_indices)
     M = zeros(orig_endo_nbr, mult_nbr)
     U1 = zeros(orig_endo_nbr)

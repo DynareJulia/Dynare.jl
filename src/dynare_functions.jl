@@ -36,13 +36,14 @@ function load_model_functions(modelname::String)
         load_dynare_function("$(modelname)DynamicParamsDerivs.jl", head = 8, tail = 1)
     global SparseStaticParametersDerivatives! =
         load_dynare_function("$(modelname)StaticParamsDerivs.jl", head = 8, tail = 1)
-    global steady_state! =
-        load_dynare_function("$(modelname)SteadyState2.jl", head = 8, tail = 1)
+    global steady_state!
+    (steady_state!, analytical_variables) =
+        load_steady_state_function("$(modelname)SteadyState2.jl")
     global dynamic_auxiliary_variables! =
         load_dynare_function("$(modelname)DynamicSetAuxiliarySeries.jl")
     global static_auxiliary_variables! =
         load_dynare_function("$(modelname)SetAuxiliaryVariables.jl")
-    return nothing
+    return analytical_variables
 end
 
 
@@ -334,5 +335,33 @@ function load_set_dynamic_auxiliary_variables(modelname::String)
     return (@RuntimeGeneratedFunction(exp1))
 end
 
+function load_steady_state_function(modname::String)
+    fun = readlines(modname)
+    if fun[6] == "using StatsFuns"
+        fun[6] = "using Dynare.StatsFuns"
+    else
+        insert!(fun, 6, "using Dynare.StatsFuns")
+    end
+    fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
+    expr = Meta.parse(join(fun[8:end-1], "\n"))
+    analytical_variables = get_analytical_variables(expr)
+    return (@RuntimeGeneratedFunction(expr), analytical_variables)
+end
+
+function get_analytical_variables(expr::Expr)
+    block = expr.args[2].args[3].args[3]
+    @assert  block.head == :block
+    indices = Int64[]
+    for a in block.args
+        if (isa(a, Expr)
+            && a.head == :(=)
+            && isa(a.args[1], Expr)
+            && a.args[1].args[1] == :ys_)
+            push!(indices, a.args[1].args[2])
+        end
+    end
+
+    return sort(unique(indices))
+end
 
 end # end module

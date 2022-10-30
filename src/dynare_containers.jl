@@ -172,53 +172,6 @@ struct Model
     static_tmp_nbr::Vector{Int64}
 end
 
-#=
-struct DynareFunctions
-    dynamic!::Module
-    static!::Module
-    set_auxiliary_variables!::Function
-    set_dynamic_auxiliary_variables!::Function
-    steady_state!::Function
-    analytical_steady_state_variables::Vector{Int64}
-    function DynareFunctions(compileoption, modfileinfo, modfilename, orig_maximum_lag, orig_maximum_lead)
-        if modfileinfo.has_dynamic_file
-            dynamic! = load_dynare_function(modfilename * "Dynamic", compileoption)
-        else
-            dynamic! = Module()
-        end
-        static! = load_dynare_function(modfilename * "Static", compileoption)
-        if modfileinfo.has_auxiliary_variables
-            set_dynamic_auxiliary_variables! =
-                DFunctions.load_set_dynamic_auxiliary_variables(modfilename)
-            set_auxiliary_variables! =
-                load_dynare_function2(modfilename * "SetAuxiliaryVariables")
-        elseif orig_maximum_lead > 1 || orig_maximum_lag > 1
-            # auxiliary variables are present
-            set_dynamic_auxiliary_variables! =
-                (x...) -> error(modfilename * "DynamicSetAuxiliarySeries is missing")
-            set_auxiliary_variables! =
-                (x...) -> error(modfilename * "SetAuxiliaryVariables is missing")
-        else
-            # no auxiliary variables
-            set_dynamic_auxiliary_variables! = (a, b) -> nothing
-            set_auxiliary_variables! = (a, b, c) -> nothing
-        end
-        if modfileinfo.has_steadystate_file
-            (steady_state!, analytical_steadystate_variables) = load_steady_state_function(modfilename * "SteadyState2", compileoption)
-        else
-            steady_state! = (a, b, c) -> nothing
-            analytical_steadystate_variables = Int64[]
-        end
-        new(
-            dynamic!,
-            static!,
-            set_auxiliary_variables!,
-            set_dynamic_auxiliary_variables!,
-            steady_state!,
-            analytical_steadystate_variables)
-    end
-end
-=#
 
 # purely backward model
 function assemble_lead_lag_incidence_1!(
@@ -835,6 +788,7 @@ import Base: length
 Base.length(ep::EstimatedParameters) = length(ep.prior)
 
 mutable struct Work
+    analytical_steadystate_variables::Vector{Int}
     params::Vector{Float64}
     residuals::Vector{Float64}
     dynamic_variables::Vector{Float64}
@@ -851,6 +805,7 @@ mutable struct Work
     perfect_foresight_setup::Dict{String,Any}
     estimated_parameters::EstimatedParameters
     function Work(model, varobs)
+        analytical_steadystate_variables = Int[]
         endo_nbr = model.endogenous_nbr
         exo_nbr = model.exogenous_nbr
         exo_det_nbr = model.exogenous_deterministic_nbr
@@ -876,6 +831,7 @@ mutable struct Work
         perfect_foresight_setup = Dict("periods" => 0, "datafile" => "")
         estimated_parameters = EstimatedParameters()
         new(
+            analytical_steadystate_variables,
             params,
             residuals,
             dynamic_variables,
@@ -958,6 +914,7 @@ function show_field_value(s::Any)
     end
 end
 
+#=
 function Base.vcat(v1::Vector{T}, v2::Vector{T}) where {T}
     n1 = length(v1)
     n2 = length(v2)
@@ -967,6 +924,7 @@ function Base.vcat(v1::Vector{T}, v2::Vector{T}) where {T}
     unsafe_copyto!(arr, n1 + 1, v2, 1, n2)
     return arr
 end
+=#
 
 function Base.vcat(v1::Vector{T}, v2::Vector{T}, v3::Vector{T}) where {T}
     n1 = length(v1)
@@ -979,7 +937,7 @@ function Base.vcat(v1::Vector{T}, v2::Vector{T}, v3::Vector{T}) where {T}
     unsafe_copyto!(arr, n1 + n2 + 1, v3, 1, n3)
     return arr
 end
-
+#=
 function load_dynare_function(modname::String, compileoption::Bool)#::Module
     @suppress begin
         fun = readlines(modname * ".jl")
@@ -996,33 +954,4 @@ function load_dynare_function2(modname::String)::Function
     fun = readlines(modname * ".jl")
     return (@RuntimeGeneratedFunction(Meta.parse(join(fun[3:(end-1)], "\n"))))
 end
-
-function load_steady_state_function(modname::String, compileoption::Bool)
-    fun = readlines(modname * ".jl")
-    if fun[6] == "using StatsFuns"
-        fun[6] = "using Dynare.StatsFuns"
-    else
-        insert!(fun, 6, "using Dynare.StatsFuns")
-    end
-    fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
-    expr = Meta.parse(join(fun[8:end-1], "\n"))
-    analytical_variables = get_analytical_variables(expr)
-    return (@RuntimeGeneratedFunction(expr), analytical_variables)
-end
-
-function get_analytical_variables(expr::Expr)
-    block = expr.args[2]
-    @assert  block.head == :block
-    indices = Int64[]
-    
-    for a in block.args
-        if (isa(a, Expr)
-            && a.head == :(=)
-            && isa(a.args[1], Expr)
-            && a.args[1].args[1] == :ys_)
-            push!(indices, a.args[1].args[2])
-        end
-    end
-
-    return sort(unique(indices))
-end
+=#

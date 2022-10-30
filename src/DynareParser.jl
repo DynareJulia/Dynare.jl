@@ -211,7 +211,7 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
 
     modeljson = parseJSON(modfilename)
     context = make_context(modeljson, modfilename, commandlineoptions)
-    DFunctions.load_model_functions(modfilename)
+    context.work.analytical_steadystate_variables = DFunctions.load_model_functions(modfilename)
     if haskey(modeljson, "statements")
         parse_statements!(context, modeljson["statements"])
     end
