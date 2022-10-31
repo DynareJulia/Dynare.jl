@@ -25,9 +25,12 @@ irfs_u_b = irf("u", "b")
       Dynare.dataframe(context.results.model_results[1].irfs[:u])[!, [:b]]
 @dynare "models/example2/example2.mod"
 @dynare "models/example3/example3.mod"
+@dynare "models/example3ss/example3ss.mod"
+@dynare "models/example3ss/example3ss_analytical.mod"
+@dynare "models/example3ss/example3ss_partial.mod"
 @dynare "models/example3report/example3report.mod"
 @dynare "models/cgg/cgg_ramsey.mod"
-@dynare "models/stochastic_trend_drift/trend1.mod"
+#@dynare "models/stochastic_trend_drift/trend1.mod"
 context = @dynare "models/example1pf/example1pf"
 sim = Dynare.simulation()
 @test length(sim) == 1
