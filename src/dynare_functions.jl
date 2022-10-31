@@ -336,16 +336,20 @@ function load_set_dynamic_auxiliary_variables(modelname::String)
 end
 
 function load_steady_state_function(modname::String)
-    fun = readlines(modname)
-    if fun[6] == "using StatsFuns"
-        fun[6] = "using Dynare.StatsFuns"
+    if isfile(modname)
+        fun = readlines(modname)
+        if fun[6] == "using StatsFuns"
+            fun[6] = "using Dynare.StatsFuns"
+        else
+            insert!(fun, 6, "using Dynare.StatsFuns")
+        end
+        fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
+        expr = Meta.parse(join(fun[8:end-1], "\n"))
+        analytical_variables = get_analytical_variables(expr)
+        return (@RuntimeGeneratedFunction(expr), analytical_variables)
     else
-        insert!(fun, 6, "using Dynare.StatsFuns")
+        return (nothing, [])
     end
-    fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
-    expr = Meta.parse(join(fun[8:end-1], "\n"))
-    analytical_variables = get_analytical_variables(expr)
-    return (@RuntimeGeneratedFunction(expr), analytical_variables)
 end
 
 function get_analytical_variables(expr::Expr)

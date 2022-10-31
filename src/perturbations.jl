@@ -370,7 +370,7 @@ function compute_stoch_simul!(
 )
     model = context.models[1]
     results = context.results.model_results[1]
-    compute_steady_state!(context)
+    compute_steady_state!(context, Dict{String, Any}())
     endogenous = results.trends.endogenous_steady_state
     endogenous3 = repeat(endogenous, 3)
     exogenous = results.trends.exogenous_steady_state

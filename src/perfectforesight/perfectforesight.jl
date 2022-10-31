@@ -103,7 +103,7 @@ struct PerfectForesightWs
             shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
             shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
             # adding shocks to exogenous variables
-            view(x, 1:pmax, :) .+= shocks
+            view(x, 1:pmax*m.exogenous_nbr) .+= vec(transpose(shocks))
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
@@ -191,7 +191,7 @@ function perfect_foresight_initialization!(
     if algo == initvalfile
     elseif algo == linearinterpolation
     elseif algo == steadystate
-        compute_steady_state!(context)
+        compute_steady_state!(context, Dict{String,Any}())
         endogenous_steady_state =
             context.results.model_results[1].trends.endogenous_steady_state
         guess_values = repeat(endogenous_steady_state, 1, periods)

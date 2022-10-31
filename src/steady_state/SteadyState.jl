@@ -83,25 +83,33 @@ end
 Compute the steady state of the model and set the result in `context`
 """
 function steady!(context::Context, field::Dict{String,Any})
+    options = SteadyOptions(get(field, "options", field))
+    compute_steady_state!(context, field)
+    if options.display
+        steadystate_display(context)
+    end
+end
+
+function compute_steady_state!(context::Context, field::Dict{String,Any})
+    options = SteadyOptions(get(field, "options", field))
     modfileinfo = context.modfileinfo
-    options = SteadyOptions(get(field, "options", Dict{String,Any}()))
-    @show context.work.analytical_steadystate_variables
+    results = context.results.model_results[1]
+    work = context.work
+    endogenous_nbr = context.models[1].endogenous_nbr
     if (
         modfileinfo.has_steadystate_file &&
         length(context.work.analytical_steadystate_variables) ==
-        context.models[1].endogenous_nbr
+        endogenous_nbr
     )
-        compute_steady_state!(context)
+        evaluate_steady_state!(results, work.params)
     else
-        results = context.results.model_results[1]
-        work = context.work
         initval_endogenous = work.initval_endogenous
         initval_exogenous = work.initval_exogenous
         # will fail if missing values are encountered
         if size(initval_endogenous, 1) > 0
             x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
         else
-            x0 = Float64[]
+            x0 = zeros(endogenous_nbr)
         end
         if size(initval_exogenous, 1) > 0
             copy!(
@@ -133,11 +141,9 @@ function steady!(context::Context, field::Dict{String,Any})
             end
         end        
     end
-    if options.display
-        steadystate_display(context)
-    end
 end
 
+    
 """
     steadystate_display(context::Context)
 
@@ -157,17 +163,6 @@ function steadystate_display(context::Context)
     end
     title = "Steady state"
     dynare_table(data, title, columnheader = false)
-end
-
-"""
-    function `compute_steady_state!`(context::Context)
-
-Compute the steady state of the model using solution provided by the user
-"""
-function compute_steady_state!(context::Context)
-    results = context.results.model_results[1]
-    work = context.work
-    evaluate_steady_state!(results, work.params)
 end
 
 """
@@ -287,7 +282,6 @@ Solve numerically for the steady state of a Ramsey problem
 function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
     ws = StaticWs(context)
     m = context.models[1]
-    df = context.dynarefunctions
     w = context.work
     params = w.params
     endogenous = zeros(m.endogenous_nbr)
@@ -300,7 +294,7 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     mult = zeros(mult_nbr)
     orig_endo_aux_nbr = mult_indices[1] - 1
     unknown_variable_indices =
-        setdiff!(collect(1:m.original_endogenous_nbr), w.analytical_steady_state_variables)
+        setdiff!(collect(1:m.original_endogenous_nbr), w.analytical_steadystate_variables)
     unknown_variable_nbr = length(unknown_variable_indices)
     M = zeros(orig_endo_nbr, mult_nbr)
     U1 = zeros(orig_endo_nbr)
@@ -312,12 +306,12 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         view(endogenous, unknown_variable_indices) .= x
         # Lagrange multipliers are kept to zero
         context.modfileinfo.has_auxiliary_variables &&
-            context.dynarefunctions.set_auxiliary_variables!(endogenous, exogenous, params)
+            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
         context.modfileinfo.has_steadystate_file &&
-            context.dynarefunctions.steady_state!(endogenous, exogenous, params)
-        residuals = get_static_residuals!(ws, w.params, endogenous, exogenous, df)
+            DFunctions.steady_state!(endogenous, exogenous, params)
+        residuals = get_static_residuals!(ws, w.params, endogenous, exogenous)
         U1 .= view(residuals, 1:orig_endo_nbr)
-        A = get_static_jacobian!(ws, w.params, endogenous, exogenous, m, df)
+        A = get_static_jacobian!(ws, w.params, endogenous, exogenous, m)
         M .= view(A, 1:orig_endo_nbr, mult_indices)
         mult = view(endogenous, mult_indices)
         mult .= -M \ U1
