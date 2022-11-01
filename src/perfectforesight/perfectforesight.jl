@@ -324,21 +324,14 @@ function perfectforesight_core!(
         J!(JJ, vec(y))
     end
 
-    @debug "$(now()): start makeJacobian"
-    A0 = JJ
-    @debug "$(now()): end makeJacobian"
-    @debug "$(now()): start f!"
-    f!(residuals, vec(y0))
-    @debug "$(now()): end f!"
-    @debug "$(now()): start J!"
-    J!(A0, y0)
-    @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(y0), residuals, A0)
+    df = OnceDifferentiable(f!, J!, vec(y0), residuals, JJ)
     @debug "$(now()): start nlsolve"
 
-    rr = copy(residuals)
-    F = lu(A0)
+#    rr = copy(residuals)
+    #    F = lu(A0)
+    @show "OK 1"
     res = nlsolve(df, vec(y0), method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()))
+    @show "OK 2"
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(
