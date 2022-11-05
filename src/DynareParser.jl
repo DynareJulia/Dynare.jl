@@ -120,16 +120,20 @@ function get_varobs(modeljson::Dict{String,Any})
 end
 
 function check_function_files!(modfileinfo::ModFileInfo, modfilename::String)
-    if isfile(modfilename * "Dynamic.jl")
+    dirname = modfilename * "/model/julia/"
+    if isfile(dirname * "SparseDynamicResid!.jl")
         modfileinfo.has_dynamic_file = true
     end
-    if isfile(modfilename * "DynamicSetAuxiliarySeries.jl")
+    if isfile(dirname * "SparseStaticResid!.jl")
+        modfileinfo.has_static_file = true
+    end
+    if isfile(dirname * "DynamicSetAuxiliarySeries.jl")
         modfileinfo.has_auxiliary_variables = true
-        if !isfile(modfilename * "SetAuxiliaryVariables.jl")
-            error(modfilename * "SetAuxiliaryVariables.jl is missing")
+        if !isfile(dirname * "SetAuxiliaryVariables.jl")
+            error(dirname * "SetAuxiliaryVariables.jl is missing")
         end
     end
-    if isfile(modfilename * "SteadyState2.jl")
+    if isfile(dirname * "SteadyState2.jl")
         modfileinfo.has_steadystate_file = true
     end
 end
