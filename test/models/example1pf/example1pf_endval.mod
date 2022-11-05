@@ -33,9 +33,9 @@ end;
 
 steady_state_model;
   K_Y = beta*alpha /(1 - beta*(1 - delta));
-  H_Y = K_Y^(-alpha/(1 - alpha));
+  H_Y = (A*K_Y^alpha)^(-1/(1 - alpha));
   C_Y = 1 - delta*K_Y;
-  y = A*(theta*C_Y*H_Y^(1 + psi)/(1 - alpha))^(-1/(1 + psi));
+  y = (theta*C_Y*H_Y^(1 + psi)/(1 - alpha))^(-1/(1 + psi));
   c = C_Y*y;
   k = K_Y*y;
   h = H_Y*y;
@@ -44,10 +44,11 @@ steady_state_model;
 end;
 
 endval;
-  A = 1.1;
+  A = 1.01;
 end;
 
 steady;
+
 initval;
   A = 1;
 end;

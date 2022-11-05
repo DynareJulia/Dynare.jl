@@ -42,7 +42,9 @@ steady_state_model;
   a = 0;
   b = 0;
 end;
-  
+
+steady;
+
 shocks;
   var e;
   periods 1;
@@ -52,7 +54,7 @@ shocks;
   values 0.015;
 end;
   
-perfect_foresight_setup(periods = 300);
+perfect_foresight_setup(periods = 1000);
 perfect_foresight_solver;
 
 

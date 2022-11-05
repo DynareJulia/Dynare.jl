@@ -34,12 +34,15 @@ irfs_u_b = irf("u", "b")
 context = @dynare "models/example1pf/example1pf"
 sim = Dynare.simulation()
 @test length(sim) == 1
-@test size(Dynare.dataframe(sim[1].data)) == (300, 6)
+@test size(Dynare.dataframe(sim[1].data)) == (1000, 6)
 @test Dynare.periods(sim[1].data) ==
-      range(Dynare.UndatedDate(1), stop = Dynare.UndatedDate(300), step = Dynare.Undated(1))
+      range(Dynare.UndatedDate(1), stop = Dynare.UndatedDate(1000), step = Dynare.Undated(1))
 sim_a = Dynare.simulation(:a)
 @test Dynare.dataframe(sim_a) ==
       Dynare.dataframe(context.results.model_results[1].simulations[1].data)[!, [:a]]
 sim_a = Dynare.simulation("a")
 @test Dynare.dataframe(sim_a) ==
-      Dynare.dataframe(context.results.model_results[1].simulations[1].data)[!, [:a]]
+    Dynare.dataframe(context.results.model_results[1].simulations[1].data)[!, [:a]]
+@test [values(Dynare.dataframe(simulation(1))[1000,:])...] ≈ context.results.model_results[1].trends.endogenous_steady_state
+context = @dynare "models/example1pf/example1pf_endval"
+@test [values(Dynare.dataframe(simulation(1))[300,:])...] ≈ context.results.model_results[1].trends.endogenous_terminal_steady_state
