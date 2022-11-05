@@ -697,7 +697,7 @@ end
 
 Base.show(io::IO, s::Simulation) = show_field_value(s)
 
-struct Trends
+mutable struct Trends
     endogenous_steady_state::Vector{Float64}
     endogenous_terminal_steady_state::Vector{Float64}
     endogenous_linear_trend::Vector{Float64}
@@ -820,6 +820,9 @@ mutable struct Work
     initval_endogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
+    endval_endogenous::Matrix{Union{Float64,Missing}}
+    endval_exogenous::Matrix{Union{Float64,Missing}}
+    endval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String,Any}
     estimated_parameters::EstimatedParameters
@@ -845,6 +848,9 @@ mutable struct Work
         initval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
+        endval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
+        endval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
+        endval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         # shocks
         shocks = Vector{Float64}(undef, 0)
         perfect_foresight_setup = Dict("periods" => 0, "datafile" => "")
@@ -863,6 +869,9 @@ mutable struct Work
             initval_endogenous,
             initval_exogenous,
             initval_exogenous_deterministic,
+            endval_endogenous,
+            endval_exogenous,
+            endval_exogenous_deterministic,
             shocks,
             perfect_foresight_setup,
             estimated_parameters,

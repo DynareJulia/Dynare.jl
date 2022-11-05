@@ -77,58 +77,167 @@ struct SteadyOptions
     end
 end
 
+function set_or_zero!(x, a, n)
+    resize!(x, n)
+    if !isempty(a)
+        copyto!(x,a)
+    else
+        fill!(x, 0.0)
+    end
+end
+        
 """
     steady!(context::Context, field::Dict{String, Any})
 
 Compute the steady state of the model and set the result in `context`
 """
 function steady!(context::Context, field::Dict{String,Any})
+    model = context.models[1]
+    modfileinfo = context.modfileinfo
     options = SteadyOptions(get(field, "options", field))
+    trends = context.results.model_results[1].trends
+    work = context.work
+    
+    set_or_zero!(trends.endogenous_steady_state,
+                 work.initval_endogenous,
+                 model.endogenous_nbr)
+    set_or_zero!(trends.exogenous_steady_state,
+                 work.initval_exogenous,
+                 model.exogenous_nbr)
+    if modfileinfo.has_endval
+        set_or_zero!(trends.endogenous_terminal_steady_state,
+                     work.endval_endogenous,
+                     model.endogenous_nbr)
+        set_or_zero!(trends.exogenous_terminal_steady_state,
+                     work.endval_exogenous,
+                     model.exogenous_nbr)
+    end
     compute_steady_state!(context, field)
     if options.display
-        steadystate_display(context)
+        if isempty(trends.endogenous_terminal_steady_state)
+            steadystate_display(trends.endogenous_steady_state, context)
+        else
+            steadystate_display(trends.endogenous_steady_state, context, title_complement = "Initial")
+            steadystate_display(trends.endogenous_terminal_steady_state, context, title_complement = "Terminal")
+        end
     end
 end
 
 function compute_steady_state!(context::Context, field::Dict{String,Any})
     options = SteadyOptions(get(field, "options", field))
+    model = context.models[1]
     modfileinfo = context.modfileinfo
-    results = context.results.model_results[1]
+    trends = context.results.model_results[1].trends
     work = context.work
     endogenous_nbr = context.models[1].endogenous_nbr
     if (
         modfileinfo.has_steadystate_file &&
-        length(context.work.analytical_steadystate_variables) ==
+        length(work.analytical_steadystate_variables) ==
         endogenous_nbr
     )
-        evaluate_steady_state!(results, work.params)
+        evaluate_steady_state!(trends.endogenous_steady_state,
+                               trends.exogenous_steady_state,
+                               work.params)
+        if !isempty(trends.exogenous_terminal_steady_state)
+            evaluate_steady_state!(trends.endogenous_terminal_steady_state,
+                                   trends.exogenous_terminal_steady_state,
+                                   work.params)
+        end
+    elseif context.modfileinfo.has_ramsey_model
+        x0 = zeros(model.endogenous_nbr)
+        !isempty(trends.endogenous_steady_state) &&
+            (x0 .= Float64.(trends.endogenous_steady_state))
+        solve_ramsey_steady_state!(context, x0, options)
     else
-        initval_endogenous = work.initval_endogenous
-        initval_exogenous = work.initval_exogenous
-        # will fail if missing values are encountered
-        if size(initval_endogenous, 1) > 0
-            x0 = Float64.(vec(view(context.work.initval_endogenous, 1, :)))
-        else
-            x0 = zeros(endogenous_nbr)
+        # initial steady state
+        exogenous = zeros(model.exogenous_nbr)
+        !isempty(trends.exogenous_steady_state) &&
+            (exogenous .= Float64.(trends.exogenous_steady_state))
+        x0 = zeros(model.endogenous_nbr)
+        !isempty(trends.endogenous_steady_state) &&
+            (x0 .= Float64.(trends.endogenous_steady_state))
+        trends.endogenous_steady_state .=
+            solve_steady_state!(context, x0, exogenous, options)
+        # terminal steady state
+        if modfileinfo.has_endval
+            !isempty(trends.exogenous_terminal_steady_state) &&
+                (exogenous .= Float64.(trends.exogenous_terminal_steady_state))
+            x0 = zeros(model.endogenous_nbr)
+            !isempty(trends.endogenous_terminal_steady_state) &&
+                (x0 .= Float64.(trends.endogenous_terminal_steady_state))
+            trends.endogenous_terminal_steady_state .=
+                solve_steady_state!(context, x0, exogenous, options)
         end
-        if size(initval_exogenous, 1) > 0
-            copy!(
-                results.trends.exogenous_steady_state,
-                Float64.(vec(view(context.work.initval_exogenous, 1, :))),
-            )
-        else
-            fill!(results.trends.exogenous_steady_state, 0.0)
-        end
+    end
+end
+
+    
+"""
+    steadystate_display(steady_state, context; title_complement = "")
+
+Display the steady state of the model
+"""
+function steadystate_display(steady_state::AbstractVector{<:Real},
+                             context::Context;
+                             title_complement = "")
+    m = context.models[1]
+    results = context.results.model_results[1]
+    endogenous_names = get_endogenous_longname(context.symboltable)
+    n = m.original_endogenous_nbr
+    labels = endogenous_names[1:n]
+    data = Matrix{Any}(undef, n, 2)
+    for i = 1:n
+        data[i, 1] = labels[i]
+        data[i, 2] = steady_state[i]
+    end
+    if isempty(title_complement)
+        title = "Steady state"
+    else
+        title = "$title_complement steady state"
+    end
+    dynare_table(data, title, columnheader = false)
+end
+
+"""
+    evaluate_steady_state!(endogenous::Vector{<: Real},
+                           exogenous::Vector{<: Real},
+                           params::AbstractVector{<: Real})
+
+Evaluate the steady state function provided by the user.
+"""
+function evaluate_steady_state!(
+    endogenous::Vector{<: Real},
+    exogenous::Vector{<: Real},
+    params::AbstractVector{<: Real},
+)
+    DFunctions.steady_state!(
+        endogenous,
+        exogenous,
+        params,
+    )
+end
+
+"""
+    solve_steady_state!(context::Context,
+                        x0::Vector{<:Real},
+                        exogenous::Vector{<:Real},
+                        options::SteadyOptions)
+
+Solve the steady state numerically
+"""
+function solve_steady_state!(context::Context,
+                             x0::AbstractVector{<:Real},
+                             exogenous::AbstractVector{<:Real},
+                             options::SteadyOptions)
         try
-            solve_steady_state!(context, x0, options)
+            return solve_steady_state_!(context, x0, exogenous, options)
         catch e
-            if length(x0) > 0 && isa(e, Dynare.DynareSteadyStateComputationFailed)
+            if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
                 i = 1
                 while i <= 5
                     x00 = rand(0.95:0.01:1.05, length(x0)).*x0
                     try
-                        solve_steady_state!(context, x00, options)
-                        break
+                        return solve_steady_state_!(context, x00, exogenous, options)
                     catch
                     end
                     i += 1
@@ -140,138 +249,49 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
                 rethrow(e)
             end
         end        
-    end
-end
-
-    
-"""
-    steadystate_display(context::Context)
-
-Display the steady state of the model
-"""
-function steadystate_display(context::Context)
-    m = context.models[1]
-    results = context.results.model_results[1]
-    endogenous_names = get_endogenous_longname(context.symboltable)
-    n = m.original_endogenous_nbr
-    steady_state = results.trends.endogenous_steady_state[1:n]
-    labels = endogenous_names[1:n]
-    data = Matrix{Any}(undef, n, 2)
-    for i = 1:n
-        data[i, 1] = labels[i]
-        data[i, 2] = steady_state[i]
-    end
-    title = "Steady state"
-    dynare_table(data, title, columnheader = false)
-end
-
-"""
-    evaluate_steady_state!(results::ModelResults,
-                           steady_state!::Function,
-                           params::AbstractVector{Float64})
-
-Evaluate the steady state function provided by the user.
-
-The steady state is stored in `context.results.trends.endogenous_steady_state`
-"""
-function evaluate_steady_state!(
-    results::ModelResults,
-    params::AbstractVector{Float64},
-)
-    fill!(results.trends.exogenous_steady_state, 0.0)
-    DFunctions.steady_state!(
-        results.trends.endogenous_steady_state,
-        results.trends.exogenous_steady_state,
-        params,
-    )
-end
-
-"""
-    sparse_static_jacobian(ws, params, x, exogenous, m, df)
-
-Return the sparse Jacobina of a static model
-"""
-function sparse_static_jacobian(ws, params, x, exogenous, m, df)
-    J = get_static_jacobian!(ws, params, x, exogenous, m, df)
-    return sparse(J)
-end
-
-"""
-    solve_steady_state!(context::Context,
-                        x0::Vector{Float64},
-                        options::SteadyOptions)
-
-Solve the steady state numerically
-"""
-function solve_steady_state!(context::Context,
-                             x0::AbstractVector{Float64},
-                             options::SteadyOptions)
-    if context.modfileinfo.has_ramsey_model
-        solve_ramsey_steady_state!(context, x0, options)
-    else
-        solve_steady_state_!(context, x0, options)
-    end
 end
 
 """
     solve_steady_state_!(context::Context,
-                                 x0::Vector{Float64})
+                         x0::Vector{Float64},
+                         exogenous::AbstractVector{<:Real})
 
 Solve the static model to obtain the steady state
 """
-function solve_steady_state_!(context::Context, x0::AbstractVector{Float64}, options)
+function solve_steady_state_!(context::Context,
+                              x0::AbstractVector{<:Real},
+                              exogenous::AbstractVector{<:Real},
+                              options)
     ws = StaticWs(context)
-    m = context.models[1]
-    w = context.work
+    model = context.models[1]
+    work = context.work
     results = context.results.model_results[1]
-    exogenous = results.trends.exogenous_steady_state
-
-    function J1!(A, x::AbstractVector{Float64})
+    params = work.params
+    A = ws.derivatives[1]
+    
+    function J!(A, x::AbstractVector{Float64})
         DFunctions.static_derivatives!(ws.temporary_values,
                                        A,
                                        x,
                                        exogenous,
-                                       w.params)
+                                       work.params)
     end
-    A = ws.derivatives[1]
-    solve_steady_state_core!(context, x0, J1!, A, tolf = options.tolf)
-end
-
-"""
-    solve_steady_state_core!(context::Context, x0::AbstractVector{T}, J!::Function, A0::AbstractMatrix{T}; tolf = 1e-8) where T <: Real
-
-Call the nonlinear solver to solve for the steady state
-"""
-function solve_steady_state_core!(
-    context::Context,
-    x0::AbstractVector{T},
-    J!::Function,
-    A0::AbstractMatrix{T};
-    tolf = 1e-8,
-) where {T<:Real}
-    ws = StaticWs(context)
-    m = context.models[1]
-    w = context.work
-    params = w.params
     results = context.results.model_results[1]
-    exogenous = results.trends.exogenous_steady_state
 
     function f!(residuals::AbstractVector{Float64}, x::AbstractVector{Float64})
-        DFunctions.static!(ws.temporary_values, residuals, x, exogenous, w.params)
+        DFunctions.static!(ws.temporary_values, residuals, x, exogenous, work.params)
     end
 
-    residuals = zeros(m.endogenous_nbr)
-    f!(residuals, x0)
-    of = OnceDifferentiable(f!, J!, vec(x0), residuals, A0)
-    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = tolf)
+    residuals = zeros(model.endogenous_nbr)
+    of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
+    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = options.tolf)
     @debug result
     if converged(result)
-        results.trends.endogenous_steady_state .= result.zero
+        return result.zero
     else
         @debug "Steady state computation failed with\n $result"
         throw(DynareSteadyStateComputationFailed())
     end
-    return nothing
 end
 
 """
@@ -281,24 +301,24 @@ Solve numerically for the steady state of a Ramsey problem
 """
 function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
     ws = StaticWs(context)
-    m = context.models[1]
-    w = context.work
-    params = w.params
-    endogenous = zeros(m.endogenous_nbr)
+    model = context.models[1]
+    work = context.work
+    params = work.params
+    endogenous = zeros(model.endogenous_nbr)
     results = context.results.model_results[1]
     exogenous = results.trends.exogenous_steady_state
-    orig_endo_nbr = m.original_endogenous_nbr
+    orig_endo_nbr = model.original_endogenous_nbr
     mult_indices =
         orig_endo_nbr .+ findall(a -> a["type"] == 6, context.models[1].auxiliary_variables)
     mult_nbr = length(mult_indices)
     mult = zeros(mult_nbr)
     orig_endo_aux_nbr = mult_indices[1] - 1
     unknown_variable_indices =
-        setdiff!(collect(1:m.original_endogenous_nbr), w.analytical_steadystate_variables)
+        setdiff!(collect(1:model.original_endogenous_nbr), work.analytical_steadystate_variables)
     unknown_variable_nbr = length(unknown_variable_indices)
     M = zeros(orig_endo_nbr, mult_nbr)
     U1 = zeros(orig_endo_nbr)
-    residuals = zeros(m.endogenous_nbr)
+    residuals = zeros(model.endogenous_nbr)
     x00 = zeros(unknown_variable_nbr)
     x00 .= view(x0, unknown_variable_indices)
 
@@ -309,9 +329,9 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
             DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
         context.modfileinfo.has_steadystate_file &&
             DFunctions.steady_state!(endogenous, exogenous, params)
-        residuals = get_static_residuals!(ws, w.params, endogenous, exogenous)
+        residuals = get_static_residuals!(ws, work.params, endogenous, exogenous)
         U1 .= view(residuals, 1:orig_endo_nbr)
-        A = get_static_jacobian!(ws, w.params, endogenous, exogenous, m)
+        A = get_static_jacobian!(ws, work.params, endogenous, exogenous, model)
         M .= view(A, 1:orig_endo_nbr, mult_indices)
         mult = view(endogenous, mult_indices)
         mult .= -M \ U1
@@ -336,9 +356,9 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         if Optim.converged(result) && abs(Optim.minimum(result)) < options.tolf
             view(endogenous, unknown_variable_indices) .= Optim.minimizer(result)
             context.modfileinfo.has_auxiliary_variables &&
-                context.dynarefunctions.set_auxiliary_variables!(endogenous, exogenous, params)
+                DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
             context.modfileinfo.has_steadystate_file &&
-                context.dynarefunctions.steady_state!(endogenous, exogenous, params)
+                DFunctions.steady_state!(endogenous, exogenous, params)
             # get Lagrance multipliers
             f!(Optim.minimizer(result))
             results.trends.endogenous_steady_state .= endogenous

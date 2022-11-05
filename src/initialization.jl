@@ -274,15 +274,15 @@ function initval_file!(context::Context, field::Dict{String,Any})
         exogenous_names = get_exogenous(symboltable)
         exogenousdeterministic_names = get_exogenousdeterministic(symboltable)
         dnames = names(tdf)
-        work.initval_endogenous = Matrix{Float64}(undef, nobs, m.endogenous_nbr)
-        work.initval_exogenous = Matrix{Float64}(undef, nobs, m.exogenous_nbr)
+        work.initval_endogenous = Matrix{Float64}(undef, m.endogenous_nbr, nobs)
+        work.initval_exogenous = Matrix{Float64}(undef, m.exogenous_nbr, nobs)
         work.initval_exogenous_deterministic =
-            Matrix{Float64}(undef, nobs, m.exogenous_deterministic_nbr)
+            Matrix{Float64}(undef, m.exogenous_deterministic_nbr, nobs)
         lli = m.lead_lag_incidence
         for (i, vname) in enumerate(endogenous_names)
             colindex = findfirst(x -> x == vname, dnames)
             if !isnothing(colindex)
-                work.initval_endogenous[:, i] .= tdf[!, colindex][istart:istop]
+                work.initval_endogenous[i, :] .= tdf[!, colindex][istart:istop]
             end
         end
         for (i, vname) in enumerate(exogenous_names)
@@ -292,7 +292,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
                     "INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero"
                 )
             else
-                work.initval_exogenous[:, i] .= tdf[!, colindex][istart:istop]
+                work.initval_exogenous[i, :] .= tdf[!, colindex][istart:istop]
             end
         end
         for (i, vname) in enumerate(exogenousdeterministic_names)
@@ -302,7 +302,7 @@ function initval_file!(context::Context, field::Dict{String,Any})
                     "INITVAL_FILE: Variable $vname doesn't exist in $(options["datafile"]). Initial value set to zero"
                 )
             else
-                work.initval_exogenous_deterministic[:, i] .= tdf[!, colindex][istart:istop]
+                work.initval_exogenous_deterministic[i, :] .= tdf[!, colindex][istart:istop]
             end
         end
     end
@@ -320,25 +320,25 @@ function initval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
     work = context.work
-    initval_endogenous = zeros(m.endogenous_nbr)
-    initval_exogenous = zeros(m.exogenous_nbr)
-    initval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
+    initval_endogenous = zeros(m.endogenous_nbr, 1)
+    initval_exogenous = zeros(m.exogenous_nbr, 1)
+    initval_exogenous_det = zeros(m.exogenous_deterministic_nbr, 1)
     xs = [Endogenous, Exogenous, ExogenousDeterministic]
     xw = [initval_endogenous, initval_exogenous, initval_exogenous_det]
-    work.initval_endogenous = zeros(1, m.endogenous_nbr)
-    work.initval_exogenous = zeros(1, m.exogenous_nbr)
-    work.initval_exogenous_deterministic = zeros(1, m.exogenous_deterministic_nbr)
+    work.initval_endogenous = zeros(m.endogenous_nbr, 1)
+    work.initval_exogenous = zeros(m.exogenous_nbr, 1)
+    work.initval_exogenous_deterministic = zeros(m.exogenous_deterministic_nbr, 1)
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
         k = s.orderintype::Int64
         value = dynare_parse_eval(v["value"]::String, context, xs = xs, xw = xw)
         if typ == Endogenous
-            work.initval_endogenous[k] = value
+            work.initval_endogenous[k, 1] = value
         elseif typ == Exogenous
-            work.initval_exogenous[k] = value
+            work.initval_exogenous[k, 1] = value
         elseif typ == ExogenousDeterministic
-            work.initval_exogenous_determinisitic[k] = value
+            work.initval_exogenous_determinisitic[k, 1] = value
         else
             throw(error("$(v["name"]) can't be set in INITVAL"))
         end
@@ -350,16 +350,15 @@ end
 function endval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
-    df = context.dynarefunctions
     work = context.work
     endval_endogenous = zeros(m.endogenous_nbr)
     endval_exogenous = zeros(m.exogenous_nbr)
     endval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
     xs = [Endogenous, Exogenous, ExogenousDeterministic]
     xw = [endval_endogenous, endval_exogenous, endval_exogenous_det]
-    work.endval_endogenous = zeros(1, m.endogenous_nbr)
-    work.endval_exogenous = zeros(1, m.exogenous_nbr)
-    work.endval_exogenous_deterministic = zeros(1, m.exogenous_deterministic_nbr)
+    work.endval_endogenous = zeros(m.endogenous_nbr,1)
+    work.endval_exogenous = zeros(m.exogenous_nbr,1)
+    work.endval_exogenous_deterministic = zeros(m.exogenous_deterministic_nbr,1)
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
@@ -376,7 +375,7 @@ function endval!(context::Context, field::Dict{String,Any})
         end
     end
     params = context.work.params
-    df.set_auxiliary_variables!(work.endval_endogenous, work.endval_exogenous, params)
+    DFunctions.static_auxiliary_variables!(work.endval_endogenous, work.endval_exogenous, params)
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
