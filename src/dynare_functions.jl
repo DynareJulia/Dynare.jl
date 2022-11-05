@@ -33,16 +33,16 @@ function load_model_functions(modelname::String)
     global SparseStaticResidTT! =
         load_dynare_function("$(function_root)SparseStaticResidTT!.jl")
     global SparseDynamicParametersDerivatives! =
-        load_dynare_function("$(modelname)DynamicParamsDerivs.jl", head = 8, tail = 1)
+        load_dynare_function("$(function_root)DynamicParamsDerivs.jl", head = 8, tail = 1)
     global SparseStaticParametersDerivatives! =
-        load_dynare_function("$(modelname)StaticParamsDerivs.jl", head = 8, tail = 1)
+        load_dynare_function("$(function_root)StaticParamsDerivs.jl", head = 8, tail = 1)
     global steady_state!
     (steady_state!, analytical_variables) =
-        load_steady_state_function("$(modelname)SteadyState2.jl")
+        load_steady_state_function("$(function_root)SteadyState2.jl")
     global dynamic_auxiliary_variables! =
-        load_dynare_function("$(modelname)DynamicSetAuxiliarySeries.jl")
+        load_dynare_function("$(function_root)DynamicSetAuxiliarySeries.jl")
     global static_auxiliary_variables! =
-        load_dynare_function("$(modelname)SetAuxiliaryVariables.jl")
+        load_dynare_function("$(function_root)SetAuxiliaryVariables.jl")
     return analytical_variables
 end
 
