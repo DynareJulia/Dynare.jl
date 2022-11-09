@@ -3,6 +3,11 @@
 ## Requirements
 Julia 64bit >= v1.6
 
+## Warning
+
+The last version of this package, v0.6.0, isn't available yet for macOS
+or FreeBSD
+
 ## Installation 
 
 ```
