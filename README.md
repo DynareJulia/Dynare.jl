@@ -30,6 +30,7 @@ The results are in the ``context`` structure.
 1. calib_smoother
 1. check
 1. deterministic_trends
+1. endval
 1. histval
 1. initval
 1. perfect\_foresight\_setup (only some options)

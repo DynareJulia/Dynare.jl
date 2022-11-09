@@ -1,3 +1,10 @@
+0.6.0
+====
+- add support for endval
+- fix timing bug in perfect foreisght
+- change location of Dynare model functions
+- switch to parse matrices for model derivatives
+
 0.5.7
 =====
 - add numerical solution for steady state
