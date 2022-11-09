@@ -3,7 +3,7 @@
 - add support for endval
 - fix timing bug in perfect foreisght
 - change location of Dynare model functions
-- switch to parse matrices for model derivatives
+- switch to sparse matrices for model derivatives
 
 0.5.7
 =====
