@@ -31,13 +31,14 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         model = context.models[1]
         D = eltype(context.work.params)
         symboltable = context.symboltable
-        tmp_nbr = context.dynarefunctions.dynamic!.tmp_nbr
+        tmp_nbr = sum(model.dynamic_tmp_nbr[1:2])
         ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2 * model.n_both
         dynamicws = Dynare.DynamicWs(
             model.endogenous_nbr,
             model.exogenous_nbr,
-            ncol,
-            sum(tmp_nbr[1:2]),
+            tmp_nbr,
+            model.dynamic_g1_sparse_colptr,
+            model.dynamic_g1_sparse_rowval
         )
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
         varobs_ids0 = [
