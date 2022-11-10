@@ -17,7 +17,7 @@ rho_ys = 0.9;
 rho_pies = 0.7;
 
 
-model(linear);
+model(linear, use_dll);
 y = y(+1) - (tau +alpha*(2-alpha)*(1-tau))*(R-pie(+1))-alpha*(tau +alpha*(2-alpha)*(1-tau))*dq(+1) + alpha*(2-alpha)*((1-tau)/tau)*(y_s-y_s(+1))-A(+1);
 pie = exp(-rr/400)*pie(+1)+alpha*exp(-rr/400)*dq(+1)-alpha*dq+(k/(tau+alpha*(2-alpha)*(1-tau)))*y+alpha*(2-alpha)*(1-tau)/(tau*(tau+alpha*(2-alpha)*(1-tau)))*y_s;
 pie = de+(1-alpha)*dq+pie_s;
@@ -84,5 +84,6 @@ posterior_sampler_options = options_.posterior_sampler_options.current_options;
 posterior_sampler_options.invhess = oo_.posterior.optimization.Variance;
 
 f2 = @() posterior_sampler(objective_function,posterior_sampler_options.proposal_distribution,xparam1,posterior_sampler_options,bounds,dataset_,dataset_info,options_,M_,estim_params_,bayestopt_,oo_);
+disp('timing')
 timeit(f2)
 

@@ -24,7 +24,7 @@ A = (1 - beta)/(alpha*beta);
   b_@{j} = (1 - alpha)*A^(1-1/gamma_@{j});
 @#endfor
 
-model;
+model(use_dll);
   @#for j in 1:N
     y_@{j} = A*exp(alpha*lk_@{j}(-1) +(1 - alpha)*ll_@{j});
     t_@{j}*exp(lc_@{j})^(-1/gamma_@{j}) = lambda;
