@@ -48,7 +48,7 @@ struct SteadyOptions
     function SteadyOptions(options::Dict{String,Any})
         display = true
         maxit = 50
-        tolf = 1e-5 #cbrt(eps())
+        tolf = cbrt(eps())
         tolx = 0.0
         solve_algo = trustregion
         homotopy_mode = None
@@ -138,10 +138,20 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
         evaluate_steady_state!(trends.endogenous_steady_state,
                                trends.exogenous_steady_state,
                                work.params)
+        !options.nocheck && check_steady_state(StaticWs(context),
+                                               trends.endogenous_steady_state,
+                                               trends.exogenous_steady_state,
+                                               work.params,
+                                               options.tolf)
         if !isempty(trends.exogenous_terminal_steady_state)
             evaluate_steady_state!(trends.endogenous_terminal_steady_state,
                                    trends.exogenous_terminal_steady_state,
                                    work.params)
+            check_steady_state(StaticWs(context),
+                               trends.endogenous_terminal_steady_state,
+                               trends.exogenous_terminal_steady_state,
+                               work.params,
+                               options.tolf)
         end
     elseif context.modfileinfo.has_ramsey_model
         x0 = zeros(model.endogenous_nbr)
@@ -306,6 +316,7 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     params = work.params
     endogenous = zeros(model.endogenous_nbr)
     results = context.results.model_results[1]
+    endogenous_steady_state = results.trends.endogenous_steady_state
     exogenous = results.trends.exogenous_steady_state
     orig_endo_nbr = model.original_endogenous_nbr
     mult_indices =
@@ -341,18 +352,13 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         return res2
     end
 
+    f!(x00) <  options.tolf && copy!(endogenous_steady_state, endogenous)
     if unknown_variable_nbr == 0
-        res = f!(Float64[])
-        if res > options.tolf
-            @debug "Steady state computation failed"
-            throw(DynareSteadyStateComputationFailed())
-        else
-            results.trends.endogenous_steady_state .= endogenous
-        end
+        @debug "Steady state computation failed"
+        throw(DynareSteadyStateComputationFailed())
     else
         result = optimize(f!, x00, LBFGS(), Optim.Options(f_tol=1e-6))
         @debug result
-        @show result
         if Optim.converged(result) && abs(Optim.minimum(result)) < options.tolf
             view(endogenous, unknown_variable_indices) .= Optim.minimizer(result)
             context.modfileinfo.has_auxiliary_variables &&
@@ -366,5 +372,21 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
             @debug "Steady state computation failed with\n $result"
             throw(DynareSteadyStateComputationFailed())
         end
+    end
+end
+
+function check_steady_state(ws, endogenous, exogenous, params, tolf)
+    residuals = get_static_residuals!(ws, params, endogenous, exogenous)
+    if norm(residuals) > tolf
+        display_residuals(residuals)
+        throw(ErrorException("The steady_state_model block doesn't solve the static model!"))
+    end
+end
+
+function display_residuals(residuals)
+    println("\nThe steady_state_model block does'nt solve the static model")
+    println("Equation Residuals")
+    for (i, r) in enumerate(residuals)
+        abs(r) > eps() && println("$i       $r")
     end
 end
