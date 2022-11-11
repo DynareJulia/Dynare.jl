@@ -261,8 +261,8 @@ function CmultG!(
     tmp_nfwrd_npred::AbstractMatrix{Float64},
     jacobian::AbstractMatrix{Float64},
     g::AbstractMatrix{Float64},
-    ic::AbstractVector{Int64},
-    ir::AbstractVector{Int64},
+    ic::AbstractVector{Int},
+    ir::AbstractVector{Int},
 )
     fill!(tmp_nvar_nfwrd, 0.0)
     nvar, npred = size(y)
