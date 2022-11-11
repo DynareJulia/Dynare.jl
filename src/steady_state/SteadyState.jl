@@ -278,21 +278,22 @@ function solve_steady_state_!(context::Context,
     results = context.results.model_results[1]
     params = work.params
     A = ws.derivatives[1]
+    residuals = zeros(model.endogenous_nbr)
+
+    f! = make_static_residuals(ws.temporary_values,
+                               exogenous,
+                               work.params)
     
-    function J!(A, x::AbstractVector{Float64})
-        DFunctions.static_derivatives!(ws.temporary_values,
-                                       A,
-                                       x,
-                                       exogenous,
-                                       work.params)
-    end
+    J! = make_static_jacobian(ws.temporary_values,
+                              exogenous,
+                              work.params)
+
     results = context.results.model_results[1]
 
     function f!(residuals::AbstractVector{Float64}, x::AbstractVector{Float64})
         DFunctions.static!(ws.temporary_values, residuals, x, exogenous, work.params)
     end
 
-    residuals = zeros(model.endogenous_nbr)
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
     result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = options.tolf)
     @debug result
@@ -333,25 +334,17 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     x00 = zeros(unknown_variable_nbr)
     x00 .= view(x0, unknown_variable_indices)
 
-    function f!(x::AbstractVector{Float64})
-        view(endogenous, unknown_variable_indices) .= x
-        # Lagrange multipliers are kept to zero
-        context.modfileinfo.has_auxiliary_variables &&
-            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
-        context.modfileinfo.has_steadystate_file &&
-            DFunctions.steady_state!(endogenous, exogenous, params)
-        residuals = get_static_residuals!(ws, work.params, endogenous, exogenous)
-        U1 .= view(residuals, 1:orig_endo_nbr)
-        A = get_static_jacobian!(ws, work.params, endogenous, exogenous, model)
-        M .= view(A, 1:orig_endo_nbr, mult_indices)
-        mult = view(endogenous, mult_indices)
-        mult .= -M \ U1
-        view(residuals, 1:orig_endo_nbr) .= U1 .+ M * mult
-        res1 = sum(x-> x*x, residuals)
-        res2 = norm(residuals)
-        return res2
-    end
-
+    f! = make_static_ramsey_residuals(ws.temporary_values,
+                                      endogenous,
+                                      exogenous,
+                                      work.params,
+                                      U1,
+                                      M,
+                                      mult_indices,
+                                      unknown_variable_indices,
+                                      orig_endo_nbr,
+                                      ws)
+    
     f!(x00) <  options.tolf && copy!(endogenous_steady_state, endogenous)
     if unknown_variable_nbr == 0
         @debug "Steady state computation failed"
@@ -390,3 +383,63 @@ function display_residuals(residuals)
         abs(r) > eps() && println("$i       $r")
     end
 end
+
+function make_static_residuals(temp_val::AbstractVector{T},
+                               exogenous::AbstractVector{T},
+                               params::AbstractVector{T}) where T <: Real
+    f!(residuals, x) = DFunctions.static!(temp_val,
+                                          residuals,
+                                          x,
+                                          exogenous,
+                                          params)
+    return f!
+end
+
+function make_static_jacobian(temp_val::AbstractVector{T},
+                              exogenous::AbstractVector{T},
+                              params::AbstractVector{T}) where T <: Real
+    f!(A, x) = DFunctions.static_derivatives!(temp_val,
+                                              A,
+                                              x,
+                                              exogenous,
+                                              params)
+    return f!
+end
+    
+function make_static_ramsey_residuals(temp_val::AbstractVector{T},
+                                      endogenous::AbstractVector{T},
+                                      exogenous::AbstractVector{T},
+                                      params::AbstractVector{T},
+                                      U1::AbstractVector{T},
+                                      M::AbstractMatrix{T},
+                                      mult_indices::AbstractVector{N},
+                                      unknown_variable_indices::AbstractVector{N},
+                                      orig_endo_nbr::N,
+                                      ws::StaticWs
+                                      ) where {T <: Real, N <: Integer}
+
+    function f!(x::AbstractVector{Float64})
+        view(endogenous, unknown_variable_indices) .= x
+        # Lagrange multipliers are kept to zero
+        context.modfileinfo.has_auxiliary_variables &&
+            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
+        context.modfileinfo.has_steadystate_file &&
+            DFunctions.steady_state!(endogenous, exogenous, params)
+        residuals = get_static_residuals!(ws, params, endogenous, exogenous)
+        U1 .= view(residuals, 1:orig_endo_nbr)
+        A = get_static_jacobian!(ws, params, endogenous, exogenous, context.models[1])
+        M .= view(A, 1:orig_endo_nbr, mult_indices)
+        mult = view(endogenous, mult_indices)
+        mult .= -M \ U1
+        view(residuals, 1:orig_endo_nbr) .= U1 .+ M * mult
+        res1 = sum(x-> x*x, residuals)
+        res2 = norm(residuals)
+        return res2
+    end
+
+    return f!
+end
+
+
+
+    
