@@ -302,7 +302,7 @@ function loglikelihood(
     last = nobs
     presample = 0
     # workspace for kalman_likelihood
-    klws = Dynare.KalmanLikelihoodWs(ny, ns, np, nobs)
+    klws = ssws.kalman_ws
     Y = ssws.Y
     if any(ismissing.(Y))
         # indices of non-missing observations are in data_pattern
