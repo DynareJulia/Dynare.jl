@@ -33,9 +33,9 @@ function load_model_functions(modelname::String)
     global SparseStaticResidTT! =
         load_dynare_function("$(function_root)SparseStaticResidTT!.jl")
     global SparseDynamicParametersDerivatives! =
-        load_dynare_function("$(function_root)DynamicParamsDerivs.jl", head = 8, tail = 1)
+        load_dynare_function("$(function_root)DynamicParamsDerivs.jl")
     global SparseStaticParametersDerivatives! =
-        load_dynare_function("$(function_root)StaticParamsDerivs.jl", head = 8, tail = 1)
+        load_dynare_function("$(function_root)StaticParamsDerivs.jl")
     global steady_state!
     (steady_state!, analytical_variables) =
         load_steady_state_function("$(function_root)SteadyState2.jl")
