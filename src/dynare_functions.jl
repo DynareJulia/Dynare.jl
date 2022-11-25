@@ -3,7 +3,7 @@ module DFunctions
 using RuntimeGeneratedFunctions
 using SparseArrays
 using StatsFuns
-using AxisArrayTables
+using TimeDataFrames
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
