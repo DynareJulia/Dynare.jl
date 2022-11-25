@@ -3,7 +3,7 @@ module DFunctions
 using RuntimeGeneratedFunctions
 using SparseArrays
 using StatsFuns
-using TimeDataFrames
+using AxisArrayTables
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
@@ -338,13 +338,7 @@ end
 function load_steady_state_function(modname::String)
     if isfile(modname)
         fun = readlines(modname)
-        if fun[6] == "using StatsFuns"
-            fun[6] = "using Dynare.StatsFuns"
-        else
-            insert!(fun, 6, "using Dynare.StatsFuns")
-        end
-        fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
-        expr = Meta.parse(join(fun[8:end-1], "\n"))
+        expr = Meta.parse(join(fun, "\n"))
         analytical_variables = get_analytical_variables(expr)
         return (@RuntimeGeneratedFunction(expr), analytical_variables)
     else
