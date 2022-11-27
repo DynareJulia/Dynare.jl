@@ -53,6 +53,7 @@ TransformedLogDensities = "f9bc47f6-f3f8-4f3b-ab21-f8bc73906f26"
 
 [compat]
 AdvancedMH = "0.6.8, 0.7"
+AxisArrayTables = "0.1.0"
 BenchmarkTools = "1.2.2"
 CSV = "0.10.2"
 DataFrames = "1.3.2"

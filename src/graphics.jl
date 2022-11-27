@@ -114,7 +114,7 @@ function plot(
 end
 
 function plot_irfs(irfs, model, symboltable, filepath)
-    x = 1:TimeDataFrames.nrow(first(irfs)[2])
+    x = axes(first(irfs)[2])[1]
     endogenous_names = get_endogenous_longname(symboltable)
     exogenous_names = get_exogenous_longname(symboltable)
     for i = 1:model.exogenous_nbr
@@ -166,7 +166,7 @@ function plot_irf_panel(
     for i = 1:nstar
         ivar = firstvar + i - 1
         title = (i == 1) ? "Orthogonal shock to $(exogenous_name)" : ""
-        yy = tdf[!, Symbol(endogenous_names[i])]
+        yy = Matrix(tdf[:, Symbol(endogenous_names[i])])
         if all(yy .> 0)
             lims = (0, Inf)
         elseif all(yy .< 0)

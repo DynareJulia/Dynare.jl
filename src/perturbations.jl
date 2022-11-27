@@ -317,7 +317,7 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         exogenous_names = get_exogenous_longname(context.symboltable)
         n = model.endogenous_nbr
         m = model.exogenous_nbr
-        y = Dict{Symbol,TimeDataFrame}
+        y = Dict{Symbol,AxisArrayTable}
         irfs!(context, options.irf)
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
@@ -355,9 +355,11 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         if work.model_has_trend[1]
             simulresults .+= collect(0:periods) * transpose(linear_trend)
         end
-        first_period = ExtendedDates.UndatedDate(options.first_period)
+        first_period = ExtendedDates.Undated(options.first_period)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
-        tdf = TimeDataFrame(simulresults, first_period, endogenous_names)
+        @show options.periods
+        @show size(simulresults)
+        tdf = AxisArrayTable(simulresults, first_period .+ (0:options.periods), endogenous_names)
         push!(results.simulations, Simulation("", "stoch_simul", tdf))
     end
 end
@@ -449,7 +451,7 @@ function irfs!(context, periods)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
-        tdf = TimeDataFrame(transpose(yy), UndatedDate(1), endogenous_names)
+        tdf = AxisArrayTable(transpose(yy), Undated(1):Undated(periods), endogenous_names)
         results.irfs[exogenous_names[i]] = tdf
     end
 end

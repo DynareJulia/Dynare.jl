@@ -374,19 +374,17 @@ function perfectforesight_core!(
     res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
-    endogenous_names = get_endogenous_longname(context.symboltable)
+    endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     push!(
         context.results.model_results[1].simulations,
         Simulation(
             "Sim1",
             "",
-            TimeDataFrame(
-                DataFrame(
-                    transpose(reshape(res.zero, m.endogenous_nbr, periods)),
-                    endogenous_names,
-                ),
-                UndatedDate(1),
-            ),
+            AxisArrayTable(
+                transpose(reshape(res.zero, m.endogenous_nbr, periods)),
+                Undated(1):Undated(periods),
+                endogenous_names
+                )
         ),
     )
 end
