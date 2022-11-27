@@ -130,14 +130,91 @@ function mcp_perfectforesight_core!(
     )
 end
 
+function make_pf1_residuals(
+            initialvalues::AbstractVector{T},
+            terminalvalues::AbstractVector{T},
+            exogenous::AbstractVector{T},
+            dynamic_variables::AbstractVector{T},
+            steadystate::AbstractVector{T},
+            params::AbstractVector{T},
+            m::Model,
+            periods::Int,
+            temp_vec::AbstractVector{T},
+            permutations::Vector{Tuple{Int64,Int64}},
+            residuals::AbstractVector{Float64},
+        ) where T <: Real
+    function f!(y::AbstractVector{T})
+        get_residuals!(
+            residuals,
+            vec(y),
+            initialvalues,
+            terminalvalues,
+            exogenous,
+            dynamic_variables,
+            steadystate,
+            params,
+            m,
+            periods,
+            temp_vec,
+            permutations = permutations
+        )
+        return residuals
+    end
+    return f!
+end
+
+function make_pf1_jacobian(
+    dynamic_derivatives!::Function,
+    initialvalues::AbstractVector{T},
+    terminalvalues::AbstractVector{T},
+    dynamic_variables::AbstractVector{T},
+    exogenous::AbstractVector{T},
+    periods::N,
+    temp_vec::AbstractVector{T},
+    params::AbstractVector{T},
+    steadystate::AbstractVector{T},
+    dynamic_g1_sparse_colptr::AbstractVector{N},
+    nzval::AbstractVector{T},
+    endogenous_nbr::N,
+    exogenous_nbr::N,
+    permutations::Vector{Tuple{Int64,Int64}},
+    nzval1::AbstractVector{T},
+    A::SparseArrays.SparseMatrixCSC{Float64,Int64},
+) where {T <: Real, N <: Integer}
+    function J!(
+        y::AbstractVector{Float64},
+    )
+        updateJacobian!(
+            A,
+            dynamic_derivatives!,
+            y,
+            initialvalues,
+            terminalvalues,
+            dynamic_variables,
+            exogenous,
+            periods,
+            temp_vec,
+            params,
+            steadystate,
+            dynamic_g1_sparse_colptr,
+            nzval,
+            endogenous_nbr,
+            exogenous_nbr,
+            permutations,
+            nzval1
+        )
+        return A
+    end
+end
+
 # Using PATHSolver
-function solve_path!(F, J, lb, ub, initial_values; kwargs...)
+function solve_path!(f!, J!, JJ, lb, ub, initial_values, nnz; kwargs...)
     n = length(initial_values)
     @assert n == length(lb) == length(ub)
 
     function function_callback(n::Cint, z::Vector{Cdouble}, F_val::Vector{Cdouble})
         @assert n == length(z) == length(F_val)
-        F(F_val, z)
+        f!(F_val, z)
         return Cint(0)
     end
 
@@ -153,20 +230,15 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
         @assert n == length(z) == length(col_start) == length(col_len)
         @assert nnz == length(row) == length(data)
 
-        Jac = J(z)  # SparseMatrixCSC
+        J!(JJ, z)  # SparseMatrixCSC
 
         # Pouring Jac::SparseMatrixCSC to the format used in PATH
+        copyto!(col_start, 1, JJ.colptr, 1, n)
+        copyto!(row, JJ.rowval)
+        copyto!(data, JJ.nzval)
+           
         for i = 1:n
-            col_start[i] = Jac.colptr[i]
-            col_len[i] = Jac.colptr[i+1] - Jac.colptr[i]
-        end
-
-        rv = rowvals(Jac)
-        nz = nonzeros(Jac)
-        num_nonzeros = SparseArrays.nnz(Jac)
-        for i = 1:num_nonzeros
-            row[i] = rv[i]
-            data[i] = nz[i]
+            col_len[i] = JJ.colptr[i+1] - JJ.colptr[i]
         end
 
         return Cint(0)
