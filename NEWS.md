@@ -1,3 +1,7 @@
+0.5.8
+=====
+- fix version of DynarePreprocessor_jll == 6.0.0
+
 0.5.7
 =====
 - add numerical solution for steady state
