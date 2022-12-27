@@ -1,7 +1,7 @@
 function histval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
-    histval = zeros(m.orig_maximum_lag, m.endogenous_nbr)
+    histval = zeros(m.orig_maximum_lag, m.endogenous_nbr + m.exogenous_nbr)
     for v in field["vals"]
         k = symboltable[v["name"]::String].orderintype::Int64
         l = m.orig_maximum_lag + v["lag"]::Int64
@@ -9,11 +9,13 @@ function histval!(context::Context, field::Dict{String,Any})
     end
     tdf = TimeDataFrame(
         Matrix{Union{Float64,Missing}}(histval),
-        get_endogenous(symboltable),
+        vcat(get_endogenous(symboltable),
+            get_exogenous(symboltable)),
         UndatedDate(1),
     )
+    @show tdf
     DFunctions.dynamic_auxiliary_variables!(tdf, context.work.params)
-    context.work.histval .= Matrix(tdf)
+    context.work.histval = Matrix(tdf)
 end
 
 function get_date(optionname::String, options)
