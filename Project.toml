@@ -49,6 +49,7 @@ Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 TimeDataFrames = "ff13af16-2f41-468a-a2e1-aff5c43aabf7"
 Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
 TransformVariables = "84d833dd-6860-57f9-a1a7-6da5db126cff"
+TransformedLogDensities = "f9bc47f6-f3f8-4f3b-ab21-f8bc73906f26"
 
 [compat]
 AdvancedMH = "0.6.8"

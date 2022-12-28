@@ -10,6 +10,7 @@ using Plots
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
 using Random
 using TransformVariables
+using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
 
