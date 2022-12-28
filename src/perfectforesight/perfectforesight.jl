@@ -107,7 +107,7 @@ struct PerfectForesightWs
             shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
             shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
             # adding shocks to exogenous variables
-            view(x, 1:pmax*m.exogenous_nbr) .+= vec(transpose(shocks))
+            view(x, 1:pmax*m.exogenous_nbr) .= vec(transpose(shocks))
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
@@ -174,16 +174,17 @@ function perfect_foresight_solver!(context, field)
 end
 
 function get_dynamic_initialvalues(context::Context)
+    endo_nbr = context.models[1].endogenous_nbr 
     work = context.work
     modfileinfo = context.modfileinfo
     y0 = zeros(context.models[1].endogenous_nbr)
     if modfileinfo.has_histval
-        @views for i in eachindex(skipmissing(view(work.histval, size(work.histval, 1), :)))
+        @views for i in eachindex(skipmissing(work.histval[lastindex(work.histval, 1), 1:endo_nbr]))
             y0[i] = work.histval[end, i]
         end
         return y0
     elseif modfileinfo.has_initval_file
-        @views for i in eachindex(skipmissing(view(work.initval, size(work.initval, 1), :)))
+        @views for i in eachindex(skipmissing(work.initval[lastindex(work.initval, 1), 1:endo_nbr]))
             y0[i] = work.initval[end, i]
         end
         return y0
