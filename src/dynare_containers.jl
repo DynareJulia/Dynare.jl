@@ -173,7 +173,7 @@ struct Model
     exogenous_indices::Vector{Int64}
     NNZDerivatives::Vector{Int64}
     auxiliary_variables::Vector{Dict{String,Any}}
-    mcps::Vector{Tuple{Int64,String,String,String}}
+    mcps::Vector{Tuple{Int64,Int64,String,String}}
     dynamic_g1_sparse_rowval::Vector{Int64}
     dynamic_g1_sparse_colptr::Vector{Int64}
     static_g1_sparse_rowval::Vector{Int64}

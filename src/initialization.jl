@@ -13,7 +13,6 @@ function histval!(context::Context, field::Dict{String,Any})
             get_exogenous(symboltable)),
         UndatedDate(1),
     )
-    @show tdf
     DFunctions.dynamic_auxiliary_variables!(tdf, context.work.params)
     context.work.histval = Matrix(tdf)
 end

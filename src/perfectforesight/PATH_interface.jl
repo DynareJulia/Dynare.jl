@@ -4,19 +4,18 @@ function mcp_perfectforesight_core!(
     perfect_foresight_ws::PerfectForesightWs,
     context::Context,
     periods::Int64,
-    guess_values::Matrix{Float64},
+    guess_values::Vector{Float64},
     initialvalues::Vector{Float64},
+    terminalvalues::Vector{Float64},
     dynamic_ws::DynamicWs,
 )
     m = context.models[1]
-#    ddf = context.dynarefunctions
     results = context.results.model_results[1]
     work = context.work
     residuals = zeros(periods * m.endogenous_nbr)
     dynamic_variables = dynamic_ws.dynamic_variables
     temp_vec = dynamic_ws.temporary_values
     steadystate = results.trends.endogenous_steady_state
-    terminalvalues = view(guess_values, :, periods)
     params = work.params
     JJ = perfect_foresight_ws.J
     lb = perfect_foresight_ws.lb
@@ -26,22 +25,24 @@ function mcp_perfectforesight_core!(
 
     exogenous = perfect_foresight_ws.x
 
-
-
+    ntmp =  sum(m.dynamic_tmp_nbr[1:2])
     ws_threaded = [
         Dynare.DynamicWs(
             m.endogenous_nbr,
             m.exogenous_nbr,
-            length(dynamic_variables),
-            length(temp_vec),
+            ntmp,
+            m.dynamic_g1_sparse_colptr,
+            m.dynamic_g1_sparse_rowval,
         ) for i = 1:Threads.nthreads()
     ]
+    nzval = similar(m.dynamic_g1_sparse_rowval, Float64)
+    nzval1 = similar(nzval)
 
     function f!(residuals, y)
         @debug "$(now()): start f!"
         get_residuals!(
             residuals,
-            vec(y'),
+            y,
             initialvalues,
             terminalvalues,
             exogenous,
@@ -49,7 +50,6 @@ function mcp_perfectforesight_core!(
             steadystate,
             params,
             m,
- #           ddf,
             periods,
             temp_vec,
             permutations = permutations,
@@ -59,59 +59,56 @@ function mcp_perfectforesight_core!(
 
     function JA!(
         A::SparseArrays.SparseMatrixCSC{Float64,Int64},
-        y::AbstractVecOrMat{Float64},
+        y::AbstractVector{Float64},
     )
         @debug "$(now()): start J!"
-        A = makeJacobian!(
+        A = updateJacobian!(
             JJ,
-            vec(y),
+            DFunctions.dynamic_derivatives!,
+            y,
             initialvalues,
             terminalvalues,
+            dynamic_variables,
             exogenous,
-            context,
             periods,
-            ws_threaded,
-            permutations = permutations,
+            temp_vec,
+            params,
+            steadystate,
+            m.dynamic_g1_sparse_colptr,
+            nzval,
+            m.endogenous_nbr,
+            m.exogenous_nbr,
+            perfect_foresight_ws.permutations,
+            nzval1
         )
+        
         @debug count(!iszero, A) / prod(size(A))
         @debug "$(now()): end J!"
         return A
     end
 
     function fj!(residuals, JJ, y)
-        f!(residuals, vec(y))
-        JA!(JJ, vec(y))
+        f!(residuals, y)
+        JA!(JJ, y)
     end
 
     @debug "$(now()): start makeJacobian"
-    A0 = makeJacobian!(
-        JJ,
-        vec(guess_values),
-        initialvalues,
-        terminalvalues,
-        exogenous,
-        context,
-        periods,
-        ws_threaded,
-    )
+    
     @debug "$(now()): end makeJacobian"
     @debug "$(now()): start f!"
-    f!(residuals, vec(guess_values))
+    f!(residuals, guess_values)
     @debug "$(now()): end f!"
     @debug "$(now()): start J!"
-    JA!(A0, guess_values)
-
+    
     function J!(y::AbstractVecOrMat{Float64})
-        JA!(A0, y)
-        return JA!(A0, y)
+        JA!(JJ, y)
+        return JA!(JJ, y)
     end
 
     @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(guess_values), residuals, A0)
+    df = OnceDifferentiable(f!, J!, vec(guess_values), residuals, JJ)
     @debug "$(now()): start nlsolve"
 
-    rr = copy(residuals)
-    F = lu(A0)
     (status, results, info) = solve_path!(f!, J!, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
@@ -209,9 +206,9 @@ end
 
 function ramsey_constraints!(context, field)
     for c in field["ramsey_model_constraints"]
-        constraint = split(c["constraint"], limit = 3)
-        eq = context.symboltable[constraint[1]].orderintype
-        push!(context.models[1].mcps, (eq, constraint...))
+        p1, p2, p3 = split(c["constraint"], limit = 3)
+        eq = context.symboltable[p1].orderintype
+        push!(context.models[1].mcps, (eq, eq, p2, p3))
     end
 end
 
@@ -221,7 +218,9 @@ function get_mcps!(mcps, model)
         if !isempty(tags)
             tag = get(eq["tags"], "mcp", "")
             if !isempty(tag)
-                push!(mcps, (i, split(tag, limit = 3)...))
+                p1, p2, p3 = split(tag, limit = 3)
+                iv = context.symboltable[p1].orderintype
+                push!(mcps, (i, iv, p2, p3))
             end
         end
     end
@@ -235,21 +234,20 @@ function mcp!(lb, ub, permutations, mcps, context, periods)
     fill!(ub, Inf)
     for m in mcps
         (eqn, var, op, expr) = m
-        ivar = context.symboltable[var].orderintype
         boundary = Dynare.dynare_parse_eval(String(expr), context)
         if op[1] == '<'
-            for i = ivar:n:n*periods
+            for i = var:n:n*periods
                 ub[i] = boundary
             end
         elseif op[1] == '>'
-            for i = ivar:n:n*periods
+            for i = var:n:n*periods
                 lb[i] = boundary
             end
         else
             error("MCP operator must be <, <=, > or >=")
         end
-        if ivar != eqn
-            push!(permutations, (ivar, eqn))
+        if var != eqn
+            push!(permutations, (var, eqn))
         end
     end
 end
