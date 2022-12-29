@@ -377,6 +377,7 @@ function perfectforesight_core!(
 
 
     res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
+    print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(
@@ -566,4 +567,15 @@ function get_residuals_3!(
     reorder!(vr, permutations)
 end
 
+function print_nlsolver_results(r)
+    @printf "Results of Nonlinear Solver Algorithm\n"
+    @printf " * Algorithm: %s\n" r.method
+    @printf " * Inf-norm of residuals: %f\n" r.residual_norm
+    @printf " * Iterations: %d\n" r.iterations
+    @printf " * Convergence: %s\n" converged(r)
+    @printf "   * |x - x'| < %.1e: %s\n" r.xtol r.x_converged
+    @printf "   * |f(x)| < %.1e: %s\n" r.ftol r.f_converged
+    @printf " * Function Calls (f): %d\n" r.f_calls
+    return
+end
 include("PATH_interface.jl")

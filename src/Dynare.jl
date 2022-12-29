@@ -2,6 +2,7 @@ module Dynare
 
 using ExtendedDates
 using Logging
+using Printf
 
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
