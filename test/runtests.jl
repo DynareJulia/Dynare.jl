@@ -46,3 +46,5 @@ sim_a = Dynare.simulation("a")
 @test [values(Dynare.dataframe(simulation(1))[1000,:])...] ≈ context.results.model_results[1].trends.endogenous_steady_state
 context = @dynare "models/example1pf/example1pf_endval"
 @test [values(Dynare.dataframe(simulation(1))[300,:])...] ≈ context.results.model_results[1].trends.endogenous_terminal_steady_state
+context = @dynare "models/initialization/neoclassical1"
+context = @dynare "models/initialization/neoclassical5"
