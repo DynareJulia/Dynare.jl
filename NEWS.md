@@ -1,3 +1,9 @@
+0.6.1
+=====
+- fix histval for models with lead or lag exogenous variable
+- fix shocks for exogenous variables with steady state different from zero
+- add tests for initialization
+
 0.6.0
 ====
 - add support for endval
