@@ -2,7 +2,6 @@ using SparseArrays
 
 function bigindex!(bigrowval, r, rowval, c1, c2, offset)
     c1 > length(rowval) && return r
-    offset1 = offset - rowval[c1] + 1
     for c in c1:c2
         bigrowval[r] = rowval[c] + offset
         r += 1

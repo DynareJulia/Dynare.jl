@@ -20,8 +20,9 @@ function mcp_perfectforesight_core!(
     JJ = perfect_foresight_ws.J
     lb = perfect_foresight_ws.lb
     ub = perfect_foresight_ws.ub
-    permutations = perfect_foresight_ws.permutations
-    mcp!(lb, ub, permutations, m.mcps, context, periods)
+    permutationsR = perfect_foresight_ws.permutationsR
+    permutationsJ = perfect_foresight_ws.permutationsJ
+    mcp!(lb, ub, permutationsJ, m.mcps, context, periods)
 
     exogenous = perfect_foresight_ws.x
 
@@ -52,7 +53,7 @@ function mcp_perfectforesight_core!(
             m,
             periods,
             temp_vec,
-            permutations = permutations,
+            permutations = permutationsR,
         )
         @debug "$(now()): end f!"
     end
@@ -78,7 +79,7 @@ function mcp_perfectforesight_core!(
             nzval,
             m.endogenous_nbr,
             m.exogenous_nbr,
-            perfect_foresight_ws.permutations,
+            perfect_foresight_ws.permutationsJ,
             nzval1
         )
         
@@ -174,16 +175,7 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
     var_name = Vector{String}(undef, 0)
     F_name = Vector{String}(undef, 0)
 
-    # overestimating number of nonzeros in Jacobian
-    nnz = max(SparseArrays.nnz(J(lb)), SparseArrays.nnz(J(ub)))
-    nnz = max(nnz, SparseArrays.nnz(J(initial_values)))
-    n = length(lb)
-    for i = 1:2
-        z_rand = max.(lb, min.(ub, rand(Float64, n)))
-        nnz_rand = SparseArrays.nnz(J(z_rand))
-        nnz = max(nnz, nnz_rand)
-    end
-    nnz = min(2 * nnz, n^2)
+    nnz = SparseArrays.nnz(J(initial_values))
 
 
     F_val = zeros(n)

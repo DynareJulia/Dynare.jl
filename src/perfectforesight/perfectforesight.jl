@@ -84,7 +84,8 @@ struct PerfectForesightWs
     J::SparseMatrixCSC
     lb::Vector{Float64}
     ub::Vector{Float64}
-    permutations::Vector{Tuple{Int64,Int64}}
+    permutationsR::Vector{Tuple{Int64,Int64}}
+    permutationsJ::Vector{Tuple{Int64,Int64}}
     function PerfectForesightWs(context, periods)
         m = context.models[1]
         modfileinfo = context.modfileinfo
@@ -110,17 +111,18 @@ struct PerfectForesightWs
         else
             shocks = Matrix{Float64}(undef, 0, 0)
         end
-        permutations = Tuple{Int64,Int64}[]
+        permutationsR = [(p[1], p[2]) for p in m.mcps]
+        @show permutationsR
         colptr = m.dynamic_g1_sparse_colptr
         rowval = m.dynamic_g1_sparse_rowval
-        (J, permutations1) = makeJacobian(colptr,
+        (J, permutationsJ) = makeJacobian(colptr,
                                           rowval,
                                           m.endogenous_nbr,
                                           periods,
                                           m.mcps)
         lb = Float64[]
         ub = Float64[]
-        new(y, x, shocks, J, lb, ub, permutations1)
+        new(y, x, shocks, J, lb, ub, permutationsR, permutationsJ)
     end
 end
 
@@ -454,6 +456,8 @@ function get_residuals!(
 end
 
 @inline function reorder!(x, permutations)
+    @show permutations
+    @show x
     for p in permutations
         p1 = p[1]
         p2 = p[2]
