@@ -203,7 +203,6 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
         kwargs...,
     )
 
-    # This function has changed the content of m already.
     return Int(status), z, info
 end
 

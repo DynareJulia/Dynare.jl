@@ -3,8 +3,7 @@ include("makeA.jl")
 """
 PerfectForesightSetupOptions type 
     periods::Int64 - number of periods in the simulation [required]
-    datafile::String - optional data filename with guess values for the simulation
-                       and initial and terminal values
+    datafile::String - optional data filename with guess values for the simulation and initial and terminal values
 """
 struct PerfectForesightSetupOptions
     periods::Int64
@@ -376,9 +375,8 @@ function perfectforesight_core!(
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
 
-#    rr = copy(residuals)
-    #    F = lu(A0)
-    res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()))
+
+    res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(
