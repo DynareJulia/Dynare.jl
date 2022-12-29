@@ -321,14 +321,11 @@ function initval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
     work = context.work
-    initval_endogenous = zeros(m.endogenous_nbr, 1)
-    initval_exogenous = zeros(m.exogenous_nbr, 1)
-    initval_exogenous_det = zeros(m.exogenous_deterministic_nbr, 1)
-    xs = [Endogenous, Exogenous, ExogenousDeterministic]
-    xw = [initval_endogenous, initval_exogenous, initval_exogenous_det]
     work.initval_endogenous = zeros(m.endogenous_nbr, 1)
     work.initval_exogenous = zeros(m.exogenous_nbr, 1)
     work.initval_exogenous_deterministic = zeros(m.exogenous_deterministic_nbr, 1)
+    xs = [Endogenous, Exogenous, ExogenousDeterministic]
+    xw = [work.initval_endogenous, work.initval_exogenous, work.initval_exogenous_deterministic]
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
