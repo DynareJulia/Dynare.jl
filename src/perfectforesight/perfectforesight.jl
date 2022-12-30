@@ -112,7 +112,6 @@ struct PerfectForesightWs
             shocks = Matrix{Float64}(undef, 0, 0)
         end
         permutationsR = [(p[1], p[2]) for p in m.mcps]
-        @show permutationsR
         colptr = m.dynamic_g1_sparse_colptr
         rowval = m.dynamic_g1_sparse_rowval
         (J, permutationsJ) = makeJacobian(colptr,
@@ -362,7 +361,7 @@ function perfectforesight_core!(
             nzval,
             m.endogenous_nbr,
             m.exogenous_nbr,
-            perfect_foresight_ws.permutations,
+            perfect_foresight_ws.permutationsJ,
             nzval1
         )
         @debug count(!iszero, A) / prod(size(A))
@@ -456,8 +455,6 @@ function get_residuals!(
 end
 
 @inline function reorder!(x, permutations)
-    @show permutations
-    @show x
     for p in permutations
         p1 = p[1]
         p2 = p[2]

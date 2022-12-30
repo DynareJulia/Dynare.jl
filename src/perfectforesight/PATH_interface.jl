@@ -110,6 +110,7 @@ function mcp_perfectforesight_core!(
     df = OnceDifferentiable(f!, J!, vec(guess_values), residuals, JJ)
     @debug "$(now()): start nlsolve"
 
+    A = J!(guess_values)
     (status, results, info) = solve_path!(f!, J!, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
@@ -238,8 +239,8 @@ function mcp!(lb, ub, permutations, mcps, context, periods)
         else
             error("MCP operator must be <, <=, > or >=")
         end
-        if var != eqn
-            push!(permutations, (var, eqn))
-        end
+#        if var != eqn
+#            push!(permutations, (var, eqn))
+#        end
     end
 end

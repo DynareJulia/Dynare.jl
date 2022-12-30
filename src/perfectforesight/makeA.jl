@@ -20,6 +20,7 @@ function permutation(permutations, colptr, rowval)
             vr2 = view(rowval2, colptr[i]:colptr[i+1]-1)
             for p in permutations
                 p1, p2 = p
+                p1 > p2 && ((p2, p1) = (p1, p2))
                 for (j, r) in enumerate(vr1)
                     if r == p1
                         vr1[j] = p2
@@ -59,7 +60,7 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations)
     if !isempty(permutations)
         (permutations1, rowval) = permutation(permutations, colptr, rowval)
     end
-
+    
     r = 1
     c = 1
     # first periods
@@ -192,7 +193,6 @@ function updateJacobian!(J::SparseMatrixCSC,
             n = colptr[endogenous_nbr + c+1] - colptr[endogenous_nbr + c]
             copyto!(J.nzval, k, nzval, colptr[endogenous_nbr + c], n)
         end
-        
         ry = 1:3*endogenous_nbr
         rx = rx .+ ox
         G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state)
