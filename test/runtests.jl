@@ -48,3 +48,5 @@ context = @dynare "models/example1pf/example1pf_endval"
 @test [values(Dynare.dataframe(simulation(1))[300,:])...] ≈ context.results.model_results[1].trends.endogenous_terminal_steady_state
 context = @dynare "models/initialization/neoclassical1"
 context = @dynare "models/initialization/neoclassical5"
+context = @dynare "models/irreversible/irbc2a"
+@test all(Matrix(simulation("i"))[10:52] .≈ 0)
