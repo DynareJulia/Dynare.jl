@@ -52,7 +52,7 @@ TransformVariables = "84d833dd-6860-57f9-a1a7-6da5db126cff"
 TransformedLogDensities = "f9bc47f6-f3f8-4f3b-ab21-f8bc73906f26"
 
 [compat]
-AdvancedMH = "0.6.8"
+AdvancedMH = "0.6.8, 0.7"
 BenchmarkTools = "1.2.2"
 CSV = "0.10.2"
 DataFrames = "1.3.2"
