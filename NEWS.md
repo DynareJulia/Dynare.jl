@@ -1,3 +1,8 @@
+0.6.2
+=====
+- fix initval with parameters
+- fix occasionally binding constraints
+
 0.6.1
 =====
 - fix histval for models with lead or lag exogenous variable
