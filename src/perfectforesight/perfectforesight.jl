@@ -118,7 +118,7 @@ struct PerfectForesightWs
                                           rowval,
                                           m.endogenous_nbr,
                                           periods,
-                                          mcps)
+                                          m.mcps)
         lb = Float64[]
         ub = Float64[]
         new(y, x, shocks, J, lb, ub, permutationsR, permutationsJ)
@@ -341,7 +341,7 @@ function perfectforesight_core!(
             m,
             periods,
             temp_vec,
-            perfect_foresight_ws.permutations,
+            perfect_foresight_ws.permutationsR,
     )
 
     J! = make_pf_jacobian(

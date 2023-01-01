@@ -99,19 +99,9 @@ function mcp_perfectforesight_core!(
     @debug "$(now()): start f!"
     f!(residuals, guess_values)
     @debug "$(now()): end f!"
-    @debug "$(now()): start J!"
-    
-    function J!(y::AbstractVecOrMat{Float64})
-        JA!(JJ, y)
-        return JA!(JJ, y)
-    end
 
-    @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(guess_values), residuals, JJ)
     @debug "$(now()): start nlsolve"
-
-    A = J!(guess_values)
-    (status, results, info) = solve_path!(f!, J!, lb, ub, vec(guess_values))
+    (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(
@@ -130,85 +120,8 @@ function mcp_perfectforesight_core!(
     )
 end
 
-function make_pf1_residuals(
-            initialvalues::AbstractVector{T},
-            terminalvalues::AbstractVector{T},
-            exogenous::AbstractVector{T},
-            dynamic_variables::AbstractVector{T},
-            steadystate::AbstractVector{T},
-            params::AbstractVector{T},
-            m::Model,
-            periods::Int,
-            temp_vec::AbstractVector{T},
-            permutations::Vector{Tuple{Int64,Int64}},
-            residuals::AbstractVector{Float64},
-        ) where T <: Real
-    function f!(y::AbstractVector{T})
-        get_residuals!(
-            residuals,
-            vec(y),
-            initialvalues,
-            terminalvalues,
-            exogenous,
-            dynamic_variables,
-            steadystate,
-            params,
-            m,
-            periods,
-            temp_vec,
-            permutations = permutations
-        )
-        return residuals
-    end
-    return f!
-end
-
-function make_pf1_jacobian(
-    dynamic_derivatives!::Function,
-    initialvalues::AbstractVector{T},
-    terminalvalues::AbstractVector{T},
-    dynamic_variables::AbstractVector{T},
-    exogenous::AbstractVector{T},
-    periods::N,
-    temp_vec::AbstractVector{T},
-    params::AbstractVector{T},
-    steadystate::AbstractVector{T},
-    dynamic_g1_sparse_colptr::AbstractVector{N},
-    nzval::AbstractVector{T},
-    endogenous_nbr::N,
-    exogenous_nbr::N,
-    permutations::Vector{Tuple{Int64,Int64}},
-    nzval1::AbstractVector{T},
-    A::SparseArrays.SparseMatrixCSC{Float64,Int64},
-) where {T <: Real, N <: Integer}
-    function J!(
-        y::AbstractVector{Float64},
-    )
-        updateJacobian!(
-            A,
-            dynamic_derivatives!,
-            y,
-            initialvalues,
-            terminalvalues,
-            dynamic_variables,
-            exogenous,
-            periods,
-            temp_vec,
-            params,
-            steadystate,
-            dynamic_g1_sparse_colptr,
-            nzval,
-            endogenous_nbr,
-            exogenous_nbr,
-            permutations,
-            nzval1
-        )
-        return A
-    end
-end
-
 # Using PATHSolver
-function solve_path!(f!, J!, JJ, lb, ub, initial_values, nnz; kwargs...)
+function solve_path!(f!, JA!, JJ, lb, ub, initial_values; kwargs...)
     n = length(initial_values)
     @assert n == length(lb) == length(ub)
 
@@ -230,7 +143,7 @@ function solve_path!(f!, J!, JJ, lb, ub, initial_values, nnz; kwargs...)
         @assert n == length(z) == length(col_start) == length(col_len)
         @assert nnz == length(row) == length(data)
 
-        J!(JJ, z)  # SparseMatrixCSC
+        JA!(JJ, z)  # SparseMatrixCSC
 
         # Pouring Jac::SparseMatrixCSC to the format used in PATH
         copyto!(col_start, 1, JJ.colptr, 1, n)
@@ -248,8 +161,7 @@ function solve_path!(f!, J!, JJ, lb, ub, initial_values, nnz; kwargs...)
     var_name = Vector{String}(undef, 0)
     F_name = Vector{String}(undef, 0)
 
-    nnz = SparseArrays.nnz(J(initial_values))
-
+    nnz = SparseArrays.nnz(JJ)
 
     F_val = zeros(n)
     # Solve the MCP using PATHSolver
