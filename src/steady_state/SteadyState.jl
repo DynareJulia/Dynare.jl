@@ -440,6 +440,26 @@ function make_static_ramsey_residuals(temp_val::AbstractVector{T},
     return f!
 end
 
+function make_partial_static_residuals(temp_val::AbstractVector{T},
+    exogenous::AbstractVector{T},
+    params::AbstractVector{T},
+    unknown_variable_indices::AbstractVector{N}) where {T <: Real, N <: Integer}
 
+    function f!(residuals, x)
+        view(endogenous, unknown_variable_indices) .= x
+        context.modfileinfo.has_auxiliary_variables &&
+            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
+        context.modfileinfo.has_steadystate_file &&
+            DFunctions.steady_state!(endogenous, exogenous, params)
+        DFunctions.static!(temp_val,
+            residuals,
+            endogenous,
+            exogenous,
+            params)
+        return norm(residuals)
+    end
+
+    return f!
+end
 
     
