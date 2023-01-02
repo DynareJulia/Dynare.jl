@@ -5,6 +5,7 @@ struct StochSimulOptions
     irf::Int64
     LRE_options::LinearRationalExpectationsOptions
     nar::Int64
+    nocheck::Bool
     order::Int64
     periods::Int64
     function StochSimulOptions(options::Dict{String,Any})
@@ -14,6 +15,7 @@ struct StochSimulOptions
         irf = 40
         LRE_options = LinearRationalExpectationsOptions()
         nar = 5
+        nocheck = false
         order = 1
         periods = 0
         print_results = true
@@ -32,6 +34,8 @@ struct StochSimulOptions
                 order = v::Int64
             elseif k == "periods"
                 periods = v::Int64
+            elseif k == "steadystate.nocheck"
+                nocheck = true
             end
         end
         new(display, dr_algo, first_period, irf, LRE_options, nar, order, periods)
