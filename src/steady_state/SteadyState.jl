@@ -55,7 +55,6 @@ struct SteadyOptions
         homotopy_steps = 10
         nocheck = false
         for (k, v) in pairs(options)
-            @show k
             if k == "noprint"
                 display = false
             elseif k == "maxit" && v::Bool
@@ -139,7 +138,6 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
         evaluate_steady_state!(trends.endogenous_steady_state,
                                trends.exogenous_steady_state,
                                work.params)
-        @show options.nocheck
         !options.nocheck && check_steady_state(StaticWs(context),
                                                trends.endogenous_steady_state,
                                                trends.exogenous_steady_state,
