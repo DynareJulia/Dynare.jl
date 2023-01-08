@@ -5,7 +5,7 @@ struct StochSimulOptions
     irf::Int64
     LRE_options::LinearRationalExpectationsOptions
     nar::Int64
-    nocheck::Bool
+    nonstationary::Bool
     order::Int64
     periods::Int64
     function StochSimulOptions(options::Dict{String,Any})
@@ -15,7 +15,7 @@ struct StochSimulOptions
         irf = 40
         LRE_options = LinearRationalExpectationsOptions()
         nar = 5
-        nocheck = false
+        nonstationary = false
         order = 1
         periods = 0
         print_results = true
@@ -30,15 +30,16 @@ struct StochSimulOptions
                 irf = v::Int64
             elseif k == "nar"
                 nar = v::Int64
+            elseif k == "nonstationary"
+                nonstationary = v::Bool
             elseif k == "order"
                 order = v::Int64
             elseif k == "periods"
                 periods = v::Int64
-            elseif k == "steadystate.nocheck"
-                nocheck = true
             end
         end
-        new(display, dr_algo, first_period, irf, LRE_options, nar, order, periods)
+        new(display, dr_algo, first_period, irf, LRE_options, nar, 
+        nonstationary, order, periods)
     end
 end
 
@@ -374,7 +375,8 @@ function compute_stoch_simul!(
 )
     model = context.models[1]
     results = context.results.model_results[1]
-    compute_steady_state!(context, Dict{String, Any}())
+    # don't check the steady state if the model is nonstationary
+    compute_steady_state!(context, Dict{String, Any}("steadystate.nocheck" => options.nonstationary))
     endogenous = results.trends.endogenous_steady_state
     endogenous3 = repeat(endogenous, 3)
     exogenous = results.trends.exogenous_steady_state
