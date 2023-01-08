@@ -10,50 +10,36 @@ function deterministic_trends!(context::Context, field::Dict{String,Any})
     end
 end
 
-function remove_linear_trend!(
-    data_out::Any,
-    data_in::Any,
-    steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    row::Int64 = 1,
-)
-    n = size(data_in, 2)
-    linear_trend = row - 1 .+ (1:n)
-    @simd for i in axes(data_out, 2)
-        for j in axes(data_out, 1)
-            data_out[j, i] = data_in[j, i] - (steady_state[j] - linear_trend_coeffs[j]) * linear_trend[i]
-        end
-    end
-end
-
 function add_linear_trend!(
     data_out::Any,
     data_in::Any,
     steady_state::AbstractVector{Float64},
     linear_trend_coeffs::AbstractVector{Float64};
-    row::Int64 = 1,
+    start::Int64 = 0
 )
-    n = size(data_in, 2)
-    linear_trend = collect(row - 1 .+ (1:n))
-    data_out .= data_in .+ steady_state .+ linear_trend_coeffs .* transpose(linear_trend)
+    linear_trend = start
+    @inbounds for i in axes(data_out, 2)
+        for j in axes(data_out, 1)
+            data_out[j, i] = data_in[j, i] + steady_state[j] + linear_trend_coeffs[j] * linear_trend
+        end
+        linear_trend += 1
+    end
 end
 
-function remove_quadratic_trend!(
+function remove_linear_trend!(
     data_out::Any,
     data_in::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64},
-    quadratic_trend_coeffs::AbstractVector{Float64};
-    row = 1,
+    linear_trend_coeffs::AbstractVector{Float64};
+    start::Int64 = 0
 )
-    n = size(data_in, 2)
-    linear_trend = collect(row - 1 .+ (1:n))
-    quadratic_trend = collect(row - 1 .+ (1:n)) .^ 2
-
-    data_out = (
-        data_in .- steady_state .- linear_trend_coeffs .* transpose(linear_trend) .-
-        quadratic_trend_coeffs .* transpose(quadratic_trend)
-    )
+    linear_trend = start
+    @inbounds for i in axes(data_out, 2)
+        for j in axes(data_out, 1)
+            data_out[j, i] = data_in[j, i] - steady_state[j] - linear_trend_coeffs[j] * linear_trend
+        end
+        linear_trend += 1
+    end
 end
 
 function add_quadratic_trend!(
@@ -64,12 +50,29 @@ function add_quadratic_trend!(
     quadratic_trend_coeffs::AbstractVector{Float64};
     row::Int64 = 1,
 )
-    n = size(data_in, 2)
-    linear_trend = collect(row - 1 .+ (1:n))
-    quadratic_trend = collect(row - 1 .+ (1:n)) .^ 2
+    trend = s
+    @inbounds for i in axes(data_out, 2)
+        for j in axes(data_out, 1)
+            data_out[j, i] = data_in[j, i] + steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
+    end
+    trend += 1
+end
 
-    data_out = (
-        data_in .+ steady_state .+ linear_trend_coeffs .* transpose(linear_trend) .+
-        quadratic_trend_coeffs .* transpose(quadratic_trend)
-    )
+function remove_quadratic_trend!(
+    data_out::Any,
+    data_in::Any,
+    steady_state::AbstractVector{Float64},
+    linear_trend_coeffs::AbstractVector{Float64},
+    quadratic_trend_coeffs::AbstractVector{Float64};
+    start = 0,
+)
+    trend = s
+    @inbounds for i in axes(data_out, 2)
+        for j in axes(data_out, 1)
+            data_out[j, i] = data_in[j, i] - steady_state[j] - linear_trend_coeffs[j] * trend - quadratic_trend_coeffs[j] * trend^2
+        end
+        trend += 1
+    end
+end
+
 end
