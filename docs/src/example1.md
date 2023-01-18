@@ -1,8 +1,7 @@
 # Internals: example1.mod
 
 This section documents the inner working of DynareJulia when running
-[example1.mod](../../test/models/example1/example1.mod). It corresponds to code currently developped in
-the ``sparse`` branch 
+[example1.mod](../../test/models/example1/example1.mod).
 
 ## 1. Running Dynare
 The ``example1.mod`` example is run with the following command:
@@ -18,13 +17,19 @@ It mainly performs two functions:
 
 ### a. Calling  the Dynare preprocessor
 The preprocessor creates the following files in
-``./test/models/example1/``
+``./test/models/example1/example1/model/julia``
 
-- [example1Dynamic.jl](../../test/models/example1/example1Dynamic.jl)
-- [example1DynamicParamsDerivs.jl](../../test/models/example1/example1DynamicParamsDerivs.jl)
-- [example1Static.jl](../../test/models/example1/example1Static.jl)
-- [example1StaticParamsDerivs.jl](../../test/models/example1/example1StaticParamsDerivs.jl)
-- [example1SteadyState2.jl](../../test/models/example1/example1SteadyState2.jl)
+- [DynamicParamsDerivs.jl](../../test/models/example1/example1/model/julia/DynamicParamsDerivs.jl)
+- [SparseDynamicG1!.jl](../../test/models/example1/example1/model/julia/SparseDynamicG1!.jl)
+- [SparseDynamicG1TT!.jl](../../test/models/example1/example1/model/julia/SparseDynamicG1TT!.jl)
+- [SparseDynamicResid!.jl](../../test/models/example1/example1/model/julia/SparseDynamicResid!.jl)
+- [SparseDynamicResidTT!.jl](../../test/models/example1/example1/model/julia/SparseDynamicResidTT!.jl)
+- [SparseStaticG1!.jl](../../test/models/example1/example1/model/julia/SparseStaticG1!.jl)
+- [SparseStaticG1TT!.jl](../../test/models/example1/example1/model/julia/SparseStaticG1TT!.jl)
+- [SparseStaticResid!.jl](../../test/models/example1/example1/model/julia/SparseStaticResid!.jl)
+- [SparseStaticResidTT.jl](../../test/models/example1/example1/model/julia/SparseStaticResidTT!.jl)
+- [StaticParamsDerivs.jl](../../test/models/example1/example1/model/julia/StaticParamsDerivs.jl)
+- [SteadyState2.jl](../../test/models/example1/example1/model/julia/SteadyState2.jl)
 
 that contains various version of the equations of the model as Julia
 functions.
