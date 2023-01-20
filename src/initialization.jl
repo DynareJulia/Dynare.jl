@@ -449,7 +449,7 @@ function set_deterministic_shocks!(
 )
     pmax = maximum((s) -> maximum(p -> p["period2"], s["values"]), shocks)::Int64
     resize!(x, pmax * exogenous_nbr)
-    fill!(x, 0.0)
+    x .= transpose(exogenous_steady_state)
     for s in shocks
         for v in s["values"]
             i = symboltable[s["var"]].orderintype
