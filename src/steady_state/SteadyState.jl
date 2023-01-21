@@ -154,6 +154,7 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
                                options.tolf)
         end
     elseif context.modfileinfo.has_ramsey_model
+        @show "ramsey"
         x0 = zeros(model.endogenous_nbr)
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))
@@ -420,6 +421,7 @@ function make_static_ramsey_residuals(temp_val::AbstractVector{T},
 
     function f!(x::AbstractVector{Float64})
         view(endogenous, unknown_variable_indices) .= x
+        view(endogenous, mult_indices) .= 0
         # Lagrange multipliers are kept to zero
         context.modfileinfo.has_auxiliary_variables &&
             DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
@@ -434,6 +436,7 @@ function make_static_ramsey_residuals(temp_val::AbstractVector{T},
         view(residuals, 1:orig_endo_nbr) .= U1 .+ M * mult
         res1 = sum(x-> x*x, residuals)
         res2 = norm(residuals)
+
         return res2
     end
 
