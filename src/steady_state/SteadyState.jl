@@ -346,13 +346,15 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
                                       orig_endo_nbr,
                                       ws)
     
-    f!(x00) <  options.tolf && copy!(endogenous_steady_state, endogenous)
-    if unknown_variable_nbr == 0
+    if f!(x00) <  options.tolf
+        copy!(results.trends.endogenous_steady_state, endogenous)
+        return
+    end 
+    if unknown_variable_nbr == 0 
         @debug "Steady state computation failed"
         throw(DynareSteadyStateComputationFailed())
     else
         result = optimize(f!, x00, LBFGS(), Optim.Options(f_tol=1e-6))
-        @debug result
         if Optim.converged(result) && abs(Optim.minimum(result)) < options.tolf
             view(endogenous, unknown_variable_indices) .= Optim.minimizer(result)
             context.modfileinfo.has_auxiliary_variables &&
