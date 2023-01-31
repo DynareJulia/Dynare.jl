@@ -1,3 +1,7 @@
+0.6.3
+=====
+- fix compatibility with DynarePreprocessor_jll
+
 0.6.2
 =====
 - fix initval with parameters
