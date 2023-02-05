@@ -101,8 +101,6 @@ end
 
 function dynamic_derivatives2!(
     T::AbstractVector{<:Real},
-    residual::AbstractVector{<:Real},
-    g1::AbstractMatrix{<:Real},
     g2::AbstractMatrix{<:Real},
     y::AbstractVector{<:Real},
     x::AbstractVector{<:Real},
@@ -118,9 +116,6 @@ end
 
 function dynamic_derivatives3!(
     T::Vector{<:Real},
-    residual::AbstractVector{<:Real},
-    g1::AbstractMatrix{<:Real},
-    g2::AbstractMatrix{<:Real},
     g3::AbstractMatrix{<:Real},
     y::Vector{<:Real},
     x::AbstractVector{<:Real},
@@ -172,8 +167,8 @@ function dynamic!(
     steady_state::AbstractVector{<:Real},
 )
     dynamic_resid!(T, residual, y, x, params, steady_state)
-    dynamic_derivatives!(T, residual, g1, y, x, params, steady_state)
-    dynamic_derivatives2!(T, residual, g1, g2, y, x, params, steady_state)
+    dynamic_derivatives!(T, g1, y, x, params, steady_state)
+    dynamic_derivatives2!(T, g2, y, x, params, steady_state)
     return nothing
 end
 
@@ -189,9 +184,9 @@ function dynamic!(
     steady_state::AbstractVector{<:Real},
 )
     dynamic_resid!(T, residual, y, x, params, steady_state)
-    dynamic_derivatives!(T, residual, g1, y, x, params, steady_state)
-    dynamic_derivatives2!(T, residual, g1, g2, y, x, params, steady_state)
-    dynamic_derivatives3!(T, residual, g1, g2, g3, y, x, params, steady_state)
+    dynamic_derivatives!(T, g1, y, x, params, steady_state)
+    dynamic_derivatives2!(T, g2, y, x, params, steady_state)
+    dynamic_derivatives3!(T, g3, y, x, params, steady_state)
     return nothing
 end
 

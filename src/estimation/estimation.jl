@@ -514,7 +514,6 @@ function posterior_mode(
     
     estimation_result_table(
         context.work.estimated_parameters.name,
-        context.work.estimated_parameters.parametertype,
         mode,
         tstdh,
         "Posterior mode"
@@ -604,7 +603,7 @@ function hmc_estimation(
 end
 
 ## Results
-function estimation_result_table(param_names, param_type, estimated_value, stdh, title)
+function estimation_result_table(param_names, estimated_value, stdh, title)
     table = Matrix{Any}(undef, length(param_names) + 1, 4)
     table[1, 1] = "Parameter"
     table[1, 2] = "Estimated value"

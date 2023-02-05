@@ -77,7 +77,7 @@ function MyTimeDataFrame(filename)
     for name in names(df)
         if uppercase(name) in ["DATE", "DATES", "PERIOD", "PERIODS"]
             p = df[!, name]
-            foreach(x -> push!(periods, parse(x)), p)
+            foreach(x -> push!(periods, periodparse(x)), p)
             if !is_continuous(periods)
                 continuous = false
             end
