@@ -40,15 +40,19 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
+    @show context.work.model_has_trend[1]
     Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
-    if context.work.model_has_trend[1]
+    if context.modfileinfo.has_trends
         remove_linear_trend!(
             Y,
             Yorig,
             results.trends.endogenous_steady_state[varobs_ids],
             results.trends.endogenous_linear_trend[varobs_ids],
         )
-    end 
+    else
+        Y = Yorig
+    end
+    @show Y 
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)

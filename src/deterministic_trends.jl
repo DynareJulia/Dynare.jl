@@ -36,6 +36,7 @@ function remove_linear_trend!(
     linear_trend = start
     @inbounds for i in axes(data_out, 2)
         for j in axes(data_out, 1)
+            @show data_in[j, i], steady_state[j], linear_trend_coeffs[j], linear_trend
             data_out[j, i] = data_in[j, i] - steady_state[j] - linear_trend_coeffs[j] * linear_trend
         end
         linear_trend += 1
