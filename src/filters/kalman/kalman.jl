@@ -29,6 +29,7 @@ end
 function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
+    has_trends = context.modfileinfo.has_trends
     varobs_ids =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     model = context.models[1]
@@ -41,7 +42,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
     Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
-    if context.modfileinfo.has_trends
+    if has_trends
         remove_linear_trend!(
             Y,
             Yorig,
@@ -195,12 +196,14 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     end
 
     results.smoother["alphah"] = Matrix{Float64}(undef, ns, nobs)
-    add_linear_trend!(
-        results.smoother["alphah"],
-        alphah,
-        results.trends.endogenous_steady_state,
-        results.trends.endogenous_linear_trend,
-    )
+    if has_trends
+        add_linear_trend!(
+            results.smoother["alphah"],
+            alphah,
+            results.trends.endogenous_steady_state,
+            results.trends.endogenous_linear_trend,
+        )
+    end
 end
 
 
