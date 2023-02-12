@@ -128,7 +128,7 @@ end
 function mcp_parse(mcps, context)
     mcp1 = Tuple{Int64, Int64, String, Float64}[]
     for m in mcps
-        m1 = (m[1], context.symboltable[m[2]].orderintype, m[3], dynare_parse_eval(m[4], context))
+        m1 = (m[1], m[2], m[3], dynare_parse_eval(m[4], context))
         push!(mcp1, m1)
     end
     return mcp1
