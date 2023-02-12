@@ -4,6 +4,7 @@ function deterministic_trends!(context::Context, field::Dict{String,Any})
     trend = context.results.model_results[1].trends.endogenous_linear_trend
     symboltable = context.symboltable
     work.model_has_trend[1] = true
+    isempty(trend) && resize!(trend, model.endogenous_nbr)
     fill!(trend, 0.0)
     for (key, value) in field["trends"]
         trend[symboltable[key].orderintype] = work.params[symboltable[value].orderintype]
@@ -36,7 +37,6 @@ function remove_linear_trend!(
     linear_trend = start
     @inbounds for i in axes(data_out, 2)
         for j in axes(data_out, 1)
-            @show data_in[j, i], steady_state[j], linear_trend_coeffs[j], linear_trend
             data_out[j, i] = data_in[j, i] - steady_state[j] - linear_trend_coeffs[j] * linear_trend
         end
         linear_trend += 1
