@@ -220,8 +220,9 @@ The struct has eight fields: `y`, `x`, `shocks`, `J`, `lb`, `ub`, `permutationsR
 -   `shocks` is a matrix of type `Matrix{Float64}` representing shocks.
 -   `J` is a sparse matrix of type `SparseMatrixCSC` representing the Jacobian matrix.
 -   `lb` and `ub` are vectors of type `Vector{Float64}` representing lower and upper bounds of variables.
--   `permutationsR` is a vector of type `Vector{Tuple{Int64,Int64}}` representing permutations of the rows of the Jacobian matrix.
--   `permutationsJ` is a vector of type `Vector{Tuple{Int64,Int64}}` representing permutations of the columns of the Jacobian matrix.
+-   `permutationsR` is a vector of type `Vector{Tuple{Int64,Int64}}` representing permutations of the residuals.
+-   `permutationsJ` is a vector of type `Vector{Tuple{Int64,Int64}}`
+    representing permutations of the rows of the Jacobian matrix.
 
 The struct also has a constructor function `PerfectForesightWs` which takes a `context` and a `periods` as input. 
 
