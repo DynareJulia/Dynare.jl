@@ -13,6 +13,26 @@ using TransformVariables
 using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
+@kwdef struct EstimationOptions
+    display::Bool
+    dafafile::String
+    nobs::Int
+    first_obs
+    last_obs
+    presample::Int = 0
+    plot_priors::Bool = false
+    config_sig::Float64 = 0.8
+    mcmc_replic::Int =  0
+    mcmc_chains::Int = 1
+    mcmc_jscale::Float64
+    mcmc_init_scale::Float64
+    mode_check::Bool = false
+    fast_kalman_filter::Bool = true
+    diffuse_filter::Bool = false
+end 
+
+function estimation!(context::Context, field::Dict{String, Any})
+end
 
 struct SSWs{D<:AbstractFloat,I<:Integer}
     a0::Vector{D}
@@ -33,15 +53,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         model = context.models[1]
         D = eltype(context.work.params)
         symboltable = context.symboltable
-        tmp_nbr = sum(model.dynamic_tmp_nbr[1:2])
-        ncol = model.n_bkwrd + model.n_current + model.n_fwrd + 2 * model.n_both
-        dynamicws = Dynare.DynamicWs(
-            model.endogenous_nbr,
-            model.exogenous_nbr,
-            tmp_nbr,
-            model.dynamic_g1_sparse_colptr,
-            model.dynamic_g1_sparse_rowval
-        )
+        dynamicws = Dynare.DynamicWs(context)
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
         varobs_ids0 = [
             symboltable[v].orderintype for

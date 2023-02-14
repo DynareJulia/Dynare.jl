@@ -243,9 +243,9 @@ function parse_statements!(context::Context, statements::Vector{Any})
             modfileinfo.endval_is_reset = true
             @debug "$(now()): end endval"
         elseif statementname == "estimated_params"
-            #            parse_estimated_parameters!(context, field)
-            #            modfileinfo.has_trends = true
+            parse_estimated_parameters!(context, field)
         elseif statementname == "estimation"
+            estimation!(context, field)
         elseif statementname == "histval"
             histval!(context, field)
             modfileinfo.has_histval = true
