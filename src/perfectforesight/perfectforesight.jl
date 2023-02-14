@@ -84,8 +84,8 @@ struct PerfectForesightWs
     J::SparseMatrixCSC
     lb::Vector{Float64}
     ub::Vector{Float64}
-    permutationsR::Vector{Tuple{Int64,Int64}}
-    permutationsJ::Vector{Tuple{Int64,Int64}}
+    permutationsR::Vector{Tuple{Int64,Int64}}  # permutations indices for residuals
+    permutationsJ::Vector{Tuple{Int64,Int64}}  # permutations indices for Jacobian rows
     function PerfectForesightWs(context, periods)
         m = context.models[1]
         modfileinfo = context.modfileinfo
