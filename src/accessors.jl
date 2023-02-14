@@ -30,6 +30,6 @@ function simulation(varnames::Vector{Symbol}; thiscontext = context, model = 1, 
     TimeDataFrame(select(dataframe(tdf), varnames), periods(tdf), iscontinuous(tdf))
 end
 simulation(varnames::Vector{String}; thiscontext = context, model = 1, simnbr = 1) =
-    simulation([Symbol(v) for v in varnames]; context, model = model, simnbr = simnbr)
+    simulation([Symbol(v) for v in varnames]; thiscontext = context, model = model, simnbr = simnbr)
 simulation(varnames::Tuple; thiscontext = context, model = 1, simnbr = 1) =
-    simulation([Symbol(v) for v in varnames]; context, model = model, simnbr = simnbr)
+    simulation([Symbol(v) for v in varnames]; thiscontext = context, model = model, simnbr = simnbr)
