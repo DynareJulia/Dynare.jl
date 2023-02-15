@@ -34,6 +34,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     model = context.models[1]
     results = context.results.model_results[1]
+    lre_results = results.linearrationalexpectations
     if (filename = options.datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
         Yorig =
@@ -68,14 +69,14 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     d = zeros(ns)
     T = zeros(ns, ns)
     vg1 = view(
-        context.results.model_results[1].linearrationalexpectations.g1_1,
+        lre_results.g1_1,
         kalman_statevar_ids,
         :,
     )
     T[:, k2] .= vg1
     R = zeros(ns, np)
     vg2 = view(
-        context.results.model_results[1].linearrationalexpectations.g1_2,
+        lre_results.g1_2,
         kalman_statevar_ids,
         :,
     )
@@ -89,7 +90,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     P = zeros(ns, ns, nobs + 1)
     Ptt = zeros(ns, ns, nobs + 1)
     vv = view(
-        context.results.model_results[1].linearrationalexpectations.endogenous_variance,
+        lre_results.endogenous_variance,
         kalman_statevar_ids,
         kalman_statevar_ids,
     )
@@ -104,7 +105,9 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     for i = 1:nobs
         push!(data_pattern, findall(.!ismissing.(Y[:, i])))
     end
-    if count(results.stationary_variables) == model.endogenous_nbr
+
+    if count(lre_results.stationary_variables) == model.endogenous_nbr
+        @show "stationary"
         kws = KalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(
             Y,
@@ -131,6 +134,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern,
         )
+        @show alphah
     else
         schur_ws = SchurWs(T)
         F = Schur(
@@ -203,6 +207,8 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
+    else
+        results.smoother["alphah"] .= alphah
     end
 end
 
