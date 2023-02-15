@@ -107,7 +107,6 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     end
 
     if count(lre_results.stationary_variables) == model.endogenous_nbr
-        @show "stationary"
         kws = KalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(
             Y,
@@ -134,7 +133,6 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern,
         )
-        @show alphah
     else
         schur_ws = SchurWs(T)
         F = Schur(
