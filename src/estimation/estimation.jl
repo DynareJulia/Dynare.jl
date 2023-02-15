@@ -14,21 +14,60 @@ using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
 @kwdef struct EstimationOptions
-    display::Bool
+    config_sig::Float64 = 0.8
+    data
     dafafile::String
-    nobs::Int
+    diffuse_filter::Bool = false
+    display::Bool
+    fast_kalman_filter::Bool = true
     first_obs
     last_obs
-    presample::Int = 0
-    plot_priors::Bool = false
-    config_sig::Float64 = 0.8
-    mcmc_replic::Int =  0
     mcmc_chains::Int = 1
-    mcmc_jscale::Float64
     mcmc_init_scale::Float64
+    mcmc_jscale::Float64
+    mcmc_replic::Int =  0
     mode_check::Bool = false
-    fast_kalman_filter::Bool = true
-    diffuse_filter::Bool = false
+    nobs::Int
+    plot_prior::Bool = false
+    presample::Int = 0
+    function EstimationOptions{options::Dict{String,Any})
+        for (k, v) in pairs(options)
+            if k == "display"
+                display = v
+            elseif k == "datafile"
+                datafile = v
+            elseif k == "nobs"
+                nobs = v
+            elseif k == "first_obs"
+                first_obs = v
+            elseif k == "last_obs"
+                last_obs = v
+            elseif k == "presample"
+                presample = v
+            elseif k == "plot_priors"
+                plot_priors = true
+            elseif k == "config_sig"
+                config_sig = v
+            elseif k == "mcmc_replic"
+                mcmc_replic = v
+            elseif k == "mcmc_chains"
+                mcmc_chains = v
+            elseif k == "mcmc_jscal"
+                mcmc_jscale = v
+            elseif k == "mcmc_init_scale"
+                mcmc_init_scale = v
+            elseif k == "mode_check"
+                mode_check = true
+            elseif k == "fast_kalman_filter"
+                fast_kalman_filter = true
+            elseif k == "diffuse_filter"
+                diffuse_filter = true
+            end
+        end
+        new(config_sig, data, datafile, diffuse_filter, display,
+        fast_kalman_filter, first_obs, last_obs, mcmc_chains,
+        mcmc_init_scale, mcmc_jscale, mcmc_replic, mode_check, nobs,
+        plot_prior, presample)
 end 
 
 function estimation!(context::Context, field::Dict{String, Any})
