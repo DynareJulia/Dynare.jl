@@ -14,31 +14,31 @@ function identify_period_type(period::AbstractString)
     let period_type
         if isnothing(c)
             if (cdash = count("-", period)) == 2
-                period_type = DayDate
+                period_type = DaySE
             elseif cdash == 1
-                period_type = MonthDate
+                period_type = MonthSE
             elseif tryparse(Int64, period) !== nothing
-                period_type = UndatedDate
+                period_type = Undated
             else
                 throw(ErrorException)
             end
         else
             if c == 'Y'
-                period_type = YearDate
+                period_type = YearSE
             elseif c == 'A'
-                period_type = YearDate
+                period_type = YearSE
             elseif c == 'S'
-                period_type = ExtendedDates.SemesterDate
+                period_type = ExtendedDates.SemesterSE
             elseif c == 'H'
-                period_type = ExtendedDates.SemesterDate
+                period_type = ExtendedDates.SemesterSE
             elseif c == 'Q'
-                period_type = QuarterDate
+                period_type = QuarterSE
             elseif c == 'M'
-                period_type = MonthDate
+                period_type = MonthSE
             elseif c == 'W'
-                period_type = WeekDate
+                period_type = WeekSE
             elseif c == 'D'  # day of the year: 1980D364
-                period_type = DayDate
+                period_type = DaySE
             else
                 throw(ErrorException)
             end
@@ -47,21 +47,21 @@ function identify_period_type(period::AbstractString)
     end
 end
 
-function periodparse(period::AbstractString)::ExtendedDates.SimpleDate
+function periodparse(period::AbstractString)::ExtendedDates.DatePeriod
     period_type = identify_period_type(period)
-    if period_type == YearDate
+    if period_type == YearSE
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("yY"))
-    elseif period_type == SemesterDate
+    elseif period_type == SemesterSE
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("ySs"))
-    elseif period_type == QuarterDate
+    elseif period_type == QuarterSE
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("yQq"))
-    elseif period_type == MonthDate
+    elseif period_type == MonthSE
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("yMm"))
-    elseif period_type == WeekDate
+    elseif period_type == WeekSE
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("yWw"))
-    elseif period_type == DayDate
+    elseif period_type == DaySE
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("y-m-d"))
-    elseif period_type == UndatedDate
+    elseif period_type == Undated
         return parse(period_type, period, ExtendedDates.SimpleDateFormat("x"))
     else
         throw(ErrorException)
@@ -93,7 +93,7 @@ function MyTimeDataFrame(filename)
     return TimeDataFrame(df, periods, continuous)
 end
 
-function is_continuous(periods::Vector{ExtendedDates.SimpleDate})
+function is_continuous(periods::Vector{ExtendedDates.DatePeriod})
     i = periods[1]
     for j = 2:length(periods)
         if periods[j] != i + 1

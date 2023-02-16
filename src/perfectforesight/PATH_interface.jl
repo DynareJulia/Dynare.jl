@@ -109,12 +109,10 @@ function mcp_perfectforesight_core!(
         Simulation(
             "Sim1",
             "",
-            TimeDataFrame(
-                DataFrame(
+            AxisArrayTable(
                     transpose(reshape(results, m.endogenous_nbr, periods)),
-                    endogenous_names,
-                ),
-                UndatedDate(1),
+                    Undated(1):Undated(periods),
+                    [Symbol(s) for s in endogenous_names],
             ),
         ),
     )

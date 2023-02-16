@@ -6,7 +6,7 @@ using JLD2
 using JSON
 using Plots
 using StatsFuns
-using TimeDataFrames
+using AxisArrayTables
 
 @noinline function parseJSON(modfilename::String)
     modelstring::String =
@@ -150,7 +150,7 @@ function make_containers(
     work = Work(model, varobs)
     modelresults = ModelResults(
         Vector{Float64}(undef, endo_nbr),
-        Dict{Symbol,TimeDataFrame}(),
+        Dict{Symbol, AxisArrayTable}(),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
         Vector{Float64}(undef, exo_nbr),

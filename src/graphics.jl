@@ -226,8 +226,8 @@ function pltorg_0(number)
     return (lr, lc)
 end
 
-function plot(tdf::TimeDataFrame; label = (), title = "", filename = "")
-    pl = Plots.plot(tdf, label = label, title = title)
+function plot(aat::AxisArrayTable; label = (), title = "", filename = "")
+    pl = Plots.plot(aat, label = label, title = title)
     graph_display(pl)
     savefig(filename)
 end
