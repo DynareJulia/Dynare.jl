@@ -3,7 +3,7 @@ module DFunctions
 using RuntimeGeneratedFunctions
 using SparseArrays
 using StatsFuns
-using TimeDataFrames
+using AxisArrayTables
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
@@ -33,9 +33,9 @@ function load_model_functions(modelname::String)
     global SparseStaticResidTT! =
         load_dynare_function("$(function_root)SparseStaticResidTT!.jl")
     global SparseDynamicParametersDerivatives! =
-        load_dynare_function("$(function_root)DynamicParamsDerivs.jl", head = 8, tail = 1)
+        load_dynare_function("$(function_root)DynamicParamsDerivs.jl")
     global SparseStaticParametersDerivatives! =
-        load_dynare_function("$(function_root)StaticParamsDerivs.jl", head = 8, tail = 1)
+        load_dynare_function("$(function_root)StaticParamsDerivs.jl")
     global steady_state!
     (steady_state!, analytical_variables) =
         load_steady_state_function("$(function_root)SteadyState2.jl")
@@ -101,8 +101,6 @@ end
 
 function dynamic_derivatives2!(
     T::AbstractVector{<:Real},
-    residual::AbstractVector{<:Real},
-    g1::AbstractMatrix{<:Real},
     g2::AbstractMatrix{<:Real},
     y::AbstractVector{<:Real},
     x::AbstractVector{<:Real},
@@ -118,9 +116,6 @@ end
 
 function dynamic_derivatives3!(
     T::Vector{<:Real},
-    residual::AbstractVector{<:Real},
-    g1::AbstractMatrix{<:Real},
-    g2::AbstractMatrix{<:Real},
     g3::AbstractMatrix{<:Real},
     y::Vector{<:Real},
     x::AbstractVector{<:Real},
@@ -172,8 +167,8 @@ function dynamic!(
     steady_state::AbstractVector{<:Real},
 )
     dynamic_resid!(T, residual, y, x, params, steady_state)
-    dynamic_derivatives!(T, residual, g1, y, x, params, steady_state)
-    dynamic_derivatives2!(T, residual, g1, g2, y, x, params, steady_state)
+    dynamic_derivatives!(T, g1, y, x, params, steady_state)
+    dynamic_derivatives2!(T, g2, y, x, params, steady_state)
     return nothing
 end
 
@@ -189,9 +184,9 @@ function dynamic!(
     steady_state::AbstractVector{<:Real},
 )
     dynamic_resid!(T, residual, y, x, params, steady_state)
-    dynamic_derivatives!(T, residual, g1, y, x, params, steady_state)
-    dynamic_derivatives2!(T, residual, g1, g2, y, x, params, steady_state)
-    dynamic_derivatives3!(T, residual, g1, g2, g3, y, x, params, steady_state)
+    dynamic_derivatives!(T, g1, y, x, params, steady_state)
+    dynamic_derivatives2!(T, g2, y, x, params, steady_state)
+    dynamic_derivatives3!(T, g3, y, x, params, steady_state)
     return nothing
 end
 
@@ -338,13 +333,7 @@ end
 function load_steady_state_function(modname::String)
     if isfile(modname)
         fun = readlines(modname)
-        if fun[6] == "using StatsFuns"
-            fun[6] = "using Dynare.StatsFuns"
-        else
-            insert!(fun, 6, "using Dynare.StatsFuns")
-        end
-        fun[9] = "function steady_state!(ys_::Vector{T}, exo_::Vector{Float64}, params::Vector{Float64}) where T"
-        expr = Meta.parse(join(fun[8:end-1], "\n"))
+        expr = Meta.parse(join(fun, "\n"))
         analytical_variables = get_analytical_variables(expr)
         return (@RuntimeGeneratedFunction(expr), analytical_variables)
     else

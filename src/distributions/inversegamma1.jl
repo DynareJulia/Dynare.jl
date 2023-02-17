@@ -143,9 +143,9 @@ end
 zval(::InverseGamma1, x::Real) = sqrt(max(x, 0))
 
 cdf(d::InverseGamma1, x::Real) = cdf(InverseGamma(d.α, d.θ), zval(d, x))
-ccdf(d::InverseGamma1, x::Real) = ccdf(InverseGamma(d.α, d.θ), zval(d.x))
-logcdf(d::InverseGamma1, x::Real) = logcdf(InverseGamma(d.α, d.θ), zval(d.x))
-logccdf(d::InverseGamma1, x::Real) = logccdf(InverseGamma(d.α, d.θ), zval(d.x))
+ccdf(d::InverseGamma1, x::Real) = ccdf(InverseGamma(d.α, d.θ), zval(d, x))
+logcdf(d::InverseGamma1, x::Real) = logcdf(InverseGamma(d.α, d.θ), zval(d, x))
+logccdf(d::InverseGamma1, x::Real) = logccdf(InverseGamma(d.α, d.θ), zval(d, x))
 
 quantile(d::InverseGamma1, p::Real) = sqrt(quantile(InversGamme(d.α, d.θ), p))
 cquantile(d::InverseGamma1, p::Real) = sqrt(cquantile(InversGamme(d.α, d.θ), p))

@@ -7,14 +7,14 @@ function histval!(context::Context, field::Dict{String,Any})
         l = m.orig_maximum_lag + v["lag"]::Int64
         histval[l, k] = dynare_parse_eval(v["value"]::String, context)
     end
-    tdf = TimeDataFrame(
+    aat = AxisArrayTable(
         Matrix{Union{Float64,Missing}}(histval),
-        vcat(get_endogenous(symboltable),
-            get_exogenous(symboltable)),
-        UndatedDate(1),
+        Undated(1):Undated(size(histval,1)),
+        [Symbol(s) for s in vcat(get_endogenous(symboltable),
+            get_exogenous(symboltable))],
     )
-    DFunctions.dynamic_auxiliary_variables!(tdf, context.work.params)
-    context.work.histval = Matrix(tdf)
+    DFunctions.dynamic_auxiliary_variables!(aat, context.work.params)
+    context.work.histval = Matrix(aat)
 end
 
 function get_date(optionname::String, options)
@@ -50,13 +50,13 @@ function check_predetermined_variables(symboltable, m, datanames)
     return auxiliary_variables_present
 end
 
-Delta(::Type{YearDate}) = Year
-Delta(::Type{SemesterDate}) = Semester
-Delta(::Type{QuarterDate}) = Quarter
-Delta(::Type{MonthDate}) = Month
-Delta(::Type{WeekDate}) = Week
-Delta(::Type{DayDate}) = Day
-Delta(::Type{UndatedDate}) = Undated
+Delta(::Type{YearSE}) = Year
+Delta(::Type{SemesterSE}) = Semester
+Delta(::Type{QuarterSE}) = Quarter
+Delta(::Type{MonthSE}) = Month
+Delta(::Type{WeekSE}) = Week
+Delta(::Type{DaySE}) = Day
+Delta(::Type{Undated}) = Undated
 """
     check_periods_options(options::Options; required_lags::Int64=0, required_leads::Int64=0)
 checks the following assertions if the fields exist:
@@ -113,14 +113,14 @@ function check_periods_options(options; required_lags::Int64 = 0, required_leads
 end
 
 function add_auxiliary_variables(
-    tdf::TimeDataFrame,
+    aat::AxisArrayTable,
     symboltable::SymbolTable,
     endogenous_nbr::Int64,
     original_endogenous_nbr::Int64,
 )
-    df = getfield(tdf, :data)
-    nrow = size(df, 1)
-    vnames = names(tdf)
+    aa = getfield(aat, :data)
+    nrow = size(aa, 1)
+    vnames = names(aat)
     for v in get_endogenous(symboltable)[original_endogenous_nbr+1:endogenous_nbr]
         if !(v in vnames)
             insertcols!(df, Symbol(v) => Vector{Union{Float64,Missing}}(missing, nrow))
@@ -449,7 +449,7 @@ function set_deterministic_shocks!(
 )
     pmax = maximum((s) -> maximum(p -> p["period2"], s["values"]), shocks)::Int64
     resize!(x, pmax * exogenous_nbr)
-    fill!(x, 0.0)
+    x .= repeat(exogenous_steady_state, pmax)
     for s in shocks
         for v in s["values"]
             i = symboltable[s["var"]].orderintype

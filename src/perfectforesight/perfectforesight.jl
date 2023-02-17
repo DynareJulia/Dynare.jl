@@ -84,8 +84,8 @@ struct PerfectForesightWs
     J::SparseMatrixCSC
     lb::Vector{Float64}
     ub::Vector{Float64}
-    permutationsR::Vector{Tuple{Int64,Int64}}
-    permutationsJ::Vector{Tuple{Int64,Int64}}
+    permutationsR::Vector{Tuple{Int64,Int64}}  # permutations indices for residuals
+    permutationsJ::Vector{Tuple{Int64,Int64}}  # permutations indices for Jacobian rows
     function PerfectForesightWs(context, periods)
         m = context.models[1]
         modfileinfo = context.modfileinfo
@@ -123,6 +123,15 @@ struct PerfectForesightWs
         ub = Float64[]
         new(y, x, shocks, J, lb, ub, permutationsR, permutationsJ)
     end
+end
+
+function mcp_parse(mcps, context)
+    mcp1 = Tuple{Int64, Int64, String, Float64}[]
+    for m in mcps
+        m1 = (m[1], m[2], m[3], dynare_parse_eval(m[4], context))
+        push!(mcp1, m1)
+    end
+    return mcp1
 end
 
 function perfect_foresight_solver!(context, field)
@@ -322,11 +331,7 @@ function perfectforesight_core!(
     nzval = similar(m.dynamic_g1_sparse_rowval, Float64)
     nzval1 = similar(nzval)
     
-    function f!(residuals, y)
-        @debug "$(now()): start f!"
-        get_residuals!(
-            residuals,
-            vec(y),
+    f! = make_pf_residuals(
             initialvalues,
             terminalvalues,
             exogenous,
@@ -336,19 +341,11 @@ function perfectforesight_core!(
             m,
             periods,
             temp_vec,
-        )
-        @debug "$(now()): end f!"
-    end
-
-    function J!(
-        A::SparseArrays.SparseMatrixCSC{Float64,Int64},
-        y::AbstractVecOrMat{Float64},
+            perfect_foresight_ws.permutationsR,
     )
-        @debug "$(now()): start J!"
-        A = updateJacobian!(
-            JJ,
+
+    J! = make_pf_jacobian(
             DFunctions.dynamic_derivatives!,
-            vec(y),
             initialvalues,
             terminalvalues,
             dynamic_variables,
@@ -364,14 +361,11 @@ function perfectforesight_core!(
             perfect_foresight_ws.permutationsJ,
             nzval1
         )
-        @debug count(!iszero, A) / prod(size(A))
-        @debug "$(now()): end J!"
-    end
 
-    function fj!(residuals, JJ, y)
-        f!(residuals, vec(y))
-        J!(JJ, vec(y))
-    end
+#    function fj!(residuals, JJ, y)
+#        f!(residuals, vec(y))
+#        J!(JJ, vec(y))
+#    end
     J!(JJ, y0)
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
@@ -380,21 +374,95 @@ function perfectforesight_core!(
     res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
-    endogenous_names = get_endogenous_longname(context.symboltable)
+    endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     push!(
         context.results.model_results[1].simulations,
         Simulation(
             "Sim1",
             "",
-            TimeDataFrame(
-                DataFrame(
-                    transpose(reshape(res.zero, m.endogenous_nbr, periods)),
-                    endogenous_names,
-                ),
-                UndatedDate(1),
-            ),
+            AxisArrayTable(
+                transpose(reshape(res.zero, m.endogenous_nbr, periods)),
+                Undated(1):Undated(periods),
+                endogenous_names
+                )
         ),
     )
+end
+
+function make_pf_residuals(
+            initialvalues::AbstractVector{T},
+            terminalvalues::AbstractVector{T},
+            exogenous::AbstractVector{T},
+            dynamic_variables::AbstractVector{T},
+            steadystate::AbstractVector{T},
+            params::AbstractVector{T},
+            m::Model,
+            periods::Int,
+            temp_vec::AbstractVector{T},
+            permutations::Vector{Tuple{Int64,Int64}},
+        ) where T <: Real
+    function f!(residuals::AbstractVector{T}, y::AbstractVector{T})
+        get_residuals!(
+            residuals,
+            vec(y),
+            initialvalues,
+            terminalvalues,
+            exogenous,
+            dynamic_variables,
+            steadystate,
+            params,
+            m,
+            periods,
+            temp_vec,
+            permutations = permutations
+        )
+        return residuals
+    end
+    return f!
+end
+
+function make_pf_jacobian(
+    dynamic_derivatives!::Function,
+    initialvalues::AbstractVector{T},
+    terminalvalues::AbstractVector{T},
+    dynamic_variables::AbstractVector{T},
+    exogenous::AbstractVector{T},
+    periods::N,
+    temp_vec::AbstractVector{T},
+    params::AbstractVector{T},
+    steadystate::AbstractVector{T},
+    dynamic_g1_sparse_colptr::AbstractVector{N},
+    nzval::AbstractVector{T},
+    endogenous_nbr::N,
+    exogenous_nbr::N,
+    permutations::Vector{Tuple{Int64,Int64}},
+    nzval1::AbstractVector{T}
+) where {T <: Real, N <: Integer}
+    function J!(
+        A::SparseArrays.SparseMatrixCSC{Float64,Int64},
+        y::AbstractVector{Float64},
+    )
+        updateJacobian!(
+            A,
+            dynamic_derivatives!,
+            y,
+            initialvalues,
+            terminalvalues,
+            dynamic_variables,
+            exogenous,
+            periods,
+            temp_vec,
+            params,
+            steadystate,
+            dynamic_g1_sparse_colptr,
+            nzval,
+            endogenous_nbr,
+            exogenous_nbr,
+            permutations,
+            nzval1
+        )
+        return A
+    end
 end
 
 function get_residuals!(

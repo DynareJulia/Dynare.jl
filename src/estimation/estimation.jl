@@ -28,6 +28,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     varobs_ids::Vector{I}
     Y::Matrix{Union{D,Missing}}
     Z::Matrix{D}
+    kalman_ws::KalmanLikelihoodWs{D, I}
     function SSWs(context, nobs, varobs)
         model = context.models[1]
         D = eltype(context.work.params)
@@ -74,57 +75,64 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             varobs_ids,
             Y,
             Z,
+            KalmanLikelihoodWs(
+                ny,
+                ns,
+                np,
+                nobs
+            )
+                
         )
     end
 end
 
 ## Estimation problems
-struct DSGENegativeLogLikelihood
-    f::Function
+struct DSGENegativeLogLikelihood{F<:Function, UT}
+    f::F
     dimension::Integer
     context::Context
-    observations::Matrix{Union{Missing,<:Real}}
+    observations::Matrix{UT}
     ssws::SSWs
     function DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
         observations = get_observations(context, datafile, first_obs, last_obs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
-        new(f, n, context, observations, ssws)
+        new{typeof(f),eltype(observations)}(f, n, context, observations, ssws)
     end
 end
 
-struct DSGELogPosteriorDensity
-    f::Function
+struct DSGELogPosteriorDensity{F <: Function, UT}
+    f::F
     dimension::Integer
     context::Context
-    observations::Matrix{Union{Missing,<:Real}}
+    observations::Matrix{Union{Missing,UT}}
     ssws::SSWs
     function DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
         observations = get_observations(context, datafile, first_obs, last_obs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
-        new(f, n, context, observations, ssws)
+        new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
     end
 end
 
-struct DSGENegativeLogPosteriorDensity
-    f::Function
+struct DSGENegativeLogPosteriorDensity{F <:Function, UT}
+    f::F
     dimension::Integer
     context::Context
-    observations::Matrix{Union{Missing,<:Real}}
+    observations::Matrix{Union{Missing,UT}}
     ssws::SSWs
     function DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
         observations = get_observations(context, datafile, first_obs, last_obs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_negativelogposteriordensity(context, observations, first_obs, last_obs, ssws)
-        new(f, n, context, observations, ssws)
+        new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
     end
 end
 
-function logpriordensity(x, estimated_parameters)
+function logpriordensity(x, estimated_parameters)::Float64
     lpd = 0.0
     k = 1
     for (k, p) in enumerate(estimated_parameters.prior)
@@ -171,8 +179,7 @@ function make_negativeloglikelihood(context, observations, first_obs, last_obs, 
 end
 
 function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
-    function logposteriordensity(x)
-        @debug @show x
+    function logposteriordensity(x)::Float64
         lpd = logpriordensity(x, context.work.estimated_parameters)
         if abs(lpd) == Inf
             return lpd
@@ -180,10 +187,10 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
         try
             lpd += loglikelihood(x, context, observations, ssws)
         catch e
-            eigenvalues = get_eigenvalues(context)
-            model = context.models[1]
-            backward_nbr = model.n_bkwrd + model.n_both
-            @debug e
+            # eigenvalues = get_eigenvalues(context)
+            # model = context.models[1]
+            # backward_nbr = model.n_bkwrd + model.n_both
+            # @debug e
             lpd = -Inf
         end
         return lpd
@@ -251,7 +258,7 @@ function loglikelihood(
     context::Context,
     observations::Matrix{D},
     ssws::SSWs{T,I},
-) where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
+)::T where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
     parameters = collect(θ)
     model = context.models[1]
     results = context.results.model_results[1]
@@ -303,7 +310,7 @@ function loglikelihood(
     last = nobs
     presample = 0
     # workspace for kalman_likelihood
-    klws = Dynare.KalmanLikelihoodWs(ny, ns, np, nobs)
+    klws = ssws.kalman_ws
     Y = ssws.Y
     if any(ismissing.(Y))
         # indices of non-missing observations are in data_pattern
@@ -313,13 +320,13 @@ function loglikelihood(
         end
         return Dynare.kalman_likelihood(
             Y,
-            swws.Z,
+            ssws.Z,
             ssws.H,
             ssws.T,
             ssws.R,
             ssws.Q,
             ssws.a0,
-            swws.P,
+            ssws.P,
             start,
             last,
             presample,
@@ -507,7 +514,6 @@ function posterior_mode(
     
     estimation_result_table(
         context.work.estimated_parameters.name,
-        context.work.estimated_parameters.parametertype,
         mode,
         tstdh,
         "Posterior mode"
@@ -597,7 +603,7 @@ function hmc_estimation(
 end
 
 ## Results
-function estimation_result_table(param_names, param_type, estimated_value, stdh, title)
+function estimation_result_table(param_names, estimated_value, stdh, title)
     table = Matrix{Any}(undef, length(param_names) + 1, 4)
     table[1, 1] = "Parameter"
     table[1, 2] = "Estimated value"

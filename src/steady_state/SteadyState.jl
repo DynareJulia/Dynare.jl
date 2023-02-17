@@ -48,7 +48,7 @@ struct SteadyOptions
     function SteadyOptions(options::Dict{String,Any})
         display = true
         maxit = 50
-        tolf = 1e-5 #cbrt(eps())
+        tolf = cbrt(eps())
         tolx = 0.0
         solve_algo = trustregion
         homotopy_mode = None
@@ -69,8 +69,8 @@ struct SteadyOptions
                 homotopy_mode = v::HomotopyModes
             elseif k == "homotopy_steps"
                 homotopy_steps = v::Int64
-            elseif k == "nocheck" && v::Bool
-                nochecl = true
+            elseif k == "steadystate.nocheck" && v::Bool
+                nocheck = true
             end
         end
         new(display, maxit, tolf, tolx, solve_algo, homotopy_mode, homotopy_steps, nocheck)
@@ -138,12 +138,23 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
         evaluate_steady_state!(trends.endogenous_steady_state,
                                trends.exogenous_steady_state,
                                work.params)
+        !options.nocheck && check_steady_state(StaticWs(context),
+                                               trends.endogenous_steady_state,
+                                               trends.exogenous_steady_state,
+                                               work.params,
+                                               options.tolf)
         if !isempty(trends.exogenous_terminal_steady_state)
             evaluate_steady_state!(trends.endogenous_terminal_steady_state,
                                    trends.exogenous_terminal_steady_state,
                                    work.params)
+            check_steady_state(StaticWs(context),
+                               trends.endogenous_terminal_steady_state,
+                               trends.exogenous_terminal_steady_state,
+                               work.params,
+                               options.tolf)
         end
     elseif context.modfileinfo.has_ramsey_model
+        @show "ramsey"
         x0 = zeros(model.endogenous_nbr)
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))
@@ -268,21 +279,22 @@ function solve_steady_state_!(context::Context,
     results = context.results.model_results[1]
     params = work.params
     A = ws.derivatives[1]
+    residuals = zeros(model.endogenous_nbr)
+
+    f! = make_static_residuals(ws.temporary_values,
+                               exogenous,
+                               work.params)
     
-    function J!(A, x::AbstractVector{Float64})
-        DFunctions.static_derivatives!(ws.temporary_values,
-                                       A,
-                                       x,
-                                       exogenous,
-                                       work.params)
-    end
+    J! = make_static_jacobian(ws.temporary_values,
+                              exogenous,
+                              work.params)
+
     results = context.results.model_results[1]
 
     function f!(residuals::AbstractVector{Float64}, x::AbstractVector{Float64})
         DFunctions.static!(ws.temporary_values, residuals, x, exogenous, work.params)
     end
 
-    residuals = zeros(model.endogenous_nbr)
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
     result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = options.tolf)
     @debug result
@@ -306,6 +318,7 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     params = work.params
     endogenous = zeros(model.endogenous_nbr)
     results = context.results.model_results[1]
+    endogenous_steady_state = results.trends.endogenous_steady_state
     exogenous = results.trends.exogenous_steady_state
     orig_endo_nbr = model.original_endogenous_nbr
     mult_indices =
@@ -322,37 +335,26 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
     x00 = zeros(unknown_variable_nbr)
     x00 .= view(x0, unknown_variable_indices)
 
-    function f!(x::AbstractVector{Float64})
-        view(endogenous, unknown_variable_indices) .= x
-        # Lagrange multipliers are kept to zero
-        context.modfileinfo.has_auxiliary_variables &&
-            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
-        context.modfileinfo.has_steadystate_file &&
-            DFunctions.steady_state!(endogenous, exogenous, params)
-        residuals = get_static_residuals!(ws, work.params, endogenous, exogenous)
-        U1 .= view(residuals, 1:orig_endo_nbr)
-        A = get_static_jacobian!(ws, work.params, endogenous, exogenous, model)
-        M .= view(A, 1:orig_endo_nbr, mult_indices)
-        mult = view(endogenous, mult_indices)
-        mult .= -M \ U1
-        view(residuals, 1:orig_endo_nbr) .= U1 .+ M * mult
-        res1 = sum(x-> x*x, residuals)
-        res2 = norm(residuals)
-        return res2
-    end
-
-    if unknown_variable_nbr == 0
-        res = f!(Float64[])
-        if res > options.tolf
-            @debug "Steady state computation failed"
-            throw(DynareSteadyStateComputationFailed())
-        else
-            results.trends.endogenous_steady_state .= endogenous
-        end
+    f! = make_static_ramsey_residuals(ws.temporary_values,
+                                      endogenous,
+                                      exogenous,
+                                      work.params,
+                                      U1,
+                                      M,
+                                      mult_indices,
+                                      unknown_variable_indices,
+                                      orig_endo_nbr,
+                                      ws)
+    
+    if f!(x00) <  options.tolf
+        copy!(results.trends.endogenous_steady_state, endogenous)
+        return
+    end 
+    if unknown_variable_nbr == 0 
+        @debug "Steady state computation failed"
+        throw(DynareSteadyStateComputationFailed())
     else
         result = optimize(f!, x00, LBFGS(), Optim.Options(f_tol=1e-6))
-        @debug result
-        @show result
         if Optim.converged(result) && abs(Optim.minimum(result)) < options.tolf
             view(endogenous, unknown_variable_indices) .= Optim.minimizer(result)
             context.modfileinfo.has_auxiliary_variables &&
@@ -368,3 +370,101 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         end
     end
 end
+
+function check_steady_state(ws, endogenous, exogenous, params, tolf)
+    residuals = get_static_residuals!(ws, params, endogenous, exogenous)
+    if norm(residuals) > tolf
+        display_residuals(residuals)
+        throw(ErrorException("The steady_state_model block doesn't solve the static model!"))
+    end
+end
+
+function display_residuals(residuals)
+    println("\nThe steady_state_model block does'nt solve the static model")
+    println("Equation Residuals")
+    for (i, r) in enumerate(residuals)
+        abs(r) > eps() && println("$i       $r")
+    end
+end
+
+function make_static_residuals(temp_val::AbstractVector{T},
+                               exogenous::AbstractVector{T},
+                               params::AbstractVector{T}) where T <: Real
+    f!(residuals, x) = DFunctions.static!(temp_val,
+                                          residuals,
+                                          x,
+                                          exogenous,
+                                          params)
+    return f!
+end
+
+function make_static_jacobian(temp_val::AbstractVector{T},
+                              exogenous::AbstractVector{T},
+                              params::AbstractVector{T}) where T <: Real
+    f!(A, x) = DFunctions.static_derivatives!(temp_val,
+                                              A,
+                                              x,
+                                              exogenous,
+                                              params)
+    return f!
+end
+    
+function make_static_ramsey_residuals(temp_val::AbstractVector{T},
+                                      endogenous::AbstractVector{T},
+                                      exogenous::AbstractVector{T},
+                                      params::AbstractVector{T},
+                                      U1::AbstractVector{T},
+                                      M::AbstractMatrix{T},
+                                      mult_indices::AbstractVector{N},
+                                      unknown_variable_indices::AbstractVector{N},
+                                      orig_endo_nbr::N,
+                                      ws::StaticWs
+                                      ) where {T <: Real, N <: Integer}
+
+    function f!(x::AbstractVector{Float64})
+        view(endogenous, unknown_variable_indices) .= x
+        view(endogenous, mult_indices) .= 0
+        # Lagrange multipliers are kept to zero
+        context.modfileinfo.has_auxiliary_variables &&
+            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
+        context.modfileinfo.has_steadystate_file &&
+            DFunctions.steady_state!(endogenous, exogenous, params)
+        residuals = get_static_residuals!(ws, params, endogenous, exogenous)
+        U1 .= view(residuals, 1:orig_endo_nbr)
+        A = get_static_jacobian!(ws, params, endogenous, exogenous, context.models[1])
+        M .= view(A, 1:orig_endo_nbr, mult_indices)
+        mult = view(endogenous, mult_indices)
+        mult .= -M \ U1
+        view(residuals, 1:orig_endo_nbr) .= U1 .+ M * mult
+        res1 = sum(x-> x*x, residuals)
+        res2 = norm(residuals)
+
+        return res2
+    end
+
+    return f!
+end
+
+function make_partial_static_residuals(temp_val::AbstractVector{T},
+    exogenous::AbstractVector{T},
+    params::AbstractVector{T},
+    unknown_variable_indices::AbstractVector{N}) where {T <: Real, N <: Integer}
+
+    function f!(residuals, x)
+        view(endogenous, unknown_variable_indices) .= x
+        context.modfileinfo.has_auxiliary_variables &&
+            DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
+        context.modfileinfo.has_steadystate_file &&
+            DFunctions.steady_state!(endogenous, exogenous, params)
+        DFunctions.static!(temp_val,
+            residuals,
+            endogenous,
+            exogenous,
+            params)
+        return norm(residuals)
+    end
+
+    return f!
+end
+
+    

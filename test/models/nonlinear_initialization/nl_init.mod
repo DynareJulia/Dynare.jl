@@ -1,3 +1,5 @@
+// Testing initial value computations with auxiliary variables (2 period lags, diff),
+// nonlinear functions and an initval file 
 var x, y;
 varexo e;
 

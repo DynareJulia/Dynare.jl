@@ -29,10 +29,12 @@ end
 function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
+    has_trends = context.modfileinfo.has_trends
     varobs_ids =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     model = context.models[1]
     results = context.results.model_results[1]
+    lre_results = results.linearrationalexpectations
     if (filename = options.datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
         Yorig =
@@ -41,12 +43,16 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
     Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
-    remove_linear_trend!(
-        Y,
-        Yorig,
-        results.trends.endogenous_steady_state[varobs_ids],
-        results.trends.endogenous_linear_trend[varobs_ids],
-    )
+    if has_trends
+        remove_linear_trend!(
+            Y,
+            Yorig,
+            results.trends.endogenous_steady_state[varobs_ids],
+            results.trends.endogenous_linear_trend[varobs_ids],
+        )
+    else
+        Y = Yorig
+    end
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)
@@ -63,14 +69,14 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     d = zeros(ns)
     T = zeros(ns, ns)
     vg1 = view(
-        context.results.model_results[1].linearrationalexpectations.g1_1,
+        lre_results.g1_1,
         kalman_statevar_ids,
         :,
     )
     T[:, k2] .= vg1
     R = zeros(ns, np)
     vg2 = view(
-        context.results.model_results[1].linearrationalexpectations.g1_2,
+        lre_results.g1_2,
         kalman_statevar_ids,
         :,
     )
@@ -84,7 +90,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     P = zeros(ns, ns, nobs + 1)
     Ptt = zeros(ns, ns, nobs + 1)
     vv = view(
-        context.results.model_results[1].linearrationalexpectations.endogenous_variance,
+        lre_results.endogenous_variance,
         kalman_statevar_ids,
         kalman_statevar_ids,
     )
@@ -99,7 +105,8 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     for i = 1:nobs
         push!(data_pattern, findall(.!ismissing.(Y[:, i])))
     end
-    if count(results.stationary_variables) == model.endogenous_nbr
+
+    if count(lre_results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(
             Y,
@@ -191,12 +198,16 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     end
 
     results.smoother["alphah"] = Matrix{Float64}(undef, ns, nobs)
-    add_linear_trend!(
-        results.smoother["alphah"],
-        alphah,
-        results.trends.endogenous_steady_state,
-        results.trends.endogenous_linear_trend,
-    )
+    if has_trends
+        add_linear_trend!(
+            results.smoother["alphah"],
+            alphah,
+            results.trends.endogenous_steady_state,
+            results.trends.endogenous_linear_trend,
+        )
+    else
+        results.smoother["alphah"] .= alphah
+    end
 end
 
 

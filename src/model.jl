@@ -11,11 +11,11 @@ struct DynamicWs
     derivatives::Vector{SparseMatrixCSC}
     temporary_values::Vector{Float64}
     function DynamicWs(
-        endogenous_nbr::Int64,
-        exogenous_nbr::Int64,
-        tmp_nbr::Int64,
-        colptr::AbstractVector{Int64},
-        rowval::AbstractVector{Int64}
+        endogenous_nbr::Int,
+        exogenous_nbr::Int,
+        tmp_nbr::Int,
+        colptr::AbstractVector{Int},
+        rowval::AbstractVector{Int}
     )
         dynamic_variables = Vector{Float64}(undef, 3*endogenous_nbr)
         exogenous_variables = Vector{Float64}(undef, exogenous_nbr)
@@ -51,10 +51,10 @@ struct StaticWs
     derivatives::Vector{SparseMatrixCSC}
     temporary_values::Vector{Float64}
     function StaticWs(
-        endogenous_nbr::Int64,
-        tmp_nbr::Int64,
-        colptr::AbstractVector{Int64},
-        rowval::AbstractVector{Int64}
+        endogenous_nbr::Int,
+        tmp_nbr::Int,
+        colptr::AbstractVector{Int},
+        rowval::AbstractVector{Int}
     )
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = [SparseMatrixCSC(endogenous_nbr,
@@ -76,10 +76,10 @@ function StaticWs(context::Context)
                     m.static_g1_sparse_rowval)
 end
 
-function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int64)
-    @debug "any(isnan.(x))=$(any(isnan.(x))) "
+function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int)
+    @debug "any(isnan, x)=$(any(isnan, x)) "
     x1 = reshape(x, Int(length(x) / exogenous_nbr), exogenous_nbr)
-    @debug "any(isnan.(x1))=$(any(isnan.(x1))) "
+    @debug "any(isnan, x1)=$(any(isnan, x1)) "
     return x1
 end
 
@@ -88,7 +88,6 @@ function get_static_residuals!(
     params::Vector{Float64},
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
-#    df::DynareFunctions,
 )
     DFunctions.static!(
         ws.temporary_values,
@@ -101,7 +100,7 @@ function get_static_residuals!(
 end
 
 """
-`get_dynamic_jacobian!`(ws::DynamicWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int64)
+`get_dynamic_jacobian!`(ws::DynamicWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, m::Model, period::Int)
 
 sets the dynamic Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
 """
@@ -112,8 +111,7 @@ function get_dynamic_jacobian!(
     exogenous::AbstractVector{Float64},
     steadystate::Vector{Float64},
     m::Model,
-#    df::DynareFunctions,
-    period::Int64,
+    period::Int,
 )
     DFunctions.dynamic!(
         ws.temporary_values,
@@ -138,9 +136,8 @@ function get_static_jacobian!(
     endogenous::AbstractVector{Float64},
     exogenous::AbstractVector{Float64},
     m::Model,
-#    df::DynareFunctions,
 )
-    @debug "any(isnan.(exognous))=$(any(isnan.(exogenous)))"
+    @debug "any(isnan, exognous)=$(any(isnan, exogenous))"
     DFunctions.static!(
         ws.temporary_values,
         ws.residuals,

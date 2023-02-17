@@ -5,6 +5,7 @@ struct StochSimulOptions
     irf::Int64
     LRE_options::LinearRationalExpectationsOptions
     nar::Int64
+    nonstationary::Bool
     order::Int64
     periods::Int64
     function StochSimulOptions(options::Dict{String,Any})
@@ -14,6 +15,7 @@ struct StochSimulOptions
         irf = 40
         LRE_options = LinearRationalExpectationsOptions()
         nar = 5
+        nonstationary = false
         order = 1
         periods = 0
         print_results = true
@@ -28,13 +30,16 @@ struct StochSimulOptions
                 irf = v::Int64
             elseif k == "nar"
                 nar = v::Int64
+            elseif k == "nonstationary"
+                nonstationary = v::Bool
             elseif k == "order"
                 order = v::Int64
             elseif k == "periods"
                 periods = v::Int64
             end
         end
-        new(display, dr_algo, first_period, irf, LRE_options, nar, order, periods)
+        new(display, dr_algo, first_period, irf, LRE_options, nar, 
+        nonstationary, order, periods)
     end
 end
 
@@ -312,7 +317,7 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         exogenous_names = get_exogenous_longname(context.symboltable)
         n = model.endogenous_nbr
         m = model.exogenous_nbr
-        y = Dict{Symbol,TimeDataFrame}
+        y = Dict{Symbol,AxisArrayTable}
         irfs!(context, options.irf)
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
@@ -350,9 +355,11 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         if work.model_has_trend[1]
             simulresults .+= collect(0:periods) * transpose(linear_trend)
         end
-        first_period = ExtendedDates.UndatedDate(options.first_period)
+        first_period = ExtendedDates.Undated(options.first_period)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
-        tdf = TimeDataFrame(simulresults, first_period, endogenous_names)
+        @show options.periods
+        @show size(simulresults)
+        tdf = AxisArrayTable(simulresults, first_period .+ (0:options.periods), endogenous_names)
         push!(results.simulations, Simulation("", "stoch_simul", tdf))
     end
 end
@@ -366,11 +373,12 @@ function compute_stoch_simul!(
     ws::DynamicWs,
     params::Vector{Float64},
     options::StochSimulOptions;
-    variance_decomposition::Bool = false,
+    kwargs...
 )
     model = context.models[1]
     results = context.results.model_results[1]
-    compute_steady_state!(context, Dict{String, Any}())
+    # don't check the steady state if the model is nonstationary
+    compute_steady_state!(context, Dict{String, Any}("steadystate.nocheck" => options.nonstationary))
     endogenous = results.trends.endogenous_steady_state
     endogenous3 = repeat(endogenous, 3)
     exogenous = results.trends.exogenous_steady_state
@@ -383,8 +391,7 @@ function compute_stoch_simul!(
         params,
         model,
         ws,
-        options,
-        variance_decomposition,
+        options; kwargs...
     )
 end
 
@@ -396,13 +403,9 @@ function compute_first_order_solution!(
     params::AbstractVector{Float64},
     model::Model,
     ws::DynamicWs,
-    options::StochSimulOptions,
-    variance_decomposition::Bool,
+    options::StochSimulOptions;
+    variance_decomposition::Bool = true,
 )
-
-    # abbreviations
-    LRE = LinearRationalExpectations
-    LREWs = LinearRationalExpectationsWs
 
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
@@ -416,28 +419,17 @@ function compute_first_order_solution!(
         model,
         2,
     )
-    algo = options.dr_algo
-    wsLRE = LinearRationalExpectationsWs(algo,
-                                         model.exogenous_nbr,
-                                         model.i_fwrd_b,
-                                         model.i_current,
-                                         model.i_bkwrd_b,
-                                         model.i_static,
-                                         )
     lli = model.lead_lag_incidence
-    @views J = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
-                    Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
-                    Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
-                    Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
-    LRE.remove_static!(J, wsLRE)
-    LRE.first_order_solver!(LRE_results, J, options.LRE_options, wsLRE)
-    lre_variance_ws = LRE.VarianceWs(
-        model.endogenous_nbr,
-        model.n_bkwrd + model.n_both,
-        model.exogenous_nbr,
-        wsLRE,
-    )
-    compute_variance!(LRE_results, model.Sigma_e, lre_variance_ws)
+    @views jacobian = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
+                           Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
+                           Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
+                           Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
+#    LRE.remove_static!(jacobian, wsLRE)
+    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options,
+                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
+    if variance_decomposition
+        compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
+    end
 end
 
 
@@ -459,7 +451,7 @@ function irfs!(context, periods)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
-        tdf = TimeDataFrame(transpose(yy), UndatedDate(1), endogenous_names)
+        tdf = AxisArrayTable(transpose(yy), Undated(1):Undated(periods), endogenous_names)
         results.irfs[exogenous_names[i]] = tdf
     end
 end

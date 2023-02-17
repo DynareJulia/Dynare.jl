@@ -1,6 +1,5 @@
 using FastLapackInterface
 using LinearAlgebra
-using LinearRationalExpectations
 
 struct BalancedGrowthWs
     A1::Matrix{Float64}
@@ -123,4 +122,4 @@ R = q1.R[k, k]
 P = q1.P[:, k]
 @show P * (R \ qd1[k])
 
-balanced_growth_path(A + B, A, d)
+balanced_growth_path(A + B, A, d, BalancedGrowthWs(4))

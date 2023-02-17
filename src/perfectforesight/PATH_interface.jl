@@ -99,19 +99,9 @@ function mcp_perfectforesight_core!(
     @debug "$(now()): start f!"
     f!(residuals, guess_values)
     @debug "$(now()): end f!"
-    @debug "$(now()): start J!"
-    
-    function J!(y::AbstractVecOrMat{Float64})
-        JA!(JJ, y)
-        return JA!(JJ, y)
-    end
 
-    @debug "$(now()): end J!"
-    df = OnceDifferentiable(f!, J!, vec(guess_values), residuals, JJ)
     @debug "$(now()): start nlsolve"
-
-    A = J!(guess_values)
-    (status, results, info) = solve_path!(f!, J!, lb, ub, vec(guess_values))
+    (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
     endogenous_names = get_endogenous_longname(context.symboltable)
     push!(
@@ -119,25 +109,23 @@ function mcp_perfectforesight_core!(
         Simulation(
             "Sim1",
             "",
-            TimeDataFrame(
-                DataFrame(
+            AxisArrayTable(
                     transpose(reshape(results, m.endogenous_nbr, periods)),
-                    endogenous_names,
-                ),
-                UndatedDate(1),
+                    Undated(1):Undated(periods),
+                    [Symbol(s) for s in endogenous_names],
             ),
         ),
     )
 end
 
 # Using PATHSolver
-function solve_path!(F, J, lb, ub, initial_values; kwargs...)
+function solve_path!(f!, JA!, JJ, lb, ub, initial_values; kwargs...)
     n = length(initial_values)
     @assert n == length(lb) == length(ub)
 
     function function_callback(n::Cint, z::Vector{Cdouble}, F_val::Vector{Cdouble})
         @assert n == length(z) == length(F_val)
-        F(F_val, z)
+        f!(F_val, z)
         return Cint(0)
     end
 
@@ -153,20 +141,15 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
         @assert n == length(z) == length(col_start) == length(col_len)
         @assert nnz == length(row) == length(data)
 
-        Jac = J(z)  # SparseMatrixCSC
+        JA!(JJ, z)  # SparseMatrixCSC
 
         # Pouring Jac::SparseMatrixCSC to the format used in PATH
+        copyto!(col_start, 1, JJ.colptr, 1, n)
+        copyto!(row, JJ.rowval)
+        copyto!(data, JJ.nzval)
+           
         for i = 1:n
-            col_start[i] = Jac.colptr[i]
-            col_len[i] = Jac.colptr[i+1] - Jac.colptr[i]
-        end
-
-        rv = rowvals(Jac)
-        nz = nonzeros(Jac)
-        num_nonzeros = SparseArrays.nnz(Jac)
-        for i = 1:num_nonzeros
-            row[i] = rv[i]
-            data[i] = nz[i]
+            col_len[i] = JJ.colptr[i+1] - JJ.colptr[i]
         end
 
         return Cint(0)
@@ -176,8 +159,7 @@ function solve_path!(F, J, lb, ub, initial_values; kwargs...)
     var_name = Vector{String}(undef, 0)
     F_name = Vector{String}(undef, 0)
 
-    nnz = SparseArrays.nnz(J(initial_values))
-
+    nnz = SparseArrays.nnz(JJ)
 
     F_val = zeros(n)
     # Solve the MCP using PATHSolver
