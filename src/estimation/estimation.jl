@@ -13,24 +13,24 @@ using TransformVariables
 using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
-@kwdef struct EstimationOptions
+Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
-    data
-    dafafile::String
+    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray([;;]))
+    dafafile::String = ""
     diffuse_filter::Bool = false
-    display::Bool
+    display::Bool = false
     fast_kalman_filter::Bool = true
-    first_obs
-    last_obs
+    first_obs::DatePeriod = Undated(1)
+    last_obs::DatePeriod = Undated(-1)
     mcmc_chains::Int = 1
     mcmc_init_scale::Float64
     mcmc_jscale::Float64
     mcmc_replic::Int =  0
     mode_check::Bool = false
-    nobs::Int
+    nobs::Int = 0
     plot_prior::Bool = false
     presample::Int = 0
-    function EstimationOptions{options::Dict{String,Any})
+    function EstimationOptions(options::Dict{String,Any})
         for (k, v) in pairs(options)
             if k == "display"
                 display = v
@@ -68,7 +68,8 @@ import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capab
         fast_kalman_filter, first_obs, last_obs, mcmc_chains,
         mcmc_init_scale, mcmc_jscale, mcmc_replic, mode_check, nobs,
         plot_prior, presample)
-end 
+    end
+end
 
 function estimation!(context::Context, field::Dict{String, Any})
 end
