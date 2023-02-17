@@ -26,9 +26,10 @@ U = BitMatrix(Incidence[:,n+1:2*n] .| Incidence[:,2n+1:3*n]) #bipartite graph
 matching, matched = findmaxcardinalitybipartitematching(U) #maximum cardinality matching of the graph
 !all(matched) && error("Model can't be normalized")
 
+#Reorder columns of incidence matrix
+iorder = [p[2] for p in sort(collect(pairs(matching)), by=x -> x[1])]
+
 # Strongly connected components
-g = SimpleGraph(n) 
-edge_list = collect(matching)
-g = SimpleDiGraph(Edge.(edge_list))
+g = SimpleDiGraph(U[:, iorder]) 
 scc = strongly_connected_components(g)
 
