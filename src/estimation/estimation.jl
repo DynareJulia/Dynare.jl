@@ -13,23 +13,25 @@ using TransformVariables
 using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
+
 Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
     data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray([;;]))
-    dafafile::String = ""
+    datafile::String = ""
     diffuse_filter::Bool = false
     display::Bool = false
     fast_kalman_filter::Bool = true
-    first_obs::DatePeriod = Undated(1)
-    last_obs::DatePeriod = Undated(-1)
+    first_obs::PeriodsSinceEpoch = Undated(1)
+    last_obs::PeriodsSinceEpoch = Undated(0)
     mcmc_chains::Int = 1
-    mcmc_init_scale::Float64
-    mcmc_jscale::Float64
+    mcmc_init_scale::Float64 = 0
+    mcmc_jscale::Float64 = 0
     mcmc_replic::Int =  0
     mode_check::Bool = false
     nobs::Int = 0
     plot_prior::Bool = false
     presample::Int = 0
+    #=
     function EstimationOptions(options::Dict{String,Any})
         for (k, v) in pairs(options)
             if k == "display"
@@ -69,9 +71,40 @@ Base.@kwdef struct EstimationOptions
         mcmc_init_scale, mcmc_jscale, mcmc_replic, mode_check, nobs,
         plot_prior, presample)
     end
+    =#
 end
 
-function estimation!(context::Context, field::Dict{String, Any})
+function estimation!(context, field::Dict{String, Any})
+    ff = NamedTuple{Tuple(Symbol.(keys(field)))}(values(field))
+    options = EstimationOptions(; ff...)
+    symboltable = context.symboltable
+    varobs = context.work.observed_variables
+    has_trends = context.modfileinfo.has_trends
+    varobs_ids =
+        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
+    model = context.models[1]
+    results = context.results.model_results[1]
+    lre_results = results.linearrationalexpectations
+    
+    if (filename = options.datafile) != ""
+        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
+        Yorig =
+            get_data(filename, varobs, start = options.first_obs, last = options.last_obs)
+    else
+        error("calib_smoother needs a data file or a TimeDataFrame!")
+    end
+
+    observations = copy(Yorig)
+    nobs = size(observations, 2)
+    ssws = SSWs(context, nobs, varobs)
+    # estimated parameters: rho, alpha, theta, tau
+    params_indices = [2, 3, 5, 6]
+    # no shock_variance estimated
+    shock_variance_indices = Vector{Int}(undef, 0)
+    # no measurement errors in the model
+    measurement_variance_indices = Vector{Int}(undef, 0)
+    
+    return nothing
 end
 
 struct SSWs{D<:AbstractFloat,I<:Integer}

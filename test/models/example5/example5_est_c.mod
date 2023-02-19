@@ -69,5 +69,5 @@ varobs y, c;
 //ml_estimation(context; datafile="fsdata_simul.csv");
 //datafile = "fsdata_simul.csv";
 //ml_estimation(context, datafile="fsdata_simul.csv");
-posterior_mode(context, datafile="fsdata_simul.csv");
+//posterior_mode(context, datafile="fsdata_simul.csv");
 

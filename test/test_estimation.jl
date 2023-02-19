@@ -196,7 +196,9 @@ end
 
 # generate artificial data with model example5
 # provide model parsing
-context = @dynare "test/models/example5/example5_est_a.mod";
+#context = @dynare "test/models/example5/example5_est_a.mod";
+Dynare.load("models/example5/example5_est_a/output/example5_est_a.jld2")
+
 
 # simulation is an accessor to simulated series
 # we assume that we observe output, y, and consumption, c
