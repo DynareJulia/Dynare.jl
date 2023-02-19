@@ -478,21 +478,15 @@ struct SavedContext
     modfileinfo::ModFileInfo
     results::Results
     work::Work
+    workspaces::Dict
 end
 
 function save_context(context::Context, filepath::String)
-    savedcontext = SavedContext(
-        context.symboltable,
-        context.models,
-        context.modfileinfo,
-        context.results,
-        context.work,
-    )
     filename = split(filepath, "/")[end]
     outputpath = mkpath(joinpath(filepath, "output"))
-    save(joinpath(outputpath, "$(filename).jld2"), "context", savedcontext)
+    save(joinpath(outputpath, "$(filename).jld2"), "context", context)
+    return nothing
 end
-
 
 function last_steps(context::Context)
     filepath = context.modfileinfo.modfilepath
@@ -504,4 +498,5 @@ function last_steps(context::Context)
     end
     # save context
     save_context(context, filepath)
+    return context
 end
