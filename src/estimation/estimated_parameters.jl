@@ -51,7 +51,7 @@ end
 dynare_parse_eval(s, c) = Dynare.dynare_parse_eval(s, c)
 
 function parse_estimated_parameters!(parameters, context, fields::Dict{String,Any})
-    #    parameters = context.results.model_results[1].parameters
+    parameters = context.results.model_results[1].parameters
     for p in fields["params"]
         push!(parameters.symbols, Symbol(p["param"]))
         push!(parameters.initialvalues, dynare_parse_eval(p["init_val"], context))
