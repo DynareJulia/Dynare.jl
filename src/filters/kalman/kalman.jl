@@ -202,42 +202,29 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern
         )
-        a0 = F.Z * a0
-        alphah = F.Z * alphah
-        display(F.Z*T*transpose(F.Z))
-        display(F.Z*kws.KDK0)
-        display(tZ*transpose(F.Z))
-        display(F.Z*kws.L*transpose(F.Z))
-        @show kws.r
-        @show F.Z*kws.r
-        #display(F.Z*P[:,:,1]*transpose(F.Z))
-        # alphah = F.Z * vP * kws.r
-        #        = F.Z * vP * F.Z' * F.Z kws.r
     end 
-    
-    variables = [Symbol(v) for v in endogenous_vars]
-    periods = Undated(1):Undated(nobs)
-    periods1 = Undated(1):Undated(nobs+1)
-    smoother = AxisArrayTable(copy(alphah'), periods, variables)
-    filter = AxisArrayTable(copy(a0'), periods1, variables)
+    a0 = F.Z * a0
+    alphah = F.Z * alphah
+
+    Variables = DimensionalData.Dim{:custom}(endogenous_vars)
+    Periods = Ti(Undated(1):Undated(nobs))
+    smoother = DimArray(alphah, (Variables, Periods), name = "smoother")
+    filter = DimArray(a0[:, 1:nobs], (Variables, Periods), name = "filter")
     if has_trends
         add_linear_trend!(
-            filter',
+            filter.data,
             a0[:, 1:nobs],
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
         add_linear_trend!(
-            smoother',
+            smoother.data,
             alphah,
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
-    else    
-        filter .+= transpose(results.trends.endogenous_steady_state)
-        smoother .+= transpose(results.trends.endogenous_steady_state)
     end
-    results.smoother = Dict(["filter" => filter, "smoother" => smoother])
+    results.smoother = DimStack(filter, smoother)
 end
 
 
