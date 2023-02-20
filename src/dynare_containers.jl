@@ -746,7 +746,7 @@ end
 
 Base.show(io::IO, t::Trends) = show_field_value(t)
 
-struct ModelResults
+mutable struct ModelResults
     endogenous_steady_state::Vector{Float64}
     irfs::Dict{Symbol, AxisArrayTable}
     trends::Trends
@@ -755,7 +755,7 @@ struct ModelResults
     exogenous_deterministic_steady_state::Vector{Float64}
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
-    smoother::Dict{String,Matrix{Float64}}
+    smoother
 end
 
 Base.show(io::IO, r::ModelResults) = show_field_value(r)

@@ -1,3 +1,4 @@
+using DimensionalData
 using FastLapackInterface
 
 struct CalibSmootherOptions
@@ -30,6 +31,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
     has_trends = context.modfileinfo.has_trends
+    endogenous_vars = get_endogenous(symboltable)
     varobs_ids =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     model = context.models[1]
@@ -194,20 +196,29 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern,
         )
-        alphah = F.Z * alphah
-    end
+    end 
+    a0 = F.Z * a0
+    alphah = F.Z * alphah
 
-    results.smoother["alphah"] = Matrix{Float64}(undef, ns, nobs)
+    Variables = DimensionalData.Dim{:custom}(endogenous_vars)
+    Periods = Ti(Undated(1):Undated(nobs))
+    smoother = DimArray(alphah, (Variables, Periods), name = "smoother")
+    filter = DimArray(a0[:, 1:nobs], (Variables, Periods), name = "filter")
     if has_trends
         add_linear_trend!(
-            results.smoother["alphah"],
+            filter.data,
+            a0[:, 1:nobs],
+            results.trends.endogenous_steady_state,
+            results.trends.endogenous_linear_trend,
+        )
+        add_linear_trend!(
+            smoother.data,
             alphah,
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
-    else
-        results.smoother["alphah"] .= alphah
     end
+    results.smoother = DimStack(filter, smoother)
 end
 
 

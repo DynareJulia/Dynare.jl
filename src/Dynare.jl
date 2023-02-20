@@ -1,6 +1,8 @@
 module Dynare
 
+using DimensionalData
 using ExtendedDates
+using InferenceObjects
 using Logging
 using Printf
 
