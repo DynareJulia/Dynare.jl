@@ -1,5 +1,8 @@
 using DimensionalData
+using DimensionalData: @dim, Ti
 using FastLapackInterface
+
+@dim variables "Variables"
 
 struct CalibSmootherOptions
     datafile::String
@@ -200,7 +203,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     a0 = F.Z * a0
     alphah = F.Z * alphah
 
-    Variables = DimensionalData.Dim{:custom}(endogenous_vars)
+    Variables = variables([Symbol(v) for v in endogenous_vars])
     Periods = Ti(Undated(1):Undated(nobs))
     smoother = DimArray(alphah, (Variables, Periods), name = "smoother")
     filter = DimArray(a0[:, 1:nobs], (Variables, Periods), name = "filter")
