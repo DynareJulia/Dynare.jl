@@ -23,7 +23,7 @@ steadystate = results.trends.endogenous_steady_state
 endogenous = repeat(steadystate, 3)
 exogenous = results.trends.exogenous_steady_state 
 Jdynamic = Dynare.get_dynamic_jacobian!(wsd, params, endogenous, exogenous, steadystate, model, 200)
-Jstatic = Dynare.get_static_jacobian!(wsd, params, steadystate, exogenous)
+Jstatic = Dynare.get_static_jacobian!(wss, params, steadystate, exogenous, model) 
 ```
 
 ### The incidence matrix
@@ -51,7 +51,7 @@ fill!(ONES, true)
 IncidenceDynamic = SparseMatrixCSC(size(Jdynamic, 1), size(Jdynamic,2), Jdynamic.colptr, Jdynamic.rowval, ONES)
 ```
 The incidence matrix of the dynamic model is a rectangular matrix
-$n\time 3n$ as variables in period $t-1$, $t$, and $t+1$ are treated
+$n\times 3n$ as variables in period $t-1$, $t$, and $t+1$ are treated
 as different variables. Depending on how we are going to use the
 blocks, we can consider different kind of unknowns.
 
@@ -95,15 +95,15 @@ matching2, matched2 = findmaxcardinalitybipartitematching(U2) #maximum cardinali
 ### Recursive blocks
 
 Once we have the normalization of the model, we can assign each
-equation to a different variable and obstain a simple graph describing
+equation to a different variable and obtain a simple graph describing
 which variable enters directly in the determination of which variable.
 Equations must be in the same order as variables. As the purpose of
 this procedure is to partition equations, we keep equations in the
 original order and reorder the variables (columns) of the incidence matrix.
 
 ```
-#Reorder columns of incidence matrix
-iorder = [p[2] for p in sort(collect(pairs(matching)), by=x -> x[1])]
+#Reorder columns of incidence matrix in the static model
+iorder = [p[2] for p in sort(collect(pairs(matching1)), by=x -> x[1])]
 ```
 
 The strongly connected components of this simple graph provide the
@@ -111,9 +111,17 @@ subsets of variables that need to be evaluated or solved for
 simultaneously. These are the recursive blocks.
 
 ```
-# Strongly connected components
-g = SimpleDiGraph(U[:, iorder]) 
-scc = strongly_connected_components(g)
+# Strongly connected components in the static model
+g = SimpleDiGraph(U1[:, iorder]) 
+sccStatic = strongly_connected_components(g)
+```
+
+```
+#Reorder columns of incidence matrix in the dynamic model
+iorder = [p[2] for p in sort(collect(pairs(matching2)), by=x -> x[1])]
+# Strongly connected components in the dynamic model
+g = SimpleDiGraph(U2[:, iorder]) 
+sccDynamic = strongly_connected_components(g)
 ```
 
 ## Writing block functions
