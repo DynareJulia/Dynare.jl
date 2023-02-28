@@ -56,7 +56,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             results.trends.endogenous_linear_trend[varobs_ids],
         )
     else
-        Y = Yorig
+        Y .= Yorig .- results.trends.endogenous_steady_state[varobs_ids]
     end
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
@@ -165,6 +165,8 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             vtR * Q * transpose(vtR),
             lyapd_ws,
         )
+        @show "P"
+        display(P[:,:,1])
         Pinf = zeros(ns, ns, nobs + 1)
         for i = 1:k
             Pinf[i, i, 1] = 1.0
@@ -199,29 +201,37 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern,
         )
+        a0 = F.Z * a0
+        alphah = F.Z * alphah
+        @show F.Z*kws.r
+        display(F.Z*P[:,:,1]*transpose(F.Z))
+        # alphah = F.Z * vP * kws.r
+        #        = F.Z * vP * F.Z' * F.Z kws.r
     end 
-    a0 = F.Z * a0
-    alphah = F.Z * alphah
-
-    Variables = variables([Symbol(v) for v in endogenous_vars])
-    Periods = Ti(Undated(1):Undated(nobs))
-    smoother = DimArray(alphah, (Variables, Periods), name = "smoother")
-    filter = DimArray(a0[:, 1:nobs], (Variables, Periods), name = "filter")
+    
+    variables = [Symbol(v) for v in endogenous_vars]
+    periods = Undated(1):Undated(nobs)
+    periods1 = Undated(1):Undated(nobs+1)
+    smoother = AxisArrayTable(copy(alphah'), periods, variables)
+    filter = AxisArrayTable(copy(a0'), periods1, variables)
     if has_trends
         add_linear_trend!(
-            filter.data,
+            filter',
             a0[:, 1:nobs],
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
         add_linear_trend!(
-            smoother.data,
+            smoother',
             alphah,
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
+    else    
+        filter .+= transpose(results.trends.endogenous_steady_state)
+        smoother .+= transpose(results.trends.endogenous_steady_state)
     end
-    results.smoother = DimStack(filter, smoother)
+    results.smoother = Dict(["filter" => filter, "smoother" => smoother])
 end
 
 
