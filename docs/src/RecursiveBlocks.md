@@ -103,7 +103,10 @@ original order and reorder the variables (columns) of the incidence matrix.
 
 ```
 #Reorder columns of incidence matrix in the static model
-iorder = [p[2] for p in sort(collect(pairs(matching1)), by=x -> x[1])]
+iorder1 = [p[2] for p in sort(collect(pairs(matching1)), by=x -> x[1])]
+
+#Reorder columns of incidence matrix in the dynamic model
+iorder2 = [p[2] for p in sort(collect(pairs(matching2)), by=x -> x[1])]
 ```
 
 The strongly connected components of this simple graph provide the
@@ -112,17 +115,14 @@ simultaneously. These are the recursive blocks.
 
 ```
 # Strongly connected components in the static model
-g = SimpleDiGraph(U1[:, iorder]) 
-sccStatic = strongly_connected_components(g)
+g1 = SimpleDiGraph(U1[:, iorder1]) 
+sccStatic = strongly_connected_components(g1)
+
+# Strongly connected components in the dynamic model
+g2 = SimpleDiGraph(U2[:, iorder2]) 
+sccDynamic = strongly_connected_components(g2)
 ```
 
-```
-#Reorder columns of incidence matrix in the dynamic model
-iorder = [p[2] for p in sort(collect(pairs(matching2)), by=x -> x[1])]
-# Strongly connected components in the dynamic model
-g = SimpleDiGraph(U2[:, iorder]) 
-sccDynamic = strongly_connected_components(g)
-```
 
 ## Writing block functions
 
