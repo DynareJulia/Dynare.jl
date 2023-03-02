@@ -14,6 +14,8 @@ using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
 
+include("estimated_parameters.jl")
+
 Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
     data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray([;;]))
@@ -28,7 +30,9 @@ Base.@kwdef struct EstimationOptions
     mcmc_jscale::Float64 = 0
     mcmc_replic::Int =  0
     mode_check::Bool = false
+    mode_compute::Bool = true
     nobs::Int = 0
+    order::Int = 1
     plot_prior::Bool = false
     presample::Int = 0
     #=
@@ -68,14 +72,15 @@ Base.@kwdef struct EstimationOptions
         end
         new(config_sig, data, datafile, diffuse_filter, display,
         fast_kalman_filter, first_obs, last_obs, mcmc_chains,
-        mcmc_init_scale, mcmc_jscale, mcmc_replic, mode_check, nobs,
-        plot_prior, presample)
+    mcmc_init_scale, mcmc_jscale, mcmc_replic, mode_check,
+    mode_compute, nobs, plot_prior, presample)
     end
     =#
 end
 
 function estimation!(context, field::Dict{String, Any})
-    ff = NamedTuple{Tuple(Symbol.(keys(field)))}(values(field))
+    opt = field["options"]
+    ff = NamedTuple{Tuple(Symbol.(keys(opt)))}(values(opt))
     options = EstimationOptions(; ff...)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
@@ -85,6 +90,7 @@ function estimation!(context, field::Dict{String, Any})
     model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
+    estimation_results = results.estimation
     
     if (filename = options.datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
@@ -97,6 +103,19 @@ function estimation!(context, field::Dict{String, Any})
     observations = copy(Yorig)
     nobs = size(observations, 2)
     ssws = SSWs(context, nobs, varobs)
+    estimated_parameters = context.work.estimated_parameters
+
+    initial_values = get_initial_value_or_mean(estimated_parameters)
+    set_estimated_parameters!(context, initial_values)
+
+    if options.mode_compute
+        ((res, mode, tstdh, mode_covariance) = posterior_mode(context, observations))
+        estimation_results.mode = mode
+        estimation_results.tstdh = tstdh
+        estimation_results.mode_covariance = mode_covariance
+    end
+    estimation_results.mcmc_chains = mh_estimation(context, observations, mode, mode_covariance)
+       
     # estimated parameters: rho, alpha, theta, tau
     params_indices = [2, 3, 5, 6]
     # no shock_variance estimated
@@ -193,9 +212,8 @@ struct DSGELogPosteriorDensity{F <: Function, UT}
     context::Context
     observations::Matrix{Union{Missing,UT}}
     ssws::SSWs
-    function DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
+    function DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
-        observations = get_observations(context, datafile, first_obs, last_obs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
         new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
@@ -241,7 +259,7 @@ push_prior!(tvec, ::Val{Dynare.InverseGamma1{Float64}}) = push!(tvec, asℝ₊)
 push_prior!(tvec, ::Val{Distributions.InverseGamma{Float64}}) = push!(tvec, asℝ₊) 
 push_prior!(tvec, ::Val{Distributions.Normal{Float64}}) = push!(tvec, asℝ) 
 push_prior!(tvec, ::Val{Distributions.Uniform{Float64}}) = push!(tvec, as(Real, p.domain...)) 
-push_prior!(tvec, ::Val{Distributions.Weibull{Float64}}) = push!(tvec, asℝ₊) 
+push_prior!(tvec, ::Val{Distributions.Weibull{Float64}}) = push!(tvec, asℝ₊)  
 
 function make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
     previous_value = 0.0
@@ -311,6 +329,10 @@ function (problem::DSGELogPosteriorDensity)(θ)
     return lpd
 end    
 
+get_initial_value_or_mean(ep::EstimatedParameters) = begin
+    @show zip(ep.initialvalue, ep.prior)
+    [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
+end
 function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Real}
     ep = context.work.estimated_parameters
     for (k, p) in enumerate(zip(ep.index, ep.parametertype))
@@ -561,20 +583,21 @@ function ml_estimation(
 end
 
 function posterior_mode(
-    context;
-    datafile = "",
+    context,
+    observations;
     first_obs = 1,
     last_obs = 0,
     iterations = 1000,
     show_trace = false
 )
     @debug show_trace = true
-    problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
-    transformation = DSGETransformation(context.work.estimated_parameters)
+    ep = context.work.estimated_parameters
+    problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
+    transformation = DSGETransformation(ep)
     transformed_problem = TransformedLogDensity(transformation, problem)
     transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    (p0, v0) = get_initial_values(ep)
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
     res = optimize(
         transformed_density,
@@ -592,13 +615,13 @@ function posterior_mode(
     tstdh = transform_std(transformation, res.minimizer, stdh)
     mode = collect(TransformVariables.transform(transformation, res.minimizer))
     
-    if length(context.work.estimated_parameters.posterior_mode) == 0
+    if length(ep.posterior_mode) == 0
         resize!(context.work.estimated_parameters.posterior_mode, length(mode))
     end
-    context.work.estimated_parameters.posterior_mode .= mode
+    ep.posterior_mode .= mode
     
     estimation_result_table(
-        context.work.estimated_parameters.name,
+        get_parameter_names(ep),
         mode,
         tstdh,
         "Posterior mode"
@@ -607,35 +630,33 @@ function posterior_mode(
 end
 
 function mh_estimation(
-    context;
-    datafile = "",
+    context,
+    observations,
+    initial_values,
+    covariance;
     first_obs = 1,
     last_obs = 0,
-    iterations = 100000,
-    initial_values = Vector{Float64}(undef, 0),
-    covariance = Matrix{Float64}(undef, 0, 0),
+    mcmc_replic = 100000,
     kwargs...,
 )
-
-    problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
+    problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
+    @show transformation
     transformed_problem = TransformedLogDensity(transformation, problem)
-    transformed_density(θ) = problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
+    transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     #    (p0, v0) = get_initial_values(context.work.estimated_parameters)
     #    ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
 
     model = DensityModel(transformed_density)
-
     spl = RWMH(MvNormal(zeros(length(initial_values)), Matrix(covariance)))
 
     # Sample from the posterior.
-    chain = sample(model, spl, iterations,
+    chain = sample(model, spl, mcmc_replic,
                    init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-    @show spl.n_acceptances
-    display(my_chains)
+    transform_chains(chain, transformation)
     return chain
 end
 
@@ -694,8 +715,8 @@ function estimation_result_table(param_names, estimated_value, stdh, title)
     table[1, 2] = "Estimated value"
     table[1, 3] = "Standard error"
     table[1, 4] = "80% confidence interval"
-    for (i, k) in enumerate(zip(param_type, param_names))
-        table[i+1, 1] = print_parameter_name(Val(k[1]), k[2])
+    for (i, n) in enumerate(param_names)
+        table[i+1, 1] = n
         table[i+1, 2] = estimated_value[i]
         table[i+1, 3] = stdh[i]
         table[i+1, 4] = estimated_value[i] ± (1.28 * stdh[i])
@@ -783,7 +804,7 @@ function transform_std(T::TransformVariables.TransformTuple, x, std)
     return ts
 end
 
-#transform_std(::asℝ, x, std) = std
+transform_std(::TransformVariables.Identity, x, std) = std
 transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp(x)*std
 transform_std(::TransformVariables.ScaledShiftedLogistic{Int64}, x, std) = logistic(x)*(1-logistic(x))*std
 
@@ -860,3 +881,15 @@ function plot_priors(context, names, n_points = 100)
     f
 end
 
+function transform_chains(chains, t)
+    y = chains.value.data
+    tmp = Vector{Float64}(undef, size(y, 1))
+    for i in axes(y, 3)
+        for j in 1:size(y, 2) - 1
+            vy = view(y, :, j, i)   
+            tmp .= map(TransformVariables.transform(t.transformations[j]),
+                     vy)
+            vy .= tmp
+        end          
+    end 
+end 

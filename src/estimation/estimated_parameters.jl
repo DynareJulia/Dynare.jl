@@ -6,6 +6,7 @@ struct Parameters
     symbols::Vector{Symbol}
     calibrations::Vector{Float64}
     distributions::Vector{Distribution}
+    index::Vector{Int}
     initialvalues::Vector{Float64}
     mh_scale::Vector{Float64}
     optim_lb::Vector{Float64}
@@ -14,12 +15,13 @@ struct Parameters
     posteriormeans::Vector{Float64}
     posteriormedian::Vector{Float64}
     posteriorHPI::Matrix{Float64}
-    transformfrombasic::Function
-    transformtobasic::Function
+    transformfrombasic::Vector{Function}
+    transformtobasic::Vector{Function}
     function Parameters()
         symbols = Vector{Symbol}(undef, 0)
         calibrations = Vector{Float64}(undef, 0)
         distributions = Vector{Distribution}(undef, 0)
+        index = Vector{Int}(undef, 0)
         initialvalues = Vector{Float64}(undef, 0)
         mh_scale = Vector{Float64}(undef, 0)
         optim_lb = Vector{Float64}(undef, 0)
@@ -34,6 +36,7 @@ struct Parameters
             symbols,
             calibrations,
             distributions,
+            index,
             initialvalues,
             mh_scale,
             optim_lb,
@@ -42,7 +45,7 @@ struct Parameters
             posteriormeans,
             posteriormedian,
             posteriorHPI,
-            transfrombasic,
+            transformfrombasic,
             transformtobasic,
         )
     end
@@ -50,10 +53,12 @@ end
 
 dynare_parse_eval(s, c) = Dynare.dynare_parse_eval(s, c)
 
-function parse_estimated_parameters!(parameters, context, fields::Dict{String,Any})
+function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
     parameters = context.results.model_results[1].parameters
+    symbol_table = context.symbol_table
     for p in fields["params"]
         push!(parameters.symbols, Symbol(p["param"]))
+        push!(parameters.index, symbol_table[p["param"]].orderintype)
         push!(parameters.initialvalues, dynare_parse_eval(p["init_val"], context))
         @show dynare_parse_eval(p["lower_bound"], context)
         push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"], context))
@@ -177,7 +182,7 @@ function get_transformto(::Val{2}, p3, p4)
 end
 
 
-
+#=
 #pdf(p::Parameters, i::Int64, x::Float64) = pdf(p.distributions[i], p.
 
 parameters = Parameters()
@@ -214,3 +219,4 @@ context = @dynare "test/models/estimation/fs2000.mod"
 
 parameters = Parameters()
 parse_estimated_parameters!(parameters, context, fields)
+=#
