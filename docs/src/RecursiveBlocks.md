@@ -127,70 +127,37 @@ sccDynamic = strongly_connected_components(g2)
 ## Writing block functions
 
 The general idea is to take advantage of the already parsed version of
-the functions for the model a a whole
+the functions for the model as a whole
 
 ### Functions as expressions
 
 ```
-julia> e = :(f(x); x=1; return x; end)
-:(function a(x)
-      #= REPL[30]:1 =#
-      #= REPL[30]:1 =#
-      x = 1
-      #= REPL[30]:1 =#
-      return x
-  end)
+e = :(function f(x); x=1; return x; end) #:(function f(x)
 ```
-Expression `e` is made of two fields: `head` and `àrgs`:
+Expression `e` is made of two fields: `head` and `args`:
 ```
-julia> e.head 
-:function
-julia> e. args
-2-element Vector{Any}:
- :(a(x))
- quote
-    #= REPL[30]:1 =#
-    #= REPL[30]:1 =#
-    x = 1
-    #= REPL[30]:1 =#
-    return x
-end
+e.head #:function
+e.args #2-element Vector{Any}:
+
 ```
 - `e.head` indicates that expression `e` represents a function
 - `e.args[1]` is the calling sequence
 - `e.args[2]` contains the body of the function
 ```
-julia> e.args[2].head
-:block
-julia> e.args[2].args
-5-element Vector{Any}:
- :(#= REPL[30]:1 =#)
- :(#= REPL[30]:1 =#)
- :(x = 1)
- :(#= REPL[30]:1 =#)
- :(return x)
+e.args[2].head #:block
+e.args[2].args #5-element Vector{Any}:
 ```
 - `e.args[2].args[[1, 2,4]]` indicates where the lines are coming from
 - `e.args[2].args[3]` is `:(x[1] = 1]`
 - `e.args[2].args[5]` is `:(return x)`
 
 and 
+
 ```
-julia> e.args[2].args[3].head
-:(=)
-
-julia> e.args[2].args[3].args
-2-element Vector{Any}:
-  :(x[1])
- 1
-
-julia> e.args[2].args[3].args[1].head
-:ref
-
-julia> e.args[2].args[3].args[1].args
-2-element Vector{Any}:
-  :x
- 1
+e.args[2].args[3].head #:(=)
+e.args[2].args[3].args #2-element Vector{Any}:
+e.args[2].args[3].args[1].head #ERROR: type Symbol has no field head
+e.args[2].args[3].args[1].args #ERROR: type Symbol has no field args
 ```
 Observe that the element of `x` that is modified by the function is
 indicated in `e.args[2].args[3].args[1].args[2]`
@@ -243,3 +210,15 @@ julia> Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args[2].args[
 ```
 It is possible to exploit this technique to dispatch the computation
 of the residuals belonging to each block in different functions
+
+
+function SparseDynamicResid(x::Vector{Any})
+    y = Dict()
+    for i in x
+        try y[i.args[1].args[2]] = i.args[2] catch end
+    end
+    return y
+end
+
+x = Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args
+DynamicResid = SparseDynamicResid(x)
