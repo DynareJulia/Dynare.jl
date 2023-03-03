@@ -211,7 +211,7 @@ julia> Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args[2].args[
 It is possible to exploit this technique to dispatch the computation
 of the residuals belonging to each block in different functions
 
-
+```
 function SparseDynamicResid(x::Vector{Any})
     y = Dict()
     for i in x
@@ -222,3 +222,4 @@ end
 
 x = Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args
 DynamicResid = SparseDynamicResid(x)
+```
