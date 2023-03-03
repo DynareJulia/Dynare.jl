@@ -127,7 +127,7 @@ sccDynamic = strongly_connected_components(g2)
 ## Writing block functions
 
 The general idea is to take advantage of the already parsed version of
-the functions for the model a a whole
+the functions for the model as a whole
 
 ### Functions as expressions
 
@@ -210,3 +210,15 @@ julia> Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args[2].args[
 ```
 It is possible to exploit this technique to dispatch the computation
 of the residuals belonging to each block in different functions
+
+
+function SparseDynamicResid(x::Vector{Any})
+    y = Dict()
+    for i in x
+        try y[i.args[1].args[2]] = i.args[2] catch end
+    end
+    return y
+end
+
+x = Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args
+DynamicResid = SparseDynamicResid(x)
