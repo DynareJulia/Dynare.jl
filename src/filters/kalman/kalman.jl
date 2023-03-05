@@ -30,6 +30,7 @@ function calib_smoother!(context::Context, field::Dict{String,Any})
     calib_smoother_core!(context, options)
 end
 
+
 function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
@@ -136,7 +137,7 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             last,
             presample,
             kws,
-            data_pattern,
+            data_pattern
         )
     else
         schur_ws = SchurWs(T)
@@ -199,12 +200,17 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             presample,
             1e-8,
             kws,
-            data_pattern,
+            data_pattern
         )
         a0 = F.Z * a0
         alphah = F.Z * alphah
+        display(F.Z*T*transpose(F.Z))
+        display(F.Z*kws.KDK0)
+        display(tZ*transpose(F.Z))
+        display(F.Z*kws.L*transpose(F.Z))
+        @show kws.r
         @show F.Z*kws.r
-        display(F.Z*P[:,:,1]*transpose(F.Z))
+        #display(F.Z*P[:,:,1]*transpose(F.Z))
         # alphah = F.Z * vP * kws.r
         #        = F.Z * vP * F.Z' * F.Z kws.r
     end 
