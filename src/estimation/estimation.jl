@@ -58,7 +58,7 @@ Base.@kwdef struct EstimationOptions
                 mcmc_replic = v
             elseif k == "mcmc_chains"
                 mcmc_chains = v
-            elseif k == "mcmc_jscal"
+            elseif k == "mcmc_jscale"
                 mcmc_jscale = v
             elseif k == "mcmc_init_scale"
                 mcmc_init_scale = v
@@ -78,8 +78,26 @@ Base.@kwdef struct EstimationOptions
     =#
 end
 
+function translate_estimation_options(options)
+    new_options = copy(options)
+    for (k, v) in options
+        if k == "mh_jscale"
+            new_options["mcmc_jscale"] = v
+            delete!(new_options, "mh_nbloks")
+        if k == "mh_nblocks"
+            new_options["mcmc_chains"] = v
+            delete!(new_options, "mh_nbloks")
+        elseif k == "mh_replic"
+            new_options["mcmc_replic"] = v
+            delete!(new_options, "mh_replic")
+        end
+    end
+    return new_options 
+end
+
 function estimation!(context, field::Dict{String, Any})
     opt = field["options"]
+    opt = translate_estimation_options(field["options"])
     ff = NamedTuple{Tuple(Symbol.(keys(opt)))}(values(opt))
     options = EstimationOptions(; ff...)
     symboltable = context.symboltable
