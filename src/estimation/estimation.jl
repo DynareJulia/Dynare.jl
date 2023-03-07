@@ -84,7 +84,7 @@ function translate_estimation_options(options)
         if k == "mh_jscale"
             new_options["mcmc_jscale"] = v
             delete!(new_options, "mh_nbloks")
-        if k == "mh_nblocks"
+        elseif k == "mh_nblocks"
             new_options["mcmc_chains"] = v
             delete!(new_options, "mh_nbloks")
         elseif k == "mh_replic"
