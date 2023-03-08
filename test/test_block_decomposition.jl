@@ -38,8 +38,6 @@ iorder = [p[2] for p in sort(collect(pairs(matching)), by=x -> x[1])]
 g = SimpleDiGraph(U[:, iorder]) 
 scc = strongly_connected_components(g)
 
-<<<<<<< Updated upstream
-=======
 @show scc
 
 sdr = Dynare.DFunctions.SparseDynamicResid!
@@ -75,4 +73,3 @@ end
 @show make_blocks(sdr, scc)
 
 end # end module          
->>>>>>> Stashed changes
