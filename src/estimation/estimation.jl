@@ -124,6 +124,7 @@ function estimation!(context, field::Dict{String, Any})
     estimated_parameters = context.work.estimated_parameters
 
     initial_values = get_initial_value_or_mean(estimated_parameters)
+    
     set_estimated_parameters!(context, initial_values)
 
     if options.mode_compute
@@ -140,7 +141,6 @@ function estimation!(context, field::Dict{String, Any})
     shock_variance_indices = Vector{Int}(undef, 0)
     # no measurement errors in the model
     measurement_variance_indices = Vector{Int}(undef, 0)
-    
     return nothing
 end
 
@@ -266,18 +266,26 @@ end
 function DSGETransformation(ep::EstimatedParameters)
     tvec = []
     for p in ep.prior
-        push_prior!(tvec, Val(typeof(p)))
+        if typeof(p) <: Distributions.Beta
+            push!(tvec, as𝕀)
+        elseif typeof(p) <: Distributions.Gamma
+            push!(tvec, asℝ₊)
+        elseif typeof(p) <: Distributions.InverseGamma
+            push!(tvec, asℝ₊)
+        elseif typeof(p) <: InverseGamma1
+            push!(tvec, asℝ₊)
+        elseif typeof(p) <: Distributions.Normal
+            push!(tvec, asℝ)
+        elseif typeof(p) <: Distributions.Uniform
+            push!(tvec, as(Real, p.a, p.b))
+        elseif typeof(p) <: Distributions.Weibull
+            push!(tvec, asℝ₊)
+        else
+            error("Unknown prior distribution")
+        end 
     end
     return as((tvec...,))
 end
-
-push_prior!(tvec, ::Val{Distributions.Beta{Float64}}) = push!(tvec, as𝕀) 
-push_prior!(tvec, ::Val{Distributions.Gamma{Float64}}) = push!(tvec, asℝ₊) 
-push_prior!(tvec, ::Val{Dynare.InverseGamma1{Float64}}) = push!(tvec, asℝ₊) 
-push_prior!(tvec, ::Val{Distributions.InverseGamma{Float64}}) = push!(tvec, asℝ₊) 
-push_prior!(tvec, ::Val{Distributions.Normal{Float64}}) = push!(tvec, asℝ) 
-push_prior!(tvec, ::Val{Distributions.Uniform{Float64}}) = push!(tvec, as(Real, p.domain...)) 
-push_prior!(tvec, ::Val{Distributions.Weibull{Float64}}) = push!(tvec, asℝ₊)  
 
 function make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
     previous_value = 0.0
@@ -348,7 +356,6 @@ function (problem::DSGELogPosteriorDensity)(θ)
 end    
 
 get_initial_value_or_mean(ep::EstimatedParameters) = begin
-    @show zip(ep.initialvalue, ep.prior)
     [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
 end
 function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Real}
@@ -625,7 +632,9 @@ function posterior_mode(
         Optim.Options(show_trace = show_trace, iterations = iterations),
     )
     @show res
+    @show TransformVariables.transform(transformation, res.minimizer)
     hess = finite_difference_hessian(transformed_density, res.minimizer)
+    display(hess)
     inv_hess = inv(hess)
     hsd = sqrt.(diag(hess))
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
