@@ -202,9 +202,9 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             kws,
             data_pattern
         )
+        a0 = F.Z * a0
+        alphah = F.Z * alphah
     end 
-    a0 = F.Z * a0
-    alphah = F.Z * alphah
 
     Variables = DimensionalData.Dim{:custom}(endogenous_vars)
     Periods = Ti(Undated(1):Undated(nobs))
