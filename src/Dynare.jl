@@ -72,6 +72,10 @@ macro dynare(modfile_arg::String, args...)
         dynare_preprocess(modfilename, arglist)
     end
     @info "$(now()): End of preprocessing"
+
+    # onlymodel option performs only preprocessing
+    "onlymodel" in arglist && return nothing
+    
     options = CommandLineOptions(compilemodule)
     context = parser(modname, options)
     return context
