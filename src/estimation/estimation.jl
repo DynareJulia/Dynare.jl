@@ -115,14 +115,13 @@ function estimation!(context, field::Dict{String, Any})
         Yorig =
             get_data(filename, varobs, start = options.first_obs, last = options.last_obs)
     else
-        error("calib_smoother needs a data file or a TimeDataFrame!")
+        error("estimation needs a data file or an AxisArrayTable!")
     end
 
     observations = copy(Yorig)
     nobs = size(observations, 2)
     ssws = SSWs(context, nobs, varobs)
     estimated_parameters = context.work.estimated_parameters
-
     initial_values = get_initial_value_or_mean(estimated_parameters)
     
     set_estimated_parameters!(context, initial_values)
@@ -133,15 +132,33 @@ function estimation!(context, field::Dict{String, Any})
         estimation_results.tstdh = tstdh
         estimation_results.mode_covariance = mode_covariance
     end
-    estimation_results.mcmc_chains = mh_estimation(context, observations, mode, mode_covariance)
+
+    @show prior_variance(context.work.estimated_parameters)
+    chain1 = mh_estimation(context, observations, initial_values, 0.001*Matrix(prior_variance(context.work.estimated_parameters)))
+    display(chain1)
+    display(chain1.value)
+    chain2 = mh_estimation(context, observations, chain1.value.data[end,1:end-1], 0.001*covariance(chain1))
+    estimation_results.mcmc_chains = chain2
+#    estimation_results.mcmc_chains = mh_estimation(context, observations, mode, mode_covariance)
        
-    # estimated parameters: rho, alpha, theta, tau
-    params_indices = [2, 3, 5, 6]
-    # no shock_variance estimated
-    shock_variance_indices = Vector{Int}(undef, 0)
-    # no measurement errors in the model
-    measurement_variance_indices = Vector{Int}(undef, 0)
     return nothing
+end
+
+function prior_variance(ep::EstimatedParameters)
+    d = Vector{Float64}(undef, length(ep.prior))
+    for (i, p) in enumerate(ep.prior)
+        v = var(p)
+        d[i] = v > 1 ? 1 : v
+    end 
+    return Diagonal(d)
+end 
+
+function covariance(chain::Chains)
+    c = copy(chain.value.data[:,1:end-1,1])
+    m = mean(c)
+    c .-= m
+    display(Symmetric(c'*c/length(c)))
+    return Symmetric(c'*c/length(c))
 end
 
 struct SSWs{D<:AbstractFloat,I<:Integer}
@@ -155,7 +172,8 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     state_ids::Vector{I}
     stoch_simul_options::Dynare.StochSimulOptions
     T::Matrix{D}
-    varobs_ids::Vector{I}
+    varobs_ids1::Vector{I}
+    varobs_ids2::Vector{I}
     Y::Matrix{Union{D,Missing}}
     Z::Matrix{D}
     kalman_ws::KalmanLikelihoodWs{D, I}
@@ -169,7 +187,8 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             symboltable[v].orderintype for
             v in varobs]
         state_ids = sort!(union(varobs_ids0, model.i_bkwrd_b))
-        varobs_ids = [findfirst(isequal(symboltable[v].orderintype), state_ids) for v in varobs]
+        varobs_ids = [Base.findfirst(isequal(symboltable[v].name).orderintype, state_ids) for v in varobs]
+        @show varobs_ids
         lagged_state_ids = findall(in(model.i_bkwrd_b), state_ids)
         np = model.exogenous_nbr
         ns = length(state_ids)
@@ -379,6 +398,16 @@ function set_estimated_parameters!(
     context::Context,
     index::Pair{N,N},
     value::T,
+    ::Val{Endogenous},
+) where {T<:Real,N<:Integer}
+    context.work.Sigma_m[index[1], index[2]] = value*value
+    return nothing
+end
+
+function set_estimated_parameters!(
+    context::Context,
+    index::Pair{N,N},
+    value::T,
     ::Val{Exogenous},
 ) where {T<:Real,N<:Integer}
     context.models[1].Sigma_e[index[1], index[2]] = value*value
@@ -397,9 +426,10 @@ function loglikelihood(
     work = context.work
     estimated_parameters = work.estimated_parameters
     model_parameters = work.params
-    varobs = work.observed_variables
 
     set_estimated_parameters!(context, parameters)
+
+    fill!(context.results.model_results[1].trends.exogenous_steady_state, 0.0)
     #compute steady state and first order solution
     Dynare.compute_stoch_simul!(
         context,
@@ -409,8 +439,11 @@ function loglikelihood(
         variance_decomposition = false,
     )
     # build state space representation
+    @show results.trends.endogenous_steady_state
     steady_state = results.trends.endogenous_steady_state[ssws.varobs_ids]
+    @show steady_state
     linear_trend_coeffs = results.trends.endogenous_linear_trend[ssws.varobs_ids]
+
     n = size(ssws.Y, 2)
     row = 1
     linear_trend = collect(row - 1 .+ (1:n))
@@ -427,6 +460,7 @@ function loglikelihood(
     for i = 1:ny
         ssws.Z[i, ssws.varobs_ids[i]] = T(1)
     end
+    #ssws.H .= work.Sigma_m
     vg1 = view(results.linearrationalexpectations.g1_1, ssws.state_ids, :)
     view(ssws.T, :, ssws.lagged_state_ids) .= vg1
     vg2 = view(results.linearrationalexpectations.g1_2, ssws.state_ids, :)
@@ -466,7 +500,18 @@ function loglikelihood(
             data_pattern,
         )
     else
-        return Dynare.kalman_likelihood(
+        display(Y)
+        display(ssws.Z)
+        display(ssws.H)
+        display(ssws.T)
+        display(ssws.R)
+        display(ssws.Q)
+        display(ssws.a0)
+        display(ssws.P)
+        start,
+        last,
+        presample,
+    return Dynare.kalman_likelihood(
             Y,
             ssws.Z,
             ssws.H,
@@ -623,16 +668,18 @@ function posterior_mode(
     transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(ep)
+    @show p0
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
+    show_trace = true
+    @show ip0
     res = optimize(
         transformed_density,
         ip0,
         LBFGS(),
 #        Optim.Options(f_tol = 1e-5, show_trace = show_trace, iterations = iterations),
-        Optim.Options(show_trace = show_trace, iterations = iterations),
+        Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
     )
     @show res
-    @show TransformVariables.transform(transformation, res.minimizer)
     hess = finite_difference_hessian(transformed_density, res.minimizer)
     display(hess)
     inv_hess = inv(hess)
@@ -668,22 +715,27 @@ function mh_estimation(
 )
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
-    @show transformation
     transformed_problem = TransformedLogDensity(transformation, problem)
     transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-    #    (p0, v0) = get_initial_values(context.work.estimated_parameters)
-    #    ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
+    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+  #  ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
 
     model = DensityModel(transformed_density)
     spl = RWMH(MvNormal(zeros(length(initial_values)), Matrix(covariance)))
 
     # Sample from the posterior.
+    @show initial_values
     chain = sample(model, spl, mcmc_replic,
                    init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
+    @show spl.n_acceptances
+    @show chain.value.data[1,:]
+    @show chain.value.data[end,:]
     transform_chains(chain, transformation)
+    @show chain.value.data[1,:]
+    @show chain.value.data[end,:]
     return chain
 end
 
@@ -833,8 +885,14 @@ end
 
 transform_std(::TransformVariables.Identity, x, std) = std
 transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp(x)*std
-transform_std(::TransformVariables.ScaledShiftedLogistic{Int64}, x, std) = logistic(x)*(1-logistic(x))*std
-
+transform_std(::TransformVariables.ScaledShiftedLogistic{Real}, x, std) = logistic(x)*(1-logistic(x))*std
+#=
+function transform_std(::TransformVariables.ScaledShiftedLogistic{Real}, x, std)
+    @show x, logistic(x), std
+    @show logistic(x)*(1-logistic(x))*std
+    return logistic(x)*(1-logistic(x))*std
+end 
+=#
 function find(names::Vector, s)
     for (i, n) in enumerate(names)
         if n == s
