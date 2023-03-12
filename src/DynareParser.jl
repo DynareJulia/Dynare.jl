@@ -245,6 +245,8 @@ function parse_statements!(context::Context, statements::Vector{Any})
             @debug "$(now()): end endval"
         elseif statementname == "estimated_params"
             parse_estimated_parameters!(context, field)
+        elseif statementname == "estimated_params_init"
+            parse_estimated_parameter_init!(context, field)
         elseif statementname == "estimation"
             estimation!(context, field)
         elseif statementname == "histval"
