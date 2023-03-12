@@ -825,6 +825,7 @@ mutable struct Work
     dynamic_variables::Vector{Float64}
     exogenous_variables::Vector{Float64}
     observed_variables::Vector{String}
+    Sigma_m::Matrix{Float64}
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
@@ -851,6 +852,7 @@ mutable struct Work
         # reserve enough space for a single period computation
         exogenous_variables = Vector{Float64}(undef, 3 * model.exogenous_nbr)
         observed_variables = varobs
+        Sigma_m = zeros(length(varobs), length(varobs))
         #        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
         #        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
         jacobian = Matrix{Float64}(undef, 0, 0)
@@ -874,6 +876,7 @@ mutable struct Work
             dynamic_variables,
             exogenous_variables,
             observed_variables,
+            Sigma_m,
             jacobian,
             qr_jacobian,
             model_has_trend,
