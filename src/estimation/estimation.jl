@@ -61,10 +61,6 @@ function estimation!(context, field::Dict{String, Any})
     options = EstimationOptions(; ff...)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
-    has_trends = context.modfileinfo.has_trends
-    varobs_ids =
-        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
-    model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
@@ -82,8 +78,10 @@ function estimation!(context, field::Dict{String, Any})
     ssws = SSWs(context, nobs, varobs)
     estimated_parameters = context.work.estimated_parameters
     initial_values = get_initial_value_or_mean(estimated_parameters)
+    @show initial_values
     
     set_estimated_parameters!(context, initial_values)
+    @show estimated_parameters.initialvalue
 
     if options.mode_compute
         ((res, mode, tstdh, mode_covariance) = posterior_mode(context, observations))
@@ -129,8 +127,8 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     state_ids::Vector{I}
     stoch_simul_options::Dynare.StochSimulOptions
     T::Matrix{D}
-    varobs_ids1::Vector{I}
-    varobs_ids2::Vector{I}
+    obs_idx::Vector{I}
+    obs_idx_state::Vector{I}
     Y::Matrix{Union{D,Missing}}
     Z::Matrix{D}
     kalman_ws::KalmanLikelihoodWs{D, I}
@@ -140,11 +138,12 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         symboltable = context.symboltable
         dynamicws = Dynare.DynamicWs(context)
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
-        varobs_ids0 = [
+        obs_idx = [
             symboltable[v].orderintype for
             v in varobs]
-        state_ids = sort!(union(varobs_ids0, model.i_bkwrd_b))
-        varobs_ids = [Base.findfirst(isequal(symboltable[v].name).orderintype, state_ids) for v in varobs]
+        state_ids = sort!(union(obs_idx, model.i_bkwrd_b))
+        obs_idx_state = [Base.findfirst(isequal(i), 
+        state_ids) for i in obs_idx]
         lagged_state_ids = findall(in(model.i_bkwrd_b), state_ids)
         np = model.exogenous_nbr
         ns = length(state_ids)
@@ -169,7 +168,8 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             state_ids,
             stoch_simul_options,
             T,
-            varobs_ids,
+            obs_idx,
+            obs_idx_state,
             Y,
             Z,
             KalmanLikelihoodWs(
@@ -297,6 +297,7 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
             # @debug e
             lpd = -Inf
         end
+        error("stop")
         return lpd
     end
     return logposteriordensity
@@ -333,6 +334,7 @@ function (problem::DSGELogPosteriorDensity)(θ)
 end    
 
 function get_initial_value_or_mean(ep::EstimatedParameters)
+    @show ep.initialvalue
     return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
 end
 
@@ -398,24 +400,26 @@ function loglikelihood(
         variance_decomposition = false,
     )
     # build state space representation
-    steady_state = results.trends.endogenous_steady_state[ssws.varobs_ids]
+    @show ssws.obs_idx
+    @show results.trends.endogenous_steady_state
+    steady_state = results.trends.endogenous_steady_state[ssws.obs_idx]
     @show steady_state
-    linear_trend_coeffs = results.trends.endogenous_linear_trend[ssws.varobs_ids]
-
     n = size(ssws.Y, 2)
     row = 1
     Dynare.remove_linear_trend!(
         ssws.Y,
         observations,
-        results.trends.endogenous_steady_state[ssws.varobs_ids],
-        results.trends.endogenous_linear_trend[ssws.varobs_ids],
+        results.trends.endogenous_steady_state[ssws.obs_idx],
+        results.trends.endogenous_linear_trend[ssws.obs_idx],
     )
+    @show ssws.Y[:,1]
+    @show observations[:, 1]
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
-    varobs_ids = ssws.varobs_ids
+    obs_idx_state = ssws.obs_idx_state
     for i = 1:ny
-        ssws.Z[i, varobs_ids[i]] = T(1)
+        ssws.Z[i, obs_idx_state[i]] = T(1)
     end
     #ssws.H .= work.Sigma_m
     vg1 = view(results.linearrationalexpectations.g1_1, ssws.state_ids, :)
@@ -457,18 +461,7 @@ function loglikelihood(
             data_pattern,
         )
     else
-        display(Y)
-        display(ssws.Z)
-        display(ssws.H)
-        display(ssws.T)
-        display(ssws.R)
-        display(ssws.Q)
-        display(ssws.a0)
-        display(ssws.P)
-        start,
-        last,
-        presample,
-    return Dynare.kalman_likelihood(
+        return Dynare.kalman_likelihood(
             Y,
             ssws.Z,
             ssws.H,
@@ -803,7 +796,7 @@ function get_observations(context, datafile, first_obs, last_obs)
     results = context.results.model_results[1]
     symboltable = context.symboltable
     varobs = context.work.observed_variables
-    varobs_ids =
+    obs_idx =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
 
     if datafile != ""
@@ -817,8 +810,8 @@ function get_observations(context, datafile, first_obs, last_obs)
     remove_linear_trend!(
         Y,
         Yorig,
-        results.trends.endogenous_steady_state[varobs_ids],
-        results.trends.endogenous_linear_trend[varobs_ids],
+        results.trends.endogenous_steady_state[obs_idx],
+        results.trends.endogenous_linear_trend[obs_idx],
     )
     return Y
 end
