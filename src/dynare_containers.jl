@@ -717,7 +717,7 @@ mutable struct Trends
     function Trends(ny::Int64, nx::Int64, nxd::Int64)
         endogenous_steady_state = Vector{Float64}(undef, ny)
         endogenous_terminal_steady_state = Vector{Float64}(undef, 0)
-        endogenous_linear_trend = Vector{Float64}(undef, ny)
+        endogenous_linear_trend = zeros(ny)
         endogenous_quadratic_trend = Vector{Float64}(undef, ny)
         exogenous_steady_state = Vector{Float64}(undef, nx)
         exogenous_terminal_steady_state = Vector{Float64}(undef, 0)

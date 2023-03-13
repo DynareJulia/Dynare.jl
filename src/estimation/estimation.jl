@@ -82,7 +82,9 @@ function estimation!(context, field::Dict{String, Any})
     
     set_estimated_parameters!(context, initial_values)
     @show estimated_parameters.initialvalue
-
+    @show context.models[1].Sigma_e
+    @show ssws.Q
+    
     if options.mode_compute
         ((res, mode, tstdh, mode_covariance) = posterior_mode(context, observations))
         estimation_results.mode = mode
@@ -402,6 +404,7 @@ function loglikelihood(
     # build state space representation
     @show ssws.obs_idx
     @show results.trends.endogenous_steady_state
+    @show results.trends.endogenous_linear_trend
     steady_state = results.trends.endogenous_steady_state[ssws.obs_idx]
     @show steady_state
     n = size(ssws.Y, 2)
@@ -433,6 +436,7 @@ function loglikelihood(
         ssws.state_ids,
         ssws.state_ids,
     )
+    @show ssws.P
     start = 1
     last = nobs
     presample = 0
@@ -616,7 +620,7 @@ function posterior_mode(
     transformation = DSGETransformation(ep)
     transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-    (p0, v0) = get_initial_values(ep)
+    p0 = ep.initialvalue
     @show p0
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
     show_trace = true
