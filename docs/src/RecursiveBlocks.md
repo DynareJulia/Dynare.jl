@@ -212,14 +212,36 @@ It is possible to exploit this technique to dispatch the computation
 of the residuals belonging to each block in different functions
 
 ```
-function SparseDynamicResid(x::Vector{Any})
-    y = Dict()
-    for i in x
-        try y[i.args[1].args[2]] = i.args[2] catch end
+using RuntimeGeneratedFunctions
+
+sdr = Dynare.DFunctions.SparseDynamicResid!
+equs = sdr.body.args[13].args[3].args
+
+sdr_block_1 = :((T, residual, y, x, params, steady_state) -> @inbounds begin; end)
+@show sdr_block_1.args
+
+function make_block_function(equs, block_component)
+    # make function template
+    func =  :((T, residual, y, x, params, steady_state) -> @inbounds begin; end)
+    # add equations belonging to this block
+    for (i, ie) in enumerate(block_component)
+        # in sdr each equations is the second of two elements
+        eq = copy(equs[2*ie])
+        # change the index of the residual
+        eq.args[1].args[2] = i
+        push!(func.args[2].args[2].args[3].args, eq)
     end
-    return y
+    return @RuntimeGeneratedFunction(func)
 end
 
-x = Dynare.DFunctions.SparseDynamicResid!.body.args[13].args[3].args
-DynamicResid = SparseDynamicResid(x)
+function make_blocks(func0, block_components)
+    block_functions = Function[]
+    equs = func0.body.args[13].args[3].args
+    for block in block_components
+        push!(block_functions, make_block_function(equs, block))
+    end
+    return block_functions
+end
+
+@show make_blocks(sdr, sccDynamic)
 ```
