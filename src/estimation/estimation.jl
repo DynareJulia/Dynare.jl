@@ -35,47 +35,6 @@ Base.@kwdef struct EstimationOptions
     order::Int = 1
     plot_prior::Bool = false
     presample::Int = 0
-    #=
-    function EstimationOptions(options::Dict{String,Any})
-        for (k, v) in pairs(options)
-            if k == "display"
-                display = v
-            elseif k == "datafile"
-                datafile = v
-            elseif k == "nobs"
-                nobs = v
-            elseif k == "first_obs"
-                first_obs = v
-            elseif k == "last_obs"
-                last_obs = v
-            elseif k == "presample"
-                presample = v
-            elseif k == "plot_priors"
-                plot_priors = true
-            elseif k == "config_sig"
-                config_sig = v
-            elseif k == "mcmc_replic"
-                mcmc_replic = v
-            elseif k == "mcmc_chains"
-                mcmc_chains = v
-            elseif k == "mcmc_jscale"
-                mcmc_jscale = v
-            elseif k == "mcmc_init_scale"
-                mcmc_init_scale = v
-            elseif k == "mode_check"
-                mode_check = true
-            elseif k == "fast_kalman_filter"
-                fast_kalman_filter = true
-            elseif k == "diffuse_filter"
-                diffuse_filter = true
-            end
-        end
-        new(config_sig, data, datafile, diffuse_filter, display,
-        fast_kalman_filter, first_obs, last_obs, mcmc_chains,
-    mcmc_init_scale, mcmc_jscale, mcmc_replic, mode_check,
-    mode_compute, nobs, plot_prior, presample)
-    end
-    =#
 end
 
 function translate_estimation_options(options)
@@ -139,7 +98,6 @@ function estimation!(context, field::Dict{String, Any})
     display(chain1.value)
     chain2 = mh_estimation(context, observations, chain1.value.data[end,1:end-1], 0.001*covariance(chain1))
     estimation_results.mcmc_chains = chain2
-#    estimation_results.mcmc_chains = mh_estimation(context, observations, mode, mode_covariance)
        
     return nothing
 end
@@ -157,7 +115,6 @@ function covariance(chain::Chains)
     c = copy(chain.value.data[:,1:end-1,1])
     m = mean(c)
     c .-= m
-    display(Symmetric(c'*c/length(c)))
     return Symmetric(c'*c/length(c))
 end
 
@@ -188,7 +145,6 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             v in varobs]
         state_ids = sort!(union(varobs_ids0, model.i_bkwrd_b))
         varobs_ids = [Base.findfirst(isequal(symboltable[v].name).orderintype, state_ids) for v in varobs]
-        @show varobs_ids
         lagged_state_ids = findall(in(model.i_bkwrd_b), state_ids)
         np = model.exogenous_nbr
         ns = length(state_ids)
@@ -352,10 +308,12 @@ logdensity(ld::DSGELogPosteriorDensity, x) = ld.f(x)
 logdensity_and_gradient(ld::DSGELogPosteriorDensity, x) =
     ld.f(x), finite_difference_gradient(ld.f, x)
 logdensity(tld::TransformedLogDensity, x) = tld.log_density_function(collect(TransformVariables.transform(tld.transformation, x)))
+
 function logdensity_and_gradient(tld::TransformedLogDensity, x)
     tx = collect(TransformVariables.transform(tld.transformation, x))
     return (tld.log_density_function(tx), finite_difference_gradient(tld.log_density_function, tx))
 end
+
 capabilities(ld::DSGELogPosteriorDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
 capabilities(ld::TransformedLogDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
 
@@ -374,9 +332,10 @@ function (problem::DSGELogPosteriorDensity)(θ)
     return lpd
 end    
 
-get_initial_value_or_mean(ep::EstimatedParameters) = begin
-    [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
+function get_initial_value_or_mean(ep::EstimatedParameters)
+    return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
 end
+
 function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Real}
     ep = context.work.estimated_parameters
     for (k, p) in enumerate(zip(ep.index, ep.parametertype))
@@ -439,14 +398,12 @@ function loglikelihood(
         variance_decomposition = false,
     )
     # build state space representation
-    @show results.trends.endogenous_steady_state
     steady_state = results.trends.endogenous_steady_state[ssws.varobs_ids]
     @show steady_state
     linear_trend_coeffs = results.trends.endogenous_linear_trend[ssws.varobs_ids]
 
     n = size(ssws.Y, 2)
     row = 1
-    linear_trend = collect(row - 1 .+ (1:n))
     Dynare.remove_linear_trend!(
         ssws.Y,
         observations,
@@ -458,7 +415,7 @@ function loglikelihood(
     ny, nobs = size(ssws.Y)
     varobs_ids = ssws.varobs_ids
     for i = 1:ny
-        ssws.Z[i, ssws.varobs_ids[i]] = T(1)
+        ssws.Z[i, varobs_ids[i]] = T(1)
     end
     #ssws.H .= work.Sigma_m
     vg1 = view(results.linearrationalexpectations.g1_1, ssws.state_ids, :)
@@ -664,7 +621,6 @@ function posterior_mode(
     ep = context.work.estimated_parameters
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
     transformation = DSGETransformation(ep)
-    transformed_problem = TransformedLogDensity(transformation, problem)
     transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(ep)
@@ -681,7 +637,6 @@ function posterior_mode(
     )
     @show res
     hess = finite_difference_hessian(transformed_density, res.minimizer)
-    display(hess)
     inv_hess = inv(hess)
     hsd = sqrt.(diag(hess))
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
@@ -715,7 +670,6 @@ function mh_estimation(
 )
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
-    transformed_problem = TransformedLogDensity(transformation, problem)
     transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
@@ -886,13 +840,7 @@ end
 transform_std(::TransformVariables.Identity, x, std) = std
 transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp(x)*std
 transform_std(::TransformVariables.ScaledShiftedLogistic{Real}, x, std) = logistic(x)*(1-logistic(x))*std
-#=
-function transform_std(::TransformVariables.ScaledShiftedLogistic{Real}, x, std)
-    @show x, logistic(x), std
-    @show logistic(x)*(1-logistic(x))*std
-    return logistic(x)*(1-logistic(x))*std
-end 
-=#
+
 function find(names::Vector, s)
     for (i, n) in enumerate(names)
         if n == s
