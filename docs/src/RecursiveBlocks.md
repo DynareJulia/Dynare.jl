@@ -245,3 +245,9 @@ end
 
 @show make_blocks(sdr, sccDynamic)
 ```
+`
+### List of Dynare model functions
+
+- SparseDynamicResid!
+- SparseDynamicG1!
+- SparseDynamicG2!
