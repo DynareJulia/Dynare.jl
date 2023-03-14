@@ -78,12 +78,8 @@ function estimation!(context, field::Dict{String, Any})
     ssws = SSWs(context, nobs, varobs)
     estimated_parameters = context.work.estimated_parameters
     initial_values = get_initial_value_or_mean(estimated_parameters)
-    @show initial_values
     
     set_estimated_parameters!(context, initial_values)
-    @show estimated_parameters.initialvalue
-    @show context.models[1].Sigma_e
-    @show ssws.Q
     
     if options.mode_compute
         ((res, mode, tstdh, mode_covariance) = posterior_mode(context, observations))
@@ -92,7 +88,6 @@ function estimation!(context, field::Dict{String, Any})
         estimation_results.mode_covariance = mode_covariance
     end
 
-    @show prior_variance(context.work.estimated_parameters)
     chain1 = mh_estimation(context, observations, initial_values, 0.001*Matrix(prior_variance(context.work.estimated_parameters)))
     display(chain1)
     display(chain1.value)
@@ -299,7 +294,6 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
             # @debug e
             lpd = -Inf
         end
-        error("stop")
         return lpd
     end
     return logposteriordensity
@@ -401,12 +395,11 @@ function loglikelihood(
         ssws.stoch_simul_options;
         variance_decomposition = false,
     )
+    LRE = LinearRationalExpectations
+    LRE_results = results.linearrationalexpectations
+    compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context))
     # build state space representation
-    @show ssws.obs_idx
-    @show results.trends.endogenous_steady_state
-    @show results.trends.endogenous_linear_trend
     steady_state = results.trends.endogenous_steady_state[ssws.obs_idx]
-    @show steady_state
     n = size(ssws.Y, 2)
     row = 1
     Dynare.remove_linear_trend!(
@@ -415,8 +408,6 @@ function loglikelihood(
         results.trends.endogenous_steady_state[ssws.obs_idx],
         results.trends.endogenous_linear_trend[ssws.obs_idx],
     )
-    @show ssws.Y[:,1]
-    @show observations[:, 1]
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
@@ -425,18 +416,17 @@ function loglikelihood(
         ssws.Z[i, obs_idx_state[i]] = T(1)
     end
     #ssws.H .= work.Sigma_m
-    vg1 = view(results.linearrationalexpectations.g1_1, ssws.state_ids, :)
+    vg1 = view(LRE_results.g1_1, ssws.state_ids, :)
     view(ssws.T, :, ssws.lagged_state_ids) .= vg1
-    vg2 = view(results.linearrationalexpectations.g1_2, ssws.state_ids, :)
+    vg2 = view(LRE_results.g1_2, ssws.state_ids, :)
     ssws.R .= vg2
     ssws.Q .= model.Sigma_e
     fill!(ssws.a0, T(0))
     ssws.P .= view(
-        context.results.model_results[1].linearrationalexpectations.endogenous_variance,
+        LRE_results.endogenous_variance,
         ssws.state_ids,
         ssws.state_ids,
     )
-    @show ssws.P
     start = 1
     last = nobs
     presample = 0
@@ -681,7 +671,7 @@ function mh_estimation(
                    init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-    @show spl.n_acceptances
+#    @show spl.n_acceptances
     @show chain.value.data[1,:]
     @show chain.value.data[end,:]
     transform_chains(chain, transformation)
@@ -836,7 +826,7 @@ end
 
 transform_std(::TransformVariables.Identity, x, std) = std
 transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp(x)*std
-transform_std(::TransformVariables.ScaledShiftedLogistic{Real}, x, std) = logistic(x)*(1-logistic(x))*std
+transform_std(::TransformVariables.ScaledShiftedLogistic{<:Real}, x, std) = logistic(x)*(1-logistic(x))*std
 
 function find(names::Vector, s)
     for (i, n) in enumerate(names)
