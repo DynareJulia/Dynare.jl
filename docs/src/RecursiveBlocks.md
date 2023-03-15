@@ -244,4 +244,42 @@ function make_blocks(func0, block_components)
 end
 
 @show make_blocks(sdr, sccDynamic)
+
+#Get Sparse Dynamic Resid, G1 and G2
+sdr = Dynare.DFunctions.SparseDynamicResid!
+sdg1 = Dynare.DFunctions.SparseDynamicG1!
+sdg2 = Dynare.DFunctions.SparseDynamicG2!
+
+#Blocks by function (tuples)
+function blocks_by_functions(funcs0, block_components)
+    model_functions = Dict()#Vector{Function}[]
+    for (name, func) in pairs(funcs0)
+        try
+            model_functions[name] = make_blocks(func, block_components)
+        catch
+            model_functions[name] = "Has no field body"
+        end
+    end
+    return model_functions
+end
+
+funcs0 = (sdr=sdr, sdg1=sdg1, sdg2=sdg2)
+model_functions = blocks_by_functions(funcs0, sccDynamic)
+
+#Blocks by function (Array)
+function blocks_by_functions2(funcs0, block_components)
+    model_functions = Any[]
+    for func in funcs0
+        try
+            push!(model_functions, make_blocks(func, block_components))
+        catch
+            push!(model_functions, "Has no field body")
+        end
+    end
+    return model_functions
+end
+
+funcs0 = [sdr, sdg1, sdg2]
+model_functions = blocks_by_functions2(funcs0, sccDynamic)
+
 ```
