@@ -747,10 +747,10 @@ end
 Base.show(io::IO, t::Trends) = show_field_value(t)
 
 mutable struct EstimationResults
-    mode
-    tstdh
-    mode_covariance
-    mcmc_chains
+    posterior_mode::Vector{Float64}
+    posterior_mode_std::Vector{Float64}
+    posterior_mode_covariance::Matrix{Float64}
+    posterior_mcmc_chains::Vector{Any}
 end 
 
 mutable struct ModelResults

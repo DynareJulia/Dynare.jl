@@ -1,4 +1,4 @@
-using Dynare
+# test estimation code agains DGSE Estimation.zip (Herbst Schorfheide, 2014 and using Dynare
 using Test
 
 context = Dynare.parser("nk", Dynare.CommandLineOptions())
@@ -22,6 +22,7 @@ observations = copy(Yorig)
 nobs = size(observations, 2)
 ssws = Dynare.SSWs(context, nobs, varobs)
 ssws.Q .= model.Sigma_e
+ssws.H .= context.work.Sigma_m
 estimated_parameters = context.work.estimated_parameters
 
 initial_values = Dynare.get_initial_value_or_mean(estimated_parameters)
@@ -34,11 +35,18 @@ Dynare.set_estimated_parameters!(context, initial_values)
 @show ssws.Q
 
 ll = Dynare.loglikelihood(initial_values, context, observations, ssws)
-@show ll
 @show ssws.kalman_ws.v
 
+@test isapprox(ll, -301.0627, atol=0.01) 
+
 ep = context.work.estimated_parameters
-problem = Dynare.DSGELogPosteriorDensity(context, observations, options.first_obs, options.last_obs)
+@show initial_values
+lprior = Dynare.logpriordensity(initial_values, ep)
+@test isapprox(lprior, -11.9243, atol=0.01)
+
+problem = Dynare.DSGELogPosteriorDensity(context, observations, 1, nobs)
+@show problem(initial_values)
+    
 transformation = Dynare.DSGETransformation(ep)
 transformed_problem = Dynare.TransformedLogDensity(transformation, problem)
 transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
@@ -50,3 +58,4 @@ pit = Dynare.TransformVariables.inverse(transformation, tuple(initial_values...)
 pt = Dynare.TransformVariables.transform(transformation, pit)
 @show pt
 
+#Dynare.posterior_mode(context, observations)

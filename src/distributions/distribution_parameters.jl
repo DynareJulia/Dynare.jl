@@ -39,15 +39,24 @@ end
 
 function inverse_gamma_1_specification(μ, σ2)
     μ2 = μ * μ
-    f(x) = log(x - 1) + log(σ2 + μ2) - log(μ2) - 2*(loggamma(x) - loggamma(x - 0.5))
-    α = find_zero(f, (1, 100))
-    θ = (α - 1) * (σ2 + μ2)
+    if σ2 == Inf
+        α = 1
+        θ = μ2*gamma(1)/gamma(1/2)
+    else
+        f(x) = log(x - 1) + log(σ2 + μ2) - log(μ2) - 2*(loggamma(x) - loggamma(x - 0.5))
+        α = find_zero(f, (1, 100))
+        θ = (α - 1) * (σ2 + μ2)
+    end
     return α, θ
 end
 
 function inverse_gamma_2_specification(μ, σ2)
     μ2 = μ * μ
-    α = 2 + μ2 / σ2
+    if σ2 == Inf
+        α = 2
+    else    
+        α = 2 + μ2 / σ2
+    end 
     θ = (α - 1) * μ
     return α, θ
 end

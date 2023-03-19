@@ -5,10 +5,12 @@ using FiniteDiff: finite_difference_gradient, finite_difference_hessian
 using KernelDensity
 using LogDensityProblems
 using MCMCChains
+using MCMCDiagnosticTools
 using Optim
 using Plots
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
 using Random
+using StatsPlots
 using TransformVariables
 using TransformedLogDensities
 
@@ -42,10 +44,10 @@ function translate_estimation_options(options)
     for (k, v) in options
         if k == "mh_jscale"
             new_options["mcmc_jscale"] = v
-            delete!(new_options, "mh_nbloks")
-        elseif k == "mh_nblocks"
+            delete!(new_options, "mh_jscale")
+        elseif k == "mh_nblck"
             new_options["mcmc_chains"] = v
-            delete!(new_options, "mh_nbloks")
+            delete!(new_options, "mh_nblck")
         elseif k == "mh_replic"
             new_options["mcmc_replic"] = v
             delete!(new_options, "mh_replic")
@@ -60,13 +62,12 @@ function estimation!(context, field::Dict{String, Any})
     ff = NamedTuple{Tuple(Symbol.(keys(opt)))}(values(opt))
     options = EstimationOptions(; ff...)
     symboltable = context.symboltable
-    varobs = context.work.observed_variables
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
     
+    varobs = context.work.observed_variables
     if (filename = options.datafile) != ""
-        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
         Yorig =
             get_data(filename, varobs, start = options.first_obs, last = options.last_obs)
     else
@@ -82,20 +83,76 @@ function estimation!(context, field::Dict{String, Any})
     set_estimated_parameters!(context, initial_values)
     
     if options.mode_compute
-        ((res, mode, tstdh, mode_covariance) = posterior_mode(context, observations))
-        estimation_results.mode = mode
-        estimation_results.tstdh = tstdh
-        estimation_results.mode_covariance = mode_covariance
+        (res, mode, tstdh, mode_covariance) = posterior_mode(context, observations)
+        @show res
     end
 
-    chain1 = mh_estimation(context, observations, initial_values, 0.001*Matrix(prior_variance(context.work.estimated_parameters)))
-    display(chain1)
-    display(chain1.value)
-    chain2 = mh_estimation(context, observations, chain1.value.data[end,1:end-1], 0.001*covariance(chain1))
-    estimation_results.mcmc_chains = chain2
+    if options.mcmc_replic > 0
+        chain = mh_estimation(context, observations, mode, 
+        #options.mcmc_jscale*Matrix(prior_variance(context.work.estimated_parameters),
+        options.mcmc_jscale*mode_covariance,
+        mcmc_replic=options.mcmc_replic)
+        display(chain)
+        #plot(chain)
+        context.results.model_results[1].estimation.mcmc_chains = chain
+    end 
        
     return nothing
 end
+
+function mode_compute(; context=context,
+                 datafile = "",
+                 data = AxisArrayTable(AxisArrayTables.AxisArray([;;])),
+                 diffuse_filter::Bool = false,
+                 display::Bool = false,
+                 fast_kalman_filter::Bool = true,
+                 first_obs::PeriodsSinceEpoch = Undated(1),
+                 last_obs::PeriodsSinceEpoch = Undated(0),
+                 mode_check::Bool = false,
+                 nobs::Int = 0,
+                 order::Int = 1,
+                 presample::Int = 0
+)
+    (res, mode, tstdh, mode_covariance) = posterior_mode(context, observations)
+    @show res
+    estimation_results = context.results.model_results[1].estimation
+    estimation_results.mode = mode
+    estimation_results.tstdh = tstdh
+    estimation_results.mode_covariance = mode_covariance
+end
+
+function rwmh_compute(; context=context,
+             datafile = "",
+             data = AxisArrayTable(AxisArrayTables.AxisArray([;;])),
+             diffuse_filter::Bool = false,
+             display::Bool = false,
+             fast_kalman_filter::Bool = true,
+             first_obs::PeriodsSinceEpoch = Undated(1),
+             initial_values = prior_mean(context.work.estimated_parameters),
+             last_obs::PeriodsSinceEpoch = Undated(0),
+             mcmc_chains::Int = 1,
+             mcmc_init_scale::Float64 = 0.0,
+             mcmc_jscale::Float64 = 0.0,
+             mcmc_replic::Int =  0.0,
+             mode_compute::Bool = true,
+             nobs::Int = 0,
+             order::Int = 1,
+             presample::Int = 0
+)
+    observed_variables = context.work.observed_variables
+    if (filename = datafile) != ""
+        Yorig =
+            get_data(filename, observed_variables, start = first_obs, last = last_obs)
+    else
+        error("estimation needs a data file or an AxisArrayTable!")
+    end
+    @show initial_values
+    observations = copy(Yorig)
+    chain = mh_estimation(context, observations, initial_values, mcmc_jscale*Matrix(prior_variance(context.work.estimated_parameters)), first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains)
+    context.results.model_results[1].estimation.mcmc_chains = chain
+end
+
+prior_mean(ep::EstimatedParameters) = [mean(p) for p in ep.prior]
 
 function prior_variance(ep::EstimatedParameters)
     d = Vector{Float64}(undef, length(ep.prior))
@@ -415,7 +472,7 @@ function loglikelihood(
     for i = 1:ny
         ssws.Z[i, obs_idx_state[i]] = T(1)
     end
-    #ssws.H .= work.Sigma_m
+    ssws.H .= work.Sigma_m
     vg1 = view(LRE_results.g1_1, ssws.state_ids, :)
     view(ssws.T, :, ssws.lagged_state_ids) .= vg1
     vg2 = view(LRE_results.g1_2, ssws.state_ids, :)
@@ -604,45 +661,39 @@ function posterior_mode(
     iterations = 1000,
     show_trace = false
 )
-    @debug show_trace = true
     ep = context.work.estimated_parameters
+    results = context.results.model_results[1].estimation
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
     transformation = DSGETransformation(ep)
     transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     p0 = ep.initialvalue
-    @show p0
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
-    show_trace = true
-    @show ip0
     res = optimize(
         transformed_density,
         ip0,
         LBFGS(),
-#        Optim.Options(f_tol = 1e-5, show_trace = show_trace, iterations = iterations),
         Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
     )
-    @show res
     hess = finite_difference_hessian(transformed_density, res.minimizer)
     inv_hess = inv(hess)
     hsd = sqrt.(diag(hess))
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
     stdh = sqrt.(diag(invhess))
-    tstdh = transform_std(transformation, res.minimizer, stdh)
+    std = transform_std(transformation, res.minimizer, stdh)
     mode = collect(TransformVariables.transform(transformation, res.minimizer))
     
-    if length(ep.posterior_mode) == 0
-        resize!(context.work.estimated_parameters.posterior_mode, length(mode))
-    end
-    ep.posterior_mode .= mode
+    results.posterior_mode = mode
+    results.posterior_mode_std = std
+    results.posterior_mode_covariance = invhess
     
     estimation_result_table(
         get_parameter_names(ep),
         mode,
-        tstdh,
+        std,
         "Posterior mode"
     )
-    return(res, mode, tstdh, inv_hess)
+    return(res, mode, std, inv_hess)
 end
 
 function mh_estimation(
@@ -652,6 +703,7 @@ function mh_estimation(
     covariance;
     first_obs = 1,
     last_obs = 0,
+    mcmc_chains = 1,
     mcmc_replic = 100000,
     kwargs...,
 )
@@ -660,21 +712,26 @@ function mh_estimation(
     transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
     (p0, v0) = get_initial_values(context.work.estimated_parameters)
-  #  ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
+    ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
 
     model = DensityModel(transformed_density)
+    @show model.logdensity(ip0)
     spl = RWMH(MvNormal(zeros(length(initial_values)), Matrix(covariance)))
 
     # Sample from the posterior.
-    @show initial_values
+    @show ip0
+    @show mcmc_chains
     chain = sample(model, spl, mcmc_replic,
-                   init_params = initial_values,
+    #              init_params = initial_values,
+                   init_params = ip0,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-#    @show spl.n_acceptances
+    @show spl.n_acceptances
     @show chain.value.data[1,:]
     @show chain.value.data[end,:]
+    display(StatsPlots.plot(chain))
     transform_chains(chain, transformation)
+    #StatsPlots.plot(chain)
     @show chain.value.data[1,:]
     @show chain.value.data[end,:]
     return chain
@@ -694,8 +751,8 @@ function hmc_estimation(
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem.f)
     transformed_logdensity(θ) = TransformVariables.transform_logdensity(transformed_problem.transformation,
-                                                                        transformed_problem.log_density_function,
-                                                                        θ)
+    transformed_problem.log_density_function,
+    θ)
     function logdensity_and_gradient(ℓ, x)
         return(transformed_logdensity(x),
                FiniteDiff.finite_difference_gradient(transformed_logdensity, x))

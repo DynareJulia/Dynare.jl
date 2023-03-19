@@ -37,6 +37,9 @@ function parse_prior!(context, field)
     else
         parametertype = symboltable[p.name1].symboltype
     end
+    if !ismissing(p.variance)
+        p.variance = dynare_parse_eval(p.variance, context)
+    end 
     push!(ep.parametertype, parametertype)
     push!(ep.prior, make_prior_distribution(p, Val(Symbol(p.shape))))
 end
