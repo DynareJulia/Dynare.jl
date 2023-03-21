@@ -130,12 +130,17 @@ function mode_compute(; context=context,
                  order::Int = 1,
                  presample::Int = 0
 )
+    symboltable = context.symboltable
+    results = context.results.model_results[1]
+    lre_results = results.linearrationalexpectations
+    estimation_results = results.estimation
+    varobs = context.work.observed_variables
+    trends = results.trends
+    has_trends = context.modfileinfo.has_trends
+    
+    observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
     (res, mode, tstdh, mode_covariance) = posterior_mode(context, observations)
     @show res
-    estimation_results = context.results.model_results[1].estimation
-    estimation_results.mode = mode
-    estimation_results.tstdh = tstdh
-    estimation_results.mode_covariance = mode_covariance
 end
 
 function rwmh_compute(; context=context,
@@ -146,6 +151,7 @@ function rwmh_compute(; context=context,
              fast_kalman_filter::Bool = true,
              first_obs::PeriodsSinceEpoch = Undated(1),
              initial_values = prior_mean(context.work.estimated_parameters),
+             covariance = Matrix(prior_variance(context.work.estimated_parameters)),
              last_obs::PeriodsSinceEpoch = Undated(0),
              mcmc_chains::Int = 1,
              mcmc_init_scale::Float64 = 0.0,
@@ -156,16 +162,17 @@ function rwmh_compute(; context=context,
              order::Int = 1,
              presample::Int = 0
 )
-    observed_variables = context.work.observed_variables
-    if (filename = datafile) != ""
-        Yorig =
-            get_data(filename, observed_variables, start = first_obs, last = last_obs)
-    else
-        error("estimation needs a data file or an AxisArrayTable!")
-    end
-    @show initial_values
-    observations = copy(Yorig)
-    chain = mh_estimation(context, observations, initial_values, mcmc_jscale*Matrix(prior_variance(context.work.estimated_parameters)), first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains)
+    Base.display(covariance)
+    symboltable = context.symboltable
+    results = context.results.model_results[1]
+    lre_results = results.linearrationalexpectations
+    estimation_results = results.estimation
+    varobs = context.work.observed_variables
+    trends = results.trends
+    has_trends = context.modfileinfo.has_trends
+
+    observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+    chain = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains)
     context.results.model_results[1].estimation.posterior_mcmc_chains = chain
 end
 
@@ -739,14 +746,13 @@ function mh_estimation(
     @show ip0
     @show mcmc_chains
     chain = sample(model, spl, mcmc_replic,
-    #              init_params = initial_values,
                    init_params = ip0,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-    @show spl.n_acceptances
+#    @show spl.n_acceptances
     @show chain.value.data[1,:]
     @show chain.value.data[end,:]
-    display(StatsPlots.plot(chain))
+    #display(StatsPlots.plot(chain))
     transform_chains(chain, transformation)
     #StatsPlots.plot(chain)
     @show chain.value.data[1,:]

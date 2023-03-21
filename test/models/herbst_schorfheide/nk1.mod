@@ -55,12 +55,16 @@ rA.prior(shape=gamma,mean=0.5,stdev=0.5);
 piA.prior(shape=gamma,mean=7,stdev=2);
 gammaQ.prior(shape=normal, mean=0.4, stdev=0.2);
 tau.prior(shape=gamma, mean=2, stdev=0.5);
-kappa.prior(shape=uniform, domain=[0,1]);
+//kappa.prior(shape=uniform, domain=[0,1]);
+kappa.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
 psi1.prior(shape=gamma, mean=1.5, stdev=0.25);
 psi2.prior(shape=gamma, mean=0.5, stdev=0.25);
-rho_R.prior(shape=uniform, domain=[0,1]);
-rho_g.prior(shape=uniform, domain=[0,1]);
-rho_z.prior(shape=uniform, domain=[0,1]);
+//rho_R.prior(shape=uniform, domain=[0,1]);
+rho_R.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
+//rho_g.prior(shape=uniform, domain=[0,1]);
+rho_g.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
+//rho_z.prior(shape=uniform, domain=[0,1]);
+rho_z.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
 // s=0.4, nu=4
 s_ep.prior(shape=inv_gamma1, mean=0.5013256549262002, variance=0.06867258771281654);
 // s=1, nu=4
@@ -88,4 +92,6 @@ end;
 
 varobs YGR INFL INT;
 
-estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.5, mh_nblocks=2);
+//estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.5, mh_nblocks=2);
+//mode_compute(datafile="dsge1_data.csv");
+rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.05);
