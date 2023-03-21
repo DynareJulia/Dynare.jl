@@ -56,8 +56,31 @@ function translate_estimation_options(options)
     return new_options 
 end
 
+function get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, steady_state, linear_trend)
+    if (filename = datafile) != ""
+        Yorig = get_data(filename, varobs, start = first_obs, last = last_obs)
+    else
+        error("estimation needs a data file or an AxisArrayTable!")
+    end
+
+    varobs_ids =
+        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
+    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
+    if has_trends
+        remove_linear_trend!(
+            Y,
+            Yorig,
+            steady_state[varobs_ids],
+            linear_trend[varobs_ids],
+        )
+    else
+        Y .= Yorig .- steady_state[varobs_ids]
+    end
+   
+    return Y
+end
+
 function estimation!(context, field::Dict{String, Any})
-    opt = field["options"]
     opt = translate_estimation_options(field["options"])
     ff = NamedTuple{Tuple(Symbol.(keys(opt)))}(values(opt))
     options = EstimationOptions(; ff...)
@@ -65,16 +88,11 @@ function estimation!(context, field::Dict{String, Any})
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    
     varobs = context.work.observed_variables
-    if (filename = options.datafile) != ""
-        Yorig =
-            get_data(filename, varobs, start = options.first_obs, last = options.last_obs)
-    else
-        error("estimation needs a data file or an AxisArrayTable!")
-    end
-
-    observations = copy(Yorig)
+    trends = results.trends
+    has_trends = context.modfileinfo.has_trends
+        
+    observations = get_observables(options.datafile, varobs, options.first_obs, options.last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
     nobs = size(observations, 2)
     ssws = SSWs(context, nobs, varobs)
     estimated_parameters = context.work.estimated_parameters
@@ -93,8 +111,7 @@ function estimation!(context, field::Dict{String, Any})
         options.mcmc_jscale*mode_covariance,
         mcmc_replic=options.mcmc_replic)
         display(chain)
-        #plot(chain)
-        context.results.model_results[1].estimation.mcmc_chains = chain
+        StatsPlots.plot(chain)
     end 
        
     return nothing
@@ -149,7 +166,7 @@ function rwmh_compute(; context=context,
     @show initial_values
     observations = copy(Yorig)
     chain = mh_estimation(context, observations, initial_values, mcmc_jscale*Matrix(prior_variance(context.work.estimated_parameters)), first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains)
-    context.results.model_results[1].estimation.mcmc_chains = chain
+    context.results.model_results[1].estimation.posterior_mcmc_chains = chain
 end
 
 prior_mean(ep::EstimatedParameters) = [mean(p) for p in ep.prior]
