@@ -152,6 +152,10 @@ function plot_irfs(irfs, model, symboltable, filepath)
 end
 
 function plot_priors(;ep::EstimatedParameters=context.work.estimated_parameters,filepath::String="")
+    ep = context.work.estimated_parameters
+    path = "$(context.modfileinfo.modfilepath)/graphs/"
+    mkpath(path)
+    filename = "$(path)/estimation"
     nprior = length(ep.prior)
     X = zeros(100, nprior)
     Y = zeros(100, nprior)
