@@ -1,3 +1,4 @@
+
 using Plots
 
 function graph_display(g)
@@ -120,29 +121,28 @@ function plot_irfs(irfs, model, symboltable, filepath)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
         (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
-        firstvar = 1
+        ivars = 1:nr*nc
         for p = 1:nbplt-1
             filename = "$(filepath)_$(exogenous_name)_$(p).png"
-            plot_irf_panel(
+            plot_panel(
                 x,
-                irfs[Symbol(exogenous_name)],
-                endogenous_names,
-                exogenous_name,
-                firstvar,
+                Matrix(irfs[Symbol(exogenous_name)][:,ivars]),
+                "Orthogonal shock to $(exogenous_name)",
+                endogenous_names[ivars],
                 nr,
                 nc,
                 nr * nc,
                 filename,
             )
-            firstvar += nr * nc
+            ivars += nr * nc
         end
+        ivars = ivars[1:nstar]
         filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
-        plot_irf_panel(
+        plot_panel(
             x,
-            irfs[Symbol(exogenous_name)],
-            endogenous_names,
-            exogenous_name,
-            firstvar,
+            Matrix(irfs[Symbol(exogenous_name)][:, ivars]),
+            "Orthogonal shock to $(exogenous_name)",
+            endogenous_names[ivars],
             lr,
             lc,
             nstar,
@@ -151,12 +151,51 @@ function plot_irfs(irfs, model, symboltable, filepath)
     end
 end
 
-function plot_irf_panel(
+function plot_priors(;ep::EstimatedParameters=context.work.estimated_parameters,filepath::String="")
+    nprior = length(ep.prior)
+    X = zeros(100, nprior)
+    Y = zeros(100, nprior)
+    for (i, p) in enumerate(ep.prior)
+        X[:, i] = range(StatsPlots.yz_args(p)..., 100)
+        for j in axes(X, 1)
+            Y[j, i] = pdf(p, X[j, i])
+        end 
+    end     
+    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
+    ivars = collect(1:nr*nc)
+    for p = 1:nbplt-1
+        filename = "$(filepath)Priors_$(p).png"
+        plot_panel(
+            X[:, ivars],
+            Y[:, ivars],
+            "Priors",
+            ep.name[ivars],
+            nr,
+            nc,
+            nr * nc,
+            filename,
+        )
+        ivars .+= nr * nc
+    end
+    ivars = ivars[1:nstar]
+    filename = "$(filepath)Priors_$(nbplt).png"
+    plot_panel(
+        X[:, ivars],
+        Y[:, ivars],
+        "Priors",
+        ep.name[ivars],
+        lr,
+        lc,
+        nstar,
+        filename,
+    )
+end
+
+function plot_panel(
     x,
-    tdf,
-    endogenous_names,
-    exogenous_name,
-    firstvar,
+    y,
+    title,
+    ylabels,
     nr,
     nc,
     nstar,
@@ -164,9 +203,13 @@ function plot_irf_panel(
 )
     sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
     for i = 1:nstar
-        ivar = firstvar + i - 1
-        title = (i == 1) ? "Orthogonal shock to $(exogenous_name)" : ""
-        yy = Matrix(tdf[:, Symbol(endogenous_names[i])])
+        if ndims(x) == 1
+            xx = x
+        else
+            xx = x[:, i]
+        end 
+        yy = y[:, i]
+        title1 = (i == 1) ? title : ""
         if all(yy .> 0)
             lims = (0, Inf)
         elseif all(yy .< 0)
@@ -175,7 +218,7 @@ function plot_irf_panel(
             lims = (-Inf, Inf)
         end
         sp[i] =
-            Plots.plot(x, yy, title = title, ylims = lims, label = endogenous_names[ivar])
+            Plots.plot(xx, yy, title = title1, ylims = lims, label = ylabels[i])
     end
 
     pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
