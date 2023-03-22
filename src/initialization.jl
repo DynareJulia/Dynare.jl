@@ -445,15 +445,15 @@ function set_covariance!(
     observed_variables
 )
     for c in covariance
-        sv1 = symboltable[s["name"]]
-        sv2 = symboltable[s["name2"]]
+        sv1 = symboltable[c["name"]]
+        sv2 = symboltable[c["name2"]]
         value = dynare_parse_eval(c["covariance"]::String, context)
-        if sv.symboltype == Exogenous
+        if sv1.symboltype == Exogenous
             k1 = sv1.orderintype
             k2 = sv2.orderintype
             Sigma[k1, k2] = value
             Sigma[k2, k1] = value
-        elseif sv.symboltype === Endogenous
+        elseif sv1.symboltype === Endogenous
             k1 = findfirst(c["name", observed_variables])
             k2 = findfirst(c["name", observed_variables])
             Sigma_m[k1, k2] = value
