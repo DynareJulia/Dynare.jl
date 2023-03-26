@@ -94,4 +94,4 @@ varobs YGR INFL INT;
 
 //estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.5, mh_nblocks=2);
 //mode_compute(datafile="dsge1_data.csv");
-rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.05);
+rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.05, mcmc_chains=1);

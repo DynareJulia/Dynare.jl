@@ -162,7 +162,6 @@ function rwmh_compute(; context=context,
              order::Int = 1,
              presample::Int = 0
 )
-    Base.display(covariance)
     symboltable = context.symboltable
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
@@ -172,7 +171,7 @@ function rwmh_compute(; context=context,
     has_trends = context.modfileinfo.has_trends
 
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
-    chain = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains)
+    chain = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains, mcmc_replic=mcmc_replic)
     context.results.model_results[1].estimation.posterior_mcmc_chains = chain
 end
 
@@ -739,24 +738,25 @@ function mh_estimation(
     ip0 = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
 
     model = DensityModel(transformed_density)
-    @show model.logdensity(ip0)
     spl = RWMH(MvNormal(zeros(length(initial_values)), Matrix(covariance)))
-
-    # Sample from the posterior.
-    @show ip0
-    @show mcmc_chains
-    chain = sample(model, spl, mcmc_replic,
+    local chain
+    if mcmc_chains == 1
+        chain = sample(model, spl, mcmc_replic,
                    init_params = ip0,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-#    @show spl.n_acceptances
-    @show chain.value.data[1,:]
-    @show chain.value.data[end,:]
-    #display(StatsPlots.plot(chain))
+    else    
+        old_blas_threads = BLAS.get_num_threads()
+        BLAS.set_num_threads(1)
+        chain = sample(model, spl, MCMCThreads(), mcmc_replic, mcmc_chains,
+                   init_params = Iterators.repeated(ip0),
+                   param_names = context.work.estimated_parameters.name,
+                   chain_type = Chains)
+        BLAS.set_num_threads(old_blas_threads)
+    end 
+    display_acceptance_ratio(spl, mcmc_replic)
+    display(chain)
     transform_chains(chain, transformation)
-    #StatsPlots.plot(chain)
-    @show chain.value.data[1,:]
-    @show chain.value.data[end,:]
     return chain
 end
 
@@ -844,6 +844,20 @@ function hmcmc_result_table(parameter_names)
     sqrt.(diag(results.κ.M⁻¹))
     "Results from Bayesian estimation"
 end
+
+function display_acceptance_ratio(spl::MetropolisHastings,replic)
+    println("")
+    println("Acceptance ratio MCMC chain: $(spl.n_acceptances/replic)")
+    println("")
+end 
+
+function display_acceptance_ratio(spl::Vector{MetropolisHastings},replic)
+    println("")
+    for (i, s) in enumerate(spl) 
+        println("Acceptance ratio chain $i: $(s.n_acceptances/replic)")
+    end
+    println("")
+end 
 
 # Utilities
 function get_eigenvalues(context)
