@@ -1,4 +1,4 @@
-
+using KernelDensity
 using Plots
 
 function graph_display(g)
@@ -151,11 +151,12 @@ function plot_irfs(irfs, model, symboltable, filepath)
     end
 end
 
-function plot_priors(;ep::EstimatedParameters=context.work.estimated_parameters,filepath::String="")
+function plot_priors(;context::Context=context)
+    @assert length(ep.prior) > 0 "There is no defined priors"
     ep = context.work.estimated_parameters
     path = "$(context.modfileinfo.modfilepath)/graphs/"
     mkpath(path)
-    filename = "$(path)/estimation"
+    filepath = "$(path)/Priors"
     nprior = length(ep.prior)
     X = zeros(100, nprior)
     Y = zeros(100, nprior)
@@ -168,7 +169,7 @@ function plot_priors(;ep::EstimatedParameters=context.work.estimated_parameters,
     (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
     ivars = collect(1:nr*nc)
     for p = 1:nbplt-1
-        filename = "$(filepath)Priors_$(p).png"
+        filename = "$(filepath)_$(p).png"
         plot_panel(
             X[:, ivars],
             Y[:, ivars],
@@ -182,7 +183,7 @@ function plot_priors(;ep::EstimatedParameters=context.work.estimated_parameters,
         ivars .+= nr * nc
     end
     ivars = ivars[1:nstar]
-    filename = "$(filepath)Priors_$(nbplt).png"
+    filename = "$(filepath)_$(nbplt).png"
     plot_panel(
         X[:, ivars],
         Y[:, ivars],
@@ -222,7 +223,7 @@ function plot_panel(
             lims = (-Inf, Inf)
         end
         sp[i] =
-            Plots.plot(xx, yy, title = title1, ylims = lims, label = ylabels[i])
+            Plots.plot(xx, yy, title = title1, ylims = lims, label = ylabels[i], kwargs...)
     end
 
     pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
@@ -271,6 +272,159 @@ function pltorg_0(number)
         lc = 3
     end
     return (lr, lc)
+end
+
+function plot_prior_posterior(;context::Context=context)
+    ep = context.work.estimated_parameters
+    chains = context.results.model_results[1].estimation.posterior_mcmc_chains
+    mode = context.results.model_results[1].estimation.posterior_mode
+    @assert length(ep.prior) > 0 "There is no defined prior"
+    @assert length(chains) > 0 "There is no MCMC chain"
+    path = "$(context.modfileinfo.modfilepath)/graphs/"
+    mkpath(path)
+    filename = "$(path)/PriorPosterior"
+    nprior = length(ep.prior)
+    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
+    ivars = collect(1:nr*nc)
+    for p = 1:nbplt-1
+        filename = "$(filename)_$(p).png"
+        plot_panel_prior_posterior(
+            ep.prior,
+            chains,
+            mode,
+            "Priors",
+            ep.name,
+            ivars,
+            nr,
+            nc,
+            nr * nc,
+            filename
+        )
+        ivars .+= nr * nc
+    end
+    ivars = ivars[1:nstar]
+    filename = "$(filename)_$(nbplt).png"
+    plot_panel_prior_posterior(
+        ep.prior,
+        chains,
+        mode,
+        "Priors",
+        ep.name,
+        ivars,
+        lr,
+        lc,
+        nstar,
+        filename
+    )
+end
+
+function plot_panel_prior_posterior(
+    prior,
+    chains,
+    mode,
+    title,
+    ylabels,
+    ivars,
+    nr,
+    nc,
+    nstar,
+    filename;
+    kwargs...
+)
+    sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
+    for (i, j) in enumerate(ivars)
+        posterior_density = kde(vec(get(chains, Symbol(ylabels[j]))[1].data))
+        title1 = (j == 1) ? title : ""
+        
+        sp[i] = Plots.plot(prior[j], title = ylabels[j], labels = "Prior", kwargs...)
+        plot!(posterior_density, labels = "Posterior")
+    end
+
+    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Prior and posterior distributions")
+    graph_display(pl)
+    savefig(filename)
+end
+
+function plot_priorprediction_irfs(irfs, model, symboltable, filepath)
+    x = axes(first(first(irfs))[2])[1]
+    endogenous_names = get_endogenous_longname(symboltable)
+    exogenous_names = get_exogenous_longname(symboltable)
+    for i = 1:model.exogenous_nbr
+        exogenous_name = exogenous_names[i]
+        (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
+        ivars = 1:nr*nc
+        irfs1 = [ir[Symbol(exogenous_name)] for ir in irfs]
+        for p = 1:nbplt-1
+            filename = "$(filepath)_$(exogenous_name)_$(p).png"
+            plot_panel_priorprediction_irfs(
+                x,
+                irfs,
+                exogenous_name,
+                "Orthogonal shock to $(exogenous_name)",
+                endogenous_names,
+                ivars,
+                nr,
+                nc,
+                nr * nc,
+                filename,
+            )
+            ivars += nr * nc
+        end
+        ivars = ivars[1:nstar]
+        filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
+        plot_panel_priorprediction_irfs(
+            x,
+            irfs,
+            exogenous_name,
+            "Orthogonal shock to $(exogenous_name)",
+            endogenous_names,
+            ivars,
+            lr,
+            lc,
+            nstar,
+            filename,
+        )
+    end
+end
+
+function plot_panel_priorprediction_irfs(
+    x,
+    irfs,
+    exogenous_name,
+    title,
+    endogenous_names,
+    ivars,
+    nr,
+    nc,
+    nstar,
+    filename
+)
+    sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nstar]
+    for (i, j) in enumerate(ivars)
+        M = zeros(40, length(irfs))
+        for (k, ir) in enumerate(irfs)
+            m = Matrix(ir[Symbol(exogenous_name)][:, Symbol(endogenous_names[j])])
+            @views M[:, k] .= m
+        end
+        Q = zeros(40, 5)
+        for k in 1:40
+            @views Q[k, :] .= quantile(M[k,:], [0.1, 0.3, 0.5, 0.7, 0.9])
+        end
+        title1 = (j == 1) ? title : ""
+        colors = palette(:Blues_3)
+        Q1 = view(Q,:, 1)
+        Q2 = view(Q,:, 2)
+        Q3 = view(Q,:, 3)
+        Q4 = view(Q,:, 4)
+        Q5 = view(Q,:, 5)
+        sp[i] = Plots.plot(x, Q3, ribbon = (Q5-Q3, Q3-Q1), color = colors[2],Qtitle = endogenous_names[j], labels = false)
+        plot!(sp[i], x, Q3, ribbon = (Q4-Q3, Q3-Q2), color = colors[3])
+        display(sp[i])
+    end
+
+    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Priorprediction: Orthogonal shock to $(exogenous_name)")
+    graph_display(pl)
+    savefig(filename)
 end
 
 function plot(aat::AxisArrayTable; label = (), title = "", filename = "")
