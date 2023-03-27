@@ -18,30 +18,29 @@ mutable struct PriorPredictionResults
     end
 end
 
-function priorprediction(;context::Context=context, iterations::Int64=100)
+function priorprediction(;context::Context=context, iterations::Int64=1000)
+    estimated_parameters = context.work.estimated_parameters
+    parameter_nbr = length(estimated_parameters)
+    model = context.models[1]
+    modfilepath = context.modfileinfo.modfilepath
+    
     draws = Matrix{Float64}(undef, iterations, parameter_nbr)
     for (i, p) in enumerate(estimated_parameters.prior)
         @views draws[:, i] = rand(p, iterations)
     end
     (failure, results) = run_simulations(context, draws)
 
-    estimated_parameters = context.work.estimated_parameters
-    parameter_nbr = length(estimated_parameters)
-    model = context.models[1]
-    display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, estimated_parameters.name, get_endogenous(context.symboltable), context.modfilepath)
+    display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, estimated_parameters.name, get_endogenous(context.symboltable), modfilepath)
     plot_priorprediction_irfs(results.irfs, model, context.symboltable, "$(modfilepath)/graphs/priorprediction_irfs")
 
     draws = Matrix{Float64}(undef, iterations, parameter_nbr)
     for (i, p) in enumerate(estimated_parameters.prior)
-        lb, ub = quantile(p, [0.05, 0.95])
-        @views draws[:, i] = rand(uniform(lb, ub), iterations)
+        lb, ub = quantile(p, [0.001, 0.999])
+        @views draws[:, i] = rand(Uniform(lb, ub), iterations)
     end
-    (failure, results) run_simulations(context, draws)
+    (failure, results) = run_simulations(context, draws)
 
-    estimated_parameters = context.work.estimated_parameters
-    parameter_nbr = length(estimated_parameters)
-    model = context.models[1]
-    display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, estimated_parameters.name, get_endogenous(context.symboltable), context.modfilepath)
+    display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, estimated_parameters.name, get_endogenous(context.symboltable), modfilepath)
 end
 
 
@@ -99,52 +98,26 @@ function run_simulations(context, draws)
     return (failure, results)
 end
 
-function display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
+function display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
     failure_nbr =sum(failure)
 
-    if failure_nbr > 0
-        println("Share of DomainError: $(results.domain/iterations)")
-        println("Share of UndeterminedError: $(results.undetermined/iterations)")
-        println("Share of UnstableError: $(results.unstable/iterations)")
-        println("Share of other error: $(results.other/iterations)")
-    
-            (nbplt, nr, nc, lr, lc, nstar) = pltorg(parameter_nbr)
 
-        sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
-
-        k = 1
-        nfig = 1
-        for (i, p) in enumerate(parameter_names)
-            @views z = hcat(draws[:, i], failure)
-            @views sz = z[sortperm(z[:, 1]), :]
-            @views y = cumsum(sz[:, 2])
-        
-            @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p)
-            if k == nr*nc
-                pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
-                display(pl)
-                graph_display(pl)
-                savefig("PriorChecks$(nfig).png")
-                k = 1
-                nfig += 1
-                sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
-            end
-            k += 1
-        end
-        if k < nr*nc
-            pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
-            display(pl)
-            graph_display(pl)
-            savefig("$(modfilepath)/graphs/PriorChecks$(nfig).png")
-        end
-    end
+    println("Share of DomainError: $(results.domain/iterations)")
+    println("Share of UndeterminedError: $(results.undetermined/iterations)")
+    println("Share of UnstableError: $(results.unstable/iterations)")
+    println("Share of other error: $(results.other/iterations)")
 
     display_priorprediction_moments("STEADY STATE", results.steady_state, endogenous_names)
     display_priorprediction_moments("STANDARD DEVIATION", results.stdev, endogenous_names)
 end
 
-function display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
+function display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
     failure_nbr =sum(failure)
+
+    println("Share of DomainError: $(results.domain/iterations)")
+    println("Share of UndeterminedError: $(results.undetermined/iterations)")
+    println("Share of UnstableError: $(results.unstable/iterations)")
+    println("Share of other error: $(results.other/iterations)")
 
     (nbplt, nr, nc, lr, lc, nstar) = pltorg(parameter_nbr)
 
@@ -158,7 +131,8 @@ function display_priorprediction_results(draws, results, failure, iterations, pa
         @views y = cumsum(sz[:, 2])
         
         @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p)
-        if k == nr*nc
+        k += 1
+        if k > nr*nc
             pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
             display(pl)
             graph_display(pl)
@@ -167,7 +141,6 @@ function display_priorprediction_results(draws, results, failure, iterations, pa
             nfig += 1
             sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
         end
-        k += 1
     end
     if k < nr*nc
         pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
