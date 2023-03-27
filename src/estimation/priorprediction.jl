@@ -19,6 +19,34 @@ mutable struct PriorPredictionResults
 end
 
 function priorprediction(;context::Context=context, iterations::Int64=100)
+    draws = Matrix{Float64}(undef, iterations, parameter_nbr)
+    for (i, p) in enumerate(estimated_parameters.prior)
+        @views draws[:, i] = rand(p, iterations)
+    end
+    (failure, results) = run_simulations(context, draws)
+
+    estimated_parameters = context.work.estimated_parameters
+    parameter_nbr = length(estimated_parameters)
+    model = context.models[1]
+    display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, estimated_parameters.name, get_endogenous(context.symboltable), context.modfilepath)
+    plot_priorprediction_irfs(results.irfs, model, context.symboltable, "$(modfilepath)/graphs/priorprediction_irfs")
+
+    draws = Matrix{Float64}(undef, iterations, parameter_nbr)
+    for (i, p) in enumerate(estimated_parameters.prior)
+        lb, ub = quantile(p, [0.05, 0.95])
+        @views draws[:, i] = rand(uniform(lb, ub), iterations)
+    end
+    (failure, results) run_simulations(context, draws)
+
+    estimated_parameters = context.work.estimated_parameters
+    parameter_nbr = length(estimated_parameters)
+    model = context.models[1]
+    display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, estimated_parameters.name, get_endogenous(context.symboltable), context.modfilepath)
+end
+
+
+function run_simulations(context, draws)
+    iterations = size(draws, 1)    
     modfilepath = context.modfileinfo.modfilepath
     mkpath("$(modfilepath)/graphs")
     model = context.models[1]
@@ -31,12 +59,6 @@ function priorprediction(;context::Context=context, iterations::Int64=100)
     dynamicws = Dynare.DynamicWs(context)
 
     parameter_nbr = length(estimated_parameters.prior)
-    draws = Matrix{Float64}(undef, iterations, parameter_nbr)
-    for (i, p) in enumerate(estimated_parameters.prior)
-        @views draws[:, i] = rand(p, iterations)
-    end
-    @show maximum(draws, dims=1)
-    @show minimum(draws, dims=1)
     results = PriorPredictionResults(iterations, model)
     failure = zeros(iterations)
     
@@ -74,11 +96,10 @@ function priorprediction(;context::Context=context, iterations::Int64=100)
             end
         end
     end
-    display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, work.estimated_parameters.name, get_endogenous(context.symboltable), modfilepath)
-    plot_priorprediction_irfs(results.irfs, model, context.symboltable, "$(modfilepath)/graphs/priorprediction_irfs")
+    return (failure, results)
 end
 
-function display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
+function display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
     failure_nbr =sum(failure)
 
     if failure_nbr > 0
@@ -120,6 +141,40 @@ function display_priorprediction_results(draws, results, failure, iterations, pa
 
     display_priorprediction_moments("STEADY STATE", results.steady_state, endogenous_names)
     display_priorprediction_moments("STANDARD DEVIATION", results.stdev, endogenous_names)
+end
+
+function display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
+    failure_nbr =sum(failure)
+
+    (nbplt, nr, nc, lr, lc, nstar) = pltorg(parameter_nbr)
+
+    sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
+
+    k = 1
+    nfig = 1
+    for (i, p) in enumerate(parameter_names)
+        @views z = hcat(draws[:, i], failure)
+        @views sz = z[sortperm(z[:, 1]), :]
+        @views y = cumsum(sz[:, 2])
+        
+        @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p)
+        if k == nr*nc
+            pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+            display(pl)
+            graph_display(pl)
+            savefig("PriorChecks$(nfig).png")
+            k = 1
+            nfig += 1
+            sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
+        end
+        k += 1
+    end
+    if k < nr*nc
+        pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+        display(pl)
+        graph_display(pl)
+        savefig("$(modfilepath)/graphs/PriorChecks$(nfig).png")
+    end
 end
 
 function display_priorprediction_moments(title, x, names)
