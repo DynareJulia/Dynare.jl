@@ -156,7 +156,7 @@ function rwmh_compute(; context=context,
              mcmc_chains::Int = 1,
              mcmc_init_scale::Float64 = 0.0,
              mcmc_jscale::Float64 = 0.0,
-             mcmc_replic::Int =  0.0,
+             mcmc_replic::Int =  0,
              mode_compute::Bool = true,
              nobs::Int = 0,
              order::Int = 1,
@@ -1006,4 +1006,52 @@ function transform_chains(chains, t)
             vy .= tmp
         end          
     end 
+end 
+
+# alias for InverseGamma distribution
+InverseGamma2 = InverseGamma
+
+function prior(s; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+    if ismissing(variance) && !ismissing(stdev)
+        variance = stdev*stdev
+    end 
+    ep = context.work.estimated_parameters
+    symboltable = context.symboltable
+    index, name = get_index_name(s, symboltable)
+    push!(ep.index, index)
+    push!(ep.name, name)
+    push!(ep.initialvalue, initialvalue)
+    if shape == Beta
+        α, β = beta_specification(mean, variance)
+        push!(ep.prior, Beta(α, β))
+    elseif shape == Gamma
+        α, β = gamma_specification(mean, variance) 
+        push!(ep.prior, Gamma(α, β))
+    elseif shape == InverseGamma1
+        α, β = inverse_gamma_1_specification(mean, variance) 
+        push!(ep.prior, InverseGamma1(α, β))
+    elseif shape == InverseGamma2
+        α, β = inverse_gamma_2_specification(mean, variance)
+        push!(ep.prior, InverseGamma(α, β))
+    elseif shape == Normal
+        push!(ep.prior, Normal(mean, stdev))
+    elseif shape == Uniform
+        if isempty(domain)
+            a, b = uniform_specification(mean, variance)
+        else
+            a, b = domain
+        end 
+        push!(ep.prior, Uniform(a, b))
+    elseif shape == Weibull
+        α, β = weibull_specification(mean, stdev)
+        push!(ep.prior, Weibull(α, β))
+    else
+        erro("Unknown prior shape")
+    end 
+end         
+
+function get_index_name(s::Symbol, symboltable::SymbolTable)
+    name = String(s)
+    index = symboltable[name].orderintype
+    return (index, name)
 end 
