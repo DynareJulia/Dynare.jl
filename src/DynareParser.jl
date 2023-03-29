@@ -243,6 +243,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "deterministic_trends"
             deterministic_trends!(context, field)
             modfileinfo.has_trends = true
+        elseif statementname == "dynare_sensitivity"
         elseif statementname == "endval"
             @debug "$(now()): start endval"
             endval!(context, field)
