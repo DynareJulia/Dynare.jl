@@ -1,4 +1,4 @@
-// +-- options: params_deriv_order=1 --+
+// +-- options: params_derivs_order=1 --+
 // See fs2000.mod in the examples/ directory for details on the model
 
 var m P c e W R k d n l gy_obs gp_obs y dA;
