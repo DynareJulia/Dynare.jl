@@ -132,21 +132,14 @@ function display_priorprediction_checks(draws, results, failure, iterations, par
         
         @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p)
         k += 1
-        if k > nr*nc
+        if k > nr*nc || i == length(parameter_names)
             pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
-            display(pl)
             graph_display(pl)
             savefig("PriorChecks$(nfig).png")
             k = 1
             nfig += 1
             sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
         end
-    end
-    if k < nr*nc
-        pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
-        display(pl)
-        graph_display(pl)
-        savefig("$(modfilepath)/graphs/PriorChecks$(nfig).png")
     end
 end
 

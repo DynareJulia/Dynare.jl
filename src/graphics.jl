@@ -353,47 +353,33 @@ function plot_priorprediction_irfs(irfs, model, symboltable, filepath)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
         (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
-        sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nstar]
-        ivars = 1:nr*nc
         k = 1
         p = 1
         filename = "$(filepath)_$(exogenous_name)_$(p).png"
-        while p <= length(endogenous_names)
-            if k == nr*nc
-                pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Priorprediction: Orthogonal shock to $(exogenous_name)")
-                graph_display(pl)
-                savefig(filename)
-                k = 1
-            end
-            p = plot_panel_priorprediction_irfs(
+        sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nstar]
+        while p <= endogenous_nbr
+            pl = plot_panel_priorprediction_irfs(
                 x,
                 irfs,
                 exogenous_name,
                 "Orthogonal shock to $(exogenous_name)",
-                endogenous_names,
-                ivars,
-                nr,
-                nc,
-                nr * nc,
-                filename,
+                endogenous_names[p]
             )
-
-            ivars += nr * nc
+            if pl.n > 0 
+                sp[k] = pl
+            else
+                k -= 1
+            end 
+            if k == nr*nc || p == endogenous_nbr
+                pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Priorprediction: Orthogonal shock to $(exogenous_name)")
+                graph_display(pl)
+                savefig(filename)
+                sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nstar]
+                k = 1
+            end
+            k += 1
+            p += 1
         end
-        ivars = ivars[1:nstar]
-        filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
-        plot_panel_priorprediction_irfs(
-            x,
-            irfs,
-            exogenous_name,
-            "Orthogonal shock to $(exogenous_name)",
-            endogenous_names,
-            ivars,
-            lr,
-            lc,
-            nstar,
-            filename,
-        )
     end
 end
 
@@ -402,37 +388,33 @@ function plot_panel_priorprediction_irfs(
     irfs,
     exogenous_name,
     title,
-    endogenous_names,
-    ivars,
-    nr,
-    nc,
-    nstar,
-    filename
+    endogenous_name,
 )
-    for (i, j) in enumerate(ivars)
-        M = zeros(40, length(irfs))
-        for (k, ir) in enumerate(irfs)
-            m = Matrix(ir[Symbol(exogenous_name)][:, Symbol(endogenous_names[j])])
-            @views M[:, k] .= m
-        end
-        Q = zeros(40, 5)
-        for k in 1:40
-            @views Q[k, :] .= quantile(M[k,:], [0.1, 0.3, 0.5, 0.7, 0.9])
-        end
-        title1 = (j == 1) ? title : ""
-        colors = palette(:Blues_3)
-        Q1 = view(Q,:, 1)
-        Q2 = view(Q,:, 2)
-        Q3 = view(Q,:, 3)
-        Q4 = view(Q,:, 4)
-        Q5 = view(Q,:, 5)
-        sp[i] = Plots.plot(x, Q3, ribbon = (Q5-Q3, Q3-Q1), color = colors[2],Qtitle = endogenous_names[j], labels = false)
-        plot!(sp[i], x, Q3, ribbon = (Q4-Q3, Q3-Q2), color = colors[3])
-        plot!(title=endogenous_names[j], labels=false)
-        display(sp[i])
+    M = zeros(40, length(irfs))
+    for (k, ir) in enumerate(irfs)
+        m = Matrix(ir[Symbol(exogenous_name)][:, Symbol(endogenous_name)])
+        @views M[:, k] .= m
     end
-
+    Q = zeros(40, 5)
+    for k in 1:40
+        @views Q[k, :] .= quantile(M[k,:], [0.1, 0.3, 0.5, 0.7, 0.9])
     end
+    colors = palette(:Blues_3)
+    Q1 = view(Q,:, 1)
+    Q2 = view(Q,:, 2)
+    Q3 = view(Q,:, 3)
+    Q4 = view(Q,:, 4)
+    Q5 = view(Q,:, 5)
+    ex = extrema(Q5)
+    if abs(ex[1]-ex[2]) < 1e-8
+        return Plots.plot()
+    end
+    p = Plots.plot(x, Q3, color = :Blue, labels="Median")
+    plot!(p, x, Q1, fillrange=Q5, fillalpha = 0.3, color=:Blue,labels="80%", linealpha=0)
+    plot!(p, x, Q2, fillrange=Q3, fillalpha = 0.5, color=:Blue,labels="40%", linealpha=0)
+    plot!(p, title=endogenous_name)
+    return p
+end
 
 function plot(aat::AxisArrayTable; label = (), title = "", filename = "")
     pl = Plots.plot(aat, label = label, title = title)

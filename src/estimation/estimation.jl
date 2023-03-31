@@ -1011,16 +1011,64 @@ end
 # alias for InverseGamma distribution
 InverseGamma2 = InverseGamma
 
-function prior(s; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+struct stdev
+    s::Symbol
+    function stdev(s_arg::Symbol)
+        s = s_arg
+        new(s)
+    end
+end
+
+struct corr
+    s1::Symbol
+    s2::Symbol
+    function corr(s1_arg, s2_arg)
+        s1 = s1_arg
+        s2 = s2_arg
+        new(s1, s2)
+    end 
+end 
+
+function prior(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+    ep = context.work.estimated_parameters
+    symboltable = context.symboltable
+    name = string(s)
+    push!(ep.index, symboltable[name].orderintype)
+    push!(ep.name, name)
+    push!(ep.initialvalue, initialvalue)
+    push!(ep.parametertype, Parameter)
+    prior_(s, shape, mean, stdev, domain, variance, ep)
+end
+    
+function prior(s::stdev; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+    ep = context.work.estimated_parameters
+    symboltable = context.symboltable
+    name = string(s.s)
+    push!(ep.index, symboltable[name].orderintype)
+    push!(ep.name, name)
+    push!(ep.initialvalue, initialvalue)
+    push!(ep.parametertype, symboltable[name].symboltype)
+    prior_(s, shape, mean, stdev, domain, variance, ep)
+end
+
+function prior(s::corr; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+    ep = context.work.estimated_parameters
+    symboltable = context.symboltable
+    name1 = string(s.s1)
+    name2 = string(s.s2)
+    index1 = symboltable[name1].orderintype
+    index2 = symboltable[name2].orderintype
+    push!(ep.index, (index1 =>index2))
+    push!(ep.name, (name1 => name2))
+    push!(ep.initialvalue, initialvalue)
+    push!(ep.parametertype, symboltable[name1].symboltype)
+    prior_(s, shape, mean, stdev, domain, variance, ep)
+end
+
+function prior_(s, shape, mean, stdev, domain, variance, ep)
     if ismissing(variance) && !ismissing(stdev)
         variance = stdev*stdev
     end 
-    ep = context.work.estimated_parameters
-    symboltable = context.symboltable
-    index, name = get_index_name(s, symboltable)
-    push!(ep.index, index)
-    push!(ep.name, name)
-    push!(ep.initialvalue, initialvalue)
     if shape == Beta
         α, β = beta_specification(mean, variance)
         push!(ep.prior, Beta(α, β))
