@@ -205,6 +205,7 @@ function plot_panel(
     nc,
     nstar,
     filename,
+    kwargs...
 )
     sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
     for i = 1:nstar
