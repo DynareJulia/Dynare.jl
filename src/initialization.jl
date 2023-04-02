@@ -1,7 +1,7 @@
 function histval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
-    histval = zeros(m.orig_maximum_lag, m.endogenous_nbr + m.exogenous_nbr)
+    histval = Matrix{Union{Float64, Missing}}(missing, m.orig_maximum_lag, m.endogenous_nbr + m.exogenous_nbr)
     for v in field["vals"]
         k = symboltable[v["name"]::String].orderintype::Int64
         l = m.orig_maximum_lag + v["lag"]::Int64
@@ -387,13 +387,15 @@ function shocks!(context::Context, field::Dict{String,Any})
     set_covariance!(Sigma, Sigma_m, field["covariance"], symboltable, observed_variables)
     set_correlation!(Sigma, Sigma_m, field["correlation"], symboltable, observed_variables)
     if haskey(field, "deterministic_shocks")
-        shocks = set_deterministic_shocks!(
-                field["deterministic_shocks"],
-                symboltable,
-                context.models[1].exogenous_nbr,
-                context.results.model_results[1].trends.exogenous_steady_state,
-        )
+        context.work.shocks = 
+            set_deterministic_shocks!(
+                    field["deterministic_shocks"],
+                    symboltable,
+                    context.models[1].exogenous_nbr,
+                    context.results.model_results[1].trends.exogenous_steady_state,
+            )
     end
+    @show shocks
 end
 
 function set_variance!(

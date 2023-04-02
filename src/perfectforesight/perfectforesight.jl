@@ -374,19 +374,7 @@ function perfectforesight_core!(
     res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
-    endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
-    push!(
-        context.results.model_results[1].simulations,
-        Simulation(
-            "Sim1",
-            "",
-            AxisArrayTable(
-                transpose(reshape(res.zero, m.endogenous_nbr, periods)),
-                Undated(1):Undated(periods),
-                endogenous_names
-                )
-        ),
-    )
+    make_simulation_results!(context::Context, res.zero, exogenous, terminalvalues, periods)
 end
 
 function make_pf_residuals(
@@ -647,4 +635,59 @@ function print_nlsolver_results(r)
     @printf " * Function Calls (f): %d\n" r.f_calls
     return
 end
+
+function make_simulation_results!(context::Context, y, x,terminalvalues, periods)
+    m = context.models[1]
+    trends = context.results.model_results[1].trends
+    work = context.work
+    endogenous_names = get_endogenous(context.symboltable)
+    exogenous_names = get_exogenous(context.symboltable)
+    if !isempty(work.initval_exogenous)
+        initialvalues_x = work.initval_exogenous
+    else
+        initialvalues_x = trends.exogenous_steady_state
+    end
+    if !isempty(work.initval_endogenous)
+        initialvalues = vcat(work.initval_endogenous,
+                             initialvalues_x
+                            )
+    else
+        initialvalues = vcat(trends.endogenous_steady_state,
+                             initialvalues_x)
+    end
+    if !isempty(work.histval)
+        initialvalues = vcat(work.histval[1:end-1,:],
+                             transpose(initialvalues))
+    end
+
+    if isa(initialvalues, Vector)
+        initialvalues = reshape(initialvalues, 1, length(initialvalues))
+    end 
+    data = vcat(initialvalues,
+                hcat(
+                    transpose(reshape(y, m.endogenous_nbr, periods)),
+                    transpose(reshape(x, m.exogenous_nbr, periods))
+                ),
+                transpose(vcat(terminalvalues,
+                               repeat([missing], m.exogenous_nbr)))
+            )
+    push!(
+        context.results.model_results[1].simulations,
+        Simulation(
+            Undated(1 - size(work.histval, 1)),
+            Undated(periods),
+            "Sim1",
+            "",
+            AxisArrayTable(
+                data,
+                Undated(-size(work.histval, 1)):Undated(periods + 1),
+                vcat(
+                    [Symbol(s) for s in endogenous_names], 
+                    [Symbol(s) for s in exogenous_names]
+                    )
+            )
+        )
+    )
+end
+
 include("PATH_interface.jl")

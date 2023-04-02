@@ -694,6 +694,8 @@ end
 Base.show(io::IO, m::Model) = show_field_value(m)
 
 struct Simulation
+    firstperiod::PeriodsSinceEpoch
+    lastperiod::PeriodsSinceEpoch
     name::String
     statement::String
     data::AxisArrayTable
@@ -858,7 +860,7 @@ mutable struct Work
         jacobian = Matrix{Float64}(undef, 0, 0)
         qr_jacobian = Matrix{Float64}(undef, 0, 0)
         model_has_trend = [false]
-        histval = Matrix{Union{Float64,Missing}}(missing, model.orig_maximum_lag, endo_nbr)
+        histval = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
