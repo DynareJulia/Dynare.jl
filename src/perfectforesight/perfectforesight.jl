@@ -674,13 +674,13 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
     push!(
         context.results.model_results[1].simulations,
         Simulation(
-            Undated(1 - size(work.histval, 1)),
+            Undated(1),
             Undated(periods),
             "Sim1",
             "",
             AxisArrayTable(
                 data,
-                Undated(-size(work.histval, 1)):Undated(periods + 1),
+                Undated(1 - size(initialvalues, 1)):Undated(periods + 1),
                 vcat(
                     [Symbol(s) for s in endogenous_names], 
                     [Symbol(s) for s in exogenous_names]

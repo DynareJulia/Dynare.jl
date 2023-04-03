@@ -21,7 +21,8 @@ simulation(; context = context, model = 1) =
 function simulation(simnbr::Int64; 
         context = context, 
         model = 1, 
-        firstperiod=simulation(context=context, model=model).firstperiod, lastperiod=simulation(context=context, model=model).lastperiod)
+        firstperiod=simulation(context=context, model=model)[simnbr].firstperiod, 
+        lastperiod=simulation(context=context, model=model)[simnbr].lastperiod)
     return simulation(context=context, 
         model=model)[simnbr].data[firstperiod..lastperiod]
 end

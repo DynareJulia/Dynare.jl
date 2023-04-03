@@ -395,7 +395,6 @@ function shocks!(context::Context, field::Dict{String,Any})
                     context.results.model_results[1].trends.exogenous_steady_state,
             )
     end
-    @show shocks
 end
 
 function set_variance!(
