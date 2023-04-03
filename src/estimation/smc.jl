@@ -126,7 +126,7 @@ function smc(;context = context)
         #--------------------------------------------------------
         # Update the scaling parameter to ensure a reasonable acceptance rate.
         # See algorithm 10 on page 83.
-        tune.c = tune.c*(0.95 + 0.10*exp(16*(tune.acpt-tune.trgt))/(1 + ...
+        tune.c = tune.c*(0.95 + 0.10*exp(16*(tune.acpt-tune.trgt))/(1 +
             exp(16*(tune.acpt-tune.trgt))))
         
         # Calculate estimates of mean and variance
@@ -144,7 +144,7 @@ function smc(;context = context)
         temp_acpt = zeros(tune.npart, 1) #initialize accpetance indicator
 
         # Now run a single step of RWMH-V for each particle
-        parfor j = 1:tune.npart
+        for j = 1:tune.npart
 
         post0                   = logpost[j]
         l0                      = loglh[j]
