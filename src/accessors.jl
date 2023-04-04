@@ -32,7 +32,7 @@ function simulation(varname::Symbol;
         context = context, 
         model = 1, 
         simnbr = 1, 
-        firstperiod=simulation(context=context, model=model).firstperiod, lastperiod=simulation(context=context, model=model).lastperiod)
+        firstperiod=simulation(context=context, model=model)[1].firstperiod, lastperiod=simulation(context=context, model=model)[1].lastperiod)
     return simulation(context=context, 
         model=model, 
         simnbr=simnbr).data[firstperiod..lastperiod, varname]
