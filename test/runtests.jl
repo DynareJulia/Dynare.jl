@@ -36,9 +36,9 @@ irfs_e_y = irf(:e, :y)
 context = @dynare "models/example1pf/example1pf"
 sim = Dynare.simulation()
 @test length(sim) == 1
-@test size(sim[1].data) == (1000, 6)
-@test Dynare.AxisArrayTables.AxisArrays.axes(sim[1].data, 1).val ==
-      range(Dynare.Undated(1), stop = Dynare.Undated(1000), step = Dynare.Undated(1))
+@test size(sim[1].data) == (1002, 8)
+@test Dynare.AxisArrayTables.AxisArrays.axes(getfield(sim[1].data, :data), 1).val ==
+      range(Dynare.Undated(0), stop = Dynare.Undated(1001), step = Dynare.Undated(1))
 sim_a = Dynare.simulation(:a)
 @test sim_a ==
       context.results.model_results[1].simulations[1].data.a

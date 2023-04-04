@@ -1,8 +1,4 @@
-using DimensionalData
-using DimensionalData: @dim, Ti
 using FastLapackInterface
-
-@dim variables "Variables"
 
 struct CalibSmootherOptions
     datafile::String
