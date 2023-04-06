@@ -88,7 +88,6 @@ end
 
 function parse_estimated_parameter_init!(context::Context, fields::Dict{String,Any})
     parameters = context.work.estimated_parameters
-    @show parameters.initialvalue
     np = length(parameters)
     for p in fields["params"]
         k = Base.findfirst(p["param"], parameters.name)
