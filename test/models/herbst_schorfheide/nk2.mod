@@ -51,26 +51,26 @@ shocks;
   var INT;  stderr(0.20*2.237937);
 end;
 
-rA.prior(shape=gamma,mean=0.5,stdev=0.5);
-piA.prior(shape=gamma,mean=7,stdev=2);
-gammaQ.prior(shape=normal, mean=0.4, stdev=0.2);
-tau.prior(shape=gamma, mean=2, stdev=0.5);
-//kappa.prior(shape=uniform, domain=[0,1]);
-kappa.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
-psi1.prior(shape=gamma, mean=1.5, stdev=0.25);
-psi2.prior(shape=gamma, mean=0.5, stdev=0.25);
-//rho_R.prior(shape=uniform, domain=[0,1]);
-rho_R.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
-//rho_g.prior(shape=uniform, domain=[0,1]);
-rho_g.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
-//rho_z.prior(shape=uniform, domain=[0,1]);
-rho_z.prior(shape=uniform, mean=0.5, variance=1/12, domain=[0,1]);
+prior(:rA, shape=Gamma,mean=0.5,stdev=0.5)
+prior(:piA, shape=Gamma,mean=7,stdev=2)
+prior(:gammaQ, shape=Normal, mean=0.4, stdev=0.2)
+prior(:tau, shape=Gamma, mean=2, stdev=0.5)
+//kappa.prior(shape=uniform, domain=[0,1])
+prior(:kappa, shape=Uniform, mean=0.5, variance=1/12, domain=[0,1])
+prior(:psi1, shape=Gamma, mean=1.5, stdev=0.25)
+prior(:psi2, shape=Gamma, mean=0.5, stdev=0.25)
+//rho_R.prior(shape=uniform, domain=[0,1])
+prior(:rho_R,shape=Uniform, mean=0.5, variance=1/12, domain=[0,1])
+//rho_g.prior(shape=uniform, domain=[0,1])
+prior(:rho_g, shape=Uniform, mean=0.5, variance=1/12, domain=[0,1])
+//rho_z.prior(shape=uniform, domain=[0,1])
+prior(:rho_z, shape=Uniform, mean=0.5, variance=1/12, domain=[0,1])
 // s=0.4, nu=4
-s_ep.prior(shape=inv_gamma1, mean=0.5013256549262002, variance=0.06867258771281654);
+prior(:s_ep, shape=InverseGamma1, mean=0.5013256549262002, variance=0.06867258771281654)
 // s=1, nu=4
-s_eg.prior(shape=inv_gamma1, mean = 1.2533141373155003, variance=0.4292036732051032);
+prior(:s_eg, shape=InverseGamma1, mean = 1.2533141373155003, variance=0.4292036732051032)
 // s=0.5, nu=4
-s_ez.prior(shape=inv_gamma1, mean = 0.6266570686577502, variance=0.1073009183012758);
+prior(:s_ez, shape=InverseGamma1, mean = 0.6266570686577502, variance=0.1073009183012758)
 
 //stoch_simul(order=1, irf=0);
 
@@ -94,4 +94,7 @@ varobs YGR INFL INT;
 
 //estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.5, mh_nblocks=2);
 //mode_compute(datafile="dsge1_data.csv");
-rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.05, mcmc_chains=4);
+rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.001, mcmc_chains=1, transformed_parameters=false);
+//first_chain = context.results.model_results[1].estimation.posterior_mcmc_chains;
+new_covariance = covariance(first_chain);
+rwmh_compute(datafile="dsge1_data.csv", initial_values=first_chain.value.data[end, 1:end-1], mcmc_replic=100000, mcmc_jscale=0.03, mcmc_chains=1);

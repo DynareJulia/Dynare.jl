@@ -94,4 +94,7 @@ varobs YGR INFL INT;
 
 //estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.5, mh_nblocks=2);
 //mode_compute(datafile="dsge1_data.csv");
-rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.05, mcmc_chains=1);
+rwmh_compute(datafile="dsge1_data.csv", mcmc_replic=100000, mcmc_jscale=0.03, mcmc_chains=1);
+first_chain = context.results.model_results[1].estimation.posterior_mcmc_chains;
+new_covariance = covariance(first_chain);
+rwmh_compute(datafile="dsge1_data.csv", initial_values=first_chain.value.data[end, 1:end-1], mcmc_replic=100000, mcmc_jscale=0.03, mcmc_chains=1);
