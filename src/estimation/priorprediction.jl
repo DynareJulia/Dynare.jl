@@ -134,7 +134,7 @@ function display_priorprediction_checks(draws, results, failure, iterations, par
         @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p)
         k += 1
         if k > nr*nc || i == length(parameter_names)
-            pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+            pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Parameter and computation failure ($nfig)")
             graph_display(pl)
             savefig("$(modfilepath)/graphs/PriorChecks$(nfig).png")
             k = 1

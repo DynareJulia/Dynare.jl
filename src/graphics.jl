@@ -152,8 +152,8 @@ function plot_irfs(irfs, model, symboltable, filepath)
 end
 
 function plot_priors(;context::Context=context)
-    @assert length(ep.prior) > 0 "There is no defined priors"
     ep = context.work.estimated_parameters
+    @assert length(ep.prior) > 0 "There is no defined priors"
     path = "$(context.modfileinfo.modfilepath)/graphs/"
     mkpath(path)
     filepath = "$(path)/Priors"
@@ -173,7 +173,7 @@ function plot_priors(;context::Context=context)
         plot_panel(
             X[:, ivars],
             Y[:, ivars],
-            "Priors",
+            "Priors ($p)",
             ep.name[ivars],
             nr,
             nc,
@@ -187,7 +187,7 @@ function plot_priors(;context::Context=context)
     plot_panel(
         X[:, ivars],
         Y[:, ivars],
-        "Priors",
+        "Priors ($nbplt)",
         ep.name[ivars],
         lr,
         lc,
@@ -200,7 +200,7 @@ function plot_panel(
     x,
     y,
     title,
-    ylabels,
+    vnames,
     nr,
     nc,
     nstar,
@@ -215,7 +215,6 @@ function plot_panel(
             xx = x[:, i]
         end 
         yy = y[:, i]
-        title1 = (i == 1) ? title : ""
         if all(yy .> 0)
             lims = (0, Inf)
         elseif all(yy .< 0)
@@ -224,10 +223,10 @@ function plot_panel(
             lims = (-Inf, Inf)
         end
         sp[i] =
-            Plots.plot(xx, yy, title = title1, ylims = lims, label = ylabels[i], kwargs...)
+            Plots.plot(xx, yy, title = vnames[i], ylims = lims, kwargs...)
     end
 
-    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title= title)
     graph_display(pl)
     savefig(filename)
 end
@@ -335,7 +334,6 @@ function plot_panel_prior_posterior(
     sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
     for (i, j) in enumerate(ivars)
         posterior_density = kde(vec(get(chains, Symbol(ylabels[j]))[1].data))
-        title1 = (j == 1) ? title : ""
         
         sp[i] = Plots.plot(prior[j], title = ylabels[j], labels = "Prior", kwargs...)
         plot!(posterior_density, labels = "Posterior")
