@@ -101,7 +101,7 @@ end
 function display_priorprediction_results(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
     failure_nbr =sum(failure)
 
-
+    println("\nDISTRIBUTION OF MOMENTS\n")
     println("Share of DomainError: $(results.domain/iterations)")
     println("Share of UndeterminedError: $(results.undetermined/iterations)")
     println("Share of UnstableError: $(results.unstable/iterations)")
@@ -114,6 +114,7 @@ end
 function display_priorprediction_checks(draws, results, failure, iterations, parameter_nbr, parameter_names, endogenous_names, modfilepath)
     failure_nbr =sum(failure)
 
+    println("\nDISTRIBUTION OF COMPUTATION FAILURES\n")
     println("Share of DomainError: $(results.domain/iterations)")
     println("Share of UndeterminedError: $(results.undetermined/iterations)")
     println("Share of UnstableError: $(results.unstable/iterations)")
@@ -135,7 +136,7 @@ function display_priorprediction_checks(draws, results, failure, iterations, par
         if k > nr*nc || i == length(parameter_names)
             pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
             graph_display(pl)
-            savefig("PriorChecks$(nfig).png")
+            savefig("$(modfilepath)/graphs/PriorChecks$(nfig).png")
             k = 1
             nfig += 1
             sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
