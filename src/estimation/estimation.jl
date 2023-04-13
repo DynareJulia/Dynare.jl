@@ -1,4 +1,3 @@
-using AdvancedMH
 using Distributions
 using DynamicHMC
 using FiniteDiff: finite_difference_gradient, finite_difference_hessian
@@ -161,6 +160,7 @@ function rwmh_compute(;context=context,
              mode_compute::Bool = true,
              nobs::Int = 0,
              order::Int = 1,
+             plot_posterior_density = false, 
              presample::Int = 0,
              transformed_parameters = true
 )
@@ -173,10 +173,12 @@ function rwmh_compute(;context=context,
     has_trends = context.modfileinfo.has_trends
 
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
-    @show "rwnh_compute"
-    @show observations[:,1]
-    chain = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, back_transformation=back_transformation, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains, mcmc_replic=mcmc_replic, transformed_parameters=transformed_parameters)
+    (chain, back_transformed_chain) = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, back_transformation=back_transformation, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains, mcmc_replic=mcmc_replic, transformed_parameters=transformed_parameters)
+    Base.display(chain)
     context.results.model_results[1].estimation.posterior_mcmc_chains = chain
+    if plot_posterior_density
+        plot_prior_posterior(context, back_transformed_chain)
+    end 
 end
 
 prior_mean(ep::EstimatedParameters) = [mean(p) for p in ep.prior]
@@ -259,7 +261,6 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
                 np,
                 nobs
             )
-                
         )
     end
 end
@@ -364,8 +365,6 @@ function make_negativeloglikelihood(context, observations, first_obs, last_obs, 
 end
 
 function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
-    @show "make_logposterior"
-    @show observations[:,1]
     function logposteriordensity(x)::Float64
         lpd = logpriordensity(x, context.work.estimated_parameters)
         if abs(lpd) == Inf
@@ -374,11 +373,7 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
         try
             lpd += loglikelihood(x, context, observations, ssws)
         catch e
-            @show e
-            # eigenvalues = get_eigenvalues(context)
-            # model = context.models[1]
-            # backward_nbr = model.n_bkwrd + model.n_both
-            # @debug e
+            @debug e
             lpd = -Inf
         end
         return lpd
@@ -409,7 +404,6 @@ function (problem::DSGELogPosteriorDensity)(θ)
         lpd = logpriordensity(θ, context.work.estimated_parameters)
         lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
     catch e
-        @show e
         @debug e
         lpd = -Inf
     end
@@ -520,18 +514,6 @@ function loglikelihood(
     # workspace for kalman_likelihood
     klws = ssws.kalman_ws
     Y = ssws.Y
-#    @show Y[:,1]
-    #=
-    @show ssws.Z
-    @show ssws.H
-    @show ssws.T
-    @show ssws.R
-    @show ssws.Q
-    @show ssws.a0
-    @show ssws.P
-    @show start
-    @show last
-    =#
     if any(ismissing.(Y))
         # indices of non-missing observations are in data_pattern
         data_pattern = Vector{Vector{I}}(undef, I(0))
@@ -554,21 +536,6 @@ function loglikelihood(
             data_pattern,
         )
     else
-        ll = Dynare.kalman_likelihood(
-            Y,
-            ssws.Z,
-            ssws.H,
-            ssws.T,
-            ssws.R,
-            ssws.Q,
-            ssws.a0,
-            ssws.P,
-            start,
-            last,
-            presample,
-            klws,
-        )
-        # @show ll
         return Dynare.kalman_likelihood(
             Y,
             ssws.Z,
@@ -766,43 +733,40 @@ function mh_estimation(
     transformed_parameters = true,
     kwargs...,
 )
-    param_names = context.work.estimated_parameters.name
+    ep = context.work.estimated_parameters
+    param_names = ep.name
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
     #(p0, v0) = get_initial_values(context.work.estimated_parameters)
 
     if transformed_parameters
-        @show "Transformation"
         transformation = DSGETransformation(context.work.estimated_parameters)
         transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
         transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-        @show initial_values
-        @show problem.f(initial_values)
         initial_values = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
         posterior_density(θ) = transformed_density(θ)
         proposal_covariance = inverse_transform_variance(transformation, initial_values, Matrix(covariance))
-        @show initial_values
-        @show transformed_density(initial_values)
         chain = run_mcmc(transformed_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)
-        @show chain.value.data[end, 1:end-1, 1]
-        @show chain.value.data[end, end, 1]
-        @show transformed_density(chain.value.data[end, 1:end-1, 1])
         if back_transformation
             transform_chains(chain, transformation, problem.f)
+            # Recompute posterior density
+            nparams = length(ep.prior)
+            n1 = nparams + 1
+            back_transformed_chain = sample(chain, 1000)
+            y = back_transformed_chain.value.data
+            for k in axes(y, 1)
+                @views begin
+                θ1 = y[k, 1:nparams, 1]
+                y[k, n1, 1] = posterior_density(θ1)
+                end
+            end 
         end 
-        @show chain.value.data[end, 1:end-1, 1]
-        @show chain.value.data[end, end, 1]
-        @show problem.f(chain.value.data[end, 1:end-1, 1])
     else
-        @show "No transformation"
-        @show problem.f(initial_values)
         chain = run_mcmc(problem.f, initial_values, Matrix(covariance), param_names, mcmc_replic, mcmc_chains)
+        back_transformed_chain  = chain
     end 
     imode1 = argmax(chain.value.data[:,end,1])
     mode1 = chain.value.data[imode1, 1:end-1, 1]
-    @show mode1
-    @show chain.value.data[imode1, end, 1]
-    @show problem.f(mode1)
-    return chain
+    return chain, back_transformed_chain
 end 
 
 function run_mcmc(posterior_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)    
@@ -1108,15 +1072,6 @@ function transform_chains(chains, t, posterior_density)
             vy .= tmp
         end          
     end
-    n1 = nparams + 1
-    for i in axes(y, 3)
-        for k in axes(y, 1)
-            @views begin
-                θ = y[k, 1:nparams, i]
-                y[k, n1, i] = posterior_density(θ)
-            end
-        end      
-    end 
 end 
 
 # alias for InverseGamma distribution
@@ -1214,3 +1169,74 @@ function get_index_name(s::Symbol, symboltable::SymbolTable)
     index = symboltable[name].orderintype
     return (index, name)
 end 
+
+function plot_prior_posterior(context::Context, chains)
+    ep = context.work.estimated_parameters
+    mode = context.results.model_results[1].estimation.posterior_mode
+    @assert length(ep.prior) > 0 "There is no defined prior"
+    @assert length(chains) > 0 "There is no MCMC chain"
+
+    path = "$(context.modfileinfo.modfilepath)/graphs/"
+    mkpath(path)
+    filename = "$(path)/PriorPosterior"
+    nprior = length(ep.prior)
+    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
+    ivars = collect(1:nr*nc)
+    for p = 1:nbplt-1
+        filename1 = "$(filename)_$(p).png"
+        plot_panel_prior_posterior(
+            ep.prior,
+            chains,
+            mode,
+            "Priors",
+            ep.name,
+            ivars,
+            nr,
+            nc,
+            nr * nc,
+            filename1
+        )
+        ivars .+= nr * nc
+    end
+    ivars = ivars[1:nstar]
+    filename = "$(filename)_$(nbplt).png"
+    plot_panel_prior_posterior(
+        ep.prior,
+        chains,
+        mode,
+        "Priors",
+        ep.name,
+        ivars,
+        lr,
+        lc,
+        nstar,
+        filename
+    )
+end
+
+function plot_panel_prior_posterior(
+    prior,
+    chains,
+    mode,
+    title,
+    ylabels,
+    ivars,
+    nr,
+    nc,
+    nstar,
+    filename;
+    kwargs...
+)
+    sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
+    for (i, j) in enumerate(ivars)
+        posterior_density = kde(vec(get(chains, Symbol(ylabels[j]))[1].data))
+        
+        sp[i] = Plots.plot(prior[j], title = ylabels[j], labels = "Prior", kwargs...)
+        plot!(posterior_density, labels = "Posterior")
+    end
+
+    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Prior and posterior distributions")
+    graph_display(pl)
+    savefig(filename)
+end
+
