@@ -406,12 +406,12 @@ function set_variance!(
 )
     for v in variance
         value = dynare_parse_eval(v["variance"]::String, context)
-        sv = symboltable[s["name"]]
+        sv = symboltable[v["name"]]
         if sv.symboltype == Exogenous
             k = sv.orderintype
             Sigma[k, k] = value
         elseif sv.symboltype === Endogenous
-            k = findfirst(ov -> ov == s["name"], observed_variables)
+            k = findfirst(ov -> ov == v["name"], observed_variables)
             Sigma_m[k, k] = value
         end 
     end
