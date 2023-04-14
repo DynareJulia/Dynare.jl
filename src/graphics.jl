@@ -121,7 +121,7 @@ function plot_irfs(irfs, model, symboltable, filepath)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
         (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
-        ivars = 1:nr*nc
+        ivars = collect(1:nr*nc)
         for p = 1:nbplt-1
             filename = "$(filepath)_$(exogenous_name)_$(p).png"
             plot_panel(
@@ -134,7 +134,7 @@ function plot_irfs(irfs, model, symboltable, filepath)
                 nr * nc,
                 filename,
             )
-            ivars += nr * nc
+            ivars .+= nr * nc
         end
         ivars = ivars[1:nstar]
         filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
