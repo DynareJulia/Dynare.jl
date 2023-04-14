@@ -50,7 +50,7 @@ end
 nearbyint(x::T) where {T<:Real} =
     (abs((x) - floor(x)) < abs((x) - ceil(x)) ? floor(x) : ceil(x))
 
-function get_power_deriv(x::T, p::T, k::Int64) where {T<:Real}
+function get_power_deriv(x, p, k)
     if (abs(x) < 1e-12 && p > 0 && k > p && abs(p - nearbyint(p)) < 1e-12)
         return 0.0
     else
