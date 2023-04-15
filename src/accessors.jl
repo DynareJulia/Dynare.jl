@@ -32,23 +32,18 @@ function simulation(varname::Symbol;
         context = context, 
         model = 1, 
         simnbr = 1, 
-        firstperiod=simulation(context=context, model=model)[1].firstperiod, lastperiod=simulation(context=context, model=model)[1].lastperiod)
-    return simulation(context=context, 
-        model=model, 
-        simnbr=simnbr).data[firstperiod..lastperiod, varname]
+        firstperiod = context.results.model_results[model].simulations[simnbr].firstperiod,
+        lastperiod = context.results.model_results[model].simulations[simnbr].lastperiod)
+    return context.results.model_results[model].simulations[simnbr].data[firstperiod..lastperiod, varname]
 end
 
 function simulation(varname::String; 
         context = context, 
         model = 1, 
         simnbr = 1, 
-        firstperiod=simulation(context=context, model=model).firstperiod, lastperiod=simulation(context=context, model=model).lastperiod)
-    return simulation(Symbol(varname); 
-        context = context, 
-            model = model, 
-            simnbr = simnbr, 
-            firstperiod=firstperiod, 
-            lastperiod=lastperiod)
+        firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
+        lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod)
+    return context.results.model_results[model].simulations[simnbr].data[firstperiod..lastperiod, Symbol(varname)]
 end
 
 # subset of simulated variables for a  given model and a given simulation
@@ -56,8 +51,8 @@ function simulation(varnames::Vector{Symbol};
                 context = context, 
                 model = 1, 
                 simnbr = 1,
-                firstperiod=simulation(context=context, model=model).firstperiod, 
-                lastperiod=simulation(context=context, model=model).lastperiod)
+                firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
+                lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod)
     context.results.model_results[model].simulations[simnbr].data[:, varnames]
 end
 
@@ -66,5 +61,6 @@ firstperiod=simulation(context=context, model=model).firstperiod, lastperiod=sim
 simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr, firstperiod=firstperiod, lastperiod=lastperiod)
 
 simulation(varnames::Tuple; context = context, model = 1, simnbr = 1,
-firstperiod=simulation(context=context, model=model).firstperiod, lastperiod=simulation(context=context, model=model).lastperiod) =
+firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
+lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod) =
 simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr, firstperiod=firstperiod, lastperiod=lastperiod)

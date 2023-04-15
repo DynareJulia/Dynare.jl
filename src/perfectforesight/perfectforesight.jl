@@ -660,9 +660,10 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
                              transpose(initialvalues))
     end
 
-    if isa(initialvalues, Vector)
+    if size(initialvalues, 2) == 1
         initialvalues = reshape(initialvalues, 1, length(initialvalues))
     end 
+
     data = vcat(initialvalues,
                 hcat(
                     transpose(reshape(y, m.endogenous_nbr, periods)),
