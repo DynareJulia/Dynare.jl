@@ -153,7 +153,7 @@ function make_containers(
         Dict{Symbol, AxisArrayTable}(),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
-        EstimationResults([],[],[;;],[]),
+        EstimationResults(),
         Vector{Float64}(undef, exo_nbr),
         Vector{Float64}(undef, exo_det_nbr),
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),

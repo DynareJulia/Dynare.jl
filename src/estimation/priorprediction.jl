@@ -131,7 +131,7 @@ function display_priorprediction_checks(draws, results, failure, iterations, par
         @views sz = z[sortperm(z[:, 1]), :]
         @views y = cumsum(sz[:, 2])
         
-        @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p)
+        @views sp[k] = Plots.plot(sz[:, 1], y/results.undetermined, title = p, labels = false)
         k += 1
         if k > nr*nc || i == length(parameter_names)
             pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Parameter and computation failure ($nfig)")

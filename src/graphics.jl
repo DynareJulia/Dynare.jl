@@ -1,3 +1,4 @@
+#using AxisArrays
 using KernelDensity
 using Plots
 
@@ -223,7 +224,7 @@ function plot_panel(
             lims = (-Inf, Inf)
         end
         sp[i] =
-            Plots.plot(xx, yy, title = vnames[i], ylims = lims, kwargs...)
+            Plots.plot(xx, yy, title = vnames[i], ylims = lims, labels = false, kwargs...)
     end
 
     pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title= title)
@@ -345,8 +346,20 @@ function plot_panel_priorprediction_irfs(
     return p
 end
 
-function plot(aat::AxisArrayTable; label = (), title = "", filename = "")
-    pl = Plots.plot(aat, label = label, title = title)
+function plot(aat::AxisArrayTable; label = false, title = "", filename = "")
+    aa = getfield(aat, :data) 
+    vnames = AxisArrayTables.AxisArrays.axisvalues(aa)[2]
+    nv = size(vnames,1)
+    if nv == 1
+        title = vnames[1]
+        pl = Plots.plot(aa, label = false, title = title)
+    else
+        pl = Plots.plot(aa[:, 1], label = String(vnames[1]), title = title)
+        for i=2:nv
+            Plots.plot!(aa[:,i], label = String(vnames[i]))
+        end 
+    end 
+
     graph_display(pl)
     savefig(filename)
 end

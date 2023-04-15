@@ -9,6 +9,7 @@ using Optim
 using Plots
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
 using Random
+using Serialization
 using StatsPlots
 using TransformVariables
 using TransformedLogDensities
@@ -147,7 +148,7 @@ function rwmh_compute(;context=context,
              back_transformation = true,
              data = AxisArrayTable(AxisArrayTables.AxisArray([;;])),
              diffuse_filter::Bool = false,
-             display::Bool = false,
+             display::Bool = true,
              fast_kalman_filter::Bool = true,
              first_obs::PeriodsSinceEpoch = Undated(1),
              initial_values = prior_mean(context.work.estimated_parameters),
@@ -160,6 +161,7 @@ function rwmh_compute(;context=context,
              mode_compute::Bool = true,
              nobs::Int = 0,
              order::Int = 1,
+             plot_chain::Bool = true,
              plot_posterior_density = false, 
              presample::Int = 0,
              transformed_parameters = true
@@ -174,12 +176,30 @@ function rwmh_compute(;context=context,
 
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
     (chain, back_transformed_chain) = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, back_transformation=back_transformation, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains, mcmc_replic=mcmc_replic, transformed_parameters=transformed_parameters)
-    Base.display(chain)
-    context.results.model_results[1].estimation.posterior_mcmc_chains = chain
-    if plot_posterior_density
-        plot_prior_posterior(context, back_transformed_chain)
-    end 
+    output_mcmc_chain!(context, chain, display, plot_chain)
+    plot_posterior_density && plot_prior_posterior(context, back_transformed_chain)
+    plot_chain && StatsPlots.plot(chain)
+    return chain
 end
+
+function output_mcmc_chain!(context, chain, display, plot_chain)
+    estimation_results = context.results.model_results[1].estimation
+    n = estimation_results.posterior_mcmc_chains_nbr += 1
+    path = context.modfileinfo.modfilepath
+    serialize("$path/output/mcmc_chain_$n.jls",
+    chain) 
+    display && Base.display(chain)
+    path 
+    plot_chain && plot_MCMCChains(chain, n, "$path/graphs", display)
+end
+
+function plot_MCMCChains(chain, n, path, display)
+    mkpath(path)
+    filename = "$(path)/MCMC_chains_$n"
+    pl = StatsPlots.plot(chain)
+    display && graph_display(pl)
+    savefig(filename)
+end 
 
 prior_mean(ep::EstimatedParameters) = [mean(p) for p in ep.prior]
 
@@ -488,7 +508,6 @@ function loglikelihood(
         results.trends.endogenous_steady_state[ssws.obs_idx],
         results.trends.endogenous_linear_trend[ssws.obs_idx],
     )
-    ssws.Y .= observations
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
@@ -1056,7 +1075,7 @@ function plot_priors(context, names, n_points = 100)
     prior_pdfs = hcat(prior_pdfs...)
     prior_x_axes = hcat(prior_x_axes...)
     names = hcat(names...)
-    f = Plots.plot(prior_x_axes, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, legend=false, linewidth=3)
+    f = Plots.plot(prior_x_axes, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, labels=false, linewidth=3)
     f
 end
 

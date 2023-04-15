@@ -18,13 +18,13 @@ options = Dynare.EstimationOptions()
 Yorig =
     Dynare.get_data("dsge1_data.csv", varobs, start = options.first_obs, last = options.last_obs)
 
-observations = copy(Yorig)
+observations = Yorig
 nobs = size(observations, 2)
 ssws = Dynare.SSWs(context, nobs, varobs)
 ssws.Q .= model.Sigma_e
 ssws.H .= context.work.Sigma_m
 estimated_parameters = context.work.estimated_parameters
-
+ssws.
 initial_values = Dynare.get_initial_value_or_mean(estimated_parameters)
 
 Dynare.set_estimated_parameters!(context, initial_values)

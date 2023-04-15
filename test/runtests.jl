@@ -33,6 +33,7 @@ irfs_e_y = irf(:e, :y)
 #@dynare "models/example3report/example3report.mod"
 @dynare "models/cgg/cgg_ramsey.mod"
 #@dynare "models/stochastic_trend_drift/trend1.mod"
+
 context = @dynare "models/example1pf/example1pf"
 sim = Dynare.simulation()
 @test length(sim) == 1
@@ -41,13 +42,15 @@ sim = Dynare.simulation()
       range(Dynare.Undated(0), stop = Dynare.Undated(1001), step = Dynare.Undated(1))
 sim_a = Dynare.simulation(:a)
 @test sim_a ==
-      context.results.model_results[1].simulations[1].data.a
+      context.results.model_results[1].simulations[1].data.a[2:end-1]
 sim_a = Dynare.simulation("a")
 @test sim_a ==
-      context.results.model_results[1].simulations[1].data.a
-@test Dynare.simulation(1)[1000,:] ≈ transpose(context.results.model_results[1].trends.endogenous_steady_state)
+      context.results.model_results[1].simulations[1].data.a[2:end-1]
+trends = context.results.model_results[1].trends
+@test Dynare.simulation(1)[1000, :] ≈ transpose(vcat(trends.endogenous_steady_state, trends.exogenous_steady_state))
+
 context = @dynare "models/example1pf/example1pf_endval"
-@test Dynare.simulation(1)[300,:] ≈ transpose(context.results.model_results[1].trends.endogenous_terminal_steady_state)
+@test Dynare.simulation(1)[300, 1:6] ≈ transpose(context.results.model_results[1].trends.endogenous_terminal_steady_state)
 context = @dynare "models/initialization/neoclassical1"
 context = @dynare "models/initialization/neoclassical5"
 context = @dynare "models/irreversible/irbc2a"

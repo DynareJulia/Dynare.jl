@@ -750,9 +750,14 @@ Base.show(io::IO, t::Trends) = show_field_value(t)
 
 mutable struct EstimationResults
     posterior_mode
-    posterior_mode_std
     posterior_mode_covariance
-    posterior_mcmc_chains
+    posterior_mcmc_chains_nbr
+    function EstimationResults()
+        posterior_mode = []
+        posterior_mode_covariance = [;;]
+        posterior_mcmc_chains_nbr = 0
+        new(posterior_mode, posterior_mode_covariance, posterior_mcmc_chains_nbr)
+    end 
 end 
 
 mutable struct ModelResults
