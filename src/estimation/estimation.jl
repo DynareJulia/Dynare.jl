@@ -185,8 +185,8 @@ end
 function output_mcmc_chain!(context, chain, display, plot_chain)
     estimation_results = context.results.model_results[1].estimation
     n = estimation_results.posterior_mcmc_chains_nbr += 1
-    path = context.modfileinfo.modfilepath
-    serialize("$path/output/mcmc_chain_$n.jls",
+    path = mkpath(joinpath(context.modfileinfo.modfilepath, "output"))
+    serialize("$path/mcmc_chain_$n.jls",
     chain) 
     display && Base.display(chain)
     path 
