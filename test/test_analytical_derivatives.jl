@@ -1,11 +1,15 @@
 module TestDerivatives
+cd("/home/felix/Dropbox/Dynare/2_Dynare_Fork/Dynare.jl")
 using Dynare #Use analytical_derivatives branch
 using LinearAlgebra
 using FastLapackInterface
 using Test
+using SparseArrays
+using SuiteSparse
 
 #Model
 context = @dynare "models/analytical_derivatives/fs2000_sa.mod" "params_derivs_order=1" "notmpterms";
+context = @dynare "/home/felix/Dropbox/Dynare/2_Dynare_Fork/Dynare.jl/test/models/analytical_derivatives/fs2000_sa.mod" "params_derivs_order=1" "notmpterms";
 model = context.models[1]
 results = context.results.model_results[1]
 wss = Dynare.StaticWs(context)
@@ -20,59 +24,133 @@ df_dx = Dynare.get_static_jacobian!(wss, params, steadystate, exogenous, model)
 #Get StaticJacobianParams
 (df_dp, gp) = Dynare.DFunctions.SparseStaticParametersDerivatives!(steadystate, exogenous, params)
  
-#Get Jacobian matrix using the inverse of df_dx
-function Derivatives(df_dx, df_dp)
-    dense_df_dx = Matrix(df_dx)
+
+#1. Get Jacobian matrix using the inverse of df_dx
+struct DerivativesWorkspace
+    dense_df_dx::Matrix{Float64}
+    df_dx_inv::Matrix{Float64}
+    result::Matrix{Float64}
+end
+
+function init_derivatives_workspace(n::Int, m::Int)
+    dense_df_dx = Matrix{Float64}(undef, n, n)
+    df_dx_inv = Matrix{Float64}(undef, n, n)
+    result = Matrix{Float64}(undef, n, m)
+    return DerivativesWorkspace(dense_df_dx, df_dx_inv, result)
+end
+
+function Derivatives(workspace::DerivativesWorkspace, df_dx, df_dp)
+    dense_df_dx = workspace.dense_df_dx
+    copyto!(dense_df_dx, df_dx)
 
     if det(dense_df_dx) == 0
         error("The matrix is not invertible")
     end
 
-    #Get dx_dp
-    df_dx_inv = dense_df_dx \ I#inv(dense_df_dx)
-    return -df_dx_inv * df_dp
+    df_dx_inv = workspace.df_dx_inv
+    df_dx_inv .= dense_df_dx \ I
+
+    result = workspace.result
+    return mul!(result, -df_dx_inv, df_dp)
 end
 
-#Get Jacobian matrix using FastLapackInterface (dense matrix)
-function Derivatives2(df_dx, df_dp)
-    dense_df_dx = Matrix(df_dx)
-    LU_df_dx = LU(LAPACK.getrf!(LUWs(dense_df_dx), dense_df_dx)...)
-    if any(diag(LU_df_dx.U) .== 0)
-        error("The matrix is not invertible")
-    end
 
-    #Get dx_dp
-    dx_dp = -(LU_df_dx \ df_dp)
-    return dx_dp
+#2. Get Jacobian matrix using FastLapackInterface (dense matrix)
+struct Derivatives2Workspace
+    dense_df_dx::Matrix{Float64}
+    LU_df_dx::LU{Float64, Matrix{Float64}} #not used yet
+    dx_dp::Matrix{Float64}
 end
 
-#Get Jacobian matrix using lu(df_dx) (sparse matrix)
-function Derivatives3(df_dx, df_dp)
-    LU_df_dx = lu(df_dx)
 
-    if any(diag(LU_df_dx.U) .== 0)
-        error("The matrix is not invertible")
-    end
-
-    # Get dx_dp
-    dx_dp = -(LU_df_dx \ df_dp)
-    return dx_dp
-end
-
-#Get Jacobian matrix using ldiv! (dense matrix)
-function Derivatives4(df_dx, df_dp)
-    dense_df_dx = Matrix(df_dx)
-    LU_df_dx = lu(dense_df_dx)
-
-    if any(diag(LU_df_dx.U) .== 0)
-        error("The matrix is not invertible")
-    end
-
-    # Preallocate dx_dp
-    n, m = size(df_dp)
+function init_derivatives2_workspace(n::Int, m::Int)
+    dense_df_dx = Matrix{Float64}(undef, n, n)
+    LU_df_dx = lu(Matrix{Float64}(I, n, n)) #not used yet
     dx_dp = Matrix{Float64}(undef, n, m)
+    return Derivatives2Workspace(dense_df_dx, LU_df_dx, dx_dp)
+end
+
+
+function Derivatives2(workspace::Derivatives2Workspace, df_dx, df_dp)
+    dense_df_dx = workspace.dense_df_dx
+    copyto!(dense_df_dx, df_dx)
+
+    LU_df_dx = LU(LAPACK.getrf!(LUWs(dense_df_dx), dense_df_dx)...)
+
+    if any(diag(LU_df_dx.U) .== 0)
+        error("The matrix is not invertible")
+    end
+
+    dx_dp = workspace.dx_dp
+    copyto!(dx_dp, -(LU_df_dx \ df_dp))
+    # ldiv!(-1.0, LU_df_dx, df_dp, dx_dp)
+
+    return dx_dp
+end
+
+#3. Get Jacobian matrix using lu(df_dx) (sparse matrix)
+struct Derivatives3Workspace
+    # df_dx::SparseMatrixCSC{Float64, Int64}
+    LU_df_dx::SuiteSparse.UMFPACK.UmfpackLU{Float64, Int64} #not used yet
+    dx_dp::Matrix{Float64}
+end
+
+function init_derivatives3_workspace(n::Int, m::Int)
+    LU_df_dx = SuiteSparse.UMFPACK.lu(sparse(Matrix{Float64}(I, n, n)))  #not used yet
+    dx_dp = Matrix{Float64}(undef, n, m)
+    return Derivatives3Workspace(LU_df_dx, dx_dp)
+end
+
+function Derivatives3(workspace::Derivatives3Workspace, df_dx, df_dp)
+    # Perform Sparse LU decomposition
+    # LU_df_dx = workspace.LU_df_dx
+    LU_df_dx = lu(df_dx)
+    # copyto!(LU_df_dx.L, lu_df_dx.L)
+    # copyto!(LU_df_dx.U, lu_df_dx.U)
+
+    if any(diag(LU_df_dx.U) .== 0)
+        error("The matrix is not invertible")
+    end
 
     # Get dx_dp
+    dx_dp = workspace.dx_dp
+    copyto!(dx_dp, -(LU_df_dx \ df_dp))
+    # ldiv!(-1.0, LU_df_dx, df_dp, dx_dp)
+
+    return dx_dp
+end
+
+
+#4. Get Jacobian matrix using ldiv! (dense matrix)
+struct Derivatives4Workspace
+    dense_df_dx::Matrix{Float64}
+    LU_df_dx::LU{Float64, Matrix{Float64}}
+    dx_dp::Matrix{Float64}
+end
+
+function init_derivatives4_workspace(n::Int, m::Int)
+    dense_df_dx = Matrix{Float64}(undef, n, n)
+    LU_df_dx = lu(Matrix{Float64}(I, n, n))
+    dx_dp = Matrix{Float64}(undef, n, m)
+    return Derivatives4Workspace(dense_df_dx, LU_df_dx, dx_dp)
+end
+
+function Derivatives4(workspace::Derivatives4Workspace, df_dx, df_dp)
+    dense_df_dx = workspace.dense_df_dx
+    copyto!(dense_df_dx, Matrix(df_dx))
+    
+    # LU_df_dx = workspace.LU_df_dx
+    LU_df_dx = lu(dense_df_dx)
+    # copyto!(LU_df_dx.L, lu_df_dx.L)
+    # copyto!(LU_df_dx.U, lu_df_dx.U)
+
+    if any(diag(LU_df_dx.U) .== 0)
+        error("The matrix is not invertible")
+    end
+
+    dx_dp = workspace.dx_dp
+    n, m = size(df_dp)
+
     for i in 1:m
         dp_col = view(df_dp, :, i)
         sol_col = view(dx_dp, :, i)
@@ -84,11 +162,21 @@ function Derivatives4(df_dx, df_dp)
 end
 
 
+# Initialize
+n = model.endogenous_nbr
+m = model.parameter_nbr
+workspace1 = init_derivatives_workspace(n, m)
+workspace2 = init_derivatives2_workspace(n, m)
+workspace3 = init_derivatives3_workspace(n, m)
+workspace4 = init_derivatives4_workspace(n, m)
+
+# Luego puedes utilizar workspace para llamar a la función Derivatives con tus matrices df_dx y df_dp
+@time sol1 = Derivatives(workspace1, df_dx, df_dp);
+@time sol2 = Derivatives2(workspace2, df_dx, df_dp);
+@time sol3 = Derivatives3(workspace3, df_dx, df_dp);
+@time sol4 = Derivatives4(workspace4, df_dx, df_dp);
+
 # @show Derivatives(df_dx, df_dp);
-@time sol1 = Derivatives(df_dx, df_dp);
-@time sol2 = Derivatives2(df_dx, df_dp);
-@time sol3 = Derivatives3(df_dx, df_dp);
-@time sol4 = Derivatives4(df_dx, df_dp);
 @test sol1 ≈ sol2
 @test sol1 ≈ sol3
 @test sol1 ≈ sol4 
