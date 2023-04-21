@@ -1,5 +1,4 @@
 module TestDerivatives
-cd("/home/felix/Dropbox/Dynare/2_Dynare_Fork/Dynare.jl")
 using Dynare #Use analytical_derivatives branch
 using LinearAlgebra
 using FastLapackInterface
@@ -9,7 +8,6 @@ using SuiteSparse
 
 #Model
 context = @dynare "models/analytical_derivatives/fs2000_sa.mod" "params_derivs_order=1" "notmpterms";
-context = @dynare "/home/felix/Dropbox/Dynare/2_Dynare_Fork/Dynare.jl/test/models/analytical_derivatives/fs2000_sa.mod" "params_derivs_order=1" "notmpterms";
 model = context.models[1]
 results = context.results.model_results[1]
 wss = Dynare.StaticWs(context)
