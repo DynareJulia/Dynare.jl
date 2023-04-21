@@ -360,7 +360,7 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         @show options.periods
         @show size(simulresults)
         tdf = AxisArrayTable(simulresults, first_period .+ (0:options.periods), endogenous_names)
-        push!(results.simulations, Simulation("", "stoch_simul", tdf))
+        push!(results.simulations, Simulation(first_period, first_period + periods - 1, "", "stoch_simul", tdf))
     end
 end
 
