@@ -761,13 +761,10 @@ mutable struct EstimationResults
 end 
 
 mutable struct ModelResults
-    endogenous_steady_state::Vector{Float64}
     irfs::Dict{Symbol, AxisArrayTable}
     trends::Trends
     stationary_variables::Vector{Bool}
     estimation::EstimationResults
-    exogenous_steady_state::Vector{Float64}
-    exogenous_deterministic_steady_state::Vector{Float64}
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
     smoother

@@ -149,13 +149,10 @@ function make_containers(
 )
     work = Work(model, varobs)
     modelresults = ModelResults(
-        Vector{Float64}(undef, endo_nbr),
         Dict{Symbol, AxisArrayTable}(),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
         EstimationResults(),
-        Vector{Float64}(undef, exo_nbr),
-        Vector{Float64}(undef, exo_det_nbr),
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         Dict{String,Matrix{Float64}}(),
