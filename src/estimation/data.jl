@@ -13,7 +13,7 @@ function display_data(;context=context,
     data = vcat("Name", varobs)
     data = hcat(data, vcat("Mean", mean(Yorig, dims=2)))
     data = hcat(data, vcat("Stdev", std(Yorig, dims=2)))
-    data = hcat(data, vcat("AC", [autocor(x[i, :], [1]) for i in 1:size(Yorig, 1)]...))
+    data = hcat(data, vcat("AC", [autocor(Vector{Float64}(Yorig[i, :]), [1]) for i in 1:size(Yorig, 1)]...))
     dynare_table(data, title, columnheader = true) 
     title = "Observed variables correlation"
     data = reshape(vcat("", varobs), 1, length(varobs) + 1)
@@ -34,7 +34,9 @@ function plot_data(data, varobs, modfilepath)
         @views sp[k] = Plots.plot(data[i, :], title = p, labels = false)
         k += 1
         if k > nr*nc || i == length(varobs)
-            pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Observed variables ($nfig)")
+            plottitle = "Observed variables"
+            nbplt > 1 && (plotttitle = "$plottitle ($nfig)")
+            pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = plottitle)
             graph_display(pl)
             savefig("$(modfilepath)/graphs/ObservedVariables$(nfig).png")
             k = 1
