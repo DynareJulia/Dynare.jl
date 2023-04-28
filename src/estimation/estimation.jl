@@ -16,6 +16,7 @@ using TransformedLogDensities
 
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
 
+include("data.jl")
 include("estimated_parameters.jl")
 
 Base.@kwdef struct EstimationOptions
