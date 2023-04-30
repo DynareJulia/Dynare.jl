@@ -121,34 +121,41 @@ function plot_irfs(irfs, model, symboltable, filepath)
     exogenous_names = get_exogenous_longname(symboltable)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
-        (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
-        ivars = collect(1:nr*nc)
-        for p = 1:nbplt-1
-            filename = "$(filepath)_$(exogenous_name)_$(p).png"
-            plot_panel(
-                x,
-                Matrix(irfs[Symbol(exogenous_name)][:,ivars]),
-                "Orthogonal shock to $(exogenous_name)",
-                endogenous_names[ivars],
-                nr,
-                nc,
-                nr * nc,
-                filename,
-            )
-            ivars .+= nr * nc
+        (nbplt, nr, nc, lr, lc, nstar) = pltorg(length(endogenous_names))
+        sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
+        p = 1
+        j = 1
+        nbp = 1
+        while p < length(endogenous_names)
+            if j > nr*nc
+                title = "Orthogonal shock to $(exogenous_name)" 
+                filename = "$(filepath)_$(exogenous_name)_$(nbp).png"
+                pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = title)
+                graph_display(pl)
+                savefig(filename)
+                nbp += 1
+                j = 1                                
+            end
+            irf = Matrix(irfs[Symbol(exogenous_name)][:, p])
+            if maximum(irf) - minimum(irf) > 1e-10
+                if all(irf .> 0)
+                    lims = (0, Inf)
+                elseif all(irf .< 0)
+                    lims = (-Inf, 0)
+                else
+                    lims = (-Inf, Inf)
+                end
+                sp[j] = Plots.plot(x, irf, title = endogenous_names[p],
+                                   labels=false, ylims = lims)
+                j += 1
+            end
+            p += 1
         end
-        ivars = ivars[1:nstar]
-        filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
-        plot_panel(
-            x,
-            Matrix(irfs[Symbol(exogenous_name)][:, ivars]),
-            "Orthogonal shock to $(exogenous_name)",
-            endogenous_names[ivars],
-            lr,
-            lc,
-            nstar,
-            filename,
-        )
+        title = "Orthogonal shock to $(exogenous_name)" 
+        filename = "$(filepath)_$(exogenous_name)_$(nbp).png"
+        pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = title)
+        graph_display(pl)
+        savefig(filename)
     end
 end
 
