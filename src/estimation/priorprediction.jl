@@ -63,7 +63,7 @@ function run_simulations(context, draws)
     
     for i = 1:iterations
         @views set_estimated_parameters!(context, draws[i, :])
-        fill!(model_results.exogenous_steady_state, 0.0)
+        fill!(model_results.trends.exogenous_steady_state, 0.0)
         #compute steady state and first order solution
         try
             compute_stoch_simul!(
