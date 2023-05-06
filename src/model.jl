@@ -15,16 +15,18 @@ struct DynamicWs
         exogenous_nbr::Int,
         tmp_nbr::Int,
         colptr::AbstractVector{Int},
-        rowval::AbstractVector{Int}
+        rowval::AbstractVector{Int};
+        order = 1
     )
         dynamic_variables = Vector{Float64}(undef, 3*endogenous_nbr)
         exogenous_variables = Vector{Float64}(undef, exogenous_nbr)
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = [SparseMatrixCSC(endogenous_nbr,
-                                       3*endogenous_nbr + exogenous_nbr,
+                                       (3*endogenous_nbr + exogenous_nbr)^i,
                                        colptr,
                                        rowval,
-                                       similar(rowval, Float64))]
+                                       similar(rowval, Float64))
+                       for i = 1:order]
         temporary_values = Vector{Float64}(undef, tmp_nbr)
         new(
             dynamic_variables,
@@ -36,14 +38,15 @@ struct DynamicWs
     end
 end
 
-function DynamicWs(context::Context)
+function DynamicWs(context::Context; order = 1)
     m = context.models[1]
     tmp_nbr = sum(m.dynamic_tmp_nbr[1:2])
     return DynamicWs(m.endogenous_nbr,
                      m.exogenous_nbr,
                      tmp_nbr,
                      m.dynamic_g1_sparse_colptr,
-                     m.dynamic_g1_sparse_rowval)
+                     m.dynamic_g1_sparse_rowval,
+                     order = order)
 end
 
 struct StaticWs
@@ -54,26 +57,29 @@ struct StaticWs
         endogenous_nbr::Int,
         tmp_nbr::Int,
         colptr::AbstractVector{Int},
-        rowval::AbstractVector{Int}
+        rowval::AbstractVector{Int};
+        order = 1
     )
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = [SparseMatrixCSC(endogenous_nbr,
-                                       endogenous_nbr,
+                                       endogenous_nbr^i,
                                        colptr,
                                        rowval,
-                                       similar(rowval, Float64))]
+                                       similar(rowval, Float64))
+                       for i = 1:order]
         temporary_values = Vector{Float64}(undef, tmp_nbr)
         new(residuals, derivatives, temporary_values)
     end
 end
 
-function StaticWs(context::Context)
+function StaticWs(context::Context; order = 1)
     m = context.models[1]
     tmp_nbr = sum(m.static_tmp_nbr[1:2])
     return StaticWs(m.endogenous_nbr,
                     tmp_nbr,
                     m.static_g1_sparse_colptr,
-                    m.static_g1_sparse_rowval)
+                    m.static_g1_sparse_rowval,
+                    order = order)
 end
 
 function get_exogenous_matrix(x::Vector{Float64}, exogenous_nbr::Int)
