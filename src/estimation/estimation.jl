@@ -102,7 +102,7 @@ function estimation!(context, field::Dict{String, Any})
     set_estimated_parameters!(context, initial_values)
     
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode(context, observations)
+        (res, mode, tstdh, mode_covariance) = posterior_mode(context,  initial_values, observations)
         @show res
     end
 
@@ -125,6 +125,7 @@ function mode_compute(; context=context,
                  display::Bool = false,
                  fast_kalman_filter::Bool = true,
                  first_obs::PeriodsSinceEpoch = Undated(1),
+                 initial_values = prior_mean(context.work.estimated_parameters),
                  last_obs::PeriodsSinceEpoch = Undated(0),
                  mode_check::Bool = false,
                  nobs::Int = 0,
@@ -140,7 +141,7 @@ function mode_compute(; context=context,
     has_trends = context.modfileinfo.has_trends
     
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
-    (res, mode, tstdh, mode_covariance) = posterior_mode(context, observations)
+    (res, mode, tstdh, mode_covariance) = posterior_mode(context, initial_values, observations)
     @show res
 end
 
@@ -699,6 +700,7 @@ end
 
 function posterior_mode(
     context,
+    initialvalue,
     observations;
     first_obs = 1,
     last_obs = 0,
@@ -711,7 +713,7 @@ function posterior_mode(
     transformation = DSGETransformation(ep)
     transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
     transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-    p0 = ep.initialvalue
+    p0 = initialvalue
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
     res = optimize(
         transformed_density,
@@ -719,8 +721,13 @@ function posterior_mode(
         LBFGS(),
         Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
     )
+    @show res
+    @show res.minimizer
     hess = finite_difference_hessian(transformed_density, res.minimizer)
     inv_hess = inv(hess)
+    @show diag(hess)
+    @show TransformVariables.transform(transformation, diag(hess))
+    @show diag(inv_hess)
     hsd = sqrt.(diag(hess))
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
     stdh = sqrt.(diag(invhess))
@@ -793,7 +800,7 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     model = DensityModel(posterior_density)
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
-        chain = sample(model, spl, mcmc_replic,
+        chain = AbstractMCMC.sample(model, spl, mcmc_replic,
                    init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
@@ -801,7 +808,8 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     else    
         old_blas_threads = BLAS.get_num_threads()
         BLAS.set_num_threads(1)
-        chain = sample(model, spl, MCMCThreads(), mcmc_replic, mcmc_chains,
+        chain = AbstractMCMC.sample(model, spl, MCMCThreads(), mcmc_replic,
+                   mcmc_chains,
                    init_params = Iterators.repeated(initial_values),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)

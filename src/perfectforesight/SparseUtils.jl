@@ -58,7 +58,7 @@ SparseStorage(
     V::Vector{Float64},
 )
 
-sparse!(m::Integer, n::Integer, nz::Integer, SS::SparseStorage) = sparse!(
+sparse!(m::Integer, n::Integer, nz::Integer, SS::SparseStorage) = SparseArrays.sparse!(
     SS.I,
     SS.J,
     SS.V,

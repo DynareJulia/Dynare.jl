@@ -113,7 +113,7 @@ function smc(;context = context)
         if (ESS < tune.npart/2) # (5.17)
             #(id, m) = systematic_resampling(wtsim[:, i]) #systematic resampling
             (id, m) = multinomial_resampling(wtsim[:, i]) #multinomial resampling
-            @views parasim[i-1, :, :] .= parasim[i-1, id, :])
+            @views parasim[i-1, :, :] .= parasim[i-1, id, :]
             loglh              = loglh[id]
             logpost            = logpost[id]
             wtsim[:, i]        = 1/tune.npart # resampled weights are equal weights
@@ -208,9 +208,9 @@ function smc(;context = context)
 
     tune.acpt = mean(temp_acpt) # update average acceptance rate
     # storage
-    csim(i,:)    = tune.c # scale parameter
-    ESSsim(i,:)  = ESS # ESS
-    acptsim(i,:) = tune.acpt # average acceptance rate
+    csim[i,:]    = tune.c # scale parameter
+    ESSsim[i,:]  = ESS # ESS
+    acptsim[i,:] = tune.acpt # average acceptance rate
 
 
     # The following just prints some information at the end of each stage

@@ -165,7 +165,6 @@ function dynamic_simulation_nl!(
         exogenous,
         steadystate,
         model,
-        dfunctions,
         6,
     )
     A = view(jacobian, :, model.n_bkwrd .+ (1:nvar))
@@ -202,7 +201,6 @@ function dynamic_simulation_nl!(
                 exogenous,
                 steadystate,
                 model,
-                dfunctions,
                 it,
             )
             A = sparse(view(jacobian, :, model.n_bkwrd .+ (1:nvar)))
@@ -212,13 +210,11 @@ function dynamic_simulation_nl!(
         function J!(A::Matrix{T}, y::AbstractMatrix{T})::Matrix{T} where {T<:Real}
             copyto!(YT, (it - 1) * nvar + 1, y, 1, nvar)
             jacobian = get_dynamic_jacobian!(
-                dynamic_ws,
-                params,
+                dynamic_ws,        params,
                 vec(YT),
                 exogenous,
                 steadystate,
                 model,
-                dfunctions,
                 it,
             )
             A = view(jacobian, :, model.n_bkwrd .+ (1:nvar))
