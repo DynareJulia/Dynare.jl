@@ -291,10 +291,6 @@ function solve_steady_state_!(context::Context,
 
     results = context.results.model_results[1]
 
-    function f!(residuals::AbstractVector{Float64}, x::AbstractVector{Float64})
-        DFunctions.static!(ws.temporary_values, residuals, x, exogenous, work.params)
-    end
-
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
     result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = options.tolf)
     @debug result

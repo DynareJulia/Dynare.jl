@@ -136,7 +136,7 @@ end
 
 function get_test(p, x)
     test = 0.0
-    for i in length(p)
+    for i in eachindex(p)
         y = abs(p[i]) / max(abs(x[i]), 1.0)
         if y > test
             test = y

@@ -31,7 +31,7 @@ Only Q[:, 1:(k-1)] and R[1:(k-1), 1:(k-1)] are valid on exit.
 function qrdelete!(Q::AbstractMatrix, R::AbstractMatrix, k::Int)
     n, m = size(Q)
     m == LinearAlgebra.checksquare(R) || throw(DimensionMismatch())
-    1 ≤ k ≤ m || throw(ArgumentError())
+    1 ≤ k ≤ m || throw(ArgumentError("k must be smaller or equal to the number of columns of matrix Q"))
 
     # apply Givens rotations
     for i = 2:k
@@ -62,7 +62,7 @@ function qradd!(Q::AbstractMatrix, R::AbstractMatrix, v::AbstractVector, k::Int)
     n, m = size(Q)
     n == length(v) || throw(DimensionMismatch())
     m == LinearAlgebra.checksquare(R) || throw(DimensionMismatch())
-    1 ≤ k ≤ m || throw(ArgumentError())
+1 ≤ k ≤ m || throw(ArgumentError("k must be smaller or equal to the number of columns of matrix Q"))
 
     @inbounds for i = 1:(k-1)
         q = view(Q, :, i)
