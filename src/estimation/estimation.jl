@@ -21,7 +21,7 @@ include("estimated_parameters.jl")
 
 Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
-    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray([;;]))
+    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0)))
     datafile::String = ""
     diffuse_filter::Bool = false
     display::Bool = false
@@ -120,7 +120,7 @@ end
 
 function mode_compute(; context=context,
                  datafile = "",
-                 data = AxisArrayTable(AxisArrayTables.AxisArray([;;])),
+                 data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
                  diffuse_filter::Bool = false,
                  display::Bool = false,
                  fast_kalman_filter::Bool = true,
@@ -148,7 +148,7 @@ end
 function rwmh_compute(;context=context,
              datafile = "",
              back_transformation = true,
-             data = AxisArrayTable(AxisArrayTables.AxisArray([;;])),
+             data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
              diffuse_filter::Bool = false,
              display::Bool = true,
              fast_kalman_filter::Bool = true,

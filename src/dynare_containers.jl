@@ -754,7 +754,7 @@ mutable struct EstimationResults
     posterior_mcmc_chains_nbr
     function EstimationResults()
         posterior_mode = []
-        posterior_mode_covariance = [;;]
+        posterior_mode_covariance = Matrix(undef, 0, 0)
         posterior_mcmc_chains_nbr = 0
         new(posterior_mode, posterior_mode_covariance, posterior_mcmc_chains_nbr)
     end 

@@ -1,6 +1,6 @@
 function display_data(;context=context,
                       datafile = "",  
-                      data = AxisArrayTable(AxisArrayTables.AxisArray([;;])),
+                      data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
                       detrend = false,
                       first_obs = 1,
                       last_obs =0,
@@ -13,7 +13,7 @@ function display_data(;context=context,
     data = vcat("Name", varobs)
     data = hcat(data, vcat("Mean", mean(Yorig, dims=2)))
     data = hcat(data, vcat("Stdev", std(Yorig, dims=2)))
-    data = hcat(data, vcat("AC", [autocor(Vector{Float64}(Yorig[i, :]), [1]) for i in 1:size(Yorig, 1)]...))
+    data = hcat(data, vcat("AC", [autocor(Vector{Float64}(Yorig[i, :]), [1]) for i in axes(Yorig, 1)]...))
     dynare_table(data, title, columnheader = true) 
     title = "Observed variables correlation"
     data = reshape(vcat("", varobs), 1, length(varobs) + 1)
