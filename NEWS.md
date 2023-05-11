@@ -1,3 +1,8 @@
+0.7.1
+====
+- fix LTS compatibilty
+- fix lint errors
+
 0.7.0
 =====
 - adding estimation module
