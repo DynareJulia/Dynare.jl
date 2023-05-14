@@ -1,3 +1,8 @@
+0.7.2
+=====
+- fix initialization of perfect foresight
+- fix handling of estimated parameters and priors
+
 0.7.1
 ====
 - fix LTS compatibilty
