@@ -1,15 +1,11 @@
-# All references in this file unless otherwise stated relate to the textbook from Herbst and Schorfheide (2014) available on Frank
-# Schorfheide's webpage
+# Very much inspired by the Matlab implementation by Joshua Brault at 
+# https://github.com/braultjosh. See also 
+# 
+# All references in this file unless otherwise stated relate to the textbook
+# from Herbst and Schorfheide (2014) available on Frank Schorfheide's webpage
 
 # Much of the structure of the file borrows from the SMC example used for
 # Herbst and Schorfheide's (2016) textbook
-#addpath('./Functions');
-#addpath('./dynare/5.2/matlab');
-
-
-#dynare Smets_Wouters_2007_45
-#[dataset_, dataset_info, ~, ~, M_, options_, oo_, estim_params_,bayestopt_, bounds] = dynare_estimation_init({}, M_.dname, 0, M_, options_, oo_, estim_params_, bayestopt_);
-#fcn = @evaluate_likelihood2;
 
 using Distributions
 using ProximalOperators

@@ -1,3 +1,5 @@
+include("smc.jl")
+
 using Distributions
 using DynamicHMC
 using FiniteDiff: finite_difference_gradient, finite_difference_hessian
@@ -202,6 +204,44 @@ function plot_MCMCChains(chain, n, path, display)
     display && graph_display(pl)
     savefig(filename)
 end 
+
+function smc_compute(;context=context,
+    datafile = "",
+    first_obs = 1,
+    last_obs = 0
+    )
+    symboltable = context.symboltable
+    results = context.results.model_results[1]
+    lre_results = results.linearrationalexpectations
+    estimation_results = results.estimation
+    varobs = context.work.observed_variables
+    trends = results.trends
+    has_trends = context.modfileinfo.has_trends
+
+    observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+    ep = context.work.estimated_parameters
+    np = length(ep.prior)
+    observations = get_observations(context, datafile, first_obs, last_obs)
+    ssws = SSWs(context, size(observations, 2), context.work.observed_variables)    
+    
+    pdraw!(θ) = prior_draw!(θ, ep)
+    logprior(θ) = logpriordensity(θ, ep)
+    function llikelihood(θ)
+        try 
+            return loglikelihood(θ, context, observations, ssws)
+        catch
+            return -Inf
+        end 
+    end 
+
+    smc(pdraw!, logprior, llikelihood, ep.name, length(ep.prior))
+end 
+
+function prior_draw!(pdraw, ep)
+    for (i, p) in enumerate(ep.prior)
+        pdraw[i] = rand(p, 1)[1]
+    end
+end
 
 prior_mean(ep::EstimatedParameters) = [mean(p) for p in ep.prior]
 
@@ -447,7 +487,7 @@ function set_estimated_parameters!(
     context::Context,
     index::Integer,
     value::T,
-    ::Val{Parameter},
+    ::Val{EstParameter},
 ) where {T<:Real}
     context.work.params[index[1]] = value
     return nothing
@@ -457,7 +497,7 @@ function set_estimated_parameters!(
     context::Context,
     index::Pair{N,N},
     value::T,
-    ::Val{Endogenous},
+    ::Val{EstSDMeasurement},
 ) where {T<:Real,N<:Integer}
     context.work.Sigma_m[index[1], index[2]] = value*value
     return nothing
@@ -467,9 +507,57 @@ function set_estimated_parameters!(
     context::Context,
     index::Pair{N,N},
     value::T,
-    ::Val{Exogenous},
+    ::Val{EstSDShock},
 ) where {T<:Real,N<:Integer}
     context.models[1].Sigma_e[index[1], index[2]] = value*value
+    return nothing
+end
+
+function set_estimated_parameters!(
+    context::Context,
+    index::Pair{N,N},
+    value::T,
+    ::Val{EstVarMeasurement},
+) where {T<:Real,N<:Integer}
+    context.work.Sigma_m[index[1], index[2]] = value
+    return nothing
+end
+
+function set_estimated_parameters!(
+    context::Context,
+    index::Pair{N,N},
+    value::T,
+    ::Val{EstVarShock},
+) where {T<:Real,N<:Integer}
+    context.models[1].Sigma_e[index[1], index[2]] = value
+    return nothing
+end
+
+function set_covariance!(corr, covariance, index1, index2)
+    V1 = covariance[index1, index1]
+    V2 = covariance[index2, index2]
+    covariance[index1, index2] = corr*sqrt(V1*V2)
+    covariance[index2, index1] = corr*sqrt(V1*V2)
+end
+function set_estimated_parameters!(
+    context::Context,
+    index::Pair{N,N},
+    value::T,
+    ::Val{EstCorrMeasurement},
+) where {T<:Real,N<:Integer}
+    set_covariance!(value, context.work.Sigma_m,
+    index[1], index[2])
+    return nothing
+end
+
+function set_estimated_parameters!(
+    context::Context,
+    index::Pair{N,N},
+    value::T,
+    ::Val{EstCorrShock},
+) where {T<:Real,N<:Integer}
+    set_covariance!(value, context.models[1].Sigma_e,
+    index[1], index[2])
     return nothing
 end
 
@@ -1105,14 +1193,6 @@ end
 # alias for InverseGamma distribution
 InverseGamma2 = InverseGamma
 
-struct stdev
-    s::Symbol
-    function stdev(s_arg::Symbol)
-        s = s_arg
-        new(s)
-    end
-end
-
 struct corr
     s1::Symbol
     s2::Symbol
@@ -1123,6 +1203,22 @@ struct corr
     end 
 end 
 
+struct stdev
+    s::Symbol
+    function stdev(s_arg::Symbol)
+        s = s_arg
+        new(s)
+    end
+end
+
+struct variance
+    s::Symbol
+    function stdev(s_arg::Symbol)
+        s = s_arg
+        new(s)
+    end
+end
+
 function prior(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
@@ -1130,7 +1226,7 @@ function prior(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean
     push!(ep.index, symboltable[name].orderintype)
     push!(ep.name, name)
     push!(ep.initialvalue, initialvalue)
-    push!(ep.parametertype, Parameter)
+    push!(ep.parametertype, EstParameter)
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
     
@@ -1138,10 +1234,35 @@ function prior(s::stdev; shape, initialvalue::Union{Real,Missing}=missing, mean:
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s.s)
-    push!(ep.index, symboltable[name].orderintype)
+    index = symboltable[name].orderintype
+    push!(ep.index, (index => index))
     push!(ep.name, name)
     push!(ep.initialvalue, initialvalue)
-    push!(ep.parametertype, symboltable[name].symboltype)
+    if symboltable[name].symboltype == Exogenous
+        push!(ep.parametertype, EstSDShock)
+    elseif symboltable[name].symboltype == Endogenous
+        push!(ep.parametertype, EstSDMeasurement)
+    else
+        error("Wrong symboltype")
+    end 
+    prior_(s, shape, mean, stdev, domain, variance, ep)
+end
+
+function prior(s::variance; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+    ep = context.work.estimated_parameters
+    symboltable = context.symboltable
+    name = string(s.s)
+    index = symboltable[name].orderintype
+    push!(ep.index, (index => index))
+    push!(ep.name, name)
+    push!(ep.initialvalue, initialvalue)
+    if symboltable[name].symboltype == Exogenous
+        push!(ep.parametertype, EstVarShock)
+    elseif symboltable[name].symboltype == Endogenous
+        push!(ep.parametertype, EstVarMeasurement)
+    else
+        error("Wrong symboltype")
+    end 
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
 
@@ -1155,7 +1276,13 @@ function prior(s::corr; shape, initialvalue::Union{Real,Missing}=missing, mean::
     push!(ep.index, (index1 =>index2))
     push!(ep.name, (name1 => name2))
     push!(ep.initialvalue, initialvalue)
-    push!(ep.parametertype, symboltable[name1].symboltype)
+    if symboltable[name1].symboltype == Exogenous
+        push!(ep.parametertype, EstCorrShock)
+    elseif symboltable[name1].symboltype == Endogenous
+        push!(ep.parametertype, EstCorrMeasurement)
+    else
+        error("Wrong symboltype")
+    end 
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
 

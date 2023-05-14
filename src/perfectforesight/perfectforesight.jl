@@ -149,6 +149,7 @@ function perfect_foresight_solver!(context, field)
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
     initial_values = get_dynamic_initialvalues(context)
+    display(initial_values)
     terminal_values = get_dynamic_terminalvalues(context, periods)
     guess_values = perfect_foresight_initialization!(
         context,
@@ -191,6 +192,7 @@ function get_dynamic_initialvalues(context::Context)
         @views for i in eachindex(skipmissing(work.histval[lastindex(work.histval, 1), 1:endo_nbr]))
             y0[i] = work.histval[end, i]
         end
+        @show y0
         return y0
     elseif modfileinfo.has_initval_file
         @views for i in eachindex(skipmissing(work.initval[lastindex(work.initval, 1), 1:endo_nbr]))
@@ -642,28 +644,28 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
     work = context.work
     endogenous_names = get_endogenous(context.symboltable)
     exogenous_names = get_exogenous(context.symboltable)
-    if !isempty(work.initval_exogenous)
-        initialvalues_x = work.initval_exogenous
-    else
-        initialvalues_x = trends.exogenous_steady_state
-    end
-    if !isempty(work.initval_endogenous)
-        initialvalues = vcat(work.initval_endogenous,
-                             initialvalues_x
-                            )
-    else
-        initialvalues = vcat(trends.endogenous_steady_state,
-                             initialvalues_x)
-    end
     if !isempty(work.histval)
-        initialvalues = vcat(work.histval[1:end-1,:],
-                             transpose(initialvalues))
+        initialvalues = work.histval
+    else 
+        if !isempty(work.initval_exogenous)
+            initialvalues_x = work.initval_exogenous
+        else
+            initialvalues_x = trends.exogenous_steady_state
+        end
+        if !isempty(work.initval_endogenous)
+            initialvalues = vcat(work.initval_endogenous,
+                                 initialvalues_x)
+        else
+            initialvalues = vcat(trends.endogenous_steady_state,
+                                 initialvalues_x)
+        end
     end
 
     if size(initialvalues, 2) == 1
         initialvalues = reshape(initialvalues, 1, length(initialvalues))
     end 
-
+    @show initialvalues[:, 1]
+    
     data = vcat(initialvalues,
                 hcat(
                     transpose(reshape(y, m.endogenous_nbr, periods)),
