@@ -13,6 +13,7 @@ export Context,
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
 @enum SymbolType Endogenous Exogenous ExogenousDeterministic Parameter DynareFunction
+@enum EstimatedParameterType EstParameter EstSDShock EstSDMeasurement EstVarShock EstVarMeasurement EstCorrShock EstCorrMeasurement
 
 mutable struct ModFileInfo
     endval_is_reset::Bool
@@ -781,7 +782,7 @@ struct EstimatedParameters
     initialvalue::Vector{Union{Float64, Missing}}
     ml_maximizer::Vector{Float64}
     name::Vector{Union{String,Pair{String,String}}}
-    parametertype::Vector{SymbolType}
+    parametertype::Vector{EstimatedParameterType}
     posterior_mean::Vector{Float64}
     posterior_median::Vector{Float64}
     posterior_mode::Vector{Float64}
@@ -794,7 +795,7 @@ struct EstimatedParameters
         initialvalue = Vector{Union{Float64, Missing}}(undef, 0)
         ml_maximizer = Vector{Float64}(undef, 0)
         name = Vector{Union{String,Pair{String,String}}}(undef, 0)
-        parametertype = Vector{SymbolType}(undef, 0)
+        parametertype = Vector{EstimatedParameterType}(undef, 0)
         posterior_mean = Vector{Float64}(undef, 0)
         posterior_median = Vector{Float64}(undef, 0)
         posterior_mode = Vector{Float64}(undef, 0)
