@@ -154,7 +154,6 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
                                options.tolf)
         end
     elseif context.modfileinfo.has_ramsey_model
-        @show "ramsey"
         x0 = zeros(model.endogenous_nbr)
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))

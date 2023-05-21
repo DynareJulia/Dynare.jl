@@ -149,7 +149,6 @@ function perfect_foresight_solver!(context, field)
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     X = perfect_foresight_ws.shocks
     initial_values = get_dynamic_initialvalues(context)
-    display(initial_values)
     terminal_values = get_dynamic_terminalvalues(context, periods)
     guess_values = perfect_foresight_initialization!(
         context,
@@ -192,7 +191,6 @@ function get_dynamic_initialvalues(context::Context)
         @views for i in eachindex(skipmissing(work.histval[lastindex(work.histval, 1), 1:endo_nbr]))
             y0[i] = work.histval[end, i]
         end
-        @show y0
         return y0
     elseif modfileinfo.has_initval_file
         @views for i in eachindex(skipmissing(work.initval[lastindex(work.initval, 1), 1:endo_nbr]))
@@ -664,7 +662,6 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
     if size(initialvalues, 2) == 1
         initialvalues = reshape(initialvalues, 1, length(initialvalues))
     end 
-    @show initialvalues[:, 1]
     
     data = vcat(initialvalues,
                 hcat(

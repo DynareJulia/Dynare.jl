@@ -174,7 +174,6 @@ function dynamic_simulation_nl!(
     end
     #    jacobian_is_sparse = false
     for it = 6:periods-1
-        @show it
         function f!(residuals, y)
             copyto!(dynamic_variables, model.n_bkwrd + 1, y, 1, nvar)
             @inbounds Base.invokelatest(

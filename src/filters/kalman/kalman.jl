@@ -162,8 +162,6 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
             vtR * Q * transpose(vtR),
             lyapd_ws,
         )
-        @show "P"
-        display(P[:,:,1])
         Pinf = zeros(ns, ns, nobs + 1)
         for i = 1:k
             Pinf[i, i, 1] = 1.0

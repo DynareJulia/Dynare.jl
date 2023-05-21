@@ -113,7 +113,6 @@ function estimation!(context, field::Dict{String, Any})
         #options.mcmc_jscale*Matrix(prior_variance(context.work.estimated_parameters),
         options.mcmc_jscale*mode_covariance,
         mcmc_replic=options.mcmc_replic)
-        display(chain)
         StatsPlots.plot(chain)
     end 
        
@@ -144,7 +143,6 @@ function mode_compute(; context=context,
     
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
     (res, mode, tstdh, mode_covariance) = posterior_mode(context, initial_values, observations)
-    @show res
 end
 
 function rwmh_compute(;context=context,

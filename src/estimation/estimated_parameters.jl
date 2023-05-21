@@ -58,7 +58,6 @@ function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
         push!(parameters.symbols, Symbol(p["param"]))
         push!(parameters.index, symbol_table[p["param"]].orderintype)
         push!(parameters.initialvalue, dynare_parse_eval(p["init_val"], context))
-        @show dynare_parse_eval(p["lower_bound"], context)
         push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"], context))
         push!(parameters.optim_ub, dynare_parse_eval(p["upper_bound"], context))
         push!(
