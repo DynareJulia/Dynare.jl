@@ -1,3 +1,7 @@
+0.7.3
+=====
+- fix initialization with lags and leads on several periods
+
 0.7.2
 =====
 - fix initialization of perfect foresight
