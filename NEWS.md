@@ -1,3 +1,7 @@
+0.7.4
+=====
+- fix bug in estimation in 0.7.3
+
 0.7.3
 =====
 - fix initialization with lags and leads on several periods
