@@ -44,8 +44,6 @@ include("estimation/priorprediction.jl")
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
-include("estimation/AdvancedMH.jl/src/AdvancedMH.jl")
-using .AdvancedMH
 include("estimation/estimation.jl")
 export mh_estimation
 

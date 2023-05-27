@@ -1,8 +1,11 @@
 include("smc.jl")
 
+using AdvancedMH
+using AbstractMCMC
 using Distributions
 using DynamicHMC
 using FiniteDiff: finite_difference_gradient, finite_difference_hessian
+using .Iterators
 using KernelDensity
 using LogDensityProblems
 using MCMCChains
@@ -191,7 +194,6 @@ function output_mcmc_chain!(context, chain, display, plot_chain)
     serialize("$path/mcmc_chain_$n.jls",
     chain) 
     display && Base.display(chain)
-    path 
     plot_chain && plot_MCMCChains(chain, n, "$path/graphs", display)
 end
 
@@ -877,8 +879,8 @@ function mh_estimation(
         chain = run_mcmc(problem.f, initial_values, Matrix(covariance), param_names, mcmc_replic, mcmc_chains)
         back_transformed_chain  = chain
     end 
-    imode1 = argmax(chain.value.data[:,end,1])
-    mode1 = chain.value.data[imode1, 1:end-1, 1]
+    #imode1 = argmax(chain.value.data[:,end,1])
+    #mode1 = chain.value.data[imode1, 1:end-1, 1]
     return chain, back_transformed_chain
 end 
 
@@ -886,21 +888,21 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     model = DensityModel(posterior_density)
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
-        chain = AbstractMCMC.sample(model, spl, mcmc_replic,
+        chain = sample(model, spl, mcmc_replic,
                    init_params = initial_values,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
-                   display_acceptance_ratio(spl, mcmc_replic)
     else    
         old_blas_threads = BLAS.get_num_threads()
         BLAS.set_num_threads(1)
-        chain = AbstractMCMC.sample(model, spl, MCMCThreads(), mcmc_replic,
+        chain = sample(model, spl, MCMCThreads(), mcmc_replic,
                    mcmc_chains,
                    init_params = Iterators.repeated(initial_values),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
         BLAS.set_num_threads(old_blas_threads)
     end 
+    display_acceptance_rate(chain)
     return chain
 end 
 
@@ -989,19 +991,30 @@ function hmcmc_result_table(parameter_names)
     "Results from Bayesian estimation"
 end
 
-function display_acceptance_ratio(spl::MetropolisHastings,replic)
+function display_acceptance_rate(chains)
+    ar = acceptance_rate(chains)
     println("")
-    println("Acceptance ratio MCMC chain: $(spl.n_acceptances/replic)")
-    println("")
-end 
-
-function display_acceptance_ratio(spl::Vector{MetropolisHastings},replic)
-    println("")
-    for (i, s) in enumerate(spl) 
-        println("Acceptance ratio chain $i: $(s.n_acceptances/replic)")
+    for (i, s) in enumerate(ar) 
+        println("Acceptance rate chain $i: $(ar[i])")
     end
     println("")
 end 
+
+
+function acceptance_rate(chains::Chains)
+    data = chains.value.data
+    n1, n2, n3 = size(data)
+    ar = zeros(n3)
+    k = drop(axes(data, 1), 1)
+    @inbounds for j in 1:n3      
+        for i in 2:n1
+            if data[i, n2, j] == data[i-1, n2, j]
+                ar[j] += 1
+            end
+        end
+    end
+    return ar./n1
+end    
 
 # Utilities
 function get_eigenvalues(context)

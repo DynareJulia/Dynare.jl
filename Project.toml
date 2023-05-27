@@ -5,6 +5,7 @@ version = "0.7.3"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
+AdvancedMH = "5b7e9947-ddc0-4b3f-9b55-0d8042f74170"
 AxisArrayTables = "af8da316-43a4-49f0-bd76-7de0cd630fd6"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
