@@ -1,3 +1,7 @@
+0.7.5
+=====
+- fix bug in initialization of perfect foresight simulation
+
 0.7.4
 =====
 - fix bug in estimation in 0.7.3
