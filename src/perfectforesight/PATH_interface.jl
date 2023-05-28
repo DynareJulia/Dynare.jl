@@ -88,18 +88,6 @@ function mcp_perfectforesight_core!(
         return A
     end
 
-    function fj!(residuals, JJ, y)
-        f!(residuals, y)
-        JA!(JJ, y)
-    end
-
-    @debug "$(now()): start makeJacobian"
-    
-    @debug "$(now()): end makeJacobian"
-    @debug "$(now()): start f!"
-    f!(residuals, guess_values)
-    @debug "$(now()): end f!"
-
     @debug "$(now()): start nlsolve"
     (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
@@ -131,7 +119,7 @@ function solve_path!(f!, JA!, JJ, lb, ub, initial_values; kwargs...)
 
         JA!(JJ, z)  # SparseMatrixCSC
 
-        # Pouring Jac::SparseMatrixCSC to the format used in PATH
+        # Pouring JJ::SparseMatrixCSC to the format used in PATH
         copyto!(col_start, 1, JJ.colptr, 1, n)
         copyto!(row, JJ.rowval)
         copyto!(data, JJ.nzval)

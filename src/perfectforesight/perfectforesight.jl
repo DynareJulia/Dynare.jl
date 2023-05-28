@@ -80,7 +80,7 @@ end
 struct PerfectForesightWs
     y::Vector{Float64}
     x::Vector{Float64}
-    shocks::Matrix{Float64}
+    shocks::Vector{Float64}
     J::SparseMatrixCSC
     lb::Vector{Float64}
     ub::Vector{Float64}
@@ -102,14 +102,12 @@ struct PerfectForesightWs
             x = Vector{Float64}(undef, 0, 0)
         end
         if length(context.work.shocks) > 0
-            shocks_tmp = context.work.shocks
-            pmax = Int64(length(shocks_tmp) / m.exogenous_nbr)
-            shocks = Matrix{Float64}(undef, pmax, m.exogenous_nbr)
-            shocks .= reshape(shocks_tmp, (pmax, m.exogenous_nbr))
+            shocks = context.work.shocks
+            pmax = Int64(length(shocks) / m.exogenous_nbr)
             # adding shocks to exogenous variables
-            view(x, 1:pmax*m.exogenous_nbr) .= vec(transpose(shocks))
+            view(x, 1:pmax*m.exogenous_nbr) .= shocks
         else
-            shocks = Matrix{Float64}(undef, 0, 0)
+            shocks = Vector{Float64}(undef, 0)
         end
         permutationsR = [(p[1], p[2]) for p in m.mcps]
         colptr = m.dynamic_g1_sparse_colptr
@@ -362,14 +360,8 @@ function perfectforesight_core!(
             nzval1
         )
 
-#    function fj!(residuals, JJ, y)
-#        f!(residuals, vec(y))
-#        J!(JJ, vec(y))
-#    end
-    J!(JJ, y0)
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
-
 
     res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
     print_nlsolver_results(res)

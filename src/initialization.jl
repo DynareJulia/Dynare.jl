@@ -504,7 +504,7 @@ function set_deterministic_shocks!(
             d1 = v["period1"]
             d2 = v["period2"]
             val = dynare_parse_eval(v["value"], context)
-            set_exogenous(x, i, d1, d2, val, pmax)
+            set_exogenous(x, i, d1, d2, val, exogenous_nbr)
         end
     end
     return x
@@ -516,11 +516,12 @@ function set_exogenous(
     p1::Int64,
     p2::Int64,
     v::Real,
-    pmax::Int64,
+    exogenous_nbr::Int64,
 )
-    offset = (i - 1) * pmax
+    offset = (p1 - 1) * exogenous_nbr
     for p = p1:p2
-        x[offset+p] = v
+        x[offset + i] = v
+        offset += exogenous_nbr
     end
 end
 
