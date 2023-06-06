@@ -1,5 +1,13 @@
 include("makeA.jl")
 
+function perfect_foresight(;periods::Int64, context=context, datafile::String="", initialization::String="steady" )
+    context.work.perfect_foresight_setup["datafile"] = datafile
+    context.work.perfect_foresight_setup["initialization"] = initialization
+    context.work.perfect_foresight_setup["periods"] = periods
+
+    perfect_foresight_setup(context, Dict({}))
+
+
 """
 PerfectForesightSetupOptions type 
     periods::Int64 - number of periods in the simulation [required]
