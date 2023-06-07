@@ -6,10 +6,10 @@ where ``y_t`` are the columns of matrix ``Y`` and
     ``x_t`` the columns of matrix ``X``.
 """
 function geometric_series!(
-    Y::StridedVecOrMat{Float64},
-    A::StridedVecOrMat{Float64},
-    B::StridedVecOrMat{Float64},
-    X::StridedVecOrMat{Float64},
+    Y::AbstractVecOrMat{Float64},
+    A::AbstractVecOrMat{Float64},
+    B::AbstractVecOrMat{Float64},
+    X::AbstractVecOrMat{Float64},
 )
     n, periods = size(Y)
     mul!(Y, B, transpose(X))
@@ -33,11 +33,11 @@ Matrix ``Y`` doesn't contain the initial values.
  ``G`` and ``H`` matrices must have been computed by a linear rational expectation model solver.
 """
 function simul_first_order!(
-    Y::StridedMatrix{Float64},
+    Y::AbstractMatrix{Float64},
     y0::AbstractVector{Float64},
-    G::StridedMatrix{Float64},
-    H::StridedMatrix{Float64},
-    X::StridedMatrix{Float64},
+    G::AbstractMatrix{Float64},
+    H::AbstractMatrix{Float64},
+    X::AbstractMatrix{Float64},
 )
     window = size(X, 1)
     fill!(Y, 0.0)
@@ -65,12 +65,12 @@ Matrix ``Y`` doesn't contain the initial values.
  ``G`` and ``H`` matrices must have been computed by a linear rational expectation model solver.
 """
 function simul_first_order!(
-    Y::StridedMatrix{Float64},
+    Y::AbstractMatrix{Float64},
     y0::AbstractVector{Float64},
     c::AbstractVector{Float64},
-    G::StridedMatrix{Float64},
-    H::StridedMatrix{Float64},
-    X::StridedMatrix{Float64},
+    G::AbstractMatrix{Float64},
+    H::AbstractMatrix{Float64},
+    X::AbstractMatrix{Float64},
 )
     y0 .-= c
     simul_first_order!(Y, y0, G, H, X)

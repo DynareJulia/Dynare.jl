@@ -1,66 +1,37 @@
 include("makeA.jl")
 
-function perfect_foresight(;periods::Int64, context=context, datafile::String="", initialization::String="steady" )
-    context.work.perfect_foresight_setup["datafile"] = datafile
-    context.work.perfect_foresight_setup["initialization"] = initialization
-    context.work.perfect_foresight_setup["periods"] = periods
-
-    perfect_foresight_setup(context, Dict({}))
-
-
-"""
-PerfectForesightSetupOptions type 
-    periods::Int64 - number of periods in the simulation [required]
-    datafile::String - optional data filename with guess values for the simulation and initial and terminal values
-"""
-struct PerfectForesightSetupOptions
-    periods::Int64
-    datafile::String
-    function PerfectForesightSetupOptions(options::Dict{String,Any})
-        periods = 0
-        datafile = ""
-        for (k, v) in pairs(options)
-            if k == "periods"
-                periods = v::Int64
-            elseif k == "datafile"
-                datafile = v::String
-            end
-        end
-        if periods == 0
-            throw(DomainError(periods, "periods must be set to a number greater than zero"))
-        end
-        new(periods, datafile)
-    end
-end
-
-
-function perfect_foresight_setup!(context, field)
-    options = PerfectForesightSetupOptions(get(field, "options", Dict{String,Any}()))
-    context.work.perfect_foresight_setup["periods"] = options.periods
-    context.work.perfect_foresight_setup["datafile"] = options.datafile
-end
-
 @enum PerfectForesightAlgo trustregionA
 @enum LinearSolveAlgo ilu pardiso
 @enum InitializationAlgo initvalfile steadystate firstorder linearinterpolation
 
-struct PerfectForesightSolverOptions
+struct PerfectForesightOptions
     algo::PerfectForesightAlgo
+    datafile::String
     display::Bool
     homotopy::Bool
+    initialization_algo::InitializationAlgo
     linear_solve_algo::LinearSolveAlgo
-    maxit::Int64
+    maxit::Int
+    mcp::Bool
+    periods::Int
     tolf::Float64
     tolx::Float64
-    function PerfectForesightSolverOptions(context, field)
-        algo = trustregionA
-        display = true
-        homotopy = false
-        linear_solve_algo = ILU
-        maxit = 50
-        tolf = 1e-5
-        tolx = 1e-5
-        for (k, v) in pairs(options)
+end
+
+function PerfectForesightOptions(context, field)
+    algo = trustregionA
+    datafile = context.work.perfect_foresight_setup["datafile"]
+    display = true
+    homotopy = false
+    initialization_algo = steadystate
+    linear_solve_algo = ilu
+    maxit = 50
+    mcp = false
+    periods =  context.work.perfect_foresight_setup["periods"]
+    tolf = 1e-5
+    tolx = 1e-5
+    if haskey(field, "options")
+        for (k, v) in pairs(field["options"])
             if k == "stack_solve_algo"
                 algo = v::Int64
             elseif k == "noprint"
@@ -69,20 +40,23 @@ struct PerfectForesightSolverOptions
                 display = true
             elseif k == "homotopy"
                 homotopy = true
+            elseif k == "lmmcp.status"
+                mcp = true
             elseif k == "no_homotopy"
                 homotopy = false
             elseif k == "solve_algo"
                 linear_solve_algo = v
             elseif k == "maxit"
-                maxit = v
+               maxit = v
             elseif k == "tolf"
                 tolf = v
             elseif k == "tolx"
                 tolf = v
             end
         end
-        new(algo, display, homotopy, linear_solve_algo, maxit, tolf, tolx)
-    end
+    end 
+    return PerfectForesightOptions(algo, datafile, display,
+            homotopy, initialization_algo, linear_solve_algo, maxit, mcp, tolf, tolx)
 end
 
 struct PerfectForesightWs
@@ -131,6 +105,50 @@ struct PerfectForesightWs
     end
 end
 
+function perfect_foresight_setup!(context, field)
+    periods = 0
+    datafile = ""
+    for (k, v) in pairs(field["options"])
+        if k == "periods"
+            periods = v::Int64
+        elseif k == "datafile"
+            datafile = v::String
+        end
+    end
+    if periods == 0
+        throw(DomainError(periods, "periods must be set to a number greater than zero"))
+    end
+    context.work.perfect_foresight_setup["periods"] = periods
+    context.work.perfect_foresight_setup["datafile"] = datafile
+end
+
+function perfect_foresight_solver!(context, field)
+    options = PerfectForesightOptions(context, field)
+    _perfect_foresight!(context, options)
+end
+
+function perfect_foresight!(;context = context,
+                            algo::PerfectForesightAlgo = trustregionA,
+                            datafile::String = "",
+                            display::Bool = true,
+                            homotopy::Bool = false,
+                            initialization_algo::InitializationAlgo = steadystate,
+                            linear_solve_algo::LinearSolveAlgo = ilu,
+                            maxit::Int = 50,
+                            mcp::Bool = false,
+                            periods::Int,
+                            tolf::Float64 = 1e-5,
+                            tolx::Float64 = 1e-5)
+
+    options = PerfectForesightOptions(algo, datafile, display,
+                                      homotopy, initialization_algo,
+                                      linear_solve_algo, maxit,
+                                      mcp, periods, tolf, tolx)
+    
+    _perfect_foresight!(context, options)
+    
+end
+
 function mcp_parse(mcps, context)
     mcp1 = Tuple{Int64, Int64, String, Float64}[]
     for m in mcps
@@ -140,9 +158,9 @@ function mcp_parse(mcps, context)
     return mcp1
 end
 
-function perfect_foresight_solver!(context, field)
-    periods = context.work.perfect_foresight_setup["periods"]
-    datafile = context.work.perfect_foresight_setup["datafile"]
+function _perfect_foresight!(context, options)
+    datafile = options.datafile
+    periods = options.periods
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
@@ -158,14 +176,15 @@ function perfect_foresight_solver!(context, field)
     terminal_values = get_dynamic_terminalvalues(context, periods)
     guess_values = perfect_foresight_initialization!(
         context,
+        terminal_values,
         periods,
         datafile,
         X,
         perfect_foresight_ws,
-        steadystate,
+        options.initialization_algo,
         dynamic_ws,
     )
-    if haskey(field, "options") && get(field["options"], "lmmcp.status", false)
+    if options.mcp
         mcp_perfectforesight_core!(
             perfect_foresight_ws,
             context,
@@ -236,6 +255,7 @@ end
 
 function perfect_foresight_initialization!(
     context,
+    terminal_values,
     periods,
     datafile,
     exogenous,
@@ -260,7 +280,9 @@ function perfect_foresight_initialization!(
         end
         guess_values = repeat(x, periods)
     elseif algo == firstorder
-        guess_values = simul_first_order!(context, periods, exogenous, dynamic_ws)
+        y = simul_first_order!(context, periods, perfect_foresight_ws.x, dynamic_ws)
+        guess_values = vec(y[1])
+        terminal_values .= y[2]
     end
     return guess_values
 end
@@ -298,9 +320,11 @@ function simul_first_order!(
     A = zeros(m.endogenous_nbr, m.endogenous_nbr)
     B = zeros(m.endogenous_nbr, m.exogenous_nbr)
     make_A_B!(A, B, m, results)
-    simul_first_order!(simulresults, y0, steadystate, A, B, X)
-    return (view(simulresults, :, 1),
-            view(simulresults, :, 2:periods - 1),
+
+    exogenous = transpose(reshape(X, m.exogenous_nbr, periods))
+    simul_first_order!(simulresults, y0, steadystate, A, B, exogenous)
+
+    return (view(simulresults, :, 1:periods - 1),
             view(simulresults, :, periods))
 end
 
