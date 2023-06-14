@@ -49,9 +49,13 @@ using .AdvancedMH
 include("estimation/estimation.jl")
 export mh_estimation
 
-export @dynare
+export @dynare, dynare
 
 macro dynare(modfile_arg::String, args...)
+    dynare(modfile_arg, args...)
+end
+
+function dynare(modfile_arg::String, args...)
     @info "Dynare version: $(module_version(Dynare))"
     modname = get_modname(modfile_arg)
     @info "$(now()): Starting @dynare $modfile_arg"
@@ -90,6 +94,17 @@ function get_modname(modfilename::String)
     return modname
 end
 
+
+using PrecompileTools
+@compile_workload begin
+    # redirect output to avoid startling a user during precompilation 
+    redirect_stdout(devnull) do
+    redirect_stderr(devnull) do
+        modelpath = dirname(@__DIR__) * "/test/models/example1/example1"
+        dynare(modelpath)
+    end
+    end
+end
 
 #include("precompile_Dynare.jl")
 #_precompile_()
