@@ -11,7 +11,7 @@ function dynare_table_text(
     if length(title) > 0
         pretty_table(
             [title],
-            noheader = true,
+            show_header = false,
             tf = tf_borderless,
             highlighters = (hl_row(1, crayon"bold"), hl_col(1, crayon"bold")),
             backend = Val(:text),
@@ -29,7 +29,7 @@ function dynare_table_text(
     end
     pretty_table(
         data,
-        noheader = true,
+        show_header = false,
         formatters = formatter,
         cell_alignment = Dict((1, i) => :c for i = 1:size(data, 1)+1),
         highlighters = highlighters,
@@ -39,7 +39,7 @@ function dynare_table_text(
         backend = Val(:text),
     )
     if length(note) > 0
-        pretty_table([note], noheader = true, tf = tf_borderless, backend = Val(:text))
+        pretty_table([note], show_header = false, tf = tf_borderless, backend = Val(:text))
     end
 end
 
@@ -59,7 +59,7 @@ function dynare_table_latex(
     pretty_table(
         io,
         data,
-        noheader = true,
+        show_header = false,
         #                formatters = ft_printf(fmt, 1:size(data,1)+1),
         #                 cell_alignment = Dict( (1, i) => :c
         #                                        for i = 1 :size(data,1)+1),

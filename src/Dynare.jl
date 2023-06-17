@@ -1,8 +1,6 @@
 module Dynare
 
-using DimensionalData
 using ExtendedDates
-using InferenceObjects
 using Logging
 using Printf
 
@@ -46,6 +44,8 @@ include("estimation/priorprediction.jl")
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
+include("estimation/AdvancedMH.jl/src/AdvancedMH.jl")
+using .AdvancedMH
 include("estimation/estimation.jl")
 export mh_estimation
 
@@ -72,6 +72,10 @@ macro dynare(modfile_arg::String, args...)
         dynare_preprocess(modfilename, arglist)
     end
     @info "$(now()): End of preprocessing"
+
+    # onlymodel option performs only preprocessing
+    "onlymodel" in arglist && return nothing
+    
     options = CommandLineOptions(compilemodule)
     context = parser(modname, options)
     return context

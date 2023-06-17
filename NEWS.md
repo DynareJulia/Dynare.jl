@@ -1,3 +1,9 @@
+0.7.0
+=====
+- adding estimation module
+- replacing TimeDataFrames by AxisArrayTables
+- improving simulations storing
+
 0.6.3
 =====
 - fix compatibility with DynarePreprocessor_jll

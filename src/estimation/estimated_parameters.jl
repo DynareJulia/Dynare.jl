@@ -1,4 +1,4 @@
-import Base: rand
+import Base: rand, findfirst
 using Distributions
 import Distributions: pdf, logpdf, cdf
 
@@ -6,6 +6,7 @@ struct Parameters
     symbols::Vector{Symbol}
     calibrations::Vector{Float64}
     distributions::Vector{Distribution}
+    index::Vector{Int}
     initialvalues::Vector{Float64}
     mh_scale::Vector{Float64}
     optim_lb::Vector{Float64}
@@ -14,12 +15,13 @@ struct Parameters
     posteriormeans::Vector{Float64}
     posteriormedian::Vector{Float64}
     posteriorHPI::Matrix{Float64}
-    transformfrombasic::Function
-    transformtobasic::Function
+    transformfrombasic::Vector{Function}
+    transformtobasic::Vector{Function}
     function Parameters()
         symbols = Vector{Symbol}(undef, 0)
         calibrations = Vector{Float64}(undef, 0)
         distributions = Vector{Distribution}(undef, 0)
+        index = Vector{Int}(undef, 0)
         initialvalues = Vector{Float64}(undef, 0)
         mh_scale = Vector{Float64}(undef, 0)
         optim_lb = Vector{Float64}(undef, 0)
@@ -34,6 +36,7 @@ struct Parameters
             symbols,
             calibrations,
             distributions,
+            index,
             initialvalues,
             mh_scale,
             optim_lb,
@@ -42,19 +45,19 @@ struct Parameters
             posteriormeans,
             posteriormedian,
             posteriorHPI,
-            transfrombasic,
+            transformfrombasic,
             transformtobasic,
         )
     end
 end
 
-dynare_parse_eval(s, c) = Dynare.dynare_parse_eval(s, c)
-
-function parse_estimated_parameters!(parameters, context, fields::Dict{String,Any})
-    parameters = context.results.model_results[1].parameters
+function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
+    parameters = context.work.estimated_parameters
+    symbol_table = context.symboltable
     for p in fields["params"]
         push!(parameters.symbols, Symbol(p["param"]))
-        push!(parameters.initialvalues, dynare_parse_eval(p["init_val"], context))
+        push!(parameters.index, symbol_table[p["param"]].orderintype)
+        push!(parameters.initialvalue, dynare_parse_eval(p["init_val"], context))
         @show dynare_parse_eval(p["lower_bound"], context)
         push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"], context))
         push!(parameters.optim_ub, dynare_parse_eval(p["upper_bound"], context))
@@ -73,6 +76,28 @@ function parse_estimated_parameters!(parameters, context, fields::Dict{String,An
         )
     end
 end
+
+function Base.findfirst(pattern::String, collection::Vector{Union{String, Pair{String, String}}})
+    for (i, element) in enumerate(collection)
+        if pattern == element
+            return i
+        end 
+    end 
+    return nothing
+end 
+
+function parse_estimated_parameter_init!(context::Context, fields::Dict{String,Any})
+    parameters = context.work.estimated_parameters
+    np = length(parameters)
+    for p in fields["params"]
+        k = Base.findfirst(p["param"], parameters.name)
+        if isnothing(k)
+            error("estimated_params_init: parameter $(p["param"]) hasn't been declared as an estimated parameter")
+        else
+            parameters.initialvalue[k] = dynare_parse_eval(p["init_val"], context)
+        end
+    end
+end 
 
 function get_basic_parameters(p::Dict{String,Any})
     return (
@@ -175,42 +200,3 @@ function get_transformto(::Val{2}, p3, p4)
         return (x) -> x + p3
     end
 end
-
-
-
-#pdf(p::Parameters, i::Int64, x::Float64) = pdf(p.distributions[i], p.
-
-parameters = Parameters()
-fields = Dict(
-    "statementName" => "estimated_params",
-    "params" => [
-        Dict(
-            "param" => "alp",
-            "init_val" => "NaN",
-            "lower_bound" => "(-Inf)",
-            "upper_bound" => "Inf",
-            "prior_distribution" => 1,
-            "mean" => "0.356",
-            "std" => "0.02",
-            "p3" => "NaN",
-            "p4" => "NaN",
-            "jscale" => "NaN",
-        ),
-        Dict(
-            "param" => "bet",
-            "init_val" => "NaN",
-            "lower_bound" => "(-Inf)",
-            "upper_bound" => "Inf",
-            "prior_distribution" => 1,
-            "mean" => "0.993",
-            "std" => "0.002",
-            "p3" => "NaN",
-            "p4" => "NaN",
-            "jscale" => "NaN",
-        ),
-    ],
-)
-context = @dynare "test/models/estimation/fs2000.mod"
-
-parameters = Parameters()
-parse_estimated_parameters!(parameters, context, fields)

@@ -1,3 +1,5 @@
+#using AxisArrays
+using KernelDensity
 using Plots
 
 function graph_display(g)
@@ -119,54 +121,108 @@ function plot_irfs(irfs, model, symboltable, filepath)
     exogenous_names = get_exogenous_longname(symboltable)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
-        (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
-        firstvar = 1
-        for p = 1:nbplt-1
-            filename = "$(filepath)_$(exogenous_name)_$(p).png"
-            plot_irf_panel(
-                x,
-                irfs[Symbol(exogenous_name)],
-                endogenous_names,
-                exogenous_name,
-                firstvar,
-                nr,
-                nc,
-                nr * nc,
-                filename,
-            )
-            firstvar += nr * nc
+        (nbplt, nr, nc, lr, lc, nstar) = pltorg(length(endogenous_names))
+        sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
+        p = 1
+        j = 1
+        nbp = 1
+        while p < length(endogenous_names)
+            if j > nr*nc
+                title = "Orthogonal shock to $(exogenous_name)" 
+                filename = "$(filepath)_$(exogenous_name)_$(nbp).png"
+                pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = title)
+                graph_display(pl)
+                savefig(filename)
+                nbp += 1
+                j = 1                                
+            end
+            irf = Matrix(irfs[Symbol(exogenous_name)][:, p])
+            if maximum(irf) - minimum(irf) > 1e-10
+                if all(irf .> 0)
+                    lims = (0, Inf)
+                elseif all(irf .< 0)
+                    lims = (-Inf, 0)
+                else
+                    lims = (-Inf, Inf)
+                end
+                sp[j] = Plots.plot(x, irf, title = endogenous_names[p],
+                                   labels=false, ylims = lims)
+                j += 1
+            end
+            p += 1
         end
-        filename = "$(filepath)_$(exogenous_name)_$(nbplt).png"
-        plot_irf_panel(
-            x,
-            irfs[Symbol(exogenous_name)],
-            endogenous_names,
-            exogenous_name,
-            firstvar,
-            lr,
-            lc,
-            nstar,
-            filename,
-        )
+        title = "Orthogonal shock to $(exogenous_name)" 
+        filename = "$(filepath)_$(exogenous_name)_$(nbp).png"
+        pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = title)
+        graph_display(pl)
+        savefig(filename)
     end
 end
 
-function plot_irf_panel(
+function plot_priors(;context::Context=context)
+    ep = context.work.estimated_parameters
+    @assert length(ep.prior) > 0 "There is no defined priors"
+    path = "$(context.modfileinfo.modfilepath)/graphs/"
+    mkpath(path)
+    filepath = "$(path)/Priors"
+    nprior = length(ep.prior)
+    X = zeros(100, nprior)
+    Y = zeros(100, nprior)
+    for (i, p) in enumerate(ep.prior)
+        X[:, i] = range(StatsPlots.yz_args(p)..., 100)
+        for j in axes(X, 1)
+            Y[j, i] = pdf(p, X[j, i])
+        end 
+    end     
+    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
+    ivars = collect(1:nr*nc)
+    for p = 1:nbplt-1
+        filename = "$(filepath)_$(p).png"
+        plot_panel(
+            X[:, ivars],
+            Y[:, ivars],
+            "Priors ($p)",
+            ep.name[ivars],
+            nr,
+            nc,
+            nr * nc,
+            filename,
+        )
+        ivars .+= nr * nc
+    end
+    ivars = ivars[1:nstar]
+    filename = "$(filepath)_$(nbplt).png"
+    plot_panel(
+        X[:, ivars],
+        Y[:, ivars],
+        "Priors ($nbplt)",
+        ep.name[ivars],
+        lr,
+        lc,
+        nstar,
+        filename,
+    )
+end
+
+function plot_panel(
     x,
-    tdf,
-    endogenous_names,
-    exogenous_name,
-    firstvar,
+    y,
+    title,
+    vnames,
     nr,
     nc,
     nstar,
     filename,
+    kwargs...
 )
     sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
     for i = 1:nstar
-        ivar = firstvar + i - 1
-        title = (i == 1) ? "Orthogonal shock to $(exogenous_name)" : ""
-        yy = Matrix(tdf[:, Symbol(endogenous_names[i])])
+        if ndims(x) == 1
+            xx = x
+        else
+            xx = x[:, i]
+        end 
+        yy = y[:, i]
         if all(yy .> 0)
             lims = (0, Inf)
         elseif all(yy .< 0)
@@ -175,10 +231,10 @@ function plot_irf_panel(
             lims = (-Inf, Inf)
         end
         sp[i] =
-            Plots.plot(x, yy, title = title, ylims = lims, label = endogenous_names[ivar])
+            Plots.plot(xx, yy, title = vnames[i], ylims = lims, labels = false, kwargs...)
     end
 
-    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900))
+    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title= title)
     graph_display(pl)
     savefig(filename)
 end
@@ -226,8 +282,91 @@ function pltorg_0(number)
     return (lr, lc)
 end
 
-function plot(aat::AxisArrayTable; label = (), title = "", filename = "")
-    pl = Plots.plot(aat, label = label, title = title)
+function plot_priorprediction_irfs(irfs, model, symboltable, filepath)
+    x = axes(first(first(irfs))[2])[1]
+    endogenous_names = get_endogenous_longname(symboltable)
+    exogenous_names = get_exogenous_longname(symboltable)
+    endogenous_nbr = model.original_endogenous_nbr
+    for i = 1:model.exogenous_nbr
+        exogenous_name = exogenous_names[i]
+        (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
+        k = 1
+        p = 1
+        filename = "$(filepath)_$(exogenous_name)_$(p).png"
+        sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nstar]
+        while p <= endogenous_nbr
+            pl = plot_panel_priorprediction_irfs(
+                x,
+                irfs,
+                exogenous_name,
+                "Orthogonal shock to $(exogenous_name)",
+                endogenous_names[p]
+            )
+            if pl.n > 0 
+                sp[k] = pl
+            else
+                k -= 1
+            end 
+            if k == nr*nc || p == endogenous_nbr
+                pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Priorprediction: Orthogonal shock to $(exogenous_name)")
+                graph_display(pl)
+                savefig(filename)
+                sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nstar]
+                k = 1
+            end
+            k += 1
+            p += 1
+        end
+    end
+end
+
+function plot_panel_priorprediction_irfs(
+    x,
+    irfs,
+    exogenous_name,
+    title,
+    endogenous_name,
+)
+    M = zeros(40, length(irfs))
+    for (k, ir) in enumerate(irfs)
+        m = Matrix(ir[Symbol(exogenous_name)][:, Symbol(endogenous_name)])
+        @views M[:, k] .= m
+    end
+    Q = zeros(40, 5)
+    for k in 1:40
+        @views Q[k, :] .= quantile(M[k,:], [0.1, 0.3, 0.5, 0.7, 0.9])
+    end
+    colors = palette(:Blues_3)
+    Q1 = view(Q,:, 1)
+    Q2 = view(Q,:, 2)
+    Q3 = view(Q,:, 3)
+    Q4 = view(Q,:, 4)
+    Q5 = view(Q,:, 5)
+    ex = extrema(Q5)
+    if abs(ex[1]-ex[2]) < 1e-8
+        return Plots.plot()
+    end
+    p = Plots.plot(x, Q3, color = :Blue, labels="Median")
+    plot!(p, x, Q1, fillrange=Q5, fillalpha = 0.3, color=:Blue,labels="80%", linealpha=0)
+    plot!(p, x, Q2, fillrange=Q3, fillalpha = 0.5, color=:Blue,labels="40%", linealpha=0)
+    plot!(p, title=endogenous_name)
+    return p
+end
+
+function plot(aat::AxisArrayTable; label = false, title = "", filename = "")
+    aa = getfield(aat, :data) 
+    vnames = AxisArrayTables.AxisArrays.axisvalues(aa)[2]
+    nv = size(vnames,1)
+    if nv == 1
+        title = vnames[1]
+        pl = Plots.plot(aa, label = false, title = title)
+    else
+        pl = Plots.plot(aa[:, 1], label = String(vnames[1]), title = title)
+        for i=2:nv
+            Plots.plot!(aa[:,i], label = String(vnames[i]))
+        end 
+    end 
+
     graph_display(pl)
     savefig(filename)
 end

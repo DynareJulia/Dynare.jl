@@ -16,19 +16,51 @@ irf(shock::String, variable::String; context = context, model = 1) =
 # all simulations for a model
 simulation(; context = context, model = 1) =
     context.results.model_results[model].simulations
+
 # all simulated variables for a given model and a given simulation
-simulation(simnbr::Int64; context = context, model = 1) =
-    context.results.model_results[model].simulations[simnbr].data
+function simulation(simnbr::Int64; 
+        context = context, 
+        model = 1, 
+        firstperiod=simulation(context=context, model=model)[simnbr].firstperiod, 
+        lastperiod=simulation(context=context, model=model)[simnbr].lastperiod)
+    return simulation(context=context, 
+        model=model)[simnbr].data[firstperiod..lastperiod]
+end
+
 # one simulated variable for a given model and a given simulation
-simulation(varname::Symbol; context = context, model = 1, simnbr = 1) =
-    getproperty(context.results.model_results[model].simulations[simnbr].data, varname)
-simulation(varname::String; context = context, model = 1, simnbr = 1) =
-    simulation(Symbol(varname); context = context, model = model, simnbr = simnbr)
+function simulation(varname::Symbol; 
+        context = context, 
+        model = 1, 
+        simnbr = 1, 
+        firstperiod = context.results.model_results[model].simulations[simnbr].firstperiod,
+        lastperiod = context.results.model_results[model].simulations[simnbr].lastperiod)
+    return context.results.model_results[model].simulations[simnbr].data[firstperiod..lastperiod, varname]
+end
+
+function simulation(varname::String; 
+        context = context, 
+        model = 1, 
+        simnbr = 1, 
+        firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
+        lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod)
+    return context.results.model_results[model].simulations[simnbr].data[firstperiod..lastperiod, Symbol(varname)]
+end
+
 # subset of simulated variables for a  given model and a given simulation
-function simulation(varnames::Vector{Symbol}; context = context, model = 1, simnbr = 1)
+function simulation(varnames::Vector{Symbol}; 
+                context = context, 
+                model = 1, 
+                simnbr = 1,
+                firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
+                lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod)
     context.results.model_results[model].simulations[simnbr].data[:, varnames]
 end
-simulation(varnames::Vector{String}; context = context, model = 1, simnbr = 1) =
-    simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr)
-simulation(varnames::Tuple; context = context, model = 1, simnbr = 1) =
-    simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr)
+
+simulation(varnames::Vector{String}; context = context, model = 1, simnbr = 1,
+firstperiod=simulation(context=context, model=model).firstperiod, lastperiod=simulation(context=context, model=model).lastperiod) = 
+simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr, firstperiod=firstperiod, lastperiod=lastperiod)
+
+simulation(varnames::Tuple; context = context, model = 1, simnbr = 1,
+firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
+lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod) =
+simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr, firstperiod=firstperiod, lastperiod=lastperiod)

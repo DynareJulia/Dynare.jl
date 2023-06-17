@@ -1,8 +1,7 @@
 using CSV
-//using Random
-using TimeDataFrames
+using Random
 
-//Random.seed!(11)
+Random.seed!(11)
 
 var y, c, lk, a, lh, b;
 varexo e, u;
@@ -44,7 +43,7 @@ var u; stderr 0.009;
 end;
 
 stoch_simul(order=1, periods=100, irf=0);
-CSV.write("fsdata_simul.csv", dataframe(simulation(1)))
+CSV.write("fsdata_simul.csv", simulation(1))
 
 //alpha.prior(shape=beta, mean=0.356, stdev=0.02);
 //beta.prior(shape=beta, mean=0.993, stdev=0.002);
@@ -65,7 +64,7 @@ std(e).prior(shape=inv_gamma, mean=0.009, stdev=1);
 std(u).prior(shape=inv_gamma, mean=0.009, stdev=1);
 
 varobs y, c;
-//estimation(order=1,datafile=fsdata_simul);
+estimation(order=1,datafile='fsdata_simul.csv', mh_replic=10000);
 //ml_estimation(context; datafile="fsdata_simul.csv");
 //datafile = "fsdata_simul.csv";
 //ml_estimation(context, datafile="fsdata_simul.csv");

@@ -149,12 +149,10 @@ function make_containers(
 )
     work = Work(model, varobs)
     modelresults = ModelResults(
-        Vector{Float64}(undef, endo_nbr),
         Dict{Symbol, AxisArrayTable}(),
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
-        Vector{Float64}(undef, exo_nbr),
-        Vector{Float64}(undef, exo_det_nbr),
+        EstimationResults(),
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         Dict{String,Matrix{Float64}}(),
@@ -244,6 +242,8 @@ function parse_statements!(context::Context, statements::Vector{Any})
             @debug "$(now()): end endval"
         elseif statementname == "estimated_params"
             parse_estimated_parameters!(context, field)
+        elseif statementname == "estimated_params_init"
+            parse_estimated_parameter_init!(context, field)
         elseif statementname == "estimation"
             estimation!(context, field)
         elseif statementname == "histval"

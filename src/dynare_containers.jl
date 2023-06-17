@@ -694,6 +694,8 @@ end
 Base.show(io::IO, m::Model) = show_field_value(m)
 
 struct Simulation
+    firstperiod::PeriodsSinceEpoch
+    lastperiod::PeriodsSinceEpoch
     name::String
     statement::String
     data::AxisArrayTable
@@ -717,7 +719,7 @@ mutable struct Trends
     function Trends(ny::Int64, nx::Int64, nxd::Int64)
         endogenous_steady_state = Vector{Float64}(undef, ny)
         endogenous_terminal_steady_state = Vector{Float64}(undef, 0)
-        endogenous_linear_trend = Vector{Float64}(undef, ny)
+        endogenous_linear_trend = zeros(ny)
         endogenous_quadratic_trend = Vector{Float64}(undef, ny)
         exogenous_steady_state = Vector{Float64}(undef, nx)
         exogenous_terminal_steady_state = Vector{Float64}(undef, 0)
@@ -746,13 +748,23 @@ end
 
 Base.show(io::IO, t::Trends) = show_field_value(t)
 
+mutable struct EstimationResults
+    posterior_mode
+    posterior_mode_covariance
+    posterior_mcmc_chains_nbr
+    function EstimationResults()
+        posterior_mode = []
+        posterior_mode_covariance = [;;]
+        posterior_mcmc_chains_nbr = 0
+        new(posterior_mode, posterior_mode_covariance, posterior_mcmc_chains_nbr)
+    end 
+end 
+
 mutable struct ModelResults
-    endogenous_steady_state::Vector{Float64}
     irfs::Dict{Symbol, AxisArrayTable}
     trends::Trends
     stationary_variables::Vector{Bool}
-    exogenous_steady_state::Vector{Float64}
-    exogenous_deterministic_steady_state::Vector{Float64}
+    estimation::EstimationResults
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
     smoother
@@ -817,6 +829,7 @@ mutable struct Work
     dynamic_variables::Vector{Float64}
     exogenous_variables::Vector{Float64}
     observed_variables::Vector{String}
+    Sigma_m::Matrix{Float64}
     jacobian::Matrix{Float64}
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
@@ -843,12 +856,13 @@ mutable struct Work
         # reserve enough space for a single period computation
         exogenous_variables = Vector{Float64}(undef, 3 * model.exogenous_nbr)
         observed_variables = varobs
+        Sigma_m = zeros(length(varobs), length(varobs))
         #        jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
         #        qr_jacobian = Matrix{Float64}(undef, model.endogenous_nbr, ncol1)
         jacobian = Matrix{Float64}(undef, 0, 0)
         qr_jacobian = Matrix{Float64}(undef, 0, 0)
         model_has_trend = [false]
-        histval = Matrix{Union{Float64,Missing}}(missing, model.orig_maximum_lag, endo_nbr)
+        histval = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
@@ -866,6 +880,7 @@ mutable struct Work
             dynamic_variables,
             exogenous_variables,
             observed_variables,
+            Sigma_m,
             jacobian,
             qr_jacobian,
             model_has_trend,

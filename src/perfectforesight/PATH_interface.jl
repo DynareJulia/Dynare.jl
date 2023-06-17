@@ -103,19 +103,7 @@ function mcp_perfectforesight_core!(
     @debug "$(now()): start nlsolve"
     (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
-    endogenous_names = get_endogenous_longname(context.symboltable)
-    push!(
-        context.results.model_results[1].simulations,
-        Simulation(
-            "Sim1",
-            "",
-            AxisArrayTable(
-                    transpose(reshape(results, m.endogenous_nbr, periods)),
-                    Undated(1):Undated(periods),
-                    [Symbol(s) for s in endogenous_names],
-            ),
-        ),
-    )
+    make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
 
 # Using PATHSolver

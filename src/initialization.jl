@@ -1,7 +1,7 @@
 function histval!(context::Context, field::Dict{String,Any})
     symboltable = context.symboltable
     m = context.models[1]
-    histval = zeros(m.orig_maximum_lag, m.endogenous_nbr + m.exogenous_nbr)
+    histval = Matrix{Union{Float64, Missing}}(missing, m.orig_maximum_lag, m.endogenous_nbr + m.exogenous_nbr)
     for v in field["vals"]
         k = symboltable[v["name"]::String].orderintype::Int64
         l = m.orig_maximum_lag + v["lag"]::Int64
@@ -377,78 +377,126 @@ function endval!(context::Context, field::Dict{String,Any})
 end
 
 function shocks!(context::Context, field::Dict{String,Any})
+    observed_variables = context.work.observed_variables
     Sigma = context.models[1].Sigma_e
+    Sigma_m = context.work.Sigma_m
     shocks = context.work.shocks
     symboltable = context.symboltable
-    set_variance!(Sigma, field["variance"], symboltable)
-    set_stderr!(Sigma, field["stderr"], symboltable)
-    set_covariance!(Sigma, field["covariance"], symboltable)
-    set_correlation!(Sigma, field["correlation"], symboltable)
+    set_variance!(Sigma, Sigma_m, field["variance"], symboltable, observed_variables)
+    set_stderr!(Sigma, Sigma_m, field["stderr"], symboltable, observed_variables)
+    set_covariance!(Sigma, Sigma_m, field["covariance"], symboltable, observed_variables)
+    set_correlation!(Sigma, Sigma_m, field["correlation"], symboltable, observed_variables)
     if haskey(field, "deterministic_shocks")
-        set_deterministic_shocks!(
-            shocks,
-            field["deterministic_shocks"],
-            symboltable,
-            context.models[1].exogenous_nbr,
-            context.results.model_results[1].trends.exogenous_steady_state,
-        )
+        context.work.shocks = 
+            set_deterministic_shocks!(
+                    field["deterministic_shocks"],
+                    symboltable,
+                    context.models[1].exogenous_nbr,
+                    context.results.model_results[1].trends.exogenous_steady_state,
+            )
     end
 end
 
 function set_variance!(
     Sigma::Matrix{Float64},
+    Sigma_m::Matrix{Float64},
     variance::Vector{Any},
     symboltable::SymbolTable,
+    observed_variables
 )
     for v in variance
-        k = symboltable[v["name"]::String].orderintype::Int64
-        Sigma[k, k] = dynare_parse_eval(v["variance"]::String, context)::Float64
+        value = dynare_parse_eval(v["variance"]::String, context)
+        sv = symboltable[v["name"]]
+        if sv.symboltype == Exogenous
+            k = sv.orderintype
+            Sigma[k, k] = value
+        elseif sv.symboltype === Endogenous
+            k = findfirst(ov -> ov == v["name"], observed_variables)
+            Sigma_m[k, k] = value
+        end 
     end
 end
 
-function set_stderr!(Sigma::Matrix{Float64}, stderr::Vector{Any}, symboltable::SymbolTable)
+function set_stderr!(
+    Sigma::Matrix{Float64}, 
+    Sigma_m::Matrix{Float64},
+    stderr::Vector{Any}, 
+    symboltable::SymbolTable,
+    observed_variables
+)
     for s in stderr
-        k = symboltable[s["name"]::String].orderintype::Int64
-        x = dynare_parse_eval(s["stderr"]::String, context)::Real
-        Sigma[k, k] = x * x
+        value = dynare_parse_eval(s["stderr"]::String, context)
+        sv = symboltable[s["name"]]
+        if sv.symboltype == Exogenous
+            k = sv.orderintype
+            Sigma[k, k] = value * value
+        elseif sv.symboltype === Endogenous
+            k = findfirst(ov -> ov == s["name"], observed_variables)
+            Sigma_m[k, k] = value * value
+        end 
     end
 end
 
 function set_covariance!(
     Sigma::Matrix{Float64},
+    Sigma_m::Matrix{Float64},
     covariance::Vector{Any},
     symboltable::SymbolTable,
+    observed_variables
 )
     for c in covariance
-        k1 = symboltable[c["name"]::String].orderintype::Int64
-        k2 = symboltable[c["name2"]::String].orderintype::Int64
-        Sigma[k1, k2] = dynare_parse_eval(c["covariance"]::String, context)::Float64
-        Sigma[k2, k1] = Sigma[k1, k2]
+        sv1 = symboltable[c["name"]]
+        sv2 = symboltable[c["name2"]]
+        value = dynare_parse_eval(c["covariance"]::String, context)
+        if sv1.symboltype == Exogenous
+            k1 = sv1.orderintype
+            k2 = sv2.orderintype
+            Sigma[k1, k2] = value
+            Sigma[k2, k1] = value
+        elseif sv1.symboltype === Endogenous
+            k1 = findfirst(c["name", observed_variables])
+            k2 = findfirst(c["name", observed_variables])
+            Sigma_m[k1, k2] = value
+            Sigma_m[k2, k1] = value
+        end 
     end
 end
 
 function set_correlation!(
     Sigma::Matrix{Float64},
+    Sigma_m::Matrix{Float64},
     correlation::Vector{Any},
     symboltable::SymbolTable,
+    observed_variables
 )
     for c in correlation
-        k1 = symboltable[c["name"]::String].orderintype::Int64
-        k2 = symboltable[c["name2"]::String].orderintype::Int64
-        corr = dynare_parse_eval(c["correlation"]::String, context)::Float64
-        Sigma[k2, k1] = sqrt(Sigma[k1, k1] * Sigma[k2, k2]) * corr
+        value = dynare_parse_eval(c["correlation"]::String, context)
+        sv1 = symboltable[s["name"]]
+        sv2 = symboltable[s["name2"]]
+        if sv.symboltype == Exogenous
+            k1 = sv1.orderintype
+            k2 = sv2.orderintype
+            x = sqrt(Sigma[k1, k1] * Sigma[k2, k2]) * value
+            Sigma[k1, k2] = x
+            Sigma[k2, k1] = x
+        elseif sv.symboltype === Endogenous
+            k1 = findfirst(c["name", observed_variables])
+            k2 = findfirst(c["name2", observed_variables])
+            x = sqrt(Sigma_m[k1, k1] * Sigma_m[k2, k2]) * value
+            Sigma_m[k1, k2] = x
+            Sigma_m[k2, k1] = x
+        end 
     end
 end
 
 function set_deterministic_shocks!(
-    x::Vector{Float64},
     shocks::Vector{Any},
     symboltable::SymbolTable,
     exogenous_nbr::Int64,
     exogenous_steady_state::Vector{Float64},
 )
     pmax = maximum((s) -> maximum(p -> p["period2"], s["values"]), shocks)::Int64
-    resize!(x, pmax * exogenous_nbr)
+    x= Vector{Float64}(undef, pmax * exogenous_nbr)
     x .= repeat(exogenous_steady_state, pmax)
     for s in shocks
         for v in s["values"]
@@ -459,6 +507,7 @@ function set_deterministic_shocks!(
             set_exogenous(x, i, d1, d2, val, pmax)
         end
     end
+    return x
 end
 
 function set_exogenous(
