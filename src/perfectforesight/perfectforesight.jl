@@ -56,7 +56,7 @@ function PerfectForesightOptions(context, field)
         end
     end 
     return PerfectForesightOptions(algo, datafile, display,
-            homotopy, initialization_algo, linear_solve_algo, maxit, mcp, tolf, tolx)
+            homotopy, initialization_algo, linear_solve_algo, maxit, mcp, periods, tolf, tolx)
 end
 
 struct PerfectForesightWs
