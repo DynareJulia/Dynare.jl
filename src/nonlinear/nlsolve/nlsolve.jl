@@ -61,7 +61,8 @@ function nlsolve(
             show_trace,
             extended_trace,
             factor,
-            autoscale,
+            autoscale;
+            linsolve = linsolve
         )
     elseif method == :anderson
         anderson(

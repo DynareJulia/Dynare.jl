@@ -263,6 +263,7 @@ function perfect_foresight_initialization!(
     algo::InitializationAlgo,
     dynamic_ws::DynamicWs,
 )
+    @show algo
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
     if algo == initvalfile
@@ -280,6 +281,9 @@ function perfect_foresight_initialization!(
         end
         guess_values = repeat(x, periods)
     elseif algo == firstorder
+        if isempty(trends.endogenous_steady_state)
+            compute_steady_state!(context, Dict{String,Any}())
+        end
         y = simul_first_order!(context, periods, perfect_foresight_ws.x, dynamic_ws)
         guess_values = vec(y[1])
         terminal_values .= y[2]
@@ -298,7 +302,20 @@ function simul_first_order!(
     m = context.models[1]
     results = context.results.model_results[1]
     params = context.work.params
-    compute_stoch_simul!(context, dynamic_ws, params, options)
+    endogenous = results.trends.endogenous_steady_state
+    endogenous3 = repeat(endogenous, 3)
+    exogenous = results.trends.exogenous_steady_state
+    model = context.models[1]
+    compute_first_order_solution!(
+        context,
+        endogenous3,
+        exogenous,
+        endogenous,
+        params,
+        model,
+        dynamic_ws,
+        options
+    )   
     steadystate = results.trends.endogenous_steady_state
     linear_trend = results.trends.endogenous_linear_trend
     y0 = zeros(m.endogenous_nbr)
@@ -395,7 +412,13 @@ function perfectforesight_core!(
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
 
-    res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
+    if length(y0) > 1e5
+        @show "Pardiso"
+        ps = MKLPardisoSolver()
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()), linsolve = (x, A, b) -> Pardiso.solve!(ps, x, A, b))    
+    else
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
+    end
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
     make_simulation_results!(context::Context, res.zero, exogenous, terminalvalues, periods)
