@@ -201,7 +201,7 @@ function make_context(modeljson, modfilename, commandlineoptions)
         varobs,
         commandlineoptions,
     )
-    get_mcps!(context.models[1].mcps, modeljson["model"])
+#    get_mcps!(context.models[1].mcps, modeljson["model"])
     return context
 end
 

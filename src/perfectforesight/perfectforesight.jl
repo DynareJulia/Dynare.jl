@@ -4,6 +4,14 @@ include("makeA.jl")
 @enum LinearSolveAlgo ilu pardiso
 @enum InitializationAlgo initvalfile steadystate firstorder linearinterpolation
 
+abstract type LinearSolver end
+struct IluLS <: LinearSolver end
+struct PardisoLS <: LinearSolver end
+    
+function linear_solver!(::IluLS, x, A, b)
+    x = A\b
+end
+
 struct PerfectForesightOptions
     algo::PerfectForesightAlgo
     datafile::String
@@ -185,6 +193,7 @@ function _perfect_foresight!(context, options)
         dynamic_ws,
     )
     if options.mcp
+        #=
         mcp_perfectforesight_core!(
             perfect_foresight_ws,
             context,
@@ -194,6 +203,7 @@ function _perfect_foresight!(context, options)
             terminal_values,
             dynamic_ws,
         )
+        =#
     else
         perfectforesight_core!(
             perfect_foresight_ws,
@@ -202,6 +212,7 @@ function _perfect_foresight!(context, options)
             guess_values,
             initial_values,
             terminal_values,
+            options.linear_solve_algo,
             dynamic_ws,
         )
     end
@@ -353,6 +364,7 @@ function perfectforesight_core!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
+    linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs,
 )
     m = context.models[1]
@@ -412,12 +424,13 @@ function perfectforesight_core!(
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
 
-    if length(y0) > 1e5
+    if linear_solve_algo == pardiso
         @show "Pardiso"
-        ps = MKLPardisoSolver()
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()), linsolve = (x, A, b) -> Pardiso.solve!(ps, x, A, b))    
+        ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()), linsolve = ls1!)    
     else
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()))
+        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()), linsolve = ls2!)
     end
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
@@ -737,4 +750,4 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
     )
 end
 
-include("PATH_interface.jl")
+#include("PATH_interface.jl")
