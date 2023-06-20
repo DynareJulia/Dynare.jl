@@ -8,39 +8,40 @@ struct StochSimulOptions
     nonstationary::Bool
     order::Int64
     periods::Int64
-    function StochSimulOptions(options::Dict{String,Any})
-        display = true
-        dr_algo = "GS"
-        first_period = 1
-        irf = 40
-        LRE_options = LinearRationalExpectationsOptions()
-        nar = 5
-        nonstationary = false
-        order = 1
-        periods = 0
-        print_results = true
-        for (k, v) in pairs(options)
-            if k == "noprint"
-                display = false
-            elseif k == "dr_cycle_reduction" && v::Bool
-                dr_algo = "CR"
-            elseif k == "first_period"
-                first_period = v::Int64
-            elseif k == "irf"
-                irf = v::Int64
-            elseif k == "nar"
-                nar = v::Int64
-            elseif k == "nonstationary"
-                nonstationary = v::Bool
-            elseif k == "order"
-                order = v::Int64
-            elseif k == "periods"
-                periods = v::Int64
-            end
+end
+
+function StochSimulOptions(options::Dict{String,Any})
+    display = true
+    dr_algo = "GS"
+    first_period = 1
+    irf = 40
+    LRE_options = LinearRationalExpectationsOptions()
+    nar = 5
+    nonstationary = false
+    order = 1
+    periods = 0
+    print_results = true
+    for (k, v) in pairs(options)
+        if k == "noprint"
+            display = false
+        elseif k == "dr_cycle_reduction" && v::Bool
+            dr_algo = "CR"
+        elseif k == "first_period"
+            first_period = v::Int64
+        elseif k == "irf"
+            irf = v::Int64
+        elseif k == "nar"
+            nar = v::Int64
+        elseif k == "nonstationary"
+            nonstationary = v::Bool
+        elseif k == "order"
+            order = v::Int64
+        elseif k == "periods"
+            periods = v::Int64
         end
-        new(display, dr_algo, first_period, irf, LRE_options, nar, 
-        nonstationary, order, periods)
     end
+    new(display, dr_algo, first_period, irf, LRE_options, nar, 
+    nonstationary, order, periods)
 end
 
 function display_stoch_simul(context::Context, options::StochSimulOptions)
@@ -301,6 +302,28 @@ function stoch_simul!(context::Context, field::Dict{String,Any})
     ws = DynamicWs(context)
     stoch_simul_core!(context, ws, options)
 end
+
+function first_order!(;context::Context=context,
+                      display::Bool = false,
+                      dr_algo = "CR",
+                      first_period::Int = 1,
+                      irf::Int = 40,
+                      LRE_options = LinearRationalExpectationsOptions(),
+                      nar::Int = 5,
+                      nonstationary::Bool = false,
+                      periods::Int = 0
+                      )
+    order = 1
+    options = StochSimulOptions(display, dr_algo, first_period, irf,
+                                LRE_options, nar, nonstationary,
+                                order, periods)
+    m = context.models[1]
+    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
+    tmp_nbr = m.dynamic_tmp_nbr
+    ws = DynamicWs(context)
+    stoch_simul_core!(context, ws, options)
+end
+
 
 function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulOptions)
     model = context.models[1]
