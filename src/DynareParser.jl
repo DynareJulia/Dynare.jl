@@ -201,7 +201,7 @@ function make_context(modeljson, modfilename, commandlineoptions)
         varobs,
         commandlineoptions,
     )
-#    get_mcps!(context.models[1].mcps, modeljson["model"])
+    get_mcps!(context.models[1].mcps, modeljson["model"])
     return context
 end
 
@@ -470,8 +470,6 @@ function display_graphs(filepath::String)
     end
 end
 
-
-
 struct SavedContext
     symboltable::SymbolTable
     models::Vector{Model}
@@ -500,3 +498,18 @@ function last_steps(context::Context)
     save_context(context, filepath)
     return context
 end
+
+function get_mcps!(mcps, model)
+    for (i, eq) in enumerate(model)
+        tags = get(eq, "tags", "")
+        if !isempty(tags)
+            tag = get(eq["tags"], "mcp", "")
+            if !isempty(tag)
+                p1, p2, p3 = split(tag, limit = 3)
+                iv = context.symboltable[p1].orderintype
+                push!(mcps, (i, iv, p2, p3))
+            end
+        end
+    end
+end
+

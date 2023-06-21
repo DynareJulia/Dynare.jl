@@ -12,6 +12,10 @@ function linear_solver!(::IluLS, x, A, b)
     x = A\b
 end
 
+abstract type NonLinearSolver end
+struct PathNLS <: NonLinearSolver end
+struct DefaultNLS <: NonLinearSolver end
+
 struct PerfectForesightOptions
     algo::PerfectForesightAlgo
     datafile::String
@@ -113,6 +117,18 @@ struct PerfectForesightWs
     end
 end
 
+# Dummy definition for PathSolver extension
+function mcp_perfectforesight_core!(::DefaultNLS,
+                                    perfect_foresight_ws::PerfectForesightWs,
+                                    context::Dynare.Context,
+                                    periods::Int64,
+                                    guess_values::Vector{Float64},
+                                    initialvalues::Vector{Float64},
+                                    terminalvalues::Vector{Float64},
+                                    dynamic_ws::Dynare.DynamicWs,
+                                    )
+end
+
 function perfect_foresight_setup!(context, field)
     periods = 0
     datafile = ""
@@ -193,8 +209,8 @@ function _perfect_foresight!(context, options)
         dynamic_ws,
     )
     if options.mcp
-        #=
         mcp_perfectforesight_core!(
+            PathNLS(),
             perfect_foresight_ws,
             context,
             periods,
@@ -203,7 +219,6 @@ function _perfect_foresight!(context, options)
             terminal_values,
             dynamic_ws,
         )
-        =#
     else
         perfectforesight_core!(
             perfect_foresight_ws,
