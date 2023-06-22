@@ -1,5 +1,8 @@
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 ExtendedDates = "78f5a1cc-aa73-4dda-b6b2-4d6b1976988f"
+MKL = "33e6dc65-8f57-5167-99aa-e5a354878fb2"
+PATHSolver = "f5f7c340-0bb3-5c69-969a-41884d311d1b"
+Pardiso = "46dd5b70-b6fb-5a00-ae2d-e8fea33afaf2"
 StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

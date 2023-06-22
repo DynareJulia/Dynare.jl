@@ -9,7 +9,7 @@ struct IluLS <: LinearSolver end
 struct PardisoLS <: LinearSolver end
     
 function linear_solver!(::IluLS, x, A, b)
-    x = A\b
+    x .= A\b
 end
 
 abstract type NonLinearSolver end
@@ -289,7 +289,6 @@ function perfect_foresight_initialization!(
     algo::InitializationAlgo,
     dynamic_ws::DynamicWs,
 )
-    @show algo
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
     if algo == initvalfile

@@ -90,6 +90,10 @@ function get_modname(modfilename::String)
     return modname
 end
 
+if !isdefined(Base, :get_extension)
+  include("../ext/PardisoSolver.jl")
+  include("../ext/PathSolver.jl")
+end
 
 #include("precompile_Dynare.jl")
 #_precompile_()
