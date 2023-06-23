@@ -70,6 +70,7 @@ struct SteadyOptions
             elseif k == "homotopy_steps"
                 homotopy_steps = v::Int64
             elseif k == "steadystate.nocheck" && v::Bool
+                @show k
                 nocheck = true
             end
         end
@@ -87,14 +88,30 @@ function set_or_zero!(x, a, n)
 end
         
 """
-    steady!(context::Context, field::Dict{String, Any})
-
+    steady!(; context::Context=context,
+            display = true,
+            homotopy_mode = None,
+            homotopy_steps = 10,
+            maxit = 50,
+            nocheck = fasle,
+            solve_algo = trustregion,
+            tolf = cbrt(eps()),
+            tolx = 0.0)
+                             
 Compute the steady state of the model and set the result in `context`
 """
-function steady!(context::Context, field::Dict{String,Any})
+function steady!(;context::Context=context,
+            display = true,
+            homotopy_mode = None,
+            homotopy_steps = 10,
+            maxit = 50,
+            nocheck = false,
+            solve_algo = trustregion,
+            tolf = cbrt(eps()),
+            tolx = 0.0
+    )
     model = context.models[1]
     modfileinfo = context.modfileinfo
-    options = SteadyOptions(get(field, "options", field))
     trends = context.results.model_results[1].trends
     work = context.work
     
@@ -112,8 +129,8 @@ function steady!(context::Context, field::Dict{String,Any})
                      work.endval_exogenous,
                      model.exogenous_nbr)
     end
-    compute_steady_state!(context, field)
-    if options.display
+    compute_steady_state!(context, maxit = maxit, nocheck = nocheck, tolf = tolf)
+    if display
         if isempty(trends.endogenous_terminal_steady_state)
             steadystate_display(trends.endogenous_steady_state, context)
         else
@@ -123,8 +140,22 @@ function steady!(context::Context, field::Dict{String,Any})
     end
 end
 
-function compute_steady_state!(context::Context, field::Dict{String,Any})
+function steady_!(context, field::Dict{String, Any})
     options = SteadyOptions(get(field, "options", field))
+    steady!(context = context,
+            display = options.display,
+            homotopy_mode = options.homotopy_mode,
+            homotopy_steps = options.homotopy_steps,
+            maxit = options.maxit,
+            nocheck = options.nocheck,
+            solve_algo = options.solve_algo,
+            tolf = options.tolf,
+            tolx = options.tolx
+    )
+    return nothing
+end
+
+function compute_steady_state!(context::Context; maxit = 50, nocheck = false, tolf = cbrt(eps()))
     model = context.models[1]
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
@@ -138,26 +169,24 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
         evaluate_steady_state!(trends.endogenous_steady_state,
                                trends.exogenous_steady_state,
                                work.params)
-        !options.nocheck && check_steady_state(StaticWs(context),
-                                               trends.endogenous_steady_state,
-                                               trends.exogenous_steady_state,
-                                               work.params,
-                                               options.tolf)
+        !nocheck && check_steady_state(StaticWs(context),
+                                       trends.endogenous_steady_state,
+                                       trends.exogenous_steady_state,
+                                       work.params, tolf)
         if !isempty(trends.exogenous_terminal_steady_state)
             evaluate_steady_state!(trends.endogenous_terminal_steady_state,
                                    trends.exogenous_terminal_steady_state,
                                    work.params)
-            check_steady_state(StaticWs(context),
-                               trends.endogenous_terminal_steady_state,
-                               trends.exogenous_terminal_steady_state,
-                               work.params,
-                               options.tolf)
+            !nocheck && check_steady_state(StaticWs(context),
+                                           trends.endogenous_terminal_steady_state,
+                                           trends.exogenous_terminal_steady_state,
+                                           work.params, tolf)
         end
     elseif context.modfileinfo.has_ramsey_model
         x0 = zeros(model.endogenous_nbr)
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))
-        solve_ramsey_steady_state!(context, x0, options)
+        solve_ramsey_steady_state!(context, x0, tolf = tolf)
     else
         # initial steady state
         exogenous = zeros(model.exogenous_nbr)
@@ -167,7 +196,7 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))
         trends.endogenous_steady_state .=
-            solve_steady_state!(context, x0, exogenous, options)
+            solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
         # terminal steady state
         if modfileinfo.has_endval
             !isempty(trends.exogenous_terminal_steady_state) &&
@@ -176,7 +205,7 @@ function compute_steady_state!(context::Context, field::Dict{String,Any})
             !isempty(trends.endogenous_terminal_steady_state) &&
                 (x0 .= Float64.(trends.endogenous_terminal_steady_state))
             trends.endogenous_terminal_steady_state .=
-                solve_steady_state!(context, x0, exogenous, options)
+                !options.nocheck && solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
         end
     end
 end
@@ -230,29 +259,31 @@ end
 """
     solve_steady_state!(context::Context,
                         x0::Vector{<:Real},
-                        exogenous::Vector{<:Real},
-                        options::SteadyOptions)
+                        exogenous::Vector{<:Real};
+                        maxit = 50,
+                        tolf = cbrt(eps()))
 
 Solve the steady state numerically
 """
 function solve_steady_state!(context::Context,
                              x0::AbstractVector{<:Real},
-                             exogenous::AbstractVector{<:Real},
-                             options::SteadyOptions)
+                             exogenous::AbstractVector{<:Real};
+                             maxit = 50,
+                             tolf = cbrt(eps()))
         try
-            return solve_steady_state_!(context, x0, exogenous, options)
+            return solve_steady_state_!(context, x0, exogenous; tolf = tolf)
         catch e
             if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
                 i = 1
                 while i <= 5
                     x00 = rand(0.95:0.01:1.05, length(x0)).*x0
                     try
-                        return solve_steady_state_!(context, x00, exogenous, options)
+                        return solve_steady_state_!(context, x00, exogenous, tolf = tolf)
                     catch
                     end
                     i += 1
                 end
-                if i > options.maxit
+                if i > maxit
                     rethrow(e)
                 end
             else
@@ -270,8 +301,8 @@ Solve the static model to obtain the steady state
 """
 function solve_steady_state_!(context::Context,
                               x0::AbstractVector{<:Real},
-                              exogenous::AbstractVector{<:Real},
-                              options)
+                              exogenous::AbstractVector{<:Real};
+                              tolf = cbrt(eps()))
     ws = StaticWs(context)
     model = context.models[1]
     work = context.work
@@ -291,7 +322,7 @@ function solve_steady_state_!(context::Context,
     results = context.results.model_results[1]
 
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
-    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = options.tolf)
+    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = tolf)
     @debug result
     if converged(result)
         return result.zero
@@ -302,11 +333,11 @@ function solve_steady_state_!(context::Context,
 end
 
 """
-    solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
+    solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}; tolf = cbrt(eps()) )
 
 Solve numerically for the steady state of a Ramsey problem
 """
-function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}, options)
+function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64}; tolf = cbrt(eps()))
     ws = StaticWs(context)
     model = context.models[1]
     work = context.work
@@ -341,7 +372,7 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
                                       orig_endo_nbr,
                                       ws)
     
-    if f!(x00) <  options.tolf
+    if f!(x00) <  tolf
         copy!(results.trends.endogenous_steady_state, endogenous)
         return
     end 
@@ -350,13 +381,13 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         throw(DynareSteadyStateComputationFailed())
     else
         result = optimize(f!, x00, LBFGS(), Optim.Options(f_tol=1e-6))
-        if Optim.converged(result) && abs(Optim.minimum(result)) < options.tolf
+        if Optim.converged(result) && abs(Optim.minimum(result)) < tolf
             view(endogenous, unknown_variable_indices) .= Optim.minimizer(result)
             context.modfileinfo.has_auxiliary_variables &&
                 DFunctions.static_auxiliary_variables!(endogenous, exogenous, params)
             context.modfileinfo.has_steadystate_file &&
                 DFunctions.steady_state!(endogenous, exogenous, params)
-            # get Lagrance multipliers
+            # get Lagrange multipliers
             f!(Optim.minimizer(result))
             results.trends.endogenous_steady_state .= endogenous
         else

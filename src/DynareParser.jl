@@ -295,7 +295,7 @@ function parse_statements!(context::Context, statements::Vector{Any})
             parse_prior!(context, field)
         elseif statementname == "steady"
             @debug "$(now()): start steady"
-            steady!(context, field)
+            steady_!(context, field)
             @debug "$(now()): end steady"
         elseif statementname == "stoch_simul"
             @debug "$(now()): start stoch_simul"

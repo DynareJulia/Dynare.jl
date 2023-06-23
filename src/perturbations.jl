@@ -379,7 +379,7 @@ function compute_stoch_simul!(
     results = context.results.model_results[1]
     # don't check the steady state if the model is nonstationary
     fill!(results.trends.exogenous_steady_state, 0.0)
-    compute_steady_state!(context, Dict{String, Any}("steadystate.nocheck" => options.nonstationary))
+    compute_steady_state!(context, nocheck = options.nonstationary)
     endogenous = results.trends.endogenous_steady_state
     endogenous3 = repeat(endogenous, 3)
     exogenous = results.trends.exogenous_steady_state

@@ -69,7 +69,6 @@ function dogleg!(p, p_c, p_i, r, d, J, linsolve, delta::Real)
         linsolve(p_i, J, vec(r))
         @debug "$(now()): end J\vec(r)"
     catch e
-        @show "singular $e"
         if isa(e, LAPACKException) || isa(e, SingularException)
             # If Jacobian is singular, compute a least-squares solution to J*x+r=0
             Jfull = convert(Matrix{T}, Jbal)
