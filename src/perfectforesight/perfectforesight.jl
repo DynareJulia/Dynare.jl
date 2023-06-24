@@ -209,6 +209,9 @@ function _perfect_foresight!(context, options)
         dynamic_ws,
     )
     if options.mcp
+        if isnothing(Base.get_extension(Dynare, :PathSolver))
+            error("You must load PATH with 'using PATHSolver'")
+        end
         mcp_perfectforesight_core!(
             PathNLS(),
             perfect_foresight_ws,
@@ -440,6 +443,9 @@ function perfectforesight_core!(
 
     if linear_solve_algo == pardiso
         @show "Pardiso"
+        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
+            error("You must load Pardiso with 'using MKL, Pardiso'")
+        end
         ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
         res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()), linsolve = ls1!)    
     else

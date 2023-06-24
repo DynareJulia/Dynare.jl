@@ -93,7 +93,7 @@ end
             homotopy_mode = None,
             homotopy_steps = 10,
             maxit = 50,
-            nocheck = fasle,
+            nocheck = false,
             solve_algo = trustregion,
             tolf = cbrt(eps()),
             tolx = 0.0)
@@ -204,8 +204,8 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
             x0 = zeros(model.endogenous_nbr)
             !isempty(trends.endogenous_terminal_steady_state) &&
                 (x0 .= Float64.(trends.endogenous_terminal_steady_state))
-            trends.endogenous_terminal_steady_state .=
-                !options.nocheck && solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
+            !nocheck && (trends.endogenous_terminal_steady_state .=
+                solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf))
         end
     end
 end
