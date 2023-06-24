@@ -12,6 +12,7 @@
 *.mat
 *.png
 checksum
+LocalPreferences.toml
 Manifest.toml
 test/models/*.jl
 
