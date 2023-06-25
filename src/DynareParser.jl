@@ -499,7 +499,8 @@ function last_steps(context::Context)
     return context
 end
 
-function get_mcps!(mcps, model)
+function get_mcps!(mcps::Vector{Tuple{Int64,Int64,String,String}},
+                   model::Vector{Any})
     for (i, eq) in enumerate(model)
         tags = get(eq, "tags", "")
         if !isempty(tags)

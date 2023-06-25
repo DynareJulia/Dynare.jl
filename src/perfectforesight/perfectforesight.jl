@@ -8,7 +8,10 @@ abstract type LinearSolver end
 struct IluLS <: LinearSolver end
 struct PardisoLS <: LinearSolver end
     
-function linear_solver!(::IluLS, x, A, b)
+function linear_solver!(::IluLS,
+                        x::AbstractVector{Float64},
+                        A::AbstractMatrix{Float64},
+                        b::AbstractVector{Float64})
     x .= A\b
 end
 
@@ -30,7 +33,7 @@ struct PerfectForesightOptions
     tolx::Float64
 end
 
-function PerfectForesightOptions(context, field)
+function PerfectForesightOptions(context::Context, field::Dict{String,Any})
     algo = trustregionA
     datafile = context.work.perfect_foresight_setup["datafile"]
     display = true
@@ -75,12 +78,12 @@ struct PerfectForesightWs
     y::Vector{Float64}
     x::Vector{Float64}
     shocks::Vector{Float64}
-    J::SparseMatrixCSC
+    J::SparseMatrixCSC{Float64, Int64}
     lb::Vector{Float64}
     ub::Vector{Float64}
     permutationsR::Vector{Tuple{Int64,Int64}}  # permutations indices for residuals
     permutationsJ::Vector{Tuple{Int64,Int64}}  # permutations indices for Jacobian rows
-    function PerfectForesightWs(context, periods)
+    function PerfectForesightWs(context::Context, periods=Int)
         m = context.models[1]
         modfileinfo = context.modfileinfo
         trends = context.results.model_results[1].trends
@@ -129,7 +132,7 @@ function mcp_perfectforesight_core!(::DefaultNLS,
                                     )
 end
 
-function perfect_foresight_setup!(context, field)
+function perfect_foresight_setup!(context::Context, field=Dict{String, Any})
     periods = 0
     datafile = ""
     for (k, v) in pairs(field["options"])
@@ -151,7 +154,7 @@ function perfect_foresight_solver!(context, field)
     _perfect_foresight!(context, options)
 end
 
-function perfect_foresight!(;context = context,
+function perfect_foresight!(;context::Context = context,
                             algo::PerfectForesightAlgo = trustregionA,
                             datafile::String = "",
                             display::Bool = true,
@@ -173,7 +176,7 @@ function perfect_foresight!(;context = context,
     
 end
 
-function mcp_parse(mcps, context)
+function mcp_parse(mcps::Vector{Tuple{Int64,Int64,String,String}}, context::Context)
     mcp1 = Tuple{Int64, Int64, String, Float64}[]
     for m in mcps
         m1 = (m[1], m[2], m[3], dynare_parse_eval(m[4], context))
@@ -182,7 +185,7 @@ function mcp_parse(mcps, context)
     return mcp1
 end
 
-function _perfect_foresight!(context, options)
+function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
     datafile = options.datafile
     periods = options.periods
     m = context.models[1]
@@ -260,7 +263,7 @@ function get_dynamic_initialvalues(context::Context)
     end
 end
 
-function get_dynamic_terminalvalues(context::Context, periods)
+function get_dynamic_terminalvalues(context::Context, periods::Int)
     work = context.work
     modfileinfo = context.modfileinfo
     yT = zeros(context.models[1].endogenous_nbr)
@@ -283,15 +286,16 @@ function get_dynamic_terminalvalues(context::Context, periods)
 end
 
 function perfect_foresight_initialization!(
-    context,
-    terminal_values,
-    periods,
-    datafile,
-    exogenous,
-    perfect_foresight_ws,
+    context::Context,
+    terminal_values::Vector{Float64},
+    periods::Int,
+    datafile::String,
+    exogenous::Vector{Float64},
+    perfect_foresight_ws::PerfectForesightWs,
     algo::InitializationAlgo,
     dynamic_ws::DynamicWs,
-)
+    )
+    work = context.work
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
     if algo == initvalfile
