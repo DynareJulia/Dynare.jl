@@ -397,6 +397,24 @@ function shocks!(context::Context, field::Dict{String,Any})
     end
 end
 
+function shocks!(; context::Context = context,
+                 name::Symbol,
+                 value::Float64,
+                 period::PeriodsSinceEpoch,
+                 infoperiod::PeriodsSinceEpoch = Undated(1)
+                 )
+    scenario = context.work.scenario
+    if haskey(scenario, infoperiod)
+        if haskey(scenario[infoperiod], name)
+            scenario[infoperiod][name][period] = value
+        else
+            scenario[infoperiod][name] = Dict(period => value)
+        end
+    else
+        scenario[infoperiod] = Dict(name => Dict(period, value))
+    end
+end
+               
 function set_variance!(
     Sigma::Matrix{Float64},
     Sigma_m::Matrix{Float64},
