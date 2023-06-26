@@ -33,9 +33,9 @@ histval;
   ygap(0) = 0;
 end;
 
-stoch_simul(periods=100, irf=0);
+stoch_simul(nonstationary, periods=100, irf=0);
 
-CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data));
+//CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data));
 
 //histval_file(datafile=history);
 

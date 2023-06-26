@@ -196,7 +196,7 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))
         trends.endogenous_steady_state .=
-            solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
+            !nocheck && solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
         # terminal steady state
         if modfileinfo.has_endval
             !isempty(trends.exogenous_terminal_steady_state) &&

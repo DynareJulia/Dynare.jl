@@ -40,7 +40,7 @@ function StochSimulOptions(options::Dict{String,Any})
             periods = v::Int64
         end
     end
-    new(display, dr_algo, first_period, irf, LRE_options, nar, 
+    return StochSimulOptions(display, dr_algo, first_period, irf, LRE_options, nar, 
     nonstationary, order, periods)
 end
 
