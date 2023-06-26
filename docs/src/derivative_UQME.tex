@@ -1,0 +1,56 @@
+\documentclass{article}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+
+\title{Derivative of unilateral quadratic matrix equation}
+\author{Michel Juillard}
+
+\begin{document}
+\maketitle
+
+Given equation
+\[
+  AX^2 + BX + C = 0,
+\]
+compute $\frac{\partial X}{\partial z}$ given $\frac{\partial
+  A}{\partial z}$, $\frac{\partial B}{\partial z}$, $\frac{\partial
+  C}{\partial z}$.
+
+Derivative of an implicit function:
+\[
+  \frac{\partial A}{\partial z}X^2 + A\frac{\partial X}{\partial z}X
+  + AX\frac{\partial X}{\partial z} + B\frac{\partial X}{\partial z}
+  + \frac{\partial B}{\partial z}X + \frac{\partial C}{\partial z} = 0
+\]
+Can be reorganized as
+\[
+  A\frac{\partial X}{\partial z}X
+  + (AX + B)\frac{\partial X}{\partial z} +\frac{\partial A}{\partial z}X^2 
+  + \frac{\partial B}{\partial z}X + \frac{\partial C}{\partial z} = 0
+\]
+
+This can be solved with GeneralizedSylvesterSolver.jl. Function
+\verb+generalized_sylvester_solver!(a,b,c,d,1,ws)+ solves
+\[
+  ax + bxc = d
+\]
+where
+\begin{align*}
+  a &= AX + B\\
+  b &= A\\
+  c &= X\\
+  d &= \frac{\partial A}{\partial z}X^2 
+  + \frac{\partial B}{\partial z}X + \frac{\partial C}{\partial z}
+\end{align*}
+and
+\begin{verbatim}
+ws = GeneralizedSylvesterWs(n, n, n, 1)
+\end{verbatim}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
