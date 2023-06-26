@@ -493,6 +493,46 @@ function make_pf_residuals(
     return f!
 end
 
+function make_pf_residuals(
+    initialvalues::AbstractVector{T},
+    terminalvalues::AbstractVector{T},
+    exogenous::AbstractVector{T},
+    dynamic_variables::AbstractVector{T},
+    steadystate::AbstractVector{T},
+    params::AbstractVector{T},
+    m::Model,
+    periods::Int,
+    temp_vec::AbstractVector{T},
+    permutations::Vector{Tuple{Int64,Int64}},
+    flips::Vector{Pair{Int, Int}}
+        ) where T <: Real
+    function f!(residuals::AbstractVector{T}, y::AbstractVector{T})
+        flip(y, exogenous, flips)
+        get_residuals!(
+            residuals,
+            vec(y),
+            initialvalues,
+            terminalvalues,
+            exogenous,
+            dynamic_variables,
+            steadystate,
+            params,
+            m,
+            periods,
+            temp_vec,
+            permutations = permutations
+        )
+        return residuals
+    end
+    return f!
+end
+
+function flip!(y, endogenous, flips::Pair{Int, Int})
+    for flip in flips
+        y[flip[1]], exogenous[flip[2]] = exogenous[flip[2]], y[flip[1]]
+    end
+end
+
 function make_pf_jacobian(
     dynamic_derivatives!::Function,
     initialvalues::AbstractVector{T},
