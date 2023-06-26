@@ -493,6 +493,24 @@ function make_pf_residuals(
     return f!
 end
 
+function make_flips(context, firstperiod)
+    flips = Vector{Pair{Int, Int}}(undef, 0)
+    symboltable = context.symboltable
+    scenario = context.work.scenario
+    for infoperiod in keys(scenario)
+        for s in keys(scenario[infoperiod])
+            ss = string(s)
+            if is_endogenous(ss)
+                for p in keys(scenarios[infoperiod][s])
+                    offset = (p - infoperiod)*endogenous_nbr
+                    push!((offset + symboltable[ss].orderintype,
+                           offset + symboltable[exo].orderintype))
+                end
+            end
+        end
+    end
+end
+            
 function make_pf_residuals(
     initialvalues::AbstractVector{T},
     terminalvalues::AbstractVector{T},

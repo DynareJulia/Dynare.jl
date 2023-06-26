@@ -401,17 +401,18 @@ function shocks!(; context::Context = context,
                  name::Symbol,
                  value::Float64,
                  period::PeriodsSinceEpoch,
-                 infoperiod::PeriodsSinceEpoch = Undated(1)
+                 infoperiod::PeriodsSinceEpoch = Undated(1),
+                 exogenous::Symbol = Symbol()
                  )
     scenario = context.work.scenario
     if haskey(scenario, infoperiod)
         if haskey(scenario[infoperiod], name)
-            scenario[infoperiod][name][period] = value
+            scenario[infoperiod][name][period] = (value, exogenous)
         else
-            scenario[infoperiod][name] = Dict(period => value)
+            scenario[infoperiod][name] = Dict(period => (value, exogenous))
         end
     else
-        scenario[infoperiod] = Dict(name => Dict(period, value))
+        scenario[infoperiod] = Dict(name => Dict(period, (value, exogenous))
     end
 end
                

@@ -845,7 +845,7 @@ mutable struct Work
     endval_endogenous::Matrix{Union{Float64,Missing}}
     endval_exogenous::Matrix{Union{Float64,Missing}}
     endval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
-    scenario::Dict{PeriodsSinceEpoch, Dict{Symbol, Dict{PeriodsSinceEpoch, Float64}}}
+    scenario::Dict{PeriodsSinceEpoch, Dict{Symbol, Dict{PeriodsSinceEpoch, Pair(Float64, Symbol}}}
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String,Any}
     estimated_parameters::EstimatedParameters
@@ -875,7 +875,7 @@ mutable struct Work
         endval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         endval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         endval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
-        scenario = Dict{PeriodsSinceEpoch, Dict{Symbol, Dict{PeriodsSinceEpoch, Float64}}}()
+        scenario = Dict{PeriodsSinceEpoch, Dict{Symbol, Dict{PeriodsSinceEpoch, Pair{Float64, Symbol}}}}()
         shocks = Vector{Float64}(undef, 0)
         perfect_foresight_setup = Dict("periods" => 0, "datafile" => "")
         estimated_parameters = EstimatedParameters()
