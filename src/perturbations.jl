@@ -432,6 +432,42 @@ function compute_first_order_solution!(
     end
 end
 
+function compute_second_order_solution!(
+    context::Context,
+    endogenous::AbstractVector{Float64},
+    exogenous::AbstractVector{Float64},
+    steadystate::AbstractVector{Float64},
+    params::AbstractVector{Float64},
+    model::Model,
+    ws::DynamicWs,
+    options::StochSimulOptions;
+    variance_decomposition::Bool = true,
+)
+
+    results = context.results.model_results[1]
+    LRE_results = results.linearrationalexpectations
+
+    jacobian = get_dynamic_jacobian!(
+        ws,
+        params,
+        endogenous,
+        exogenous,
+        steadystate,
+        model,
+        2,
+    )
+    lli = model.lead_lag_incidence
+    @views jacobian = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
+                           Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
+                           Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
+                           Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
+#    LRE.remove_static!(jacobian, wsLRE)
+    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options,
+                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
+    if variance_decomposition
+        compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
+    end
+end
 
 function irfs!(context, periods)
     model = context.models[1]
