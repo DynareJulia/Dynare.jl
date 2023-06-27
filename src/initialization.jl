@@ -397,22 +397,23 @@ function shocks!(context::Context, field::Dict{String,Any})
     end
 end
 
-function shocks!(; context::Context = context,
+function shocks!(; 
                  name::Symbol,
                  value::Float64,
                  period::PeriodsSinceEpoch,
+                 context::Context = context,
                  infoperiod::PeriodsSinceEpoch = Undated(1),
                  exogenous::Symbol = Symbol()
                  )
     scenario = context.work.scenario
     if haskey(scenario, infoperiod)
         if haskey(scenario[infoperiod], name)
-            scenario[infoperiod][name][period] = (value, exogenous)
+            scenario[infoperiod][name][period] = (value => exogenous)
         else
-            scenario[infoperiod][name] = Dict(period => (value, exogenous))
+            scenario[infoperiod][name] = Dict(period => (value => exogenous))
         end
     else
-        scenario[infoperiod] = Dict(name => Dict(period, (value, exogenous))
+        scenario[infoperiod] = Dict(name => Dict(period => (value => exogenous)))
     end
 end
                

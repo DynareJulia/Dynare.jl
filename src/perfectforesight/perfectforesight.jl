@@ -494,21 +494,31 @@ function make_pf_residuals(
 end
 
 function make_flips(context, firstperiod)
-    flips = Vector{Pair{Int, Int}}(undef, 0)
+    endogenous_nbr = context.models[1].endogenous_nbr
+    exogenous_nbr = context.models[1].exogenous_nbr
+    flips = Dict{PeriodsSinceEpoch, Vector{Pair{Int, Int}}}()
     symboltable = context.symboltable
     scenario = context.work.scenario
     for infoperiod in keys(scenario)
+        vflips = Vector{Pair{Int, Int}}(undef, 0)
         for s in keys(scenario[infoperiod])
             ss = string(s)
-            if is_endogenous(ss)
-                for p in keys(scenarios[infoperiod][s])
-                    offset = (p - infoperiod)*endogenous_nbr
-                    push!((offset + symboltable[ss].orderintype,
-                           offset + symboltable[exo].orderintype))
+            if is_endogenous(ss, symboltable)
+                for p in keys(scenario[infoperiod][s])
+                    offset_endo = (p - infoperiod)*endogenous_nbr
+                    offset_exo = (p - infoperiod)*exogenous_nbr
+                    exogenous = string(scenario[infoperiod][s][p][2])
+                    push!(vflips,
+                          ((offset_endo + symboltable[ss].orderintype) =>
+                           offset_exo + symboltable[exogenous].orderintype))
                 end
             end
         end
+        if length(vflips) > 0
+            flips[infoperiod] = vflips
+        end
     end
+    return flips
 end
             
 function make_pf_residuals(
@@ -525,7 +535,7 @@ function make_pf_residuals(
     flips::Vector{Pair{Int, Int}}
         ) where T <: Real
     function f!(residuals::AbstractVector{T}, y::AbstractVector{T})
-        flip(y, exogenous, flips)
+        flip!(y, exogenous, flips)
         get_residuals!(
             residuals,
             vec(y),
@@ -545,7 +555,7 @@ function make_pf_residuals(
     return f!
 end
 
-function flip!(y, endogenous, flips::Pair{Int, Int})
+function flip!(y, exogenous, flips::Vector{Pair{Int, Int}})
     for flip in flips
         y[flip[1]], exogenous[flip[2]] = exogenous[flip[2]], y[flip[1]]
     end
