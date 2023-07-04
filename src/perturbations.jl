@@ -68,6 +68,16 @@ function display_stoch_simul(context::Context, options::StochSimulOptions)
     display_autocorrelation(LRE_results, endogenous_names, m, options)
 end
 
+function display_stoch_simul2(context::Context, options::StochSimulOptions)
+    m = context.models[1]
+    endogenous_names = get_endogenous_longname(context.symboltable)
+    exogenous_names = get_exogenous_longname(context.symboltable)
+    results = context.results.model_results[1]
+    LRE_results = results.linearrationalexpectations
+    stationary_variables = LRE_results.stationary_variables
+    display_solution_function2(results.solution_derivatives, endogenous_names, exogenous_names, m)
+end
+
 function display_solution_function(
     g1::AbstractMatrix{Float64},
     endogenous_names::AbstractVector{String},
@@ -101,6 +111,86 @@ function display_solution_function(
     dynare_table(data, title, note = note)
 end
 
+function display_solution_function2(
+    G::Vector{Matrix{Float64}},
+    endogenous_names::AbstractVector{String},
+    exogenous_names::AbstractVector{String},
+    m::Model,
+)
+    title = "Coefficients of approximate solution function (reduced form, order 2)"
+    n1 = m.n_states + m.exogenous_nbr
+    n11 = n1 + 1
+    nrows = 2 + n1 + Int(n1*(n1 + 1)/2)
+    data = Matrix{Any}(undef, nrows, m.endogenous_nbr + 1)
+    data[1, 1] = ""
+    data[2, 1] = "Δσ"
+    row = 3
+    # row headers
+    for i = 1:m.n_states
+        data[row, 1] = "ϕ($(endogenous_names[m.i_bkwrd_b[i]]))"
+        row += 1
+    end
+    offset = m.n_states + 2
+    for i = 1:m.exogenous_nbr
+        data[row, 1] = "$(exogenous_names[i])_t"
+        row += 1
+    end
+    offset += m.exogenous_nbr
+    for i = 1:m.n_states
+        for j = i:m.n_states
+            data[row, 1] = "ϕ($(endogenous_names[m.i_bkwrd_b[i]]))*ϕ($(endogenous_names[m.i_bkwrd_b[j]]))"
+            row += 1
+        end
+        for j = 1:m.exogenous_nbr
+            data[row, 1] = "ϕ($(endogenous_names[m.i_bkwrd_b[i]]))*$(exogenous_names[j])_t"
+            row += 1
+        end
+    end
+    offset += m.n_states*n1
+    for i = 1:m.exogenous_nbr
+        for j = i:m.exogenous_nbr
+            data[row, 1] = "$(exogenous_names[i])_t*$(exogenous_names[j])_t"
+            row += 1
+        end
+    end
+    
+    # columns
+    for j = 1:m.endogenous_nbr
+        # header
+        data[1, j + 1] = "$(endogenous_names[j])_t"
+        data[2, j + 1] = 0.5*G[2][j, n11*n11]
+        row = 3
+        # data
+        for i = 1:n1
+            data[row, j + 1] = G[1][j, i]
+            row += 1
+        end
+        for i = 1:m.n_states
+            for r = i:n1
+                k = (i-1)*n11 + r
+                    s = i == r ? 0.5 : 1  
+                data[row, j + 1] = s*G[2][j, k]
+                row += 1
+            end
+        end
+        for i = 1:m.exogenous_nbr
+            for r = i:m.exogenous_nbr
+                k = (m.n_states + i-1)*n11 + m.n_states + r
+                    s = i == r ? 0.5 : 1  
+                data[row, j + 1] = s*G[2][j, k]
+                row += 1
+            end
+        end
+        
+    end
+
+    # Note: ϕ(x) = x_{t-1} - \bar x
+    #    note = string("Note: ϕ(x) = x\U0209C\U0208B\U02081 - ", "\U00305", "x")
+    note = string("Note: ϕ(x) = x_{t-1} - steady_state(x)")
+    println("\n")
+    dynare_table(data, title, note = note)
+end
+
 robustsqrt(x) = sqrt(x + eps())
 
 function display_mean_sd_variance(
@@ -124,7 +214,7 @@ function display_mean_sd_variance(
     data[1, 4] = "VARIANCE"
     # data
     for i = 1:m.original_endogenous_nbr
-        data[i+1, 2] = steadystate[i]
+        data[i+1, 2] = isnan(std[i]) ? NaN : steadystate[i]
         data[i+1, 3] = std[i]
         data[i+1, 4] = variance[i]
     end
@@ -234,22 +324,25 @@ function display_autocorrelation(
     options::StochSimulOptions,
 )
     title = "AUTOCORRELATION COEFFICIENTS"
-    ar = [zeros(model.endogenous_nbr) for i = 1:options.nar]
     stationary_variables = LREresults.stationary_variables
     # doesn't work yet for nonstationary models
-    if model.endogenous_nbr != count(stationary_variables)
-        return
-    end
+#    if model.endogenous_nbr != count(stationary_variables)
+#        return
+    #    end
+    endogenous_nbr = model.endogenous_nbr
     n1 = count(stationary_variables)
-    S1a = zeros(n1, model.endogenous_nbr)
+    ar = [zeros(n1) for i = 1:options.nar]
+    S1a = zeros(n1, endogenous_nbr)
     S1b = similar(S1a)
-    S2 = zeros(model.endogenous_nbr - model.n_bkwrd - model.n_both, model.endogenous_nbr)
+    S2a = zeros(endogenous_nbr - model.n_bkwrd - model.n_both, endogenous_nbr)
+    S2b = similar(S2a)
     ar = autocorrelation!(
         ar,
         LREresults,
         S1a,
         S1b,
-        S2,
+        S2a,
+        S2b,
         model.i_bkwrd_b,
         stationary_variables,
     )
@@ -273,7 +366,7 @@ function display_autocorrelation(
         k = 1
         for i = 1:n
             if stationary_variables[i]
-                data[k+1, j+1] = ar[j][i]
+                data[k+1, j+1] = ar[j][k]
                 k += 1
             end
         end
@@ -298,7 +391,7 @@ function stoch_simul!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
-    ws = DynamicWs(context)
+    ws = DynamicWs(context, order=options.order)
     stoch_simul_core!(context, ws, options)
 end
 
@@ -311,9 +404,13 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
     #check_endogenous(results.trends.endogenous_steady_state)
     compute_stoch_simul!(context, ws, work.params, options; variance_decomposition = true)
     if options.display
-        display_stoch_simul(context, options)
+        if options.order == 1
+            display_stoch_simul(context, options)
+        elseif options.order == 2
+            display_stoch_simul2(context, options)
+        end
     end
-    if options.irf > 0
+    if options.order == 1 && options.irf > 0
         exogenous_names = get_exogenous_longname(context.symboltable)
         n = model.endogenous_nbr
         m = model.exogenous_nbr
@@ -357,8 +454,6 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         end
         first_period = ExtendedDates.Undated(options.first_period)
         endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
-        @show options.periods
-        @show size(simulresults)
         tdf = AxisArrayTable(simulresults, first_period .+ (0:options.periods), endogenous_names)
         push!(results.simulations, Simulation(first_period, first_period + periods - 1, "", "stoch_simul", tdf))
     end
@@ -374,8 +469,9 @@ function compute_stoch_simul!(
     params::Vector{Float64},
     options::StochSimulOptions;
     kwargs...
-)
+        )
     model = context.models[1]
+    order = options.order
     results = context.results.model_results[1]
     # don't check the steady state if the model is nonstationary
     fill!(results.trends.exogenous_steady_state, 0.0)
@@ -392,7 +488,58 @@ function compute_stoch_simul!(
         model,
         ws,
         options; kwargs...
-    )
+            )
+    if order == 2
+        steadystate = context.results.model_results[1].trends.endogenous_steady_state
+        values = zeros(size(model.dynamic_g2_sparse_indices, 1))
+        get_dynamic_derivatives2!(
+            ws,
+            params,
+            endogenous3,
+            exogenous,
+            steadystate,
+            values,
+            model,
+        )
+        m = model
+        k = vcat(
+            m.i_bkwrd_b,
+            m.endogenous_nbr .+ model.i_current,
+            2*m.endogenous_nbr .+ model.i_fwrd_b,
+            3*m.endogenous_nbr .+ collect(1:m.exogenous_nbr)
+        )
+        n = 3*m.endogenous_nbr + m.exogenous_nbr
+        nc = m.n_bkwrd + 2*m.n_both + m.n_current + m.n_fwrd + m.exogenous_nbr
+        F1 = zeros(m.endogenous_nbr, nc)
+        @views F1 .= ws.derivatives[1][:, k]
+        kk = vec(reshape(1:n*n, n, n)[k, k])
+
+        sp = ws.derivatives[2]
+        F2 = Matrix(ws.derivatives[2])[:, kk]
+        F = [F1, F2]
+        G = Vector{Matrix{Float64}}(undef, 0)
+        push!(G, context.results.model_results[1].linearrationalexpectations.g1)
+        push!(G, zeros(model.endogenous_nbr,
+                       (model.n_states + model.exogenous_nbr + 1)^2))
+        ws = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
+                                          model.n_fwrd + model.n_both,
+                                          model.n_states,
+                                          model.n_current,
+                                          model.exogenous_nbr,
+                                          model.i_fwrd_b,
+                                          model.i_bkwrd_b,
+                                          model.i_current,
+                                          1:model.n_states,
+                                          order)
+        moments = [0, vec(model.Sigma_e)]
+        KOrderPerturbations.k_order_solution!(G,
+                                              F,
+                                              moments,
+                                              order,
+                                              ws)
+        copy!(results.solution_derivatives, G)
+    end
+                   
 end
 
 function compute_first_order_solution!(
@@ -409,7 +556,6 @@ function compute_first_order_solution!(
 
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
-
     jacobian = get_dynamic_jacobian!(
         ws,
         params,
@@ -424,44 +570,7 @@ function compute_first_order_solution!(
                            Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
                            Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
                            Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
-#    LRE.remove_static!(jacobian, wsLRE)
-    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options,
-                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
-    if variance_decomposition
-        compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
-    end
-end
-
-function compute_second_order_solution!(
-    context::Context,
-    endogenous::AbstractVector{Float64},
-    exogenous::AbstractVector{Float64},
-    steadystate::AbstractVector{Float64},
-    params::AbstractVector{Float64},
-    model::Model,
-    ws::DynamicWs,
-    options::StochSimulOptions;
-    variance_decomposition::Bool = true,
-)
-
-    results = context.results.model_results[1]
-    LRE_results = results.linearrationalexpectations
-
-    jacobian = get_dynamic_jacobian!(
-        ws,
-        params,
-        endogenous,
-        exogenous,
-        steadystate,
-        model,
-        2,
-    )
-    lli = model.lead_lag_incidence
-    @views jacobian = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
-                           Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
-                           Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
-                           Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
-#    LRE.remove_static!(jacobian, wsLRE)
+    #    LRE.remove_static!(jacobian, wsLRE)
     LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options,
                             workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
     if variance_decomposition
@@ -487,7 +596,7 @@ function irfs!(context, periods)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
-        tdf = AxisArrayTable(transpose(yy), Undated(1):Undated(periods), endogenous_names)
+        tdf = AxisArrayTable(transpose(yy), Undated(1):Undated(periods), endogenous_names) 
         results.irfs[exogenous_names[i]] = tdf
     end
 end

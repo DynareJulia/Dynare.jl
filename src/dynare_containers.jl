@@ -92,121 +92,122 @@ end
 Base.show(io::IO, mf::ModFileInfo) = show_field_value(mf)
 
 struct Model
-    endogenous_nbr::Int64
-    exogenous_nbr::Int64
-    lagged_exogenous_nbr::Int64
-    exogenous_deterministic_nbr::Int64
-    parameter_nbr::Int64
-    original_endogenous_nbr::Int64
-    lead_lag_incidence::Matrix{Int64}
-    n_static::Int64
-    n_fwrd::Int64
-    n_bkwrd::Int64
-    n_both::Int64
-    n_states::Int64
-    DErows1::Vector{Int64}
-    DErows2::Vector{Int64}
-    n_dyn::Int64
-    i_static::Vector{Int64}
-    i_dyn::Array{Int64,1}
-    i_bkwrd::Vector{Int64}
-    i_bkwrd_b::Vector{Int64}
-    i_bkwrd_ns::Vector{Int64}
-    i_fwrd::Vector{Int64}
-    i_fwrd_b::Vector{Int64}
-    i_fwrd_ns::Vector{Int64}
-    i_both::Vector{Int64}
-    i_non_states::Vector{Int64}
-    p_static::Vector{Int64}
-    p_bkwrd::Vector{Int64}
-    p_bkwrd_b::Vector{Int64}
-    p_fwrd::Vector{Int64}
-    p_fwrd_b::Vector{Int64}
-    p_both_b::Vector{Int64}
-    p_both_f::Vector{Int64}
-    i_current::Vector{Int64}
-    p_current::Vector{Int64}
-    n_current::Int64
-    i_current_ns::Vector{Int64}
-    p_current_ns::Vector{Int64}
-    n_current_ns::Int64
-    icolsD::Vector{Int64}
-    jcolsD::Vector{Int64}
-    icolsE::Vector{Int64}
-    jcolsE::Vector{Int64}
-    colsUD::Vector{Int64}
-    colsUE::Vector{Int64}
-    i_cur_fwrd::Vector{Int64}
-    n_cur_fwrd::Int64
-    p_cur_fwrd::Vector{Int64}
-    i_cur_bkwrd::Vector{Int64}
-    n_cur_bkwrd::Int64
-    p_cur_bkwrd::Vector{Int64}
-    i_cur_both::Vector{Int64}
-    n_cur_both::Int64
-    p_cur_both::Vector{Int64}
-    gx_rows::Vector{Int64}
-    hx_rows::Vector{Int64}
-    i_current_exogenous::Vector{Int64}
-    i_lagged_exogenous::Vector{Int64}
-    serially_correlated_exogenous::Vector{Int64}
+    endogenous_nbr::Int
+    exogenous_nbr::Int
+    lagged_exogenous_nbr::Int
+    exogenous_deterministic_nbr::Int
+    parameter_nbr::Int
+    original_endogenous_nbr::Int
+    lead_lag_incidence::Matrix{Int}
+    n_static::Int
+    n_fwrd::Int
+    n_bkwrd::Int
+    n_both::Int
+    n_states::Int
+    DErows1::Vector{Int}
+    DErows2::Vector{Int}
+    n_dyn::Int
+    i_static::Vector{Int}
+    i_dyn::Array{Int,1}
+    i_bkwrd::Vector{Int}
+    i_bkwrd_b::Vector{Int}
+    i_bkwrd_ns::Vector{Int}
+    i_fwrd::Vector{Int}
+    i_fwrd_b::Vector{Int}
+    i_fwrd_ns::Vector{Int}
+    i_both::Vector{Int}
+    i_non_states::Vector{Int}
+    p_static::Vector{Int}
+    p_bkwrd::Vector{Int}
+    p_bkwrd_b::Vector{Int}
+    p_fwrd::Vector{Int}
+    p_fwrd_b::Vector{Int}
+    p_both_b::Vector{Int}
+    p_both_f::Vector{Int}
+    i_current::Vector{Int}
+    p_current::Vector{Int}
+    n_current::Int
+    i_current_ns::Vector{Int}
+    p_current_ns::Vector{Int}
+    n_current_ns::Int
+    icolsD::Vector{Int}
+    jcolsD::Vector{Int}
+    icolsE::Vector{Int}
+    jcolsE::Vector{Int}
+    colsUD::Vector{Int}
+    colsUE::Vector{Int}
+    i_cur_fwrd::Vector{Int}
+    n_cur_fwrd::Int
+    p_cur_fwrd::Vector{Int}
+    i_cur_bkwrd::Vector{Int}
+    n_cur_bkwrd::Int
+    p_cur_bkwrd::Vector{Int}
+    i_cur_both::Vector{Int}
+    n_cur_both::Int
+    p_cur_both::Vector{Int}
+    gx_rows::Vector{Int}
+    hx_rows::Vector{Int}
+    i_current_exogenous::Vector{Int}
+    i_lagged_exogenous::Vector{Int}
+    serially_correlated_exogenous::Vector{Int}
     Sigma_e::Matrix{Float64}
-    maximum_endo_lag::Int64
-    maximum_endo_lead::Int64
-    maximum_exo_lag::Int64
-    maximum_exo_lead::Int64
-    maximum_exo_det_lag::Int64
-    maximum_exo_det_lead::Int64
-    maximum_lag::Int64
-    maximum_lead::Int64
-    orig_maximum_endo_lag::Int64
-    orig_maximum_endo_lead::Int64
-    orig_maximum_exo_lag::Int64
-    orig_maximum_exo_lead::Int64
-    orig_maximum_exo_det_lag::Int64
-    orig_maximum_exo_det_lead::Int64
-    orig_maximum_lag::Int64
-    orig_maximum_lead::Int64
-    dynamic_indices::Vector{Int64}
-    current_dynamic_indices::Vector{Int64}
-    forward_indices_d::Vector{Int64}
-    backward_indices_d::Vector{Int64}
-    current_dynamic_indices_d::Vector{Int64}
-    exogenous_indices::Vector{Int64}
-    NNZDerivatives::Vector{Int64}
+    maximum_endo_lag::Int
+    maximum_endo_lead::Int
+    maximum_exo_lag::Int
+    maximum_exo_lead::Int
+    maximum_exo_det_lag::Int
+    maximum_exo_det_lead::Int
+    maximum_lag::Int
+    maximum_lead::Int
+    orig_maximum_endo_lag::Int
+    orig_maximum_endo_lead::Int
+    orig_maximum_exo_lag::Int
+    orig_maximum_exo_lead::Int
+    orig_maximum_exo_det_lag::Int
+    orig_maximum_exo_det_lead::Int
+    orig_maximum_lag::Int
+    orig_maximum_lead::Int
+    dynamic_indices::Vector{Int}
+    current_dynamic_indices::Vector{Int}
+    forward_indices_d::Vector{Int}
+    backward_indices_d::Vector{Int}
+    current_dynamic_indices_d::Vector{Int}
+    exogenous_indices::Vector{Int}
+    NNZDerivatives::Vector{Int}
     auxiliary_variables::Vector{Dict{String,Any}}
-    mcps::Vector{Tuple{Int64,Int64,String,String}}
-    dynamic_g1_sparse_rowval::Vector{Int64}
-    dynamic_g1_sparse_colptr::Vector{Int64}
-    static_g1_sparse_rowval::Vector{Int64}
-    static_g1_sparse_colptr::Vector{Int64}    
-    dynamic_tmp_nbr::Vector{Int64}
-    static_tmp_nbr::Vector{Int64}
+    mcps::Vector{Tuple{Int,Int,String,String}}
+    dynamic_g1_sparse_rowval::Vector{Int}
+    dynamic_g1_sparse_colptr::Vector{Int}
+    dynamic_g2_sparse_indices::Vector{Vector{Int}}
+    static_g1_sparse_rowval::Vector{Int}
+    static_g1_sparse_colptr::Vector{Int}    
+    dynamic_tmp_nbr::Vector{Int}
+    static_tmp_nbr::Vector{Int}
     ids::LRE.Indices
 end
 
 
 # purely backward model
 function assemble_lead_lag_incidence_1!(
-    lead_lag_incidence_matrix::Matrix{Int64},
-    backward_indices_d::Vector{Int64},
-    current_dynamic_indices::Vector{Int64},
-    i_backward_in_current::Vector{Int64},
-    i_bkwrd::Vector{Int64},
-    i_bkwrd_ns::Vector{Int64},
-    i_cur_bkwrd::Vector{Int64},
-    i_current::Vector{Int64},
-    i_current_ns::Vector{Int64},
-    i_dyn::Vector{Int64},
-    i_non_states::Vector{Int64},
-    i_static::Vector{Int64},
-    p_bkwrd::Vector{Int64},
-    p_cur_bkwrd::Vector{Int64},
-    p_current::Vector{Int64},
-    p_current_ns::Vector{Int64},
-    p_static::Vector{Int64},
-    lead_lag_incidence::Vector{Vector{Int64}},
-    endogenous_nbr::Int64,
+    lead_lag_incidence_matrix::Matrix{Int},
+    backward_indices_d::Vector{Int},
+    current_dynamic_indices::Vector{Int},
+    i_backward_in_current::Vector{Int},
+    i_bkwrd::Vector{Int},
+    i_bkwrd_ns::Vector{Int},
+    i_cur_bkwrd::Vector{Int},
+    i_current::Vector{Int},
+    i_current_ns::Vector{Int},
+    i_dyn::Vector{Int},
+    i_non_states::Vector{Int},
+    i_static::Vector{Int},
+    p_bkwrd::Vector{Int},
+    p_cur_bkwrd::Vector{Int},
+    p_current::Vector{Int},
+    p_current_ns::Vector{Int},
+    p_static::Vector{Int},
+    lead_lag_incidence::Vector{Vector{Int}},
+    endogenous_nbr::Int,
 )
     max_lead_lag_incidence = 0
     n_dyn1 = 0
@@ -254,43 +255,43 @@ end
 
 # backward and forward model
 function assemble_lead_lag_incidence_3!(
-    lead_lag_incidence_matrix::Matrix{Int64},
-    backward_indices_d::Vector{Int64},
-    current_dynamic_indices::Vector{Int64},
-    i_backward_in_current::Vector{Int64},
-    i_bkwrd::Vector{Int64},
-    i_bkwrd_b::Vector{Int64},
-    i_bkwrd_ns::Vector{Int64},
-    i_both::Vector{Int64},
-    i_both_b::Vector{Int64},
-    i_both_f::Vector{Int64},
-    i_cur_bkwrd::Vector{Int64},
-    i_cur_both::Vector{Int64},
-    i_cur_fwrd_b::Vector{Int64},
-    i_current::Vector{Int64},
-    i_current_ns::Vector{Int64},
-    i_dyn::Vector{Int64},
-    i_forward_in_current::Vector{Int64},
-    i_fwrd::Vector{Int64},
-    i_fwrd_b::Vector{Int64},
-    i_fwrd_ns::Vector{Int64},
-    i_non_states::Vector{Int64},
-    i_static::Vector{Int64},
-    forward_indices_d::Vector{Int64},
-    p_bkwrd::Vector{Int64},
-    p_bkwrd_b::Vector{Int64},
-    p_both_b::Vector{Int64},
-    p_both_f::Vector{Int64},
-    p_cur_bkwrd::Vector{Int64},
-    p_current::Vector{Int64},
-    p_current_ns::Vector{Int64},
-    p_fwrd::Vector{Int64},
-    p_fwrd_b::Vector{Int64},
-    p_static::Vector{Int64},
-    p_cur_fwrd_b::Vector{Int64},
-    p_cur_both::Vector{Int64},
-    lead_lag_incidence::Vector{Vector{Int64}},
-    endogenous_nbr::Int64,
+    lead_lag_incidence_matrix::Matrix{Int},
+    backward_indices_d::Vector{Int},
+    current_dynamic_indices::Vector{Int},
+    i_backward_in_current::Vector{Int},
+    i_bkwrd::Vector{Int},
+    i_bkwrd_b::Vector{Int},
+    i_bkwrd_ns::Vector{Int},
+    i_both::Vector{Int},
+    i_both_b::Vector{Int},
+    i_both_f::Vector{Int},
+    i_cur_bkwrd::Vector{Int},
+    i_cur_both::Vector{Int},
+    i_cur_fwrd_b::Vector{Int},
+    i_current::Vector{Int},
+    i_current_ns::Vector{Int},
+    i_dyn::Vector{Int},
+    i_forward_in_current::Vector{Int},
+    i_fwrd::Vector{Int},
+    i_fwrd_b::Vector{Int},
+    i_fwrd_ns::Vector{Int},
+    i_non_states::Vector{Int},
+    i_static::Vector{Int},
+    forward_indices_d::Vector{Int},
+    p_bkwrd::Vector{Int},
+    p_bkwrd_b::Vector{Int},
+    p_both_b::Vector{Int},
+    p_both_f::Vector{Int},
+    p_cur_bkwrd::Vector{Int},
+    p_current::Vector{Int},
+    p_current_ns::Vector{Int},
+    p_fwrd::Vector{Int},
+    p_fwrd_b::Vector{Int},
+    p_static::Vector{Int},
+    p_cur_fwrd_b::Vector{Int},
+    p_cur_both::Vector{Int},
+    lead_lag_incidence::Vector{Vector{Int}},
+    endogenous_nbr::Int,
 )
     max_lead_lag_incidence = 0
     n_dyn1 = 0
@@ -390,40 +391,41 @@ end
 function Model(
     modfilename::String,
     modfileinfo::ModFileInfo,
-    endogenous_nbr::Int64,
-    lead_lag_incidence::Vector{Vector{Int64}},
-    exogenous_nbr::Int64,
-    lagged_exogenous_nbr::Int64,
-    exogenous_deterministic_nbr::Int64,
-    parameter_nbr::Int64,
-    orig_endo_nbr::Int64,
+    endogenous_nbr::Int,
+    lead_lag_incidence::Vector{Vector{Int}},
+    exogenous_nbr::Int,
+    lagged_exogenous_nbr::Int,
+    exogenous_deterministic_nbr::Int,
+    parameter_nbr::Int,
+    orig_endo_nbr::Int,
     aux_vars::Vector{Any},
-    maximum_endo_lag::Int64,
-    maximum_endo_lead::Int64,
-    maximum_exo_lag::Int64,
-    maximum_exo_lead::Int64,
-    maximum_exo_det_lag::Int64,
-    maximum_exo_det_lead::Int64,
-    maximum_lag::Int64,
-    maximum_lead::Int64,
-    orig_maximum_endo_lag::Int64,
-    orig_maximum_endo_lead::Int64,
-    orig_maximum_exo_lag::Int64,
-    orig_maximum_exo_lead::Int64,
-    orig_maximum_exo_det_lag::Int64,
-    orig_maximum_exo_det_lead::Int64,
-    orig_maximum_lag::Int64,
-    orig_maximum_lead::Int64,
-    NNZDerivatives::Vector{Int64},
+    maximum_endo_lag::Int,
+    maximum_endo_lead::Int,
+    maximum_exo_lag::Int,
+    maximum_exo_lead::Int,
+    maximum_exo_det_lag::Int,
+    maximum_exo_det_lead::Int,
+    maximum_lag::Int,
+    maximum_lead::Int,
+    orig_maximum_endo_lag::Int,
+    orig_maximum_endo_lead::Int,
+    orig_maximum_exo_lag::Int,
+    orig_maximum_exo_lead::Int,
+    orig_maximum_exo_det_lag::Int,
+    orig_maximum_exo_det_lead::Int,
+    orig_maximum_lag::Int,
+    orig_maximum_lead::Int,
+    NNZDerivatives::Vector{Int},
     compileoption::Bool,
-    dynamic_g1_sparse_rowval::Vector{Int64},
-    dynamic_g1_sparse_colptr::Vector{Int64},
-    static_g1_sparse_rowval::Vector{Int64},
-    static_g1_sparse_colptr::Vector{Int64},
-    dynamic_tmp_nbr::Vector{Int64},
-    static_tmp_nbr::Vector{Int64}
+    dynamic_g1_sparse_rowval::Vector{Int},
+    dynamic_g1_sparse_colptr::Vector{Int},
+    dynamic_g2_sparse_indices::Vector{Vector{Int}},
+    static_g1_sparse_rowval::Vector{Int},
+    static_g1_sparse_colptr::Vector{Int},
+    dynamic_tmp_nbr::Vector{Int},
+    static_tmp_nbr::Vector{Int}
 )
-    i_static = Vector{Int64}(undef, 0)
+    i_static = Vector{Int}(undef, 0)
     p_static = similar(i_static)
     i_dyn = similar(i_static)
     i_bkwrd = similar(i_static)
@@ -472,7 +474,7 @@ function Model(
     if maximum_endo_lag == 1
         if maximum_endo_lead == 1
             # backward and forward
-            lead_lag_incidence_matrix = zeros(Int64, 3, endogenous_nbr)
+            lead_lag_incidence_matrix = zeros(Int, 3, endogenous_nbr)
             (max_lead_lag_incidence, n_bkwrd, n_both, n_current, n_fwrd, n_static) =
                 assemble_lead_lag_incidence_3!(
                     lead_lag_incidence_matrix,
@@ -515,28 +517,28 @@ function Model(
                 )
         else
             # purely backward
-            lead_lag_incidence_matrix = zeros(Int64, 2, endogenous_nbr)
+            lead_lag_incidence_matrix = zeros(Int, 2, endogenous_nbr)
             (max_lead_lag_incidence, n_bkwrd, n_current, n_static) =
                 assemble_lead_lag_incidence_1!(
-                    lead_lag_incidence_matrix::Matrix{Int64},
-                    backward_indices_d::Vector{Int64},
-                    current_dynamic_indices::Vector{Int64},
-                    i_backward_in_current::Vector{Int64},
-                    i_bkwrd::Vector{Int64},
-                    i_bkwrd_ns::Vector{Int64},
-                    i_cur_bkwrd::Vector{Int64},
-                    i_current::Vector{Int64},
-                    i_current_ns::Vector{Int64},
-                    i_dyn::Vector{Int64},
-                    i_non_states::Vector{Int64},
-                    i_static::Vector{Int64},
-                    p_bkwrd::Vector{Int64},
-                    p_cur_bkwrd::Vector{Int64},
-                    p_current::Vector{Int64},
-                    p_current_ns::Vector{Int64},
-                    p_static::Vector{Int64},
-                    lead_lag_incidence::Vector{Vector{Int64}},
-                    endogenous_nbr::Int64,
+                    lead_lag_incidence_matrix::Matrix{Int},
+                    backward_indices_d::Vector{Int},
+                    current_dynamic_indices::Vector{Int},
+                    i_backward_in_current::Vector{Int},
+                    i_bkwrd::Vector{Int},
+                    i_bkwrd_ns::Vector{Int},
+                    i_cur_bkwrd::Vector{Int},
+                    i_current::Vector{Int},
+                    i_current_ns::Vector{Int},
+                    i_dyn::Vector{Int},
+                    i_non_states::Vector{Int},
+                    i_static::Vector{Int},
+                    p_bkwrd::Vector{Int},
+                    p_cur_bkwrd::Vector{Int},
+                    p_current::Vector{Int},
+                    p_current_ns::Vector{Int},
+                    p_static::Vector{Int},
+                    lead_lag_incidence::Vector{Vector{Int}},
+                    endogenous_nbr::Int,
                 )
             i_bkwrd_b = i_bkwrd
             p_bkwrd_b = p_bkwrd
@@ -594,7 +596,7 @@ function Model(
         backward_number + current_number + forward_number + 2 * both_number .+
         collect(1:exogenous_nbr)
     )
-    mcps = Tuple{Int64,String,String,String}[]
+    mcps = Tuple{Int,String,String,String}[]
     ids = LRE.Indices(exogenous_nbr, i_fwrd_b, i_current, i_bkwrd_b, i_static)
     Model(
         endogenous_nbr,
@@ -683,6 +685,7 @@ function Model(
         mcps,
         dynamic_g1_sparse_rowval,
         dynamic_g1_sparse_colptr,
+        dynamic_g2_sparse_indices,
         static_g1_sparse_rowval,
         static_g1_sparse_colptr,
         dynamic_tmp_nbr,
@@ -717,7 +720,7 @@ mutable struct Trends
     exogenous_det_terminal_steady_state::Vector{Float64}
     exogenous_det_linear_trend::Vector{Float64}
     exogenous_det_quadratic_trend::Vector{Float64}
-    function Trends(ny::Int64, nx::Int64, nxd::Int64)
+    function Trends(ny::Int, nx::Int, nxd::Int)
         endogenous_steady_state = Vector{Float64}(undef, ny)
         endogenous_terminal_steady_state = Vector{Float64}(undef, 0)
         endogenous_linear_trend = zeros(ny)
@@ -769,6 +772,7 @@ mutable struct ModelResults
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
     smoother
+    solution_derivatives::Vector{Matrix{Float64}}
 end
 
 Base.show(io::IO, r::ModelResults) = show_field_value(r)
@@ -778,7 +782,7 @@ struct Results
 end
 
 struct EstimatedParameters
-    index::Vector{Union{Int64,Pair{Int64,Int64}}}
+    index::Vector{Union{Int,Pair{Int,Int}}}
     initialvalue::Vector{Union{Float64, Missing}}
     ml_maximizer::Vector{Float64}
     name::Vector{Union{String,Pair{String,String}}}
@@ -791,7 +795,7 @@ struct EstimatedParameters
     posterior_hpdi_ub::Vector{Float64}
     prior::Vector{Distribution}
     function EstimatedParameters()
-        index = Vector{Union{Int64,Pair{Int64,Int64}}}(undef, 0)
+        index = Vector{Union{Int,Pair{Int,Int}}}(undef, 0)
         initialvalue = Vector{Union{Float64, Missing}}(undef, 0)
         ml_maximizer = Vector{Float64}(undef, 0)
         name = Vector{Union{String,Pair{String,String}}}(undef, 0)
@@ -982,29 +986,29 @@ parameters obtained from modfile.json
 """
 struct ModelInfo
     lead_lag_incidence::Vector{Any}
-    nstatic::Int64
-    nfwrd::Int64
-    npred::Int64
-    nboth::Int64
-    nsfwrd::Int64
-    nspred::Int64
-    ndynamic::Int64
-    maximum_endo_lag::Int64
-    maximum_endo_lead::Int64
-    maximum_exo_lag::Int64
-    maximum_exo_lead::Int64
-    maximum_exo_det_lag::Int64
-    maximum_exo_det_lead::Int64
-    maximum_lag::Int64
-    maximum_lead::Int64
-    orig_maximum_endo_lag::Int64
-    orig_maximum_endo_lead::Int64
-    orig_maximum_exo_lag::Int64
-    orig_maximum_exo_lead::Int64
-    orig_maximum_exo_det_lag::Int64
-    orig_maximum_exo_det_lead::Int64
-    orig_maximum_lag::Int64
-    orig_maximum_lead::Int64
+    nstatic::Int
+    nfwrd::Int
+    npred::Int
+    nboth::Int
+    nsfwrd::Int
+    nspred::Int
+    ndynamic::Int
+    maximum_endo_lag::Int
+    maximum_endo_lead::Int
+    maximum_exo_lag::Int
+    maximum_exo_lead::Int
+    maximum_exo_det_lag::Int
+    maximum_exo_det_lead::Int
+    maximum_lag::Int
+    maximum_lead::Int
+    orig_maximum_endo_lag::Int
+    orig_maximum_endo_lead::Int
+    orig_maximum_exo_lag::Int
+    orig_maximum_exo_lead::Int
+    orig_maximum_exo_det_lag::Int
+    orig_maximum_exo_det_lead::Int
+    orig_maximum_lag::Int
+    orig_maximum_lead::Int
     NNZDerivatives::Vector{Any}
 end
 

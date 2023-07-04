@@ -101,7 +101,7 @@ end
 
 function dynamic_derivatives2!(
     T::AbstractVector{<:Real},
-    g2::AbstractMatrix{<:Real},
+    d2::AbstractVector{<:Real},
     y::AbstractVector{<:Real},
     x::AbstractVector{<:Real},
     params::AbstractVector{<:Real},
@@ -110,13 +110,13 @@ function dynamic_derivatives2!(
     SparseDynamicResidTT!(T, y, x, params, steady_state)
     SparseDynamicG1TT!(T, y, x, params, steady_state)
     SparseDynamicG2TT!(T, y, x, params, steady_state)
-    SparseDynamicG2!(T, g2.nzval, y, x, params, steady_state)
+    SparseDynamicG2!(T, d2, y, x, params, steady_state)
     return nothing
 end
 
 function dynamic_derivatives3!(
     T::Vector{<:Real},
-    g3::AbstractMatrix{<:Real},
+    d3::AbstractVector{<:Real},
     y::Vector{<:Real},
     x::AbstractVector{<:Real},
     params::Vector{<:Real},
@@ -126,7 +126,7 @@ function dynamic_derivatives3!(
     SparseDynamicG1TT!(T, y, x, params, steady_state)
     SparseDynamicG2TT!(T, y, x, params, steady_state)
     SparseDynamicG3TT!(T, y, x, params, steady_state)
-    SparseDynamicG3!(T, g3.nzval, y, x, params, steady_state)
+    SparseDynamicG3!(T, d3, y, x, params, steady_state)
     return nothing
 end
 
