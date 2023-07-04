@@ -70,7 +70,6 @@ struct SteadyOptions
             elseif k == "homotopy_steps"
                 homotopy_steps = v::Int64
             elseif k == "steadystate.nocheck" && v::Bool
-                @show k
                 nocheck = true
             end
         end
@@ -195,8 +194,10 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
         x0 = zeros(model.endogenous_nbr)
         !isempty(trends.endogenous_steady_state) &&
             (x0 .= Float64.(trends.endogenous_steady_state))
-        trends.endogenous_steady_state .=
-            solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
+        if !nocheck
+            trends.endogenous_steady_state .=
+                solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
+        end
         # terminal steady state
         if modfileinfo.has_endval
             !isempty(trends.exogenous_terminal_steady_state) &&
