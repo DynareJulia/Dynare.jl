@@ -26,7 +26,7 @@ function get_symbol_table(modeljson::Dict{String,Any})
         ExogenousDeterministic,
     )
     param_nbr = set_symbol_table!(symboltable, modeljson["parameters"], Parameter)
-    orig_endo_nbr = modeljson["orig_endo_nbr"]::Int64
+    orig_endo_nbr = modeljson["orig_endo_nbr"]::Int
     aux_vars = modeljson["aux_vars"]
     return (symboltable, endo_nbr, exo_nbr, exo_det_nbr, param_nbr, orig_endo_nbr, aux_vars)
 end
@@ -36,30 +36,31 @@ function get_model(
     modfileinfo::ModFileInfo,
     dynare_model_info::Dict{String,Any},
     commandlineoptions::CommandLineOptions,
-    endo_nbr::Int64,
-    exo_nbr::Int64,
-    exo_det_nbr::Int64,
-    param_nbr::Int64,
-    orig_endo_nbr::Int64,
+    endo_nbr::Int,
+    exo_nbr::Int,
+    exo_det_nbr::Int,
+    param_nbr::Int,
+    orig_endo_nbr::Int,
     aux_vars::Vector{Any},
-    dynamic_g1_sparse_rowval::Vector{Int64},
-    dynamic_g1_sparse_colptr::Vector{Int64},
-    static_g1_sparse_rowval::Vector{Int64},
-    static_g1_sparse_colptr::Vector{Int64},
-    dynamic_tmp_nbr::Vector{Int64},
-    static_tmp_nbr::Vector{Int64}
+    dynamic_g1_sparse_rowval::Vector{Int},
+    dynamic_g1_sparse_colptr::Vector{Int},
+    dynamic_g2_sparse_indices::Vector{Vector{Int}},
+    static_g1_sparse_rowval::Vector{Int},
+    static_g1_sparse_colptr::Vector{Int},
+    dynamic_tmp_nbr::Vector{Int},
+    static_tmp_nbr::Vector{Int}
 )
     model_info = get_model_info(dynare_model_info)
-    NNZDerivatives = Vector{Int64}(undef, length(model_info.NNZDerivatives))
+    NNZDerivatives = Vector{Int}(undef, length(model_info.NNZDerivatives))
     for (i, n) in enumerate(model_info.NNZDerivatives)
-        NNZDerivatives[i] = n::Int64
+        NNZDerivatives[i] = n::Int
     end
     nlags = model_info.maximum_endo_lag + model_info.maximum_endo_lead + 1
-    lead_lag_incidence = Vector{Vector{Int64}}(undef, 0)
+    lead_lag_incidence = Vector{Vector{Int}}(undef, 0)
     for (i, vv) in enumerate(model_info.lead_lag_incidence)
-        v = zeros(Int64, nlags)
+        v = zeros(Int, nlags)
         for j = 1:nlags
-            v[j] = vv[j]::Int64
+            v[j] = vv[j]::Int
         end
         push!(lead_lag_incidence, v)
     end
@@ -69,7 +70,7 @@ function get_model(
         endo_nbr,
         lead_lag_incidence,
         exo_nbr,
-        Int64(0),
+        Int(0),
         exo_det_nbr,
         param_nbr,
         orig_endo_nbr,
@@ -94,6 +95,7 @@ function get_model(
         commandlineoptions.compilemodule,
         dynamic_g1_sparse_rowval,
         dynamic_g1_sparse_colptr,
+        dynamic_g2_sparse_indices,
         static_g1_sparse_rowval,
         static_g1_sparse_colptr,
         dynamic_tmp_nbr,
@@ -138,10 +140,10 @@ end
 function make_containers(
     modelfileinfo::ModFileInfo,
     modfilename::String,
-    endo_nbr::Int64,
-    exo_nbr::Int64,
-    exo_det_nbr::Int64,
-    param_nbr::Int64,
+    endo_nbr::Int,
+    exo_nbr::Int,
+    exo_det_nbr::Int,
+    param_nbr::Int,
     model::Model,
     symboltable::SymbolTable,
     varobs::Vector{String},
@@ -156,6 +158,7 @@ function make_containers(
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         Dict{String,Matrix{Float64}}(),
+        Vector{Matrix{Float64}}(undef, 0)
     )
     results = Results([modelresults])
     return Context(symboltable, [model], modelfileinfo, results, work, Dict())
@@ -169,6 +172,10 @@ function make_context(modeljson, modfilename, commandlineoptions)
     modfileinfo = ModFileInfo(modfilename)
     check_function_files!(modfileinfo, modfilename)
     @debug "$(now()): get model"
+    dynamic_g2_sparse_indices = Vector{Vector{Int}}(get(modeljson,
+                                                        "dynamic_g2_sparse_indices",
+                                                        [])
+                                                    )
     model = get_model(
         modfilename,
         modfileinfo,
@@ -180,12 +187,13 @@ function make_context(modeljson, modfilename, commandlineoptions)
         param_nbr,
         orig_endo_nbr,
         aux_vars,
-        Vector{Int64}(modeljson["dynamic_g1_sparse_rowval"]),
-        Vector{Int64}(modeljson["dynamic_g1_sparse_colptr"]),
-        Vector{Int64}(modeljson["static_g1_sparse_rowval"]),
-        Vector{Int64}(modeljson["static_g1_sparse_colptr"]),
-        Vector{Int64}(modeljson["dynamic_tmp_nbr"]),
-        Vector{Int64}(modeljson["static_tmp_nbr"]),
+        Vector{Int}(modeljson["dynamic_g1_sparse_rowval"]),
+        Vector{Int}(modeljson["dynamic_g1_sparse_colptr"]),
+        dynamic_g2_sparse_indices,
+        Vector{Int}(modeljson["static_g1_sparse_rowval"]),
+        Vector{Int}(modeljson["static_g1_sparse_colptr"]),
+        Vector{Int}(modeljson["dynamic_tmp_nbr"]),
+        Vector{Int}(modeljson["static_tmp_nbr"]),
     )
     varobs = get_varobs(modeljson)
     @debug "$(now()): make_container"
@@ -379,7 +387,7 @@ function set_symbol_table!(
     table::Dict{String,DynareSymbol},
     modelfile::Vector{Any},
     symboltype::SymbolType,
-)::Int64
+)::Int
     count = 0
     for entry in modelfile
         count += 1
@@ -398,9 +406,9 @@ end
 function get_lead_lag_incidence(ll::Vector{Any})
     n = length(ll)
     m = length(ll[1])
-    llm = zeros(Int64, m, n)
+    llm = zeros(Int, m, n)
     k = 1
-    for v::Vector{Int64} in ll
+    for v::Vector{Int} in ll
         copyto!(llm, k, v, 1, m)
         k += m
     end
@@ -409,32 +417,32 @@ end
 
 get_model_info(field::Dict{String,Any}) = ModelInfo(
     field["lead_lag_incidence"]::Vector{Any},
-    field["nstatic"]::Int64,
-    field["nfwrd"]::Int64,
-    field["npred"]::Int64,
-    field["nboth"]::Int64,
-    field["nsfwrd"]::Int64,
-    field["nspred"]::Int64,
-    field["ndynamic"]::Int64,
-    field["maximum_endo_lag"]::Int64,
-    field["maximum_endo_lead"]::Int64,
-    field["maximum_exo_lag"]::Int64,
-    field["maximum_exo_lead"]::Int64,
-    field["maximum_exo_det_lag"]::Int64,
-    field["maximum_exo_det_lead"]::Int64,
-    field["maximum_lag"]::Int64,
-    field["maximum_lead"]::Int64,
-    field["orig_maximum_endo_lag"]::Int64,
-    field["orig_maximum_endo_lead"]::Int64,
-    field["orig_maximum_exo_lag"]::Int64,
-    field["orig_maximum_exo_lead"]::Int64,
-    field["orig_maximum_exo_det_lag"]::Int64,
-    field["orig_maximum_exo_det_lead"]::Int64,
+    field["nstatic"]::Int,
+    field["nfwrd"]::Int,
+    field["npred"]::Int,
+    field["nboth"]::Int,
+    field["nsfwrd"]::Int,
+    field["nspred"]::Int,
+    field["ndynamic"]::Int,
+    field["maximum_endo_lag"]::Int,
+    field["maximum_endo_lead"]::Int,
+    field["maximum_exo_lag"]::Int,
+    field["maximum_exo_lead"]::Int,
+    field["maximum_exo_det_lag"]::Int,
+    field["maximum_exo_det_lead"]::Int,
+    field["maximum_lag"]::Int,
+    field["maximum_lead"]::Int,
+    field["orig_maximum_endo_lag"]::Int,
+    field["orig_maximum_endo_lead"]::Int,
+    field["orig_maximum_exo_lag"]::Int,
+    field["orig_maximum_exo_lead"]::Int,
+    field["orig_maximum_exo_det_lag"]::Int,
+    field["orig_maximum_exo_det_lead"]::Int,
     max(
-        field["orig_maximum_lag"]::Int64,
-        field["orig_maximum_lag_with_diffs_expanded"]::Int64,
+        field["orig_maximum_lag"]::Int,
+        field["orig_maximum_lag_with_diffs_expanded"]::Int,
     ),
-    field["orig_maximum_lead"]::Int64,
+    field["orig_maximum_lead"]::Int,
     field["NNZDerivatives"]::Vector{Any},
 )
 
@@ -499,7 +507,7 @@ function last_steps(context::Context)
     return context
 end
 
-function get_mcps!(mcps::Vector{Tuple{Int64,Int64,String,String}},
+function get_mcps!(mcps::Vector{Tuple{Int,Int,String,String}},
                    model::Vector{Any})
     for (i, eq) in enumerate(model)
         tags = get(eq, "tags", "")

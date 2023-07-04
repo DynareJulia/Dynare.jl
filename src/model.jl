@@ -8,7 +8,7 @@ struct DynamicWs
     dynamic_variables::Vector{Float64}
     exogenous_variables::Vector{Float64}
     residuals::Vector{Float64}
-    derivatives::Vector{SparseMatrixCSC}
+    derivatives::Vector{SparseMatrixCSC{Float64, Int64}}
     temporary_values::Vector{Float64}
     function DynamicWs(
         endogenous_nbr::Int,
@@ -22,11 +22,17 @@ struct DynamicWs
         exogenous_variables = Vector{Float64}(undef, exogenous_nbr)
         residuals = Vector{Float64}(undef, endogenous_nbr)
         derivatives = [SparseMatrixCSC(endogenous_nbr,
-                                       (3*endogenous_nbr + exogenous_nbr)^i,
+                                       (3*endogenous_nbr + exogenous_nbr),
                                        colptr,
                                        rowval,
                                        similar(rowval, Float64))
-                       for i = 1:order]
+                       ]
+        for i = 2:order
+            push!(derivatives,
+                  zeros(endogenous_nbr,
+                        (3*endogenous_nbr + exogenous_nbr)^i)
+                  )
+        end
         temporary_values = Vector{Float64}(undef, tmp_nbr)
         new(
             dynamic_variables,
@@ -40,7 +46,7 @@ end
 
 function DynamicWs(context::Context; order = 1)
     m = context.models[1]
-    tmp_nbr = sum(m.dynamic_tmp_nbr[1:2])
+    tmp_nbr = sum(m.dynamic_tmp_nbr[1:(order + 1)])
     return DynamicWs(m.endogenous_nbr,
                      m.exogenous_nbr,
                      tmp_nbr,
@@ -109,7 +115,7 @@ end
 `get_dynamic_jacobian!`(ws::DynamicWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, 
 steadystate::Vector{Float64}, m::Model, period::Int)
 
-sets the dynamic Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
+sets the dynamic Jacobian matrix ``ws.derivatives[1]``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
 """
 function get_dynamic_jacobian!(
     ws::DynamicWs,
@@ -135,7 +141,7 @@ end
 """
 `get_static_jacobian!`(ws::StaticWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64})
 
-sets the static Jacobian matrix ``work.jacobian``, evaluated at ``endogenous`` and ``exogenous`` values
+sets the static Jacobian matrix ``ws.derivatives[1]``, evaluated at ``endogenous`` and ``exogenous`` values
 """
 function get_static_jacobian!(
     ws::StaticWs,
@@ -154,6 +160,42 @@ function get_static_jacobian!(
         params,
     )
     return ws.derivatives[1]
+end
+
+"""
+`get_dynamic_derivatives2!`(ws::DynamicWs, params::Vector{Float64}, endogenous::AbstractVector{Float64}, exogenous::Vector{Float64}, 
+steadystate::Vector{Float64}, values::Vector{Float64}, indices::Vector{Vector{Int}}, m::Model, period::Int)
+
+sets the dynamic second order derivatives matrix ``ws.derivatives[2]``, evaluated at ``endogenous`` and ``exogenous`` values, identical for all leads and lags
+"""
+function get_dynamic_derivatives2!(
+    ws::DynamicWs,
+    params::Vector{Float64},
+    endogenous::AbstractVector{Float64},
+    exogenous::AbstractVector{Float64},
+    steadystate::Vector{Float64},
+    values::Vector{Float64},
+    m::Model,
+)
+    DFunctions.dynamic_derivatives2!(
+        ws.temporary_values,
+        values,
+        endogenous,
+        exogenous,
+        params,
+        steadystate,
+    )
+
+    n = 3*m.endogenous_nbr + m.exogenous_nbr
+    D2 = reshape(ws.derivatives[2], m.endogenous_nbr, n, n) 
+    for (j, i) in enumerate(m.dynamic_g2_sparse_indices)
+        i1, i2, i3 = i
+        x = values[j] 
+        D2[i1, i2, i3] = x
+        i2 != i3 && (D2[i1, i3, i2] = x)
+    end
+
+    return ws.derivatives[2]
 end
 
 function get_abc!(
