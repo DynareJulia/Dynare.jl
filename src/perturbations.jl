@@ -334,15 +334,13 @@ function display_autocorrelation(
     ar = [zeros(n1) for i = 1:options.nar]
     S1a = zeros(n1, endogenous_nbr)
     S1b = similar(S1a)
-    S2a = zeros(endogenous_nbr - model.n_bkwrd - model.n_both, endogenous_nbr)
-    S2b = similar(S2a)
+    S2 = zeros(endogenous_nbr - model.n_bkwrd - model.n_both, endogenous_nbr)
     ar = autocorrelation!(
         ar,
         LREresults,
         S1a,
         S1b,
-        S2a,
-        S2b,
+        S2,
         model.i_bkwrd_b,
         stationary_variables,
     )
