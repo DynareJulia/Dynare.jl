@@ -407,13 +407,13 @@ function shocks!(;
                  )
     scenario = context.work.scenario
     if haskey(scenario, infoperiod)
-        if haskey(scenario[infoperiod], name)
-            scenario[infoperiod][name][period] = (value => exogenous)
+        if haskey(scenario[infoperiod], period)
+            scenario[infoperiod][period][name] = (value => exogenous)
         else
-            scenario[infoperiod][name] = Dict(period => (value => exogenous))
+            scenario[infoperiod][period] = Dict(name => (value => exogenous))
         end
     else
-        scenario[infoperiod] = Dict(name => Dict(period => (value => exogenous)))
+        scenario[infoperiod] = Dict(period => Dict(name => (value => exogenous)))
     end
 end
                
