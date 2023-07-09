@@ -7,7 +7,6 @@ using Test
 
 @dynare "models/example1pf/example1pf_conditional"
 context = load("models/example1pf/example1pf_conditional/output/example1pf_conditional.jld2", "context")
-
 function make_f_J(context, scenario, periods)
     datafile = ""
     
@@ -263,6 +262,7 @@ end
         @test y[1] == 1
         @test y[3] == 1
     end
+
 end
 
 nothing
