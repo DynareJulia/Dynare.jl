@@ -87,7 +87,7 @@ function set_or_zero!(x, a, n)
 end
         
 """
-    steady!(; context::Context=context,
+    steadystate!(; context::Context=context,
             display = true,
             homotopy_mode = None,
             homotopy_steps = 10,
@@ -99,7 +99,7 @@ end
                              
 Compute the steady state of the model and set the result in `context`
 """
-function steady!(;context::Context=context,
+function steadystate!(; context::Context=context,
             display = true,
             homotopy_mode = None,
             homotopy_steps = 10,
