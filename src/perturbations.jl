@@ -393,6 +393,26 @@ function stoch_simul!(context::Context, field::Dict{String,Any})
     stoch_simul_core!(context, ws, options)
 end
 
+function localapproximation!(; context::Context,
+                             display = true,
+                             dr_algo = "GS",
+                             first_period = 1,
+                             irf = 40,
+                             LRE_options = LinearRationalExpectationsOptions(),
+                             nar = 5,
+                             nonstationary = false,
+                             order = 1,
+                             periods = 0,
+                             print_results = true
+                             )
+    options = StochSimulOptions(field["options"])
+    m = context.models[1]
+    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
+    tmp_nbr = m.dynamic_tmp_nbr
+    ws = DynamicWs(context, order=options.order)
+    stoch_simul_core!(context, ws, options)
+end
+
 function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulOptions)
     model = context.models[1]
     modfileinfo = context.modfileinfo
