@@ -74,6 +74,43 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
             homotopy, initialization_algo, linear_solve_algo, maxit, mcp, periods, tolf, tolx)
 end
 
+struct FlipInformation
+    flipped_variables::Vector{Bool}
+    ix_period::SparseVector{Int, Int}
+    ix_stack::SparseVector{Int, Int}
+    iy_period::SparseVector{Int, Int}
+    
+    function FlipInformation(context, periods, infoperiod)
+        m = context.models[1]
+        symboltable = context.symboltable
+        endogenous_nbr = m.endogenous_nbr
+        exogenous_nbr = m.exogenous_nbr
+        N = periods*m.endogenous_nbr
+        flipped_variables = repeat([false], N)
+        ix_period = spzeros(N)
+        ix_stack = similar(ix_period)
+        iy_period = similar(ix_period)
+        s1 = context.work.scenario[infoperiod]
+        for (period, f1) in s1
+            p = length(infoperiod:period)
+            for (s, f2) in f1
+                ss = string(s)
+                if is_endogenous(ss, symboltable)
+                    iy1 = symboltable[ss].orderintype
+                    iy2 = (p - 1)*endogenous_nbr + iy1
+                    ix1 = symboltable[string(f2[2])].orderintype
+                    ix2 = (p - 1)*exogenous_nbr + ix1
+                    ix_period[iy2] = 3*endogenous_nbr + ix1
+                    ix_stack[iy2] = ix2
+                    iy_period[iy2] = iy1
+                    flipped_variables[iy2] = true
+                end
+            end
+        end
+        new(flipped_variables, ix_period, ix_stack, iy_period)
+    end
+end
+
 struct PerfectForesightWs
     y::Vector{Float64}
     x::Vector{Float64}
@@ -83,7 +120,8 @@ struct PerfectForesightWs
     ub::Vector{Float64}
     permutationsR::Vector{Tuple{Int64,Int64}}  # permutations indices for residuals
     permutationsJ::Vector{Tuple{Int64,Int64}}  # permutations indices for Jacobian rows
-    function PerfectForesightWs(context::Context, periods=Int)
+    flipinfo::FlipInformation
+    function PerfectForesightWs(context::Context, periods=Int; infoperiod = Undated(1))
         m = context.models[1]
         modfileinfo = context.modfileinfo
         trends = context.results.model_results[1].trends
@@ -109,14 +147,24 @@ struct PerfectForesightWs
         permutationsR = [(p[1], p[2]) for p in m.mcps]
         colptr = m.dynamic_g1_sparse_colptr
         rowval = m.dynamic_g1_sparse_rowval
-        (J, permutationsJ) = makeJacobian(colptr,
-                                          rowval,
-                                          m.endogenous_nbr,
-                                          periods,
-                                          m.mcps)
-        lb = Float64[]
+        flipinfo = FlipInformation(context, periods, infoperiod)
+        if isempty(context.work.scenario)
+            (J, permutationsJ) = makeJacobian(colptr,
+                                              rowval,
+                                              m.endogenous_nbr,
+                                              periods,
+                                              m.mcps)
+        else
+            (J, permutationsJ) = makeJacobian(colptr,
+                                              rowval,
+                                              m.endogenous_nbr,
+                                              periods,
+                                              m.mcps,
+                                              flipinfo)
+        end            
+            lb = Float64[]
         ub = Float64[]
-        new(y, x, shocks, J, lb, ub, permutationsR, permutationsJ)
+        new(y, x, shocks, J, lb, ub, permutationsR, permutationsJ, flipinfo)
     end
 end
 
@@ -389,7 +437,6 @@ function simul_first_order!(
     return (view(simulresults, :, 1:periods - 1),
             view(simulresults, :, periods))
 end
-
 
 function perfectforesight_core!(
     perfect_foresight_ws::PerfectForesightWs,

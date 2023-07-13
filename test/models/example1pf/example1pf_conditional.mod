@@ -38,12 +38,12 @@ end;
 
 steady;
 
-//scenario!(name = :e, period = 1, value = 0.01);  
-//scenario!(name = :u, period = 2, value = 0.015);  
+scenario!(name = :e, period = 1, value = 0.01);  
+scenario!(name = :u, period = 2, value = 0.015);  
 scenario!(name = :y, period = 1, value = 1.0, exogenous = :u);
-//scenario!(name = :h, period = 2, value = 0.35, exogenous = :e);
-//scenario!(name = :y, period = 3, value = 1.0, exogenous = :u);
-//scenario!(name = :e, period = 1, value = 0.01, infoperiod = 3);  
+scenario!(name = :h, period = 2, value = 0.35, exogenous = :e);
+scenario!(name = :y, period = 3, value = 1.0, exogenous = :u);
+scenario!(name = :e, period = 1, value = 0.01, infoperiod = 3);  
 
 perfect_foresight!(periods=100);
 
