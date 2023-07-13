@@ -169,8 +169,9 @@ function make_pf_residuals(
     return f!
 end
 
-function flip!(y, x, flips_stack::SparseVector{Int, Int})
-    for (iy, ix) in find
+function flip!(y, x, ix_stack::SparseVector{Int, Int})
+    I, J = findnz(ix_stack)
+    for (iy, ix) in zip(I, J)
         y[iy], x[ix] = x[ix], y[iy]
     end
 end
@@ -223,19 +224,22 @@ end
 
 function adjust_colptr_size(iy_period::SparseVector{Int, Int}, colptr::Vector{Int}, endogenous_nbr::Int, periods::Int)
     size_adjustment = 0
-    for (iy2, iy1) in findnz(iy_period)
+    I, J = findnz(iy_period)
+    for (iy2, iy1) in zip(I, J)
         if iy2 <= endogenous_nbr
             size_adjustment += (1 - (colptr[iy1 + 1] - colptr[iy1])
-                                - (colptr[iy1 + endogenous_nbr +1] - colptr[iy1 + endogenous_nbr + iy1]))
-        elseif iy2 > (periods - 1)*endogenous_nbr
-            size_adjustment += (1 - (colptr[iy1 + 1] - colptr[iy1])
                                 - (colptr[iy1 + endogenous_nbr + 1] - colptr[iy1 + endogenous_nbr]))
+
+        elseif iy2 > (periods - 1)*endogenous_nbr
+            size_adjustment += (1 - (colptr[iy1 + endogenous_nbr + 1] - colptr[iy1 + endogenous_nbr])
+                                - (colptr[iy1 + 2*endogenous_nbr + 1] - colptr[iy1 + 2*endogenous_nbr]))
         else
             size_adjustment += (1 - (colptr[iy1 + 1] - colptr[iy1])
-                                - (colptr[iy1 - endogenous_nbr + 1] - colptr[iy1 - endogenous_nbr])
-                                - (colptr[iy1 + 2*endogenous_nbr +1] - colptr[iy1 + 2*endogenous_nbr]))
+                                - (colptr[iy1 + endogenous_nbr + 1] - colptr[iy1 + endogenous_nbr])
+                                - (colptr[iy1 + 2*endogenous_nbr + 1] - colptr[iy1 + 2*endogenous_nbr]))
+        end
     end
-    return size_adustment
+    return size_adjustment
 end
 
 function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations,
@@ -271,30 +275,32 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations,
         c += 1
         offset = 0
         if flipped_variables[c - 1]
-            bigcolptr[c] = bicolptr[c - 1] + colptr[ix_period + 1] -colptr[ix_period]
-            r = bgindex!(bgrowval, 
-            colptr[ix_period],
-            colptr[ix_period + 1] - 1,
-            offset)
+            ix = ix_period[c - 1]
+            bigcolptr[c] = bigcolptr[c - 1] + colptr[ix + 1] - colptr[ix]
+            r = bigindex!(bigrowval, 
+                          r,
+                          rowval,
+                          colptr[ix],
+                          colptr[ix + 1] - 1,
+                          offset)
         else
             bigcolptr[c] = (bigcolptr[c - 1]
-            + colptr[endogenous_nbr + i + 1]
-            - colptr[endogenous_nbr + i]
-            + colptr[i + 1]
-            - colptr[i])
-            r1 = colptr[endogenous_nbr + i]
+                            + colptr[endogenous_nbr + i + 1]
+                            - colptr[endogenous_nbr + i]
+                            + colptr[i + 1]
+                            - colptr[i])
             r= bigindex!(bigrowval,
-            r,
-            rowval,
-            colptr[endogenous_nbr + i],
-            colptr[endogenous_nbr + i + 1] - 1,
-            offset)
+                         r,
+                         rowval,
+                         colptr[endogenous_nbr + i],
+                         colptr[endogenous_nbr + i + 1] - 1,
+                         offset)
             r= bigindex!(bigrowval,
-            r,
-            rowval,
-            colptr[i],
-            colptr[i + 1] - 1,
-            offset + endogenous_nbr)
+                         r,
+                         rowval,
+                         colptr[i],
+                         colptr[i + 1] - 1,
+                         offset + endogenous_nbr)
         end
     end
 
@@ -305,38 +311,40 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations,
             offset = (p - 2)*endogenous_nbr
             # duplicate for flipped variable
             if flipped_variables[c - 1]
-                bigcolptr[c] = bicolptr[c - 1] + colptr[ix_period + 1] -colptr[ix_period]
-                r = bgindex!(bgrowval, 
-                colptr[ix_period],
-                colptr[ix_period + 1] - 1,
-                offset)
+                ix = ix_period[c - 1]
+                bigcolptr[c] = bigcolptr[c - 1] + colptr[ix + 1] -colptr[ix]
+                r = bigindex!(bigrowval, 
+                              r,
+                              rowval,
+                              colptr[ix],
+                              colptr[ix + 1] - 1,
+                              offset + endogenous_nbr)
             else
                 bigcolptr[c] = (bigcolptr[c - 1]
-                + colptr[2*endogenous_nbr + i + 1]
-                - colptr[2*endogenous_nbr + i]
-                + colptr[endogenous_nbr + i + 1]
-                - colptr[endogenous_nbr + i]
-                + colptr[i + 1]
-                - colptr[i])
-                r1 = colptr[endogenous_nbr + i]
+                                + colptr[2*endogenous_nbr + i + 1]
+                                - colptr[2*endogenous_nbr + i]
+                                + colptr[endogenous_nbr + i + 1]
+                                - colptr[endogenous_nbr + i]
+                                + colptr[i + 1]
+                                - colptr[i])
                 r= bigindex!(bigrowval,
-                r,
-                rowval,
-                colptr[2*endogenous_nbr + i],
-                colptr[2*endogenous_nbr + i + 1] - 1,
-                offset)
+                             r,
+                             rowval,
+                             colptr[2*endogenous_nbr + i],
+                             colptr[2*endogenous_nbr + i + 1] - 1,
+                             offset)
                 r= bigindex!(bigrowval,
-                r,
-                rowval,
-                colptr[endogenous_nbr + i],
-                colptr[endogenous_nbr + i + 1] - 1,
-                offset + endogenous_nbr)
+                             r,
+                             rowval,
+                             colptr[endogenous_nbr + i],
+                             colptr[endogenous_nbr + i + 1] - 1,
+                             offset + endogenous_nbr)
                 r= bigindex!(bigrowval,
-                r,
-                rowval,
-                colptr[i],
-                colptr[i + 1] - 1,
-                offset + 2*endogenous_nbr)
+                             r,
+                             rowval,
+                             colptr[i],
+                             colptr[i + 1] - 1,
+                             offset + 2*endogenous_nbr)
             end
         end
         offset += endogenous_nbr
@@ -346,11 +354,14 @@ function makeJacobian(colptr, rowval, endogenous_nbr, periods, permutations,
         c += 1
         offset = (periods - 2)*endogenous_nbr
         if flipped_variables[c - 1]
-            bigcolptr[c] = bicolptr[c - 1] + colptr[ix_period + 1] -colptr[ix_period]
-            r = bgindex!(bgrowval, 
-            colptr[ix_period],
-            colptr[ix_period + 1] - 1,
-            offset)
+            ix = ix_period[c - 1]
+            bigcolptr[c] = bigcolptr[c - 1] + colptr[ix + 1] -colptr[ix]
+            r = bigindex!(bigrowval, 
+                          r,
+                          rowval,
+                          colptr[ix],
+                          colptr[ix + 1] - 1,
+                          offset + endogenous_nbr)
         else
             bigcolptr[c] = (bigcolptr[c - 1]
                             + colptr[2*endogenous_nbr + i + 1]
@@ -395,8 +406,10 @@ function updateJacobian!(J::SparseMatrixCSC,
                          endogenous_nbr,
                          exogenous_nbr,
                          permutations,
-                         ix_period::SparseVector{Int, Int},
+                         flipinfo::FlipInformation,
                          ws::AbstractVector{<: Real})
+    flipped_variables = flipinfo.flipped_variables
+    ix_period = flipinfo.ix_period
     bigcolptr = J.colptr
     offset = 1
     rx = 1:exogenous_nbr
@@ -411,7 +424,7 @@ function updateJacobian!(J::SparseMatrixCSC,
             k = bigcolptr[c]
             if flipped_variables[c] && c <= endogenous_nbr
                 n = colptr[ix_period[c] + 1] - colptr[ix_period[c]]
-                copyto!(J.nzval, k, nzval, colptr[ix_period], n)
+                copyto!(J.nzval, k, nzval, colptr[ix_period[c]], n)
             else
                 n = colptr[endogenous_nbr + c+1] - colptr[endogenous_nbr + c]
                 copyto!(J.nzval, k, nzval, colptr[endogenous_nbr + c], n)
@@ -423,9 +436,9 @@ function updateJacobian!(J::SparseMatrixCSC,
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         for c in 1:2*endogenous_nbr
             k = bigcolptr[c] + colptr[endogenous_nbr + c + 1] - colptr[endogenous_nbr + c]
-            if flipped_variables[k] && c > endogenous_nbr
-                n = colptr[ix_period[k] + 1] - colptr[ix_period[k]]
-                copyto!(J.nzval, k, nzval, colptr[ix_period[k]], n)
+            if flipped_variables[c] && c > endogenous_nbr
+                n = colptr[ix_period[c] + 1] - colptr[ix_period[c]]
+                copyto!(J.nzval, k, nzval, colptr[ix_period[c]], n)
             else
                 n = colptr[c+1] - colptr[c]
                 copyto!(J.nzval, k, nzval, colptr[c], n)
@@ -450,11 +463,12 @@ function updateJacobian!(J::SparseMatrixCSC,
                 copyto!(J.nzval, k, nzval, colptr[c], n)
             end
             for c in endogenous_nbr + 1:2*endogenous_nbr
-                k = (bigcolptr[c + p*endogenous_nbr]
-                     + colptr[c + endogenous_nbr + 1] - colptr[c + endogenous_nbr])
-                if flipped_variables[k]
-                    n = colptr[ix_period[k] + 1] - colptr[ix_period[k]]
-                    copyto!(J.nzval, k, nzval, colptr[ix_periodc[k]], n)
+                c1 = c + p*endogenous_nbr
+                k = (bigcolptr[c1]
+                     + colptr[c1 + 1] - colptr[c1])
+                if flipped_variables[c1]
+                    n = colptr[ix_period[c1] + 1] - colptr[ix_period[c1]]
+                    copyto!(J.nzval, k, nzval, colptr[ix_period[c1]], n)
                 else
                     n = colptr[c+1] - colptr[c]
                     copyto!(J.nzval, k, nzval, colptr[c], n)
@@ -480,11 +494,12 @@ function updateJacobian!(J::SparseMatrixCSC,
             copyto!(J.nzval, k, nzval, colptr[c], n)
         end
         for c in endogenous_nbr + 1:2*endogenous_nbr
-            k = (bigcolptr[c + (periods - 2)*endogenous_nbr]
+            c1 = c + (periods - 2)*endogenous_nbr
+            k = (bigcolptr[c1]
                  + colptr[c + endogenous_nbr + 1] - colptr[c + endogenous_nbr])
-            if flipped_variables[k]
-                n = colptr[ix_period[k] + 1] - colptr[ix_period[k]]
-                copyto!(J.nzval, k, nzval, colptr[ix_period[k]], n)
+            if flipped_variables[c1]
+                n = colptr[ix_period[c1] + 1] - colptr[ix_period[c1]]
+                copyto!(J.nzval, k, nzval, colptr[ix_period[c1]], n)
             else
                 n = colptr[c+1] - colptr[c]
                 copyto!(J.nzval, k, nzval, colptr[c], n)

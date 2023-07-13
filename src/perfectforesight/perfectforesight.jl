@@ -285,6 +285,7 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             terminal_values,
             options.linear_solve_algo,
             dynamic_ws,
+            perfect_foresight_ws.flipinfo
         )
     else
         perfectforesight_core!(

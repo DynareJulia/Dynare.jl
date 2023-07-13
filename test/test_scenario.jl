@@ -38,8 +38,8 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
         target = repeat([false], 5*6)
         target[[1, 7]] .= true
         @test FI.flipped_variables == target 
-        @test FI.flips_period[[1, 7]] == [20, 20]
-        @test FI.flips_stack[[1, 7]] == [2, 4]
+        @test FI.ix_period[[1, 7]] == [20, 20]
+        @test FI.ix_stack[[1, 7]] == [2, 4]
     end
 
     @testset "flip!" begin
@@ -47,7 +47,7 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
         x = collect(1:10)
         x0 = copy(x)
         y = zeros(30)
-        Dynare.flip!(y, x, FI.flips_stack)
+        Dynare.flip!(y, x, FI.ix_stack)
         @test y[1] == x0[2]
         @test y[7] == x0[4]
     end
@@ -114,7 +114,7 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
                                       periods,
                                       temp_vec,
                                       perfect_foresight_ws.permutationsR,
-                                      FI.flips_stack
+                                      FI.ix_stack
                                       )
 
         f!(residuals, guess_values)
@@ -127,7 +127,7 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
         
         permutations = []
         J, permutations = Dynare.makeJacobian(m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval,
-                                m.endogenous_nbr, m.exogenous_nbr, periods, permutations, FI)
+                                m.endogenous_nbr, periods, permutations, FI)
 
         Dynare.updateJacobian!(J,
                                Dynare.DFunctions.dynamic_derivatives!,
@@ -159,7 +159,7 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
         Jtarget, permutations = Dynare.makeJacobian(m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval,
                                 m.endogenous_nbr, periods, permutations)
 
-        Dynare.flip!(guess_values, exogenous, FI.flips_stack)
+        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
         Dynare.updateJacobian!(Jtarget,
                                Dynare.DFunctions.dynamic_derivatives!,
                                guess_values,
@@ -176,6 +176,7 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
                                m.endogenous_nbr,
                                m.exogenous_nbr,
                                permutations,
+                               FI,
                                nzval1)
     end
 
