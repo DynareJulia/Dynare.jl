@@ -1,10 +1,11 @@
-function set_future_information(y, x, context, periods, infoperiod)
+function set_future_information!(y::Vector{Float64}, x::Vector{Float64}, context, periods, infoperiod)
     m = context.models[1]
     endogenous_nbr = m.endogenous_nbr
     exogenous_nbr = m.exogenous_nbr
     flips = context.work.scenario[infoperiod]
     symboltable = context.symboltable
     
+    @show flips
     for (period, f1) in flips
         p = length(infoperiod:period)
         for (s, f2) in f1
@@ -15,6 +16,7 @@ function set_future_information(y, x, context, periods, infoperiod)
             elseif is_endogenous(ss, symboltable)
                 idy = (p - 1)*endogenous_nbr + symboltable[ss].orderintype
                 y[idy] = f2[1]
+                @show idy, y[idy]
             end
         end
     end
@@ -69,26 +71,31 @@ function perfectforesight_core_conditional!(
     )
 
     J! = make_pf_jacobian(
-            DFunctions.dynamic_derivatives!,
-            initialvalues,
-            terminalvalues,
-            dynamic_variables,
-            exogenous,
-            periods,
-            temp_vec,
-            params,
-            steadystate,
-            m.dynamic_g1_sparse_colptr,
-            nzval,
-            m.endogenous_nbr,
-            m.exogenous_nbr,
-            perfect_foresight_ws.permutationsJ,
-            nzval1
-        )
+        DFunctions.dynamic_derivatives!,
+        initialvalues,
+        terminalvalues,
+        dynamic_variables,
+        exogenous,
+        periods,
+        temp_vec,
+        params,
+        steadystate,
+        m.dynamic_g1_sparse_colptr,
+        nzval,
+        m.endogenous_nbr,
+        m.exogenous_nbr,
+        perfect_foresight_ws.permutationsJ,
+        flipinfo,
+        nzval1
+    )
 
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
 
+    set_future_information!(y0, exogenous, context, periods, 1)
+    flip!(y0, exogenous, flipinfo.ix_stack)
+    f!(residuals, y0)
+    @show norm(residuals)
     if linear_solve_algo == pardiso
         @show "Pardiso"
         if isnothing(Base.get_extension(Dynare, :PardisoSolver))
@@ -102,38 +109,9 @@ function perfectforesight_core_conditional!(
     end
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
+    flip!(res.zero, exogenous, flipinfo.ix_stack)
     make_simulation_results!(context::Context, res.zero, exogenous, terminalvalues, periods)
 end
-
-#=
-function make_flips(context, firstperiod)
-    endogenous_nbr = context.models[1].endogenous_nbr
-    exogenous_nbr = context.models[1].exogenous_nbr
-    flips = Dict{PeriodsSinceEpoch, Vector{Pair{Int, Int}}}()
-    symboltable = context.symboltable
-    scenario = context.work.scenario
-    for infoperiod in keys(scenario)
-        vflips = Vector{Pair{Int, Int}}(undef, 0)
-        for s in keys(scenario[infoperiod])
-            ss = string(s)
-            if is_endogenous(ss, symboltable)
-                for p in keys(scenario[infoperiod][s])
-                    offset_endo = (p - infoperiod)*endogenous_nbr
-                    offset_exo = (p - infoperiod)*exogenous_nbr
-                    exogenous = string(scenario[infoperiod][s][p][2])
-                    push!(vflips,
-                          ((offset_endo + symboltable[ss].orderintype) =>
-                           offset_exo + symboltable[exogenous].orderintype))
-                end
-            end
-        end
-        if length(vflips) > 0
-            flips[infoperiod] = vflips
-        end
-    end
-    return flips
-end
-=#
 
 function make_pf_residuals(
     initialvalues::AbstractVector{T},
@@ -164,6 +142,7 @@ function make_pf_residuals(
             temp_vec,
             permutations = permutations
         )
+        flip!(y, exogenous, ix_stack)
         return residuals
     end
     return f!
@@ -190,9 +169,9 @@ function make_pf_jacobian(
     nzval::AbstractVector{T},
     endogenous_nbr::N,
     exogenous_nbr::N,
-    permutations::Vector{Tuple{Int64,Int64}},
+    permutations,
+    flipinfo::FlipInformation,
     nzval1::AbstractVector{T},
-    flips
 ) where {T <: Real, N <: Integer}
     function J!(
         A::SparseArrays.SparseMatrixCSC{Float64,Int64},
@@ -215,7 +194,7 @@ function make_pf_jacobian(
             endogenous_nbr,
             exogenous_nbr,
             permutations,
-            flips,
+            flipinfo,
             nzval1
         )
         return A
@@ -421,11 +400,11 @@ function updateJacobian!(J::SparseMatrixCSC,
         oy = endogenous_nbr
         ox = exogenous_nbr
         for c in 1:2*endogenous_nbr
-            k = bigcolptr[c]
             if flipped_variables[c] && c <= endogenous_nbr
                 n = colptr[ix_period[c] + 1] - colptr[ix_period[c]]
-                copyto!(J.nzval, k, nzval, colptr[ix_period[c]], n)
+                copyto!(J.nzval, bigcolptr[c], nzval, colptr[ix_period[c]], n)
             else
+                k = bigcolptr[c]
                 n = colptr[endogenous_nbr + c+1] - colptr[endogenous_nbr + c]
                 copyto!(J.nzval, k, nzval, colptr[endogenous_nbr + c], n)
             end
@@ -435,11 +414,11 @@ function updateJacobian!(J::SparseMatrixCSC,
         G1!(temporary_var, nzval, endogenous[ry], exogenous[rx], params, steady_state)
         !isempty(permutations) && reorder_derivatives!(nzval, permutations, ws)
         for c in 1:2*endogenous_nbr
-            k = bigcolptr[c] + colptr[endogenous_nbr + c + 1] - colptr[endogenous_nbr + c]
             if flipped_variables[c] && c > endogenous_nbr
                 n = colptr[ix_period[c] + 1] - colptr[ix_period[c]]
-                copyto!(J.nzval, k, nzval, colptr[ix_period[c]], n)
+                copyto!(J.nzval, bigcolptr[c], nzval, colptr[ix_period[c]], n)
             else
+                k = bigcolptr[c] + colptr[endogenous_nbr + c + 1] - colptr[endogenous_nbr + c]
                 n = colptr[c+1] - colptr[c]
                 copyto!(J.nzval, k, nzval, colptr[c], n)
             end
@@ -464,13 +443,13 @@ function updateJacobian!(J::SparseMatrixCSC,
             end
             for c in endogenous_nbr + 1:2*endogenous_nbr
                 c1 = c + p*endogenous_nbr
-                k = (bigcolptr[c1]
-                     + colptr[c1 + 1] - colptr[c1])
                 if flipped_variables[c1]
                     n = colptr[ix_period[c1] + 1] - colptr[ix_period[c1]]
-                    copyto!(J.nzval, k, nzval, colptr[ix_period[c1]], n)
+                    copyto!(J.nzval, bigcolptr[c1], nzval, colptr[ix_period[c1]], n)
                 else
-                    n = colptr[c+1] - colptr[c]
+                    k = (bigcolptr[c1]
+                         + colptr[c + endogenous_nbr + 1] - colptr[c + endogenous_nbr])
+                    n = colptr[c + 1] - colptr[c]
                     copyto!(J.nzval, k, nzval, colptr[c], n)
                 end
             end
@@ -495,12 +474,12 @@ function updateJacobian!(J::SparseMatrixCSC,
         end
         for c in endogenous_nbr + 1:2*endogenous_nbr
             c1 = c + (periods - 2)*endogenous_nbr
-            k = (bigcolptr[c1]
-                 + colptr[c + endogenous_nbr + 1] - colptr[c + endogenous_nbr])
             if flipped_variables[c1]
                 n = colptr[ix_period[c1] + 1] - colptr[ix_period[c1]]
-                copyto!(J.nzval, k, nzval, colptr[ix_period[c1]], n)
+                copyto!(J.nzval, bigcolptr[c1], nzval, colptr[ix_period[c1]], n)
             else
+                k = (bigcolptr[c1]
+                     + colptr[c + endogenous_nbr + 1] - colptr[c + endogenous_nbr])
                 n = colptr[c+1] - colptr[c]
                 copyto!(J.nzval, k, nzval, colptr[c], n)
             end

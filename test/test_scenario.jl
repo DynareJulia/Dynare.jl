@@ -1,12 +1,100 @@
 using Dynare
 using ExtendedDates
 using JLD2
+using LinearAlgebra
 using Test
 
 @dynare "models/example1pf/example1pf_conditional"
+@show simulation(1)
+
 context = load("models/example1pf/example1pf_conditional/output/example1pf_conditional.jld2", "context")
 
+function make_f_J(context, scenario, periods)
+    datafile = ""
+    
+    FI = Dynare.FlipInformation(context, periods, 1)
+    m = context.models[1]
+    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
+    tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
+    dynamic_ws = Dynare.DynamicWs(m.endogenous_nbr,
+                                  m.exogenous_nbr,
+                                  sum(tmp_nbr[1:2]),
+                                  m.dynamic_g1_sparse_colptr,
+                                  m.dynamic_g1_sparse_rowval)
+
+    perfect_foresight_ws = Dynare.PerfectForesightWs(context, periods)
+    X = perfect_foresight_ws.shocks
+    initial_values = Dynare.get_dynamic_initialvalues(context)
+    terminal_values = Dynare.get_dynamic_terminalvalues(context, periods)
+    guess_values = Dynare.perfect_foresight_initialization!(
+        context,
+        terminal_values,
+        periods,
+        datafile,
+        X,
+        perfect_foresight_ws,
+        Dynare.steadystate,
+        dynamic_ws,
+    )
+
+    results = context.results.model_results[1]
+    work = context.work
+    dynamic_variables = dynamic_ws.dynamic_variables
+    temp_vec = dynamic_ws.temporary_values
+    steadystate = results.trends.endogenous_steady_state
+    params = work.params
+
+    residuals = zeros(periods * m.endogenous_nbr)
+    JJ = perfect_foresight_ws.J
+    
+    exogenous = perfect_foresight_ws.x
+    ws_threaded = [
+        Dynare.DynamicWs(
+            m.endogenous_nbr,
+            m.exogenous_nbr,
+            length(temp_vec),
+            m.dynamic_g1_sparse_colptr,
+            m.dynamic_g1_sparse_rowval
+        ) for i = 1:Threads.nthreads()
+    ]
+    nzval = similar(m.dynamic_g1_sparse_rowval, Float64)
+    nzval1 = similar(nzval)
+
+    f! = Dynare.make_pf_residuals(initial_values,
+                                  terminal_values,
+                                  exogenous,
+                                  dynamic_variables,
+                                  steadystate,
+                                  params,
+                                  m,
+                                  periods,
+                                  temp_vec,
+                                  perfect_foresight_ws.permutationsR,
+                                  FI.ix_stack
+                                  )
+    permutations = []
+    J! = Dynare.make_pf_jacobian(Dynare.DFunctions.dynamic_derivatives!,
+                                 initial_values,
+                                 terminal_values,
+                                 dynamic_variables,
+                                 exogenous,
+                                 periods,
+                                 temp_vec,
+                                 params,
+                                 steadystate,
+                                 m.dynamic_g1_sparse_colptr,
+                                 nzval,
+                                 m.endogenous_nbr,
+                                 m.exogenous_nbr,
+                                 permutations,
+                                 FI,
+                                 nzval1
+                                 )
+    return f!, J!, guess_values, residuals, JJ, exogenous
+end
+
 @testset verbose = true "Scenario" begin
+    #=
     @testset "shocks!" begin
         @test context.work.scenario[Undated(1)][Undated(1)][:e] == (0.01 => Symbol())
         @test context.work.scenario[Undated(1)][Undated(2)][:u] == (0.015 => Symbol())
@@ -52,70 +140,9 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
         @test y[7] == x0[4]
     end
     
-    @testset "residuals" begin
-        datafile = ""
+    @testset "residuals and Jacobian" begin
         periods = 4
-        FI = Dynare.FlipInformation(context, periods, 1)
-        m = context.models[1]
-        ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-        tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
-        dynamic_ws = Dynare.DynamicWs(m.endogenous_nbr,
-                               m.exogenous_nbr,
-                               sum(tmp_nbr[1:2]),
-                               m.dynamic_g1_sparse_colptr,
-                               m.dynamic_g1_sparse_rowval)
-
-        perfect_foresight_ws = Dynare.PerfectForesightWs(context, periods)
-        X = perfect_foresight_ws.shocks
-        initial_values = Dynare.get_dynamic_initialvalues(context)
-        terminal_values = Dynare.get_dynamic_terminalvalues(context, periods)
-        guess_values = Dynare.perfect_foresight_initialization!(
-            context,
-            terminal_values,
-            periods,
-            datafile,
-            X,
-            perfect_foresight_ws,
-            Dynare.steadystate,
-            dynamic_ws,
-        )
-
-        results = context.results.model_results[1]
-        work = context.work
-        residuals = zeros(periods * m.endogenous_nbr)
-        dynamic_variables = dynamic_ws.dynamic_variables
-        temp_vec = dynamic_ws.temporary_values
-        steadystate = results.trends.endogenous_steady_state
-        params = work.params
-        JJ = perfect_foresight_ws.J
-        
-        exogenous = perfect_foresight_ws.x
-        ws_threaded = [
-            Dynare.DynamicWs(
-                m.endogenous_nbr,
-                m.exogenous_nbr,
-                length(temp_vec),
-                m.dynamic_g1_sparse_colptr,
-                m.dynamic_g1_sparse_rowval
-            ) for i = 1:Threads.nthreads()
-        ]
-        nzval = similar(m.dynamic_g1_sparse_rowval, Float64)
-        nzval1 = similar(nzval)
-
-        # infoperiod == 2
-        
-        f! = Dynare.make_pf_residuals(initial_values,
-                                      terminal_values,
-                                      exogenous,
-                                      dynamic_variables,
-                                      steadystate,
-                                      params,
-                                      m,
-                                      periods,
-                                      temp_vec,
-                                      perfect_foresight_ws.permutationsR,
-                                      FI.ix_stack
-                                      )
+        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
 
         f!(residuals, guess_values)
         
@@ -124,62 +151,141 @@ context = load("models/example1pf/example1pf_conditional/output/example1pf_condi
         @test guess_values[11] == 0
         @test exogenous[3] == context.results.model_results[1].trends.endogenous_steady_state[5]
         @test guess_values[14] == context.results.model_results[1].trends.endogenous_steady_state[2]
-        
-        permutations = []
-        J, permutations = Dynare.makeJacobian(m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval,
-                                m.endogenous_nbr, periods, permutations, FI)
 
-        Dynare.updateJacobian!(J,
-                               Dynare.DFunctions.dynamic_derivatives!,
-                               guess_values,
-                               initial_values,
-                               terminal_values,
-                               dynamic_variables,
-                               exogenous,
-                               periods,
-                               temp_vec,
-                               params,
-                               steadystate,
-                               m.dynamic_g1_sparse_colptr,
-                               nzval,
-                               m.endogenous_nbr,
-                               m.exogenous_nbr,
-                               permutations,
-                               FI,
-                               nzval1)
+        @show context.work.scenario[1]
+        J!(JJ, guess_values)
         
         J1target = zeros(24)
         J1target[6] = -1
-        @test J[:, 1] == J1target
+        @test JJ[:, 1] == J1target
         J11target = zeros(24)
         J11target[11] = -1
-        @test J[:, 11] == J11target
+        @test JJ[:, 11] == J11target
         J13target = zeros(24)
         J13target[18] = -1
-        Jtarget, permutations = Dynare.makeJacobian(m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval,
-                                m.endogenous_nbr, periods, permutations)
+        @test JJ[:, 13] == J13target
+    end
+    =#
+    @testset "Newton step" begin
+        scenario = Dict(1 => Dict(1 => Dict(:y => (1.0 => :e))))
+        context.work.scenario = scenario
 
-        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
-        Dynare.updateJacobian!(Jtarget,
-                               Dynare.DFunctions.dynamic_derivatives!,
-                               guess_values,
-                               initial_values,
-                               terminal_values,
-                               dynamic_variables,
-                               exogenous,
-                               periods,
-                               temp_vec,
-                               params,
-                               steadystate,
-                               m.dynamic_g1_sparse_colptr,
-                               nzval,
-                               m.endogenous_nbr,
-                               m.exogenous_nbr,
-                               permutations,
-                               FI,
-                               nzval1)
+        periods = 4
+        FI = Dynare.FlipInformation(context, periods, 1)
+
+        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+
+        guess_values[1] = 0
+        exogenous[1] = 1.0
+
+        
+#        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
+
+        f!(residuals, guess_values)
+        
+        y, c, k, a, h, b = context.results.model_results[1].trends.endogenous_steady_state
+        beta, rho, alpha, delta, theta, psi, tau = context.work.params
+        y_star = 1.0
+        @test residuals[1] ≈ c*theta*h^(1+psi) - (1-alpha)*y_star;
+        @test residuals[2] ≈ (k - beta*(((exp(b)*c)/(exp(b)*c))
+                                        *(exp(b)*alpha*y + (1 - delta)*k)))
+        @test residuals[3] ≈ y_star - exp(a)*(k^alpha)*(h^(1 - alpha))
+        @test residuals[4] ≈ k - (exp(b)*(y_star - c) + (1 - delta)*k)
+        @test all(abs.(residuals[5:24]) .< 2*eps())
+
+        J!(JJ, guess_values)
+
+        Dy =  -JJ\residuals
+        @show Dy
+
     end
 
+    @testset "Newton solution" begin
+        scenario = Dict(1 => Dict(1 => Dict(:y => (1.1 => :e))))
+        context.work.scenario = scenario
+
+        periods = 100
+        FI = Dynare.FlipInformation(context, periods, 1)
+
+        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+
+        Dynare.set_future_information!(guess_values, exogenous, context, periods, 1)
+        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
+        @test guess_values[1] == 0
+        @test exogenous[1] == 1.1
+
+        f!(residuals, guess_values)
+        
+        y, c, k, a, h, b = context.results.model_results[1].trends.endogenous_steady_state
+        beta, rho, alpha, delta, theta, psi, tau = context.work.params
+        y_star = 1.1
+        @test residuals[1] ≈ c*theta*h^(1+psi) - (1-alpha)*y_star;
+        @show residuals[1]
+        @test residuals[2] ≈ (k - beta*(((exp(b)*c)/(exp(b)*c))
+                                        *(exp(b)*alpha*y + (1 - delta)*k)))
+        @test residuals[3] ≈ y_star - exp(a)*(k^alpha)*(h^(1 - alpha))
+        @test residuals[4] ≈ k - (exp(b)*(y_star - c) + (1 - delta)*k)
+        @test all(abs.(residuals[5:600]) .< 2*eps())
+
+        J!(JJ, guess_values)
+
+        Dy =  -JJ\residuals
+
+        @show norm(residuals)
+        y = copy(guess_values)
+#        Dynare.flip!(y, exogenous, FI.ix_stack)
+        for i=1:4
+            y += Dy
+            @show y[[1, 7, 13, 19]]
+            @show exogenous[1:10]        
+            f!(residuals, y)
+            @show residuals[1]
+            @show i, norm(residuals)
+            @show y[[1, 7, 13, 19]]
+            @show exogenous[1:10]        
+            J!(JJ, y)
+            Dy = -JJ\residuals
+        end
+    end
+
+    @testset "Complex scenario" begin
+#        context.work.scenario = Dict()
+#        Dynare.scenario!(name = :e, period = 1, value = 0.01, context = context);  
+#        Dynare.scenario!(name = :u, period = 2, value = 0.015, context = context);  
+#        Dynare.scenario!(name = :y, period = 1, value = 1.0, exogenous = :u, context = context);
+#        Dynare.scenario!(name = :y, period = 3, value = 1.0, exogenous = :u), context = context;
+#        Dynare.scenario!(name = :e, period = 1, value = 0.01, infoperiod = 3, context = context);  
+        
+        periods = 100
+        FI = Dynare.FlipInformation(context, periods, 1)
+        
+        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+
+        Dynare.set_future_information!(guess_values, exogenous, context, periods, 1)
+        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
+
+        f!(residuals, guess_values)
+        
+        J!(JJ, guess_values)
+
+        Dy =  -JJ\residuals
+
+        @show norm(residuals)
+        y = copy(guess_values)
+        for i=1:10
+            y += Dy
+            @show y[[1, 7, 13, 19]]
+            @show exogenous[1:10]        
+            f!(residuals, y)
+            @show residuals[1]
+            @show i, norm(residuals)
+            @show y[[1, 7, 13, 19]]
+            @show exogenous[1:10]        
+            J!(JJ, y)
+            Dy = -JJ\residuals
+        end
+
+    end
 end
 
 nothing

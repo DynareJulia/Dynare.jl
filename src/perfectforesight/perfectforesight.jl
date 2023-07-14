@@ -85,25 +85,32 @@ struct FlipInformation
         symboltable = context.symboltable
         endogenous_nbr = m.endogenous_nbr
         exogenous_nbr = m.exogenous_nbr
-        N = periods*m.endogenous_nbr
-        flipped_variables = repeat([false], N)
-        ix_period = spzeros(N)
-        ix_stack = similar(ix_period)
-        iy_period = similar(ix_period)
-        s1 = context.work.scenario[infoperiod]
-        for (period, f1) in s1
-            p = length(infoperiod:period)
-            for (s, f2) in f1
-                ss = string(s)
-                if is_endogenous(ss, symboltable)
-                    iy1 = symboltable[ss].orderintype
-                    iy2 = (p - 1)*endogenous_nbr + iy1
-                    ix1 = symboltable[string(f2[2])].orderintype
-                    ix2 = (p - 1)*exogenous_nbr + ix1
-                    ix_period[iy2] = 3*endogenous_nbr + ix1
-                    ix_stack[iy2] = ix2
-                    iy_period[iy2] = iy1
-                    flipped_variables[iy2] = true
+        if isempty(context.work.scenario)
+            flipped_variables = spzeros(Int, 0)
+            ix_period = spzeros(Int, 0)
+            ix_stack = spzeros(Int, 0)
+            iy_period = spzeros(Int, 0)
+        else
+            N = periods*m.endogenous_nbr
+            flipped_variables = repeat([false], N)
+            ix_period = spzeros(Int, N)
+            ix_stack = similar(ix_period)
+            iy_period = similar(ix_period)
+            s1 = context.work.scenario[infoperiod]
+            for (period, f1) in s1
+                p = length(infoperiod:period)
+                for (s, f2) in f1
+                    ss = string(s)
+                    if is_endogenous(ss, symboltable)
+                        iy1 = symboltable[ss].orderintype
+                        iy2 = (p - 1)*endogenous_nbr + iy1
+                        ix1 = symboltable[string(f2[2])].orderintype
+                        ix2 = (p - 1)*exogenous_nbr + ix1
+                        ix_period[iy2] = 3*endogenous_nbr + ix1
+                        ix_stack[iy2] = ix2
+                        iy_period[iy2] = iy1
+                        flipped_variables[iy2] = true
+                    end
                 end
             end
         end
