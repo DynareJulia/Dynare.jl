@@ -5,6 +5,7 @@ using Test
 #include("test_initialization.jl")
 #include("test_nonlinear_initialization.jl")
 include("test_steadystate.jl")
+include("test_scenario.jl")
 
 context = @dynare "models/example1/example1.mod"
 irfs = irf()

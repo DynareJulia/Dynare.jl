@@ -1,3 +1,4 @@
+using AxisArrayTables
 using Dynare
 using ExtendedDates
 using JLD2
@@ -5,8 +6,6 @@ using LinearAlgebra
 using Test
 
 @dynare "models/example1pf/example1pf_conditional"
-@show simulation(1)
-
 context = load("models/example1pf/example1pf_conditional/output/example1pf_conditional.jld2", "context")
 
 function make_f_J(context, scenario, periods)
@@ -94,12 +93,10 @@ function make_f_J(context, scenario, periods)
 end
 
 @testset verbose = true "Scenario" begin
-    #=
     @testset "shocks!" begin
         @test context.work.scenario[Undated(1)][Undated(1)][:e] == (0.01 => Symbol())
         @test context.work.scenario[Undated(1)][Undated(2)][:u] == (0.015 => Symbol())
         @test context.work.scenario[Undated(1)][Undated(1)][:y] == (1.0 => Symbol(:u))
-        @test context.work.scenario[Undated(1)][Undated(2)][:h] == (0.35 => Symbol(:e))
         
         Dynare.scenario!(infoperiod=Undated(2), name=:y, value=0.2, period=2, context = context, exogenous = :u)
         @test length(context.work.scenario) == 3
@@ -113,11 +110,10 @@ end
     @testset "set_future_information" begin
         y = zeros(60)
         x = zeros(20)
-        Dynare.set_future_information(y, x, context, 10, 1)
+        Dynare.set_future_information!(y, x, context, 10, 1)
         @test x[1] ≈ 0.01
         @test x[4] ≈ 0.015
         @test y[1] ≈ 1.0
-        @test y[11] ≈ 0.35
         @test y[13] ≈ 1.0
     end
     
@@ -146,26 +142,22 @@ end
 
         f!(residuals, guess_values)
         
-        @test guess_values[1] == 0
-        @test exogenous[2] == context.results.model_results[1].trends.endogenous_steady_state[1]
-        @test guess_values[11] == 0
-        @test exogenous[3] == context.results.model_results[1].trends.endogenous_steady_state[5]
+        @test guess_values[1] == context.results.model_results[1].trends.endogenous_steady_state[1]
+        @test exogenous[2] == 0
+        @test guess_values[13] == context.results.model_results[1].trends.endogenous_steady_state[1]
+        @test exogenous[6] == 0
         @test guess_values[14] == context.results.model_results[1].trends.endogenous_steady_state[2]
 
-        @show context.work.scenario[1]
         J!(JJ, guess_values)
         
         J1target = zeros(24)
         J1target[6] = -1
         @test JJ[:, 1] == J1target
-        J11target = zeros(24)
-        J11target[11] = -1
-        @test JJ[:, 11] == J11target
         J13target = zeros(24)
         J13target[18] = -1
         @test JJ[:, 13] == J13target
     end
-    =#
+
     @testset "Newton step" begin
         scenario = Dict(1 => Dict(1 => Dict(:y => (1.0 => :e))))
         context.work.scenario = scenario
@@ -177,9 +169,6 @@ end
 
         guess_values[1] = 0
         exogenous[1] = 1.0
-
-        
-#        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
 
         f!(residuals, guess_values)
         
@@ -196,8 +185,6 @@ end
         J!(JJ, guess_values)
 
         Dy =  -JJ\residuals
-        @show Dy
-
     end
 
     @testset "Newton solution" begin
@@ -220,7 +207,6 @@ end
         beta, rho, alpha, delta, theta, psi, tau = context.work.params
         y_star = 1.1
         @test residuals[1] ≈ c*theta*h^(1+psi) - (1-alpha)*y_star;
-        @show residuals[1]
         @test residuals[2] ≈ (k - beta*(((exp(b)*c)/(exp(b)*c))
                                         *(exp(b)*alpha*y + (1 - delta)*k)))
         @test residuals[3] ≈ y_star - exp(a)*(k^alpha)*(h^(1 - alpha))
@@ -231,30 +217,17 @@ end
 
         Dy =  -JJ\residuals
 
-        @show norm(residuals)
         y = copy(guess_values)
-#        Dynare.flip!(y, exogenous, FI.ix_stack)
+
         for i=1:4
             y += Dy
-            @show y[[1, 7, 13, 19]]
-            @show exogenous[1:10]        
             f!(residuals, y)
-            @show residuals[1]
-            @show i, norm(residuals)
-            @show y[[1, 7, 13, 19]]
-            @show exogenous[1:10]        
             J!(JJ, y)
             Dy = -JJ\residuals
         end
     end
 
     @testset "Complex scenario" begin
-#        context.work.scenario = Dict()
-#        Dynare.scenario!(name = :e, period = 1, value = 0.01, context = context);  
-#        Dynare.scenario!(name = :u, period = 2, value = 0.015, context = context);  
-#        Dynare.scenario!(name = :y, period = 1, value = 1.0, exogenous = :u, context = context);
-#        Dynare.scenario!(name = :y, period = 3, value = 1.0, exogenous = :u), context = context;
-#        Dynare.scenario!(name = :e, period = 1, value = 0.01, infoperiod = 3, context = context);  
         
         periods = 100
         FI = Dynare.FlipInformation(context, periods, 1)
@@ -270,21 +243,25 @@ end
 
         Dy =  -JJ\residuals
 
-        @show norm(residuals)
         y = copy(guess_values)
-        for i=1:10
+        for i=1:4
             y += Dy
-            @show y[[1, 7, 13, 19]]
-            @show exogenous[1:10]        
             f!(residuals, y)
-            @show residuals[1]
-            @show i, norm(residuals)
-            @show y[[1, 7, 13, 19]]
-            @show exogenous[1:10]        
             J!(JJ, y)
             Dy = -JJ\residuals
         end
-
+        @test norm(residuals) < 1e-12
+        e = AxisArrayTables.data(simulation(:e))
+        u = AxisArrayTables.data(simulation(:u))
+        y = AxisArrayTables.data(simulation(:y))
+        @test e[1] != 0
+        @test u[1] != 0
+        @test u[2] == 0.015
+        @test u[3] != 0
+        @test all(u[4:100] .== 0)
+        @test all(e[2:100] .== 0)
+        @test y[1] == 1
+        @test y[3] == 1
     end
 end
 

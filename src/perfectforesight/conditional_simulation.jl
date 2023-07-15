@@ -5,7 +5,6 @@ function set_future_information!(y::Vector{Float64}, x::Vector{Float64}, context
     flips = context.work.scenario[infoperiod]
     symboltable = context.symboltable
     
-    @show flips
     for (period, f1) in flips
         p = length(infoperiod:period)
         for (s, f2) in f1
@@ -16,7 +15,6 @@ function set_future_information!(y::Vector{Float64}, x::Vector{Float64}, context
             elseif is_endogenous(ss, symboltable)
                 idy = (p - 1)*endogenous_nbr + symboltable[ss].orderintype
                 y[idy] = f2[1]
-                @show idy, y[idy]
             end
         end
     end
@@ -95,7 +93,6 @@ function perfectforesight_core_conditional!(
     set_future_information!(y0, exogenous, context, periods, 1)
     flip!(y0, exogenous, flipinfo.ix_stack)
     f!(residuals, y0)
-    @show norm(residuals)
     if linear_solve_algo == pardiso
         @show "Pardiso"
         if isnothing(Base.get_extension(Dynare, :PardisoSolver))
