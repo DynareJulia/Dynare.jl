@@ -6,6 +6,7 @@ using LinearAlgebra
 using Test
 
 @dynare "models/example1pf/example1pf_conditional"
+
 context = load("models/example1pf/example1pf_conditional/output/example1pf_conditional.jld2", "context")
 function make_f_J(context, scenario, periods)
     datafile = ""
@@ -123,7 +124,7 @@ end
         @test FI.flipped_variables == target 
         @test FI.ix_period[[1, 7]] == [20, 20]
         @test FI.ix_stack[[1, 7]] == [2, 4]
-    end
+
 
     @testset "flip!" begin
         FI = Dynare.FlipInformation(context, 5, 2)
@@ -249,6 +250,7 @@ end
             J!(JJ, y)
             Dy = -JJ\residuals
         end
+
         @test norm(residuals) < 1e-12
         e = AxisArrayTables.data(simulation(:e))
         u = AxisArrayTables.data(simulation(:u))
@@ -261,6 +263,56 @@ end
         @test all(e[2:100] .== 0)
         @test y[1] == 1
         @test y[3] == 1
+        permutations = []
+
+        Dynare.updateJacobian!(J,
+                               Dynare.DFunctions.dynamic_derivatives!,
+                               guess_values,
+                               initial_values,
+                               terminal_values,
+                               dynamic_variables,
+                               exogenous,
+                               periods,
+                               temp_vec,
+                               params,
+                               steadystate,
+                               m.dynamic_g1_sparse_colptr,
+                               nzval,
+                               m.endogenous_nbr,
+                               m.exogenous_nbr,
+                               permutations,
+                               FI,
+                               nzval1)
+        
+        J1target = zeros(24)
+        J1target[6] = -1
+        @test J[:, 1] == J1target
+        J11target = zeros(24)
+        J11target[11] = -1
+        @test J[:, 11] == J11target
+        J13target = zeros(24)
+        J13target[18] = -1
+        Jtarget, permutations = Dynare.makeJacobian(m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval,
+                                m.endogenous_nbr, periods, permutations)
+
+        Dynare.flip!(guess_values, exogenous, FI.flips_stack)
+        Dynare.updateJacobian!(Jtarget,
+                               Dynare.DFunctions.dynamic_derivatives!,
+                               guess_values,
+                               initial_values,
+                               terminal_values,
+                               dynamic_variables,
+                               exogenous,
+                               periods,
+                               temp_vec,
+                               params,
+                               steadystate,
+                               m.dynamic_g1_sparse_colptr,
+                               nzval,
+                               m.endogenous_nbr,
+                               m.exogenous_nbr,
+                               permutations,
+                               nzval1)
     end
 
 end
