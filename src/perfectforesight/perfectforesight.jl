@@ -120,6 +120,8 @@ struct PerfectForesightWs
     end
 end
 
+include("conditional_simulation.jl")
+
 # Dummy definition for PathSolver extension
 function mcp_perfectforesight_core!(::DefaultNLS,
                                     perfect_foresight_ws::PerfectForesightWs,
@@ -223,6 +225,17 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             guess_values,
             initial_values,
             terminal_values,
+            dynamic_ws,
+        )
+    elseif !isempty(context.work.scenario)
+        perfectforesight_core_conditional!(
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initial_values,
+            terminal_values,
+            options.linear_solve_algo,
             dynamic_ws,
         )
     else

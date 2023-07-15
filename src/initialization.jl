@@ -397,14 +397,14 @@ function shocks!(context::Context, field::Dict{String,Any})
     end
 end
 
-function shocks!(; 
-                 name::Symbol,
-                 value::Float64,
-                 period::PeriodsSinceEpoch,
-                 context::Context = context,
-                 infoperiod::PeriodsSinceEpoch = Undated(1),
-                 exogenous::Symbol = Symbol()
-                 )
+function scenario!(; 
+                   name::Symbol,
+                   period::PeriodsSinceEpoch,
+                   value::Float64,
+                   context::Context = context,
+                   infoperiod::PeriodsSinceEpoch = Undated(1),
+                   exogenous::Symbol = Symbol()
+                   )
     scenario = context.work.scenario
     if haskey(scenario, infoperiod)
         if haskey(scenario[infoperiod], period)

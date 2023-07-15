@@ -845,7 +845,7 @@ mutable struct Work
     endval_endogenous::Matrix{Union{Float64,Missing}}
     endval_exogenous::Matrix{Union{Float64,Missing}}
     endval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
-    scenario::Dict{PeriodsSinceEpoch, Dict{PeriodSinceEpoch, Dict{symbol, Pair{Float64, Symbol}}}}
+    scenario::Dict{PeriodsSinceEpoch, Dict{PeriodsSinceEpoch, Dict{Symbol, Pair{Float64, Symbol}}}}
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String,Any}
     estimated_parameters::EstimatedParameters

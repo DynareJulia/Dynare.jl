@@ -8,7 +8,7 @@ struct DynamicWs
     dynamic_variables::Vector{Float64}
     exogenous_variables::Vector{Float64}
     residuals::Vector{Float64}
-    derivatives::Vector{SparseMatrixCSC{Float64, Int64}}
+    derivatives::Vector{SparseMatrixCSC{Float64, Int}}
     temporary_values::Vector{Float64}
     function DynamicWs(
         endogenous_nbr::Int,
