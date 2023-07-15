@@ -141,7 +141,7 @@ end
 
 function steady_!(context, field::Dict{String, Any})
     options = SteadyOptions(get(field, "options", field))
-    steady!(context = context,
+    steadystate!(context = context,
             display = options.display,
             homotopy_mode = options.homotopy_mode,
             homotopy_steps = options.homotopy_steps,

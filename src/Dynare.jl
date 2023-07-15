@@ -32,7 +32,7 @@ export parser
 include("DynarePreprocessor.jl")
 export dynare_preprocess
 include("steady_state/SteadyState.jl")
-export steady_state!
+export steadystate!
 include("dynare_table.jl")
 export round
 include("reporting/report.jl")
