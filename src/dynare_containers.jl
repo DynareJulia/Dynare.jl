@@ -769,9 +769,10 @@ mutable struct ModelResults
     trends::Trends
     stationary_variables::Vector{Bool}
     estimation::EstimationResults
+    filter::AxisArrayTable
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
-    smoother
+    smoother::AxisArrayTable
     solution_derivatives::Vector{Matrix{Float64}}
 end
 

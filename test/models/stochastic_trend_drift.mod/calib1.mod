@@ -29,7 +29,9 @@ end;
 
 varobs y infl;
 
-stoch_simul(order=1);
+steady(nocheck);
+
+stoch_simul(order=1, nonstationary);
 
 calib_smoother(datafile='data.csv', first_obs=2);
 

@@ -41,12 +41,13 @@ include("filters/kalman/kalman.jl")
 include("optimal_policy.jl")
 include("perturbations.jl")
 include("perfectforesight/perfectforesight.jl")
+export perfect_foresight!, scenario!
 include("estimation/priorprediction.jl")
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
 include("estimation/estimation.jl")
-export mh_estimation
+export rwmh_compute, covariance
 
 export @dynare, dynare
 

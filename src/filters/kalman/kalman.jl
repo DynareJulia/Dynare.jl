@@ -200,28 +200,26 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
         alphah = F.Z * alphah
     end 
 
-    Variables = DimensionalData.Dim{:custom}(endogenous_vars)
-    Periods = Ti(Undated(1):Undated(nobs))
-    smoother = DimArray(alphah, (Variables, Periods), name = "smoother")
-    filter = DimArray(a0[:, 1:nobs], (Variables, Periods), name = "filter")
+    endo_symb = [Symbol(v) for v in endogenous_vars]
+    smoother = copy(alphah)
+    filter = copy(a0)
     if has_trends
         add_linear_trend!(
-            filter.data,
-            a0[:, 1:nobs],
+            filter,
+            a0,
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
         add_linear_trend!(
-            smoother.data,
+            smoother,
             alphah,
             results.trends.endogenous_steady_state,
             results.trends.endogenous_linear_trend,
         )
     end
-    results.smoother = DimStack(filter, smoother)
+    results.smoother = AxisArrayTable(transpose(smoother), Undated(1):Undated(nobs), endo_symb)
+    results.filter = AxisArrayTable(transpose(filter), Undated(1):Undated(nobs+1), endo_symb)
 end
-
-
 
 function make_state_space!(
     A::VecOrMat{Float64},

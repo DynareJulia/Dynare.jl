@@ -406,15 +406,21 @@ function scenario!(;
                    exogenous::Symbol = Symbol()
                    )
     scenario = context.work.scenario
+    @show scenario
     if haskey(scenario, infoperiod)
+        @show infoperiod
         if haskey(scenario[infoperiod], period)
+            @show period
             scenario[infoperiod][period][name] = (value => exogenous)
         else
             scenario[infoperiod][period] = Dict(name => (value => exogenous))
         end
     else
+        @show "new infoperiod" 
         scenario[infoperiod] = Dict(period => Dict(name => (value => exogenous)))
     end
+    @show scenario
+    @show context.work.scenario
 end
                
 function set_variance!(

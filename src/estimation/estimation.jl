@@ -1004,16 +1004,17 @@ end
 function acceptance_rate(chains::Chains)
     data = chains.value.data
     n1, n2, n3 = size(data)
-    ar = zeros(n3)
+    rr = zeros(n3)
     k = drop(axes(data, 1), 1)
     @inbounds for j in 1:n3      
         for i in 2:n1
+            # 2 identical draws indicate a rejected proposal
             if data[i, n2, j] == data[i-1, n2, j]
-                ar[j] += 1
+                rr[j] += 1
             end
         end
     end
-    return ar./n1
+    return 1 .- rr./n1
 end    
 
 # Utilities
