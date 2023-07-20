@@ -228,9 +228,14 @@ function perfect_foresight!(;context::Context = context,
                                       homotopy, initialization_algo,
                                       linear_solve_algo, maxit,
                                       mcp, periods, tolf, tolx)
-    
-    _perfect_foresight!(context, options)
-    
+
+    scenario = context.work.scenario
+    @assert sort(collect(keys(scenario)))[1] == 1
+    if length(scenario) == 1
+        _perfect_foresight!(context, options)
+    else
+        recursive_perfect_foresight!(context, options)
+    end
 end
 
 function mcp_parse(mcps::Vector{Tuple{Int64,Int64,String,String}}, context::Context)
@@ -292,7 +297,8 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             terminal_values,
             options.linear_solve_algo,
             dynamic_ws,
-            perfect_foresight_ws.flipinfo
+            perfect_foresight_ws.flipinfo,
+            1
         )
     else
         perfectforesight_core!(
@@ -814,7 +820,7 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
     if size(initialvalues, 2) == 1
         initialvalues = reshape(initialvalues, 1, length(initialvalues))
     end 
-    
+
     data = vcat(initialvalues,
                 hcat(
                     transpose(reshape(y, m.endogenous_nbr, periods)),
@@ -842,4 +848,116 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
     )
 end
 
-#include("PATH_interface.jl")
+function recursive_perfect_foresight!(context::Context, options::PerfectForesightOptions)
+    periods = options.periods
+    endogenous_names = get_endogenous(context.symboltable)
+    endogenous_nbr = length(endogenous_names)
+    exogenous_names = get_exogenous(context.symboltable)
+    scenario = context.work.scenario
+    let simulation = Float64[;;], initial_periods = 0
+        for (j, i) in enumerate(sort(collect(keys(scenario))))
+            if i == 1
+                initial_values = get_dynamic_initialvalues(context)
+                if size(initial_values, 2) == 1
+                    initial_periods = 1
+                else
+                    initial_periods = size(initial_values, 1)
+                end
+            else
+                initial_values = Vector{Float64}(simulation[i-1, 1:endogenous_nbr])
+            end
+            this_simulation = _recursive_perfect_foresight!(context, i, initial_values, options)
+            data = Matrix(this_simulation[j].data)
+            if i > 1
+                simulation = vcat(simulation[1:(i + initial_periods - 1),:],  data[2:end, :])
+            else
+                simulation = data
+            end
+        end
+        push!(
+            context.results.model_results[1].simulations,
+            Simulation(
+                Undated(1),
+                Undated(periods),
+                "Sim1",
+                "",
+                AxisArrayTable(
+                    simulation,
+                    Undated(1-initial_periods):Undated(periods + 1),
+                    vcat(
+                        [Symbol(s) for s in endogenous_names], 
+                        [Symbol(s) for s in exogenous_names]
+                    )
+                )
+            )
+        )
+    end
+end
+
+function _recursive_perfect_foresight!(context::Context, infoperiod, initial_values, options)
+    datafile = options.datafile
+    periods = options.periods - infoperiod + 1
+    m = context.models[1]
+    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
+    tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
+    dynamic_ws = DynamicWs(m.endogenous_nbr,
+                           m.exogenous_nbr,
+                           sum(tmp_nbr[1:2]),
+                           m.dynamic_g1_sparse_colptr,
+                           m.dynamic_g1_sparse_rowval)
+
+    perfect_foresight_ws = PerfectForesightWs(context, periods, infoperiod = infoperiod)
+    X = perfect_foresight_ws.shocks
+    terminal_values = get_dynamic_terminalvalues(context, periods)
+    guess_values = perfect_foresight_initialization!(
+        context,
+        terminal_values,
+        periods,
+        datafile,
+        X,
+        perfect_foresight_ws,
+        options.initialization_algo,
+        dynamic_ws,
+    )
+    if options.mcp
+        if isnothing(Base.get_extension(Dynare, :PathSolver))
+            error("You must load PATH with 'using PATHSolver'")
+        end
+        mcp_perfectforesight_core!(
+            PathNLS(),
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initial_values,
+            terminal_values,
+            dynamic_ws,
+        )
+    elseif !isempty(context.work.scenario)
+        perfectforesight_core_conditional!(
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initial_values,
+            terminal_values,
+            options.linear_solve_algo,
+            dynamic_ws,
+            perfect_foresight_ws.flipinfo,
+            infoperiod
+        )
+    else
+        perfectforesight_core!(
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initial_values,
+            terminal_values,
+            options.linear_solve_algo,
+            dynamic_ws,
+        )
+    end
+end
+
+

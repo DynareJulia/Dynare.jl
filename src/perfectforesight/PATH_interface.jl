@@ -1,4 +1,3 @@
-#using PATHSolver
 
 function mcp_perfectforesight_core!(
     perfect_foresight_ws::PerfectForesightWs,

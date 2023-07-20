@@ -29,7 +29,8 @@ function perfectforesight_core_conditional!(
     terminalvalues::Vector{<:Real},
     linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs,
-    flipinfo::FlipInformation
+    flipinfo::FlipInformation,
+    infoperiod
 )
     m = context.models[1]
     results = context.results.model_results[1]
@@ -90,7 +91,7 @@ function perfectforesight_core_conditional!(
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
 
-    set_future_information!(y0, exogenous, context, periods, 1)
+    set_future_information!(y0, exogenous, context, periods, infoperiod)
     flip!(y0, exogenous, flipinfo.ix_stack)
     f!(residuals, y0)
     if linear_solve_algo == pardiso
