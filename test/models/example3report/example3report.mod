@@ -57,7 +57,7 @@ check;
 
 stoch_simul(order=1, periods=100);
 
-CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data))
+CSV.write("data.csv", simulation(1))
 
 varobs y;
 calib_smoother(datafile='data.csv', diffuse_filter, filtered_vars);
@@ -78,7 +78,7 @@ add_model!(page1, context, lastline = 58)
 
 add_table!(page2, table)
 
-plot(res.smoother["alphah"][1,:], first_period=1995, plot_title="Output", plot_legend=("y",), plot_filename="graph.png")
+plot(res.smoother[:y], filename="graph.png")
 
 add_graph!(page3, Graph("graph.png"))
 
