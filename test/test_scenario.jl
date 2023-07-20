@@ -124,7 +124,7 @@ end
         @test FI.flipped_variables == target 
         @test FI.ix_period[[1, 7]] == [20, 20]
         @test FI.ix_stack[[1, 7]] == [2, 4]
-
+    end
 
     @testset "flip!" begin
         FI = Dynare.FlipInformation(context, 5, 2)
@@ -263,6 +263,7 @@ end
         @test all(e[2:100] .== 0)
         @test y[1] == 1
         @test y[3] == 1
+
         permutations = []
 
         Dynare.updateJacobian!(J,
@@ -313,6 +314,20 @@ end
                                m.exogenous_nbr,
                                permutations,
                                nzval1)
+
+        @test norm(residuals) < 1e-12
+        e = AxisArrayTables.data(simulation(:e))
+        u = AxisArrayTables.data(simulation(:u))
+        y = AxisArrayTables.data(simulation(:y))
+        @test e[1] != 0
+        @test u[1] != 0
+        @test u[2] == 0.015
+        @test u[3] != 0
+        @test all(u[4:100] .== 0)
+        @test all(e[2:100] .== 0)
+        @test y[1] == 1
+        @test y[3] == 1
+
     end
 
 end
