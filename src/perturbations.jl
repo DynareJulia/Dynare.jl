@@ -341,7 +341,8 @@ function display_autocorrelation(
         LREresults,
         S1a,
         S1b,
-        S2,
+        S2a,
+        S2b,
         model.i_bkwrd_b,
         stationary_variables,
     )
