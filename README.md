@@ -3,11 +3,6 @@
 ## Requirements
 Julia 64bit >= v1.6
 
-## Warning
-
-The last version of this package, v0.6.0, isn't available yet for macOS
-or FreeBSD
-
 ## Installation 
 
 ```
@@ -21,7 +16,6 @@ using Pkg
 pkg"update"
 ```
 ## Running Dynare
-
 
 Example (to be run in the directory ``Dynare.jl``):
 ```
@@ -59,6 +53,23 @@ The results are in the ``context`` structure.
 ## Project web site
 
 - https://www.dynare.org
+
+## Extensions
+1. PATH algorithm for MCP problems
+  - You need to load PATHSolver before running Dynare (once per Julia
+    session)
+```
+	using PATHSolver
+    context = @dynare ...
+```
+1. PARDISO is high-performance solver for very large sparse linear
+   systems. It can be used with perfect foresight simulation of very
+   large models. You need to load MKL and Pardiso before running
+   Dynare (once per Julia session)
+```
+   using MKL, Pardiso
+   context = @dynare ...
+```
 
 ## PATH licence
 

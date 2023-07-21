@@ -1,3 +1,15 @@
+0.8.0
+=====
+- adding scenario!() and conditional simulations
+- adding Julia functions equivalent to some Dynare instructions
+  - localapproximation!() -> stoch_simul
+  - steadystate!() -> steady
+  - perfect_foresight!() -: perfect_foresight_setup and
+    perfect_foresight_solver
+- adding second order approximation (limited features)
+- put PathSolver and PardisoSolver as Julia extensions
+- fix occasional problem with static variables and QR decomposition
+
 0.7.5
 =====
 - fix bug in initialization of perfect foresight simulation
