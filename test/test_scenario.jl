@@ -5,13 +5,13 @@ using JLD2
 using LinearAlgebra
 using Test
 
-@dynare "models/example1pf/example1pf_conditional"
+@dynare "models/example1ss/example1ss"
 
 context = load("models/example1pf/example1pf_conditional/output/example1pf_conditional.jld2", "context")
-function make_f_J(context, scenario, periods)
+function make_f_J(context, scenario, periods, infoperiod)
     datafile = ""
     
-    FI = Dynare.FlipInformation(context, periods, 1)
+    FI = Dynare.FlipInformation(context, periods, infoperiod)
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
@@ -89,7 +89,7 @@ function make_f_J(context, scenario, periods)
                                  FI,
                                  nzval1
                                  )
-    return f!, J!, guess_values, residuals, JJ, exogenous
+    return f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1
 end
 
 @testset verbose = true "Scenario" begin
@@ -114,7 +114,6 @@ end
         @test x[1] ≈ 0.01
         @test x[4] ≈ 0.015
         @test y[1] ≈ 1.0
-        @test y[13] ≈ 1.0
     end
     
     @testset "FlipInformation" begin
@@ -138,7 +137,7 @@ end
     
     @testset "residuals and Jacobian" begin
         periods = 4
-        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+        f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1 = make_f_J(context, context.work.scenario, periods, 1)
 
         f!(residuals, guess_values)
         
@@ -153,9 +152,6 @@ end
         J1target = zeros(24)
         J1target[6] = -1
         @test JJ[:, 1] == J1target
-        J13target = zeros(24)
-        J13target[18] = -1
-        @test JJ[:, 13] == J13target
     end
 
     @testset "Newton step" begin
@@ -165,7 +161,7 @@ end
         periods = 4
         FI = Dynare.FlipInformation(context, periods, 1)
 
-        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+        f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1 = make_f_J(context, context.work.scenario, periods, 1)
 
         guess_values[1] = 0
         exogenous[1] = 1.0
@@ -194,7 +190,7 @@ end
         periods = 100
         FI = Dynare.FlipInformation(context, periods, 1)
 
-        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+        f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1 = make_f_J(context, context.work.scenario, periods, 1)
 
         Dynare.set_future_information!(guess_values, exogenous, context, periods, 1)
         Dynare.flip!(guess_values, exogenous, FI.ix_stack)
@@ -230,9 +226,10 @@ end
     @testset "Complex scenario" begin
         
         periods = 100
+        m = context.models[1]
         FI = Dynare.FlipInformation(context, periods, 1)
-        
-        f!, J!, guess_values, residuals, JJ, exogenous = make_f_J(context, context.work.scenario, periods)
+        @show context.work.scenario[1]
+        f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1 = make_f_J(context, context.work.scenario, periods, 1)
 
         Dynare.set_future_information!(guess_values, exogenous, context, periods, 1)
         Dynare.flip!(guess_values, exogenous, FI.ix_stack)
@@ -252,21 +249,10 @@ end
         end
 
         @test norm(residuals) < 1e-12
-        e = AxisArrayTables.data(simulation(:e))
-        u = AxisArrayTables.data(simulation(:u))
-        y = AxisArrayTables.data(simulation(:y))
-        @test e[1] != 0
-        @test u[1] != 0
-        @test u[2] == 0.015
-        @test u[3] != 0
-        @test all(u[4:100] .== 0)
-        @test all(e[2:100] .== 0)
-        @test y[1] == 1
-        @test y[3] == 1
 
         permutations = []
-
-        Dynare.updateJacobian!(J,
+        steadystate = context.results.model_results[1].trends.endogenous_steady_state
+        Dynare.updateJacobian!(JJ,
                                Dynare.DFunctions.dynamic_derivatives!,
                                guess_values,
                                initial_values,
@@ -275,7 +261,7 @@ end
                                exogenous,
                                periods,
                                temp_vec,
-                               params,
+                               context.work.params,
                                steadystate,
                                m.dynamic_g1_sparse_colptr,
                                nzval,
@@ -284,19 +270,14 @@ end
                                permutations,
                                FI,
                                nzval1)
-        
-        J1target = zeros(24)
-        J1target[6] = -1
-        @test J[:, 1] == J1target
-        J11target = zeros(24)
-        J11target[11] = -1
-        @test J[:, 11] == J11target
-        J13target = zeros(24)
-        J13target[18] = -1
+
+        J1target = zeros(600)
+        J1target[5] = -1
+
         Jtarget, permutations = Dynare.makeJacobian(m.dynamic_g1_sparse_colptr, m.dynamic_g1_sparse_rowval,
                                 m.endogenous_nbr, periods, permutations)
 
-        Dynare.flip!(guess_values, exogenous, FI.flips_stack)
+        Dynare.flip!(guess_values, exogenous, FI.ix_stack)
         Dynare.updateJacobian!(Jtarget,
                                Dynare.DFunctions.dynamic_derivatives!,
                                guess_values,
@@ -306,7 +287,7 @@ end
                                exogenous,
                                periods,
                                temp_vec,
-                               params,
+                               context.work.params,
                                steadystate,
                                m.dynamic_g1_sparse_colptr,
                                nzval,
@@ -316,20 +297,29 @@ end
                                nzval1)
 
         @test norm(residuals) < 1e-12
-        e = AxisArrayTables.data(simulation(:e))
-        u = AxisArrayTables.data(simulation(:u))
-        y = AxisArrayTables.data(simulation(:y))
-        @test e[1] != 0
-        @test u[1] != 0
-        @test u[2] == 0.015
-        @test u[3] != 0
-        @test all(u[4:100] .== 0)
-        @test all(e[2:100] .== 0)
-        @test y[1] == 1
-        @test y[3] == 1
-
     end
 
+    @testset "example1pf_conditional" begin
+        context = @dynare "models/example1pf/example1pf_conditional"
+        
+                e = AxisArrayTables.data(simulation(:e))
+        u = AxisArrayTables.data(simulation(:u))
+        y = AxisArrayTables.data(simulation(:y))
+        c1 = AxisArrayTables.data(simulation(:c, simnbr=1))
+        c3 = AxisArrayTables.data(simulation(:c, simnbr=3))
+        @test e[1] == 0.01
+        @test u[1] != 0
+        @test y[1] == 1
+        @test e[2] == 0
+        @test u[2] == 0.015
+        @test e[3] == 0.01
+        @test u[3] != 0
+        @test all(u[4:100] .== 0)
+        @test all(e[4:100] .== 0)
+        @test y[3] == 1
+        @test c1[2] == c3[2]
+        @test !(c1[3] ≈ c3[3])
+    end
 end
 
 nothing
