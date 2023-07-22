@@ -189,6 +189,19 @@ function mcp_perfectforesight_core!(::DefaultNLS,
                                     )
 end
 
+function mcp_perfectforesight_core!(::DefaultNLS,
+                                    perfect_foresight_ws::PerfectForesightWs,
+                                    context::Dynare.Context,
+                                    periods::Int64,
+                                    guess_values::Vector{Float64},
+                                    initialvalues::Vector{Float64},
+                                    terminalvalues::Vector{Float64},
+                                    dynamic_ws::Dynare.DynamicWs,
+                                    flipinfo::FlipInformation,
+                                    infoperiod
+                                    )
+end
+
 function perfect_foresight_setup!(context::Context, field=Dict{String, Any})
     periods = 0
     datafile = ""
@@ -277,7 +290,8 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
         if isnothing(Base.get_extension(Dynare, :PathSolver))
             error("You must load PATH with 'using PATHSolver'")
         end
-        mcp_perfectforesight_core!(
+        if isempty(context.work.scenario)
+            mcp_perfectforesight_core!(
             PathNLS(),
             perfect_foresight_ws,
             context,
@@ -286,19 +300,33 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             initial_values,
             terminal_values,
             dynamic_ws,
-        )
-    elseif !isempty(context.work.scenario)
-        perfectforesight_core_conditional!(
+            )
+        else
+            mcp_perfectforesight_core!(
+            PathNLS(),
             perfect_foresight_ws,
             context,
             periods,
             guess_values,
             initial_values,
             terminal_values,
-            options.linear_solve_algo,
             dynamic_ws,
             perfect_foresight_ws.flipinfo,
             1
+            )
+        end            
+    elseif !isempty(context.work.scenario)
+        perfectforesight_core_conditional!(
+        perfect_foresight_ws,
+        context,
+        periods,
+        guess_values,
+        initial_values,
+        terminal_values,
+        options.linear_solve_algo,
+        dynamic_ws,
+        perfect_foresight_ws.flipinfo,
+        1
         )
     else
         perfectforesight_core!(
@@ -923,7 +951,8 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
         if isnothing(Base.get_extension(Dynare, :PathSolver))
             error("You must load PATH with 'using PATHSolver'")
         end
-        mcp_perfectforesight_core!(
+        if isempty(context.work.scenario)
+            mcp_perfectforesight_core!(
             PathNLS(),
             perfect_foresight_ws,
             context,
@@ -932,7 +961,21 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
             initial_values,
             terminal_values,
             dynamic_ws,
-        )
+            )
+        else
+            mcp_perfectforesight_core!(
+            PathNLS(),
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initial_values,
+            terminal_values,
+            dynamic_ws,
+            perfect_foresight_ws.flipinfo,
+            infoperiod
+            )
+        end
     elseif !isempty(context.work.scenario)
         perfectforesight_core_conditional!(
             perfect_foresight_ws,

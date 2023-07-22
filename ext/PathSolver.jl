@@ -99,7 +99,8 @@ function Dynare.mcp_perfectforesight_core!(
     Dynare.make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
 
-function mcp_perfectforesight_core!(
+function Dynare.mcp_perfectforesight_core!(
+    ::Dynare.PathNLS,
     perfect_foresight_ws::Dynare.PerfectForesightWs,
     context::Context,
     periods::Int64,
@@ -143,8 +144,8 @@ function mcp_perfectforesight_core!(
     ix_stack = flipinfo.ix_stack
     function f!(residuals, y)
         @debug "$(now()): start f!"
-        flip!(y, exogenous, ix_stack)
-        get_residuals!(
+        Dynare.flip!(y, exogenous, ix_stack)
+        Dynare.get_residuals!(
             residuals,
             y,
             initialvalues,
@@ -157,9 +158,8 @@ function mcp_perfectforesight_core!(
             periods,
             temp_vec,
             permutations = permutationsR,
-            flipinfo.ix_stack
         )
-        flip!(y, exogenous, ix_stack)
+        Dynare.flip!(y, exogenous, ix_stack)
         @debug "$(now()): end f!"
         return residuals
     end
@@ -169,9 +169,9 @@ function mcp_perfectforesight_core!(
         y::AbstractVector{Float64},
     )
         @debug "$(now()): start J!"
-        A = updateJacobian!(
+        A = Dynare.updateJacobian!(
             JJ,
-            DFunctions.dynamic_derivatives!,
+            Dynare.DFunctions.dynamic_derivatives!,
             y,
             initialvalues,
             terminalvalues,
@@ -195,10 +195,13 @@ function mcp_perfectforesight_core!(
         return A
     end
 
+    Dynare.set_future_information!(guess_values, exogenous, context, periods, infoperiod)
+    Dynare.flip!(guess_values, exogenous, flipinfo.ix_stack)
+
     @debug "$(now()): start nlsolve"
     (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
     @debug "$(now()): end nlsolve"
-    make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
+    Dynare.make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
 
 # Using PATHSolver
