@@ -185,7 +185,10 @@ function mcp_perfectforesight_core!(::DefaultNLS,
                                     guess_values::Vector{Float64},
                                     initialvalues::Vector{Float64},
                                     terminalvalues::Vector{Float64},
-                                    dynamic_ws::Dynare.DynamicWs,
+                                    dynamic_ws::Dynare.DynamicWs;
+                                    maxit = maxit,
+                                    tolf = tolf,
+                                    tolx = tolx
                                     )
 end
 
@@ -198,7 +201,10 @@ function mcp_perfectforesight_core!(::DefaultNLS,
                                     terminalvalues::Vector{Float64},
                                     dynamic_ws::Dynare.DynamicWs,
                                     flipinfo::FlipInformation,
-                                    infoperiod
+                                    infoperiod;
+                                    maxit= maxit,
+                                    tolf = tolf,
+                                    tolx = tolx
                                     )
 end
 
@@ -292,41 +298,50 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
         end
         if isempty(context.work.scenario)
             mcp_perfectforesight_core!(
-            PathNLS(),
-            perfect_foresight_ws,
-            context,
-            periods,
-            guess_values,
-            initial_values,
-            terminal_values,
-            dynamic_ws,
+                PathNLS(),
+                perfect_foresight_ws,
+                context,
+                periods,
+                guess_values,
+                initial_values,
+                terminal_values,
+                dynamic_ws,
+                maxit = options.maxit,
+                tolf = options.tolf,
+                tolx = options.tolx
             )
         else
             mcp_perfectforesight_core!(
-            PathNLS(),
-            perfect_foresight_ws,
-            context,
-            periods,
-            guess_values,
-            initial_values,
-            terminal_values,
-            dynamic_ws,
-            perfect_foresight_ws.flipinfo,
-            1
+                PathNLS(),
+                perfect_foresight_ws,
+                context,
+                periods,
+                guess_values,
+                initial_values,
+                terminal_values,
+                dynamic_ws,
+                perfect_foresight_ws.flipinfo,
+                1,
+                maxit = options.maxit,
+                tolf = options.tolf,
+                tolx = options.tolx
             )
         end            
     elseif !isempty(context.work.scenario)
         perfectforesight_core_conditional!(
-        perfect_foresight_ws,
-        context,
-        periods,
-        guess_values,
-        initial_values,
-        terminal_values,
-        options.linear_solve_algo,
-        dynamic_ws,
-        perfect_foresight_ws.flipinfo,
-        1
+            perfect_foresight_ws,
+            context,
+            periods,
+            guess_values,
+            initial_values,
+            terminal_values,
+            options.linear_solve_algo,
+            dynamic_ws,
+            perfect_foresight_ws.flipinfo,
+            1,
+            maxit = options.maxit,
+            tolf = options.tolf,
+            tolx = options.tolx
         )
     else
         perfectforesight_core!(
@@ -338,6 +353,9 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             terminal_values,
             options.linear_solve_algo,
             dynamic_ws,
+            maxit = options.maxit,
+            tolf = options.tolf,
+            tolx = options.tolx
         )
     end
 end
@@ -488,7 +506,10 @@ function perfectforesight_core!(
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
     linear_solve_algo::LinearSolveAlgo,
-    dynamic_ws::DynamicWs,
+    dynamic_ws::DynamicWs;
+    maxit = 50,
+    tolf = 1e-5,
+    tolx = 1e-5
 )
     m = context.models[1]
     results = context.results.model_results[1]
@@ -547,16 +568,17 @@ function perfectforesight_core!(
     df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     @debug "$(now()): start nlsolve"
 
+    show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
     if linear_solve_algo == pardiso
         @show "Pardiso"
         if isnothing(Base.get_extension(Dynare, :PardisoSolver))
             error("You must load Pardiso with 'using MKL, Pardiso'")
         end
         ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()), linsolve = ls1!)    
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
     else
         ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()), linsolve = ls2!)
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
     end
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
@@ -882,22 +904,22 @@ function recursive_perfect_foresight!(context::Context, options::PerfectForesigh
     endogenous_nbr = length(endogenous_names)
     exogenous_names = get_exogenous(context.symboltable)
     scenario = context.work.scenario
-    let simulation = Float64[;;], initial_periods = 0
+    if context.modfileinfo.has_histval
+        initial_periods = lastindex(context.work.histval, 1)
+    else
+        initial_periods = 1
+    end
+    let simulation = Float64[;;]
         for (j, i) in enumerate(sort(collect(keys(scenario))))
             if i == 1
                 initial_values = get_dynamic_initialvalues(context)
-                if size(initial_values, 2) == 1
-                    initial_periods = 1
-                else
-                    initial_periods = size(initial_values, 1)
-                end
             else
-                initial_values = Vector{Float64}(simulation[i-1, 1:endogenous_nbr])
+                initial_values = Vector{Float64}(simulation[i + initial_periods - 1, 1:endogenous_nbr])
             end
             this_simulation = _recursive_perfect_foresight!(context, i, initial_values, options)
             data = Matrix(this_simulation[j].data)
             if i > 1
-                simulation = vcat(simulation[1:(i + initial_periods - 1),:],  data[2:end, :])
+                simulation = vcat(simulation[1:(i + initial_periods - 1),:],  data[initial_periods + 1:end, :])
             else
                 simulation = data
             end
@@ -953,27 +975,33 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
         end
         if isempty(context.work.scenario)
             mcp_perfectforesight_core!(
-            PathNLS(),
-            perfect_foresight_ws,
-            context,
-            periods,
-            guess_values,
-            initial_values,
-            terminal_values,
-            dynamic_ws,
+                PathNLS(),
+                perfect_foresight_ws,
+                context,
+                periods,
+                guess_values,
+                initial_values,
+                terminal_values,
+                dynamic_ws,
+                maxit = options.maxit,
+                tolf = options.tolf,
+                tolx = options.tolx
             )
         else
             mcp_perfectforesight_core!(
-            PathNLS(),
-            perfect_foresight_ws,
-            context,
-            periods,
-            guess_values,
-            initial_values,
-            terminal_values,
-            dynamic_ws,
-            perfect_foresight_ws.flipinfo,
-            infoperiod
+                PathNLS(),
+                perfect_foresight_ws,
+                context,
+                periods,
+                guess_values,
+                initial_values,
+                terminal_values,
+                dynamic_ws,
+                perfect_foresight_ws.flipinfo,
+                infoperiod,
+                maxit = options.maxit,
+                tolf = options.tolf,
+                tolx = options.tolx
             )
         end
     elseif !isempty(context.work.scenario)
@@ -987,7 +1015,10 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
             options.linear_solve_algo,
             dynamic_ws,
             perfect_foresight_ws.flipinfo,
-            infoperiod
+            infoperiod,
+            maxit = options.maxit,
+            tolf = options.tolf,
+            tolx = options.tolx
         )
     else
         perfectforesight_core!(
@@ -999,6 +1030,9 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
             terminal_values,
             options.linear_solve_algo,
             dynamic_ws,
+            maxit = options.maxit,
+            tolf = options.tolf,
+            tolx = options.tolx
         )
     end
 end

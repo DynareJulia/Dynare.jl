@@ -1,5 +1,6 @@
 module PathSolver
 
+using Dates
 using Dynare, PATHSolver
 using LinearAlgebra
 using SparseArrays
@@ -12,7 +13,10 @@ function Dynare.mcp_perfectforesight_core!(
     guess_values::Vector{Float64},
     initialvalues::Vector{Float64},
     terminalvalues::Vector{Float64},
-    dynamic_ws::Dynare.DynamicWs,
+    dynamic_ws::Dynare.DynamicWs;
+    maxit = 50,
+    tolf = 1e-5,
+    tolx = 1e-5
 )
     m = context.models[1]
     results = context.results.model_results[1]
@@ -94,7 +98,18 @@ function Dynare.mcp_perfectforesight_core!(
     end
 
     @debug "$(now()): start nlsolve"
-    (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
+    show_iterations = (("JULIA_DEBUG" => "PathSolver") in ENV) ? "yes" : "no"
+    (status, results, info) = solve_path!(f!,
+        JA!,
+        JJ,
+        lb,
+        ub,
+        vec(guess_values),
+        output_major_iterarions = show_iterations,
+        output_minor_iterations = show_iterations,
+        convergence_tolerance = tolf,
+    )
+
     @debug "$(now()): end nlsolve"
     Dynare.make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
@@ -109,7 +124,10 @@ function Dynare.mcp_perfectforesight_core!(
     terminalvalues::Vector{Float64},
     dynamic_ws::Dynare.DynamicWs,
     flipinfo::Dynare.FlipInformation,
-    infoperiod
+    infoperiod;
+    maxit = 50,
+    tolf = 1e-5,
+    tolx = 1e-5
 )
     m = context.models[1]
     results = context.results.model_results[1]
@@ -199,7 +217,17 @@ function Dynare.mcp_perfectforesight_core!(
     Dynare.flip!(guess_values, exogenous, flipinfo.ix_stack)
 
     @debug "$(now()): start nlsolve"
-    (status, results, info) = solve_path!(f!, JA!, JJ, lb, ub, vec(guess_values))
+    show_iterations = (("JULIA_DEBUG" => "PathSolver") in ENV) ? "yes" : "no"
+    (status, results, info) = solve_path!(f!,
+        JA!,
+        JJ,
+        lb,
+        ub,
+        vec(guess_values),
+        output_major_iterarions = show_iterations,
+        output_minor_iterations = show_iterations,
+        convergence_tolerance = tolf,
+    )
     @debug "$(now()): end nlsolve"
     Dynare.make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
@@ -262,15 +290,6 @@ function solve_path!(f!, JA!, JJ, lb, ub, initial_values; kwargs...)
     )
 
     return Int(status), z, info
-end
-
-
-function ramsey_constraints!(context, field)
-    for c in field["ramsey_model_constraints"]
-        p1, p2, p3 = split(c["constraint"], limit = 3)
-        eq = context.symboltable[p1].orderintype
-        push!(context.models[1].mcps, (eq, eq, p2, p3))
-    end
 end
 
 function mcp!(lb, ub, permutations, mcps, context, periods)

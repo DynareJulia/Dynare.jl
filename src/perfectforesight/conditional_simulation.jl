@@ -30,7 +30,11 @@ function perfectforesight_core_conditional!(
     linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs,
     flipinfo::FlipInformation,
-    infoperiod
+    infoperiod;
+    maxit = 50,
+    tolf = 1e-5,
+    tolx = 1e-5
+
 )
     m = context.models[1]
     results = context.results.model_results[1]
@@ -94,16 +98,17 @@ function perfectforesight_core_conditional!(
     set_future_information!(y0, exogenous, context, periods, infoperiod)
     flip!(y0, exogenous, flipinfo.ix_stack)
     f!(residuals, y0)
+    show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
     if linear_solve_algo == pardiso
         @show "Pardiso"
         if isnothing(Base.get_extension(Dynare, :PardisoSolver))
             error("You must load Pardiso with 'using MKL, Pardiso'")
         end
         ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = true, ftol=cbrt(eps()), linsolve = ls1!)    
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
     else
         ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = false, ftol=cbrt(eps()), linsolve = ls2!)
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
     end
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"

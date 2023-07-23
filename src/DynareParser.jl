@@ -523,3 +523,11 @@ function get_mcps!(mcps::Vector{Tuple{Int,Int,String,String}},
     end
 end
 
+function ramsey_constraints!(context, field)
+    for c in field["ramsey_model_constraints"]
+        p1, p2, p3 = split(c["constraint"], limit = 3)
+        eq = context.symboltable[p1].orderintype
+        push!(context.models[1].mcps, (eq, eq, p2, p3))
+    end
+end
+
