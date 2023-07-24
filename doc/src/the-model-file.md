@@ -2506,19 +2506,8 @@ stoch_simul(irf=0);
 forecast;
 ```
 
-
-
-*MATLAB/Octave Command*: `get_shock_stderr_by_name ('EXOGENOUS_NAME\');`
-
-Given the name of an exogenous variable, returns its standard deviation,
-as set by a previous `shocks` block.
-
-*MATLAB/Octave Command*: `set_shock_stderr_value ('EXOGENOUS_NAME', MATLAB_EXPRESSION);`
-
-Sets the standard deviation of an exgonous variable. This does
-essentially the same as setting the standard error via a `shocks` block,
-except that it accepts arbitrary Julia expressions, and that it
-works from Julia scripts.
+- *Function*: scenario!(; name, period, value, context=context,
+  exogenous=Symbol(), infoperiod=Undated(1), 
 
 ## Steady state
 
