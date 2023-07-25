@@ -258,7 +258,6 @@ function perfect_foresight!(;context::Context = context,
 end
 
 function check_scenario(scenario)
-    @show scenario
     # all infoperiods
     k = collect(keys(scenario))
     # for each infoperiod > 1 
@@ -266,10 +265,8 @@ function check_scenario(scenario)
         if k1 == 1
             continue
         end
-        @show k1
         # period shocked for that infoperiod
         sk1 = keys(scenario[k1])
-        @show sk1
         # for all shock periods in the current infoperiod
         for p1 in sk1
             # check that future relevant infoperiods contain a comparable shock
