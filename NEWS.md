@@ -1,3 +1,11 @@
+0.8.1
+=====
+- conditional simulations with MCP
+- add options to perfect_foresight!
+- fix to 2nd order computation
+- fix to nonstationary models
+- fix autocorrelation 
+
 0.8.0
 =====
 - adding scenario!() and conditional simulations
