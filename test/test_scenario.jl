@@ -98,13 +98,16 @@ end
         @test context.work.scenario[Undated(1)][Undated(2)][:u] == (0.015 => Symbol())
         @test context.work.scenario[Undated(1)][Undated(1)][:y] == (1.0 => Symbol(:u))
         
-        Dynare.scenario!(infoperiod=Undated(2), name=:y, value=0.2, period=2, context = context, exogenous = :u)
+        Dynare.scenario!(infoperiod=Undated(2), name = :y, value = 0.2, period = 2, context = context, exogenous = :u)
         @test length(context.work.scenario) == 3
         @test context.work.scenario[2][Undated(2)] == Dict(:y => (0.2 => :u))
         
-        Dynare.scenario!(infoperiod=Undated(2), name=:y, value=0.3, period=3, context = context, exogenous = :u)
+        Dynare.scenario!(infoperiod=Undated(2), name = :y, value = 0.3, period = 3, context = context, exogenous = :u)
         @test length(context.work.scenario[2]) == 2
         @test context.work.scenario[2][3][:y] == (0.3 => :u)
+
+        Dynare.scenario!(infoperiod=Undated(3), name= :e, value = 0.1, period = 3, context = context)
+        @test_throws "A shock must be explicitly"  Dynare.check_scenario(context.work.scenario)
     end
 
     @testset "set_future_information" begin

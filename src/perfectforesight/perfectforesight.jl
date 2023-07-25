@@ -249,7 +249,7 @@ function perfect_foresight!(;context::Context = context,
                                       mcp, periods, tolf, tolx)
 
     scenario = context.work.scenario
-    @assert sort(collect(keys(scenario)))[1] == 1
+    check_scenario(scenario)
     if length(scenario) == 1
         _perfect_foresight!(context, options)
     else
@@ -257,6 +257,44 @@ function perfect_foresight!(;context::Context = context,
     end
 end
 
+function check_scenario(scenario)
+    @show scenario
+    # all infoperiods
+    k = collect(keys(scenario))
+    # for each infoperiod > 1 
+    for (i, k1) in enumerate(sort(k))
+        if k1 == 1
+            continue
+        end
+        @show k1
+        # period shocked for that infoperiod
+        sk1 = keys(scenario[k1])
+        @show sk1
+        # for all shock periods in the current infoperiod
+        for p1 in sk1
+            # check that future relevant infoperiods contain a comparable shock
+            for k2 = k[i+1:end]
+                # check only infoperiods <= this shock period
+                if k2 > p1
+                    break
+                end
+                p2 = collect(keys(scenario[k2]))
+                if !(p1 in p2)
+                    error("A shock must be explicitly confirmed or modifier in all relevant subsequent infoperiods")
+                else
+                    for v in p1
+                        @show collect(keys(scenario[k2][p1]))
+                        if !(v in keys(scenario[k2][p1]))
+                            error("A shock must be explicitly confirmed or modifier in all relevant subsequent infoperiods")
+
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+                
 function mcp_parse(mcps::Vector{Tuple{Int64,Int64,String,String}}, context::Context)
     mcp1 = Tuple{Int64, Int64, String, Float64}[]
     for m in mcps
