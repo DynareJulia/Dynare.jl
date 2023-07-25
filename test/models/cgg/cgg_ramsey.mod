@@ -24,5 +24,5 @@ planner_objective pie^2 + y^2;
 
 ramsey_model(planner_discount=1.0);
 
-stoch_simul(irf=0);
+stoch_simul(order=1, irf=0);
 
