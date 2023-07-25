@@ -326,10 +326,6 @@ function display_autocorrelation(
 )
     title = "AUTOCORRELATION COEFFICIENTS"
     stationary_variables = LREresults.stationary_variables
-    # doesn't work yet for nonstationary models
-#    if model.endogenous_nbr != count(stationary_variables)
-#        return
-    #    end
     endogenous_nbr = model.endogenous_nbr
     n1 = count(stationary_variables)
     ar = [zeros(n1) for i = 1:options.nar]
@@ -341,8 +337,7 @@ function display_autocorrelation(
         LREresults,
         S1a,
         S1b,
-        S2a,
-        S2b,
+        S2,
         model.i_bkwrd_b,
         stationary_variables,
     )
