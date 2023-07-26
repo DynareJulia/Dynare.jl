@@ -87,25 +87,21 @@ function set_or_zero!(x, a, n)
 end
         
 """
-    steadystate!(; context::Context=context,
-            display = true,
-            homotopy_mode = None,
-            homotopy_steps = 10,
-            maxit = 50,
-            nocheck = false,
-            solve_algo = trustregion,
-            tolf = cbrt(eps()),
-            tolx = 0.0)
+    steadystate!(; context::Context=context, display::Bool = true,
+            maxit::Int = 50, nocheck::Bool = false, tolf::Float64 = cbrt(eps()),
+            tolx::Float64 = 0.0)
                              
-Compute the steady state of the model and set the result in `context`
+ # Keyword arguments
+ - `context::Context=context`: context in which the simulation is computed
+ - `display::Bool=true`: whether to display the results
+ - `maxit::Int=50` maximum number of iterations
+ - `tolf::Float64=1e-5`: tolerance for the norm of residualts
+ - `tolx::Float64=1e-5`: tolerance for the norm of the change in the result
 """
 function steadystate!(; context::Context=context,
             display = true,
-            homotopy_mode = None,
-            homotopy_steps = 10,
             maxit = 50,
             nocheck = false,
-            solve_algo = trustregion,
             tolf = cbrt(eps()),
             tolx = 0.0
     )
