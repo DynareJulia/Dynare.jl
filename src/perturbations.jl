@@ -390,7 +390,26 @@ function stoch_simul!(context::Context, field::Dict{String,Any})
     stoch_simul_core!(context, ws, options)
 end
 
-function localapproximation!(; context::Context=context,
+"""
+    localapproximation!(; context::Context=context, display = true,
+                        dr_algo::String = "GS", irf::Int = 40,
+                        LRE_options = LinearRationalExpectationsOptions(),
+                        nar::Int = 5, nonstationary::Bool = false,
+                        order::Int = 1, periods::Int = 0 )
+computes a local approximation of a model contained in `context`
+
+# Keyword arguments
+ - `context::Context=context`: context in which the simulation is computed
+ - `display::Bool=true`: whether to display the results
+ - `dr_algo::String`: solution algorithm, either "GS" for generalized Schur decomposition (default)
+                      or "CR" for cyclic reduction
+ - `irf::Int = 40`: numnber of periods for IRFs. Use 0 for no IRF computation
+ - `LRE_options::LinearRationalExpectationsOptions = LinearRationalExpectationsOptions()`: options passed to the LinearRationalExpectation package
+ - `nar::Int = 5`: numnber of periods for autocorrelations. Use 0 for no autocorrelation computation
+ - 'nonstationary::Bool = false`: to specify a nonstationary model
+ - `periods::Int = 0`: number of periods for an optional Monte Carlo simulation of the model
+"""
+function localapproximation!(; context::Context = context,
                              display = true,
                              dr_algo = "GS",
                              first_period = 1,
@@ -400,7 +419,6 @@ function localapproximation!(; context::Context=context,
                              nonstationary = false,
                              order = 1,
                              periods = 0,
-                             print_results = true
                              )
     options = StochSimulOptions(display, dr_algo, first_period, irf, LRE_options, nar, 
         nonstationary, order, periods)
