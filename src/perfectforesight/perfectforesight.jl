@@ -229,7 +229,24 @@ function perfect_foresight_solver!(context, field)
     options = PerfectForesightOptions(context, field)
     _perfect_foresight!(context, options)
 end
-
+"""
+    perfect_foresight!(; periods, context = context, display = true,
+                       linear_solve_algo=ilu, maxit = 50, mcp = false,
+                       tolf = 1e-5, tolx = 1e-5)
+ 
+ # Keyword arguments
+ - `periods::Int`: number of periods in the simulation [required]
+ - `context::Context=context`: context in which the simulation is computed
+ - `display::Bool=true`: whether to display the results
+ - `linear_solve_algo::LinearSolveAlgo=ilu`: algorithm used for the solution of the linear
+   problem. Either `ilu` or `pardiso`. `ilu` is the sparse linear solver used by default in Julia.
+   To use the Pardiso solver, write `using Pardiso` before running Dynare.
+ - `maxit::Int=50` maximum number of iterations
+ - `mcp::Bool=false`L whether to solve a mixed complementarity problem with
+   occasionally binding constraints
+ - `tolf::Float64=1e-5`: tolerance for the norm of residualts
+ - `tolx::Float64=1e-5`: tolerance for the norm of the change in the result
+"""
 function perfect_foresight!(;context::Context = context,
                             algo::PerfectForesightAlgo = trustregionA,
                             datafile::String = "",
