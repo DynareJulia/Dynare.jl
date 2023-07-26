@@ -397,6 +397,23 @@ function shocks!(context::Context, field::Dict{String,Any})
     end
 end
 
+"""
+    scenario!(; name=Symbol, period::PeriodSinceEpoch, value<:Number, context::Context=context,
+      exogenous::Symbol=Symbol(), infoperiod::PeriodSinceEpoch=Undated(1)) 
+
+# Keyword arguments
+
+- `name::Symbol`: the name of an endogenous or exogenous variable [required]
+- `period::PeriodSinceEpoch`: the period in which the value is set
+- `value<:PeriodSinceEpoch`: the value of the endogenous or exogenous variables
+- context: the context is which the function operates (optional,
+  default = context)
+- exogenous: when an endogenous variable is set, the name of the
+  exogenous that must be freed (required when an endogenous variables
+  is set)
+- infoperiod: the period in which the information is learned
+  (optional, default = Undated(1))
+"""
 function scenario!(; 
                    name::Symbol,
                    period::PeriodsSinceEpoch,
