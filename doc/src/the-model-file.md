@@ -30,8 +30,9 @@ Multiline comments are introduced by `/*` and terminated by `*/`.
       two lines.
      */
 
-Note that these comment marks should not be used in native MATLAB code
-regions where the [%]{.title-ref} should be preferred instead to
+Note that these comment marks should not be used in native 
+ulia code
+regions where the [#]{.title-ref} should be preferred instead to
 introduce a comment. In a `verbatim` block, see
 `verbatim`{.interpreted-text role="ref"}, this would result in a crash
 since `//` is not a valid MATLAB statement).
@@ -2505,10 +2506,25 @@ stoch_simul(irf=0);
 
 forecast;
 ```
+### Julia function
 
 - *Function*: scenario!(; name, period, value, context=context,
-  exogenous=Symbol(), infoperiod=Undated(1), 
+  exogenous=Symbol(), infoperiod=Undated(1)) 
 
+Arguments
+
+- name: the name of an endogenous or exogenous variable written as a
+  symbol
+- period: the period in which the value is set
+- value: the value of the endogenous or exogenous variables
+- context: the context is which the function operates (optional,
+  default = context)
+- exogenous: when an endogenous variable is set, the name of the
+  exogenous that must be freed (required when an endogenous variables
+  is set)
+- infoperiod: the period in which the information is learned
+  (optional, default = Undated(1))
+  
 ## Steady state
 
 There are three ways of computing the steady state (i.e. the static
@@ -3134,18 +3150,19 @@ Solves the linearized version of the perfect foresight model. The model
 must be stationary. Only available with option `stack_solve_algo==0` or
 `stack_solve_algo==7`.
 
+### Julia function
+```@docs
+perfect_foresight!
+```
+
 *Output*
 
-The simulated endogenous variables are available in global matrix
-`oo_.endo_simul`.
+The simulated endogenous variables are available in
+`context.results.model_results[1].simulations`. This is a vector of
+`AxisArrayTable`, one for each simulations stored in `context`. Each
+`AxisArrayTable` contains the trajectories for endogenous and
+exogenous variables
 
-
-This variable stores the path of exogenous variables during a simulation
-(computed by `perfect_foresight_solver`, `simul`, `stoch_simul` or
-`extended_path`). The variables are arranged in columns, in order of
-declaration (as in `M_.exo_names`). Periods are in rows. Note that this
-convention regarding columns and rows is the opposite of the convention
-for `oo_.endo_simul`!
 
 
 ## Stochastic solution and simulation
