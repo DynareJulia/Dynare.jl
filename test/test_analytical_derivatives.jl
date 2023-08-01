@@ -1,7 +1,7 @@
 module TestDerivatives
 using Dynare #Use analytical_derivatives branch
 using LinearAlgebra
-using FastLapackInterface
+using Dynare.FastLapackInterface
 using Test
 using SparseArrays
 using SuiteSparse
