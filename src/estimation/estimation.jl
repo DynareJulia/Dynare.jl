@@ -122,7 +122,7 @@ function estimation!(context, field::Dict{String, Any})
     return nothing
 end
 
-function mode_compute(; context=context,
+function mode_compute!(; context=context,
                  datafile = "",
                  data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
                  diffuse_filter::Bool = false,
@@ -148,7 +148,7 @@ function mode_compute(; context=context,
     (res, mode, tstdh, mode_covariance) = posterior_mode(context, initial_values, observations)
 end
 
-function rwmh_compute(;context=context,
+function rwmh_compute!(;context=context,
              datafile = "",
              back_transformation = true,
              data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
@@ -187,12 +187,11 @@ function rwmh_compute(;context=context,
     return chain
 end
 
-function output_mcmc_chain!(context, chain, display, plot_chain)
+function output_MCMCChains(context, chain, display, plot_chain)
     estimation_results = context.results.model_results[1].estimation
     n = estimation_results.posterior_mcmc_chains_nbr += 1
     path = mkpath(joinpath(context.modfileinfo.modfilepath, "output"))
-    serialize("$path/mcmc_chain_$n.jls",
-    chain) 
+    serialize("$path/mcmc_chain_$n.jls", chain) 
     display && Base.display(chain)
     plot_chain && plot_MCMCChains(chain, n, "$path/graphs", display)
 end
@@ -205,11 +204,11 @@ function plot_MCMCChains(chain, n, path, display)
     savefig(filename)
 end 
 
-function smc_compute(;context=context,
-    datafile = "",
-    first_obs = 1,
-    last_obs = 0
-    )
+function smc_compute!(;context=context,
+                      datafile = "",
+                      first_obs = 1,
+                      last_obs = 0
+                      )
     symboltable = context.symboltable
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
@@ -1231,7 +1230,26 @@ struct variance
     end
 end
 
-function prior(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+"""
+     prior!(s::Symbol; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+     prior!(s::stdev; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+     prior!(s::variance; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+     prior!(s::corr; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+
+generates a prior for a symbol of a parameter, the standard deviation (`stdev`) or the variance (`variance`) of an exogenous variable or an endogenous variable (measurement error) or the correlation (`corr`) between 2 endogenous or exogenous variables
+
+# Keywor arguments
+- `shape <: Distributions`: the shape of the prior distribution (`Beta`, `InvertedGamma`, `InvertedGamma1`, `Gamma`, `Normal`, `Uniform`, `Weibull`) [required]
+- `context::Context=context`: context in which the prior is declared
+- `domain::Vector{<:Real}=Float64[]`: domain for a uniform distribution
+- `initialvalue::Union{Real,Missing}=missing`: initialvalue for mode finding or MCMC iterations
+- `mean::Union{Real,Missing}=missing`: mean of the prior distribution
+- `stdev::Union{Real,Missing}=missing`: stdev of the prior distribution
+- `variance::Union{Real,Missing}=missing`: variance of the prior distribution
+"""
+     prior!(s; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+
+function prior!(s::Symbol; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s)
@@ -1242,7 +1260,7 @@ function prior(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
     
-function prior(s::stdev; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::stdev; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s.s)
@@ -1260,7 +1278,7 @@ function prior(s::stdev; shape, initialvalue::Union{Real,Missing}=missing, mean:
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
 
-function prior(s::variance; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::variance; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s.s)
@@ -1278,7 +1296,7 @@ function prior(s::variance; shape, initialvalue::Union{Real,Missing}=missing, me
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
 
-function prior(s::corr; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::corr; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name1 = string(s.s1)

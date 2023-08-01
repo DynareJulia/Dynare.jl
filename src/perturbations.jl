@@ -426,6 +426,7 @@ function localapproximation!(; context::Context = context,
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
     ws = DynamicWs(context, order=options.order)
+    @show options.order
     stoch_simul_core!(context, ws, options)
 end
 
@@ -524,6 +525,7 @@ function compute_stoch_simul!(
         options; kwargs...
             )
     if order == 2
+        @show order
         steadystate = context.results.model_results[1].trends.endogenous_steady_state
         values = zeros(size(model.dynamic_g2_sparse_indices, 1))
         get_dynamic_derivatives2!(
