@@ -29,7 +29,7 @@ struct DynamicWs
                        ]
         for i = 2:order
             push!(derivatives,
-                  zeros(endogenous_nbr,
+                  spzeros(endogenous_nbr,
                         (3*endogenous_nbr + exogenous_nbr)^i)
                   )
         end
