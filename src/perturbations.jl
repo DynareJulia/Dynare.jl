@@ -518,26 +518,11 @@ function compute_stoch_simul!(
             model,
         )
         m = model
-        k = vcat(
-            m.i_bkwrd_b,
-            m.endogenous_nbr .+ model.i_current,
-            2*m.endogenous_nbr .+ model.i_fwrd_b,
-            3*m.endogenous_nbr .+ collect(1:m.exogenous_nbr)
-        )
-        n = 3*m.endogenous_nbr + m.exogenous_nbr
-        nc = m.n_bkwrd + 2*m.n_both + m.n_current + m.n_fwrd + m.exogenous_nbr
-        F1 = zeros(m.endogenous_nbr, nc)
-        @views F1 .= ws.derivatives[1][:, k]
-        kk = vec(reshape(1:n*n, n, n)[k, k])
-
-        sp = ws.derivatives[2]
-        F2 = Matrix(ws.derivatives[2])[:, kk]
-        F = [F1, F2]
         G = Vector{Matrix{Float64}}(undef, 0)
         push!(G, context.results.model_results[1].linearrationalexpectations.g1)
         push!(G, zeros(model.endogenous_nbr,
                        (model.n_states + model.exogenous_nbr + 1)^2))
-        ws = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
+        solverWs = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
                                           model.n_fwrd + model.n_both,
                                           model.n_states,
                                           model.n_current,
@@ -549,10 +534,10 @@ function compute_stoch_simul!(
                                           order)
         moments = [0, vec(model.Sigma_e)]
         KOrderPerturbations.k_order_solution!(G,
-                                              F,
+                                              ws.derivatives,
                                               moments,
                                               order,
-                                              ws)
+                                              solverWs)
         copy!(results.solution_derivatives, G)
     end
                    
