@@ -139,11 +139,11 @@ function steady_!(context, field::Dict{String, Any})
     options = SteadyOptions(get(field, "options", field))
     steadystate!(context = context,
             display = options.display,
-            homotopy_mode = options.homotopy_mode,
-            homotopy_steps = options.homotopy_steps,
+#            homotopy_mode = options.homotopy_mode,
+#            homotopy_steps = options.homotopy_steps,
             maxit = options.maxit,
             nocheck = options.nocheck,
-            solve_algo = options.solve_algo,
+#            solve_algo = options.solve_algo,
             tolf = options.tolf,
             tolx = options.tolx
     )
