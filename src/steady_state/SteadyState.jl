@@ -268,14 +268,14 @@ function solve_steady_state!(context::Context,
                              maxit = 50,
                              tolf = cbrt(eps()))
         try
-            return solve_steady_state_!(context, x0, exogenous; tolf = tolf)
+            return solve_steady_state_!(context, x0, exogenous; maxit = maxit, tolf = tolf)
         catch e
             if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
                 i = 1
                 while i <= 5
                     x00 = rand(0.95:0.01:1.05, length(x0)).*x0
                     try
-                        return solve_steady_state_!(context, x00, exogenous, tolf = tolf)
+                        return solve_steady_state_!(context, x00, exogenous, maxit = maxit, tolf = tolf)
                     catch
                     end
                     i += 1
@@ -292,13 +292,16 @@ end
 """
     solve_steady_state_!(context::Context,
                          x0::Vector{Float64},
-                         exogenous::AbstractVector{<:Real})
+                         exogenous::AbstractVector{<:Real};
+                         maxit = 50,
+                         tolf = cbrt(eps()))
 
 Solve the static model to obtain the steady state
 """
 function solve_steady_state_!(context::Context,
                               x0::AbstractVector{<:Real},
                               exogenous::AbstractVector{<:Real};
+                              maxit = 50,
                               tolf = cbrt(eps()))
     ws = StaticWs(context)
     model = context.models[1]
@@ -319,7 +322,7 @@ function solve_steady_state_!(context::Context,
     results = context.results.model_results[1]
 
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
-    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = tolf)
+    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = tolf, iterations = maxit)
     @debug result
     if converged(result)
         return result.zero
