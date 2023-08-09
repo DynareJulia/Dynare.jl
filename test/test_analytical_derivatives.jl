@@ -178,4 +178,54 @@ workspace4 = init_derivatives4_workspace(n, m)
 @test sol1 ≈ sol2
 @test sol1 ≈ sol3
 @test sol1 ≈ sol4 
+
+###
+## Derivatives of first order solution
+### 
+
+wsd = Dynare.DynamicWs(context)
+jacobian = Dynare.get_dynamic_jacobian!(
+    wsd,
+    params,
+    endogenous,
+    exogenous,
+    steadystate,
+    model,
+    2,
+)
+
+n = model.endogenous_nbr
+A = jacobian[:, 2*n .+ (1:n)]
+B = jacobian[:, n .+ (1:n)]
+C = jacobian[: , 1:n]
+
+#Get DynamicJacobianParams
+lli = model.lead_lag_incidence
+endogenous3 = repeat(steadystate, 3)
+endogenous = endogenous3[findall(!iszero, vec(lli'))]
+(dr_dp, gp) = Dynare.DFunctions.SparseDynamicParametersDerivatives!(endogenous, exogenous, params, steadystate, 2, [], [])
+
+dA_dp = zeros(n, n, m)
+dB_dp = zeros(n, n, m)
+dC_dp = zeros(n, n, m)
+
+# derivatives of A, B, C with respect to parameter
+k1 = findall(!iszero, lli[3, :])
+k2 = lli[3, k1]
+dA_dp[:, k1, :] .= gp[:, k2, :]  
+k1 = findall(!iszero, lli[2, :])
+k2 = lli[2, k1]
+dB_dp[:, k1, :] .= gp[:, k2, :]  
+k1 = findall(!iszero, lli[1, :])
+k2 = lli[1, k1]
+dC_dp[:, k1, :] .= gp[:, k2, :]  
+
+localapproximation!(irf=0, display=false);
+
+# solution to UQME
+X = zeros(n, n)
+# set nonzero columns
+X[:, k1] .= context.results.model_results[1].linearrationalexpectations.g1_1
+
 end # end module   
+
