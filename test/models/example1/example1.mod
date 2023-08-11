@@ -52,6 +52,7 @@ end;
 
 check;
 
-stoch_simul(dr=cycle_reduction, order=1);
+stoch_simul(dr=cycle_reduction, order=1, irf=100);
+stoch_simul(dr=cycle_reduction, order=2, irf=100);
 
 

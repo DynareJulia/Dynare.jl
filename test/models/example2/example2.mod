@@ -54,5 +54,5 @@ end;
 
 check;
 
-stoch_simul(order=1);
-
+stoch_simul(order=1, irf=100);
+stoch_simul(order=2, irf=100);
