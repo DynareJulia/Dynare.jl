@@ -257,6 +257,8 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "histval"
             histval!(context, field)
             modfileinfo.has_histval = true
+        elseif statementname == "homotopy"
+            homotopy_setup!(context, field)
         elseif statementname == "initval"
             @debug "$(now()): start initval"
             initval!(context, field)
@@ -268,6 +270,8 @@ function parse_statements!(context::Context, statements::Vector{Any})
             initval_file!(context, field)
             modfileinfo.has_initval_file = true
             @debug "$(now()): end initval"
+        elseif statementname == "load_params_and_steady_state"
+            load_params_and_steady_state(context, field)
         elseif statementname == "native"
             try
                 dynare_parse_eval(field["string"], context)

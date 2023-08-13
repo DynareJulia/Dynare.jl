@@ -51,13 +51,13 @@ struct SteadyOptions
         tolf = cbrt(eps())
         tolx = 0.0
         solve_algo = trustregion
-        homotopy_mode = None
-        homotopy_steps = 10
+        homotopy_mode = SimultaneousFixedSteps
+        homotopy_steps = 0
         nocheck = false
         for (k, v) in pairs(options)
             if k == "noprint"
                 display = false
-            elseif k == "maxit" && v::Bool
+            elseif k == "steady.maxit"
                 maxit = v::Int64
             elseif k == "solve_tolf"
                 tolf = v::Float64
@@ -69,7 +69,7 @@ struct SteadyOptions
                 homotopy_mode = v::HomotopyModes
             elseif k == "homotopy_steps"
                 homotopy_steps = v::Int64
-            elseif k == "steadystate.nocheck" && v::Bool
+            elseif k == "steadystate.nocheck"
                 nocheck = true
             end
         end
@@ -99,12 +99,14 @@ end
  - `tolx::Float64=1e-5`: tolerance for the norm of the change in the result
 """
 function steadystate!(; context::Context=context,
-            display = true,
-            maxit = 50,
-            nocheck = false,
-            tolf = cbrt(eps()),
-            tolx = 0.0
-    )
+                      display = true,
+                      homotopy_mode = SimultaneousFixedSteps,
+                      homotopy_steps = 0,
+                      maxit = 50,
+                      nocheck = false,
+                      tolf = cbrt(eps()),
+                      tolx = 0.0
+                      )
     model = context.models[1]
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
@@ -124,7 +126,11 @@ function steadystate!(; context::Context=context,
                      work.endval_exogenous,
                      model.exogenous_nbr)
     end
-    compute_steady_state!(context, maxit = maxit, nocheck = nocheck, tolf = tolf)
+    if homotopy_steps == 0
+        compute_steady_state!(context, maxit = maxit, nocheck = nocheck, tolf = tolf)
+    else
+        homotopy_steady!(context, homotopy_mode, homotopy_steps, maxit = maxit, tolf = tolf)
+    end
     if display
         if isempty(trends.endogenous_terminal_steady_state)
             steadystate_display(trends.endogenous_steady_state, context)
@@ -139,8 +145,8 @@ function steady_!(context, field::Dict{String, Any})
     options = SteadyOptions(get(field, "options", field))
     steadystate!(context = context,
             display = options.display,
-#            homotopy_mode = options.homotopy_mode,
-#            homotopy_steps = options.homotopy_steps,
+            homotopy_mode = options.homotopy_mode,
+            homotopy_steps = options.homotopy_steps,
             maxit = options.maxit,
             nocheck = options.nocheck,
 #            solve_algo = options.solve_algo,
@@ -272,7 +278,7 @@ function solve_steady_state!(context::Context,
         catch e
             if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
                 i = 1
-                while i <= 5
+                while i <= 0
                     x00 = rand(0.95:0.01:1.05, length(x0)).*x0
                     try
                         return solve_steady_state_!(context, x00, exogenous, maxit = maxit, tolf = tolf)
@@ -290,7 +296,7 @@ function solve_steady_state!(context::Context,
 end
 
 """
-    solve_steady_state_!(context::Context,
+    solve_steady_state_!(context::Context;
                          x0::Vector{Float64},
                          exogenous::AbstractVector{<:Real};
                          maxit = 50,
@@ -493,4 +499,38 @@ function make_partial_static_residuals(temp_val::AbstractVector{T},
     return f!
 end
 
-    
+function homotopy_steady!(context::Context, homotopy_mode::HomotopyModes, homotopy_steps::Int64; maxit = 50, tolf = cbrt(eps()))
+    hs = context.work.homotopy_setup
+    initval_endogenous = context.work.initval_endogenous
+    initval_exogenous = context.work.initval_exogenous
+    params = context.work.params
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    exogenous_steadystate = context.results.model_results[1].trends.exogenous_steady_state
+    if homotopy_mode == SimultaneousFixedSteps
+        steps = zeros(length(hs))
+        for (i,v) in enumerate(hs)
+            if v.type == Dynare.Parameter
+                startvalue = (ismissing(v.startvalue)) ? params[v.index] : v.startvalue
+                steps[i] = Float64((v.endvalue - startvalue)/homotopy_steps)
+            elseif v.type == Dynare.Exogenous
+                startvalue = (ismissing(v.startvalue)) ? exogenous_steadystate[v.index] : v.startvalue
+                steps[i] = (v.endvalue - startvalue)/homotopy_steps
+            end
+        end
+        length(steadystate) > 0 && (initval_endogenous .= steadystate) 
+        compute_steady_state!(context, maxit = maxit, nocheck = false, tolf = tolf)
+        for i = 1:homotopy_steps
+            for (i, v) in enumerate(hs)
+                v.type == Dynare.Exogenous && (exogenous_steadystate[v.index] += steps[i])
+                v.type == Dynare.Parameter && (params[v.index] += steps[i])
+            end
+            # if steadystate exists, use it as guess values
+            length(steadystate) > 0 && (initval_endogenous .= steadystate) 
+            compute_steady_state!(context, maxit = maxit, nocheck = false, tolf = tolf)
+        end
+    else
+        error("homotopy_mode = $homotopy_mode isn't implemented")
+    end
+    length(steadystate) > 0 && (initval_endogenous .= steadystate) 
+    length(exogenous_steadystate) > 0 && (initval_exogenous .= exogenous_steadystate) 
+end
