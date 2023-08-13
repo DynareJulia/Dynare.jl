@@ -840,6 +840,7 @@ mutable struct Work
     qr_jacobian::Matrix{Float64}
     model_has_trend::Vector{Bool}
     histval::Matrix{Union{Float64,Missing}}
+    homotopy_setup::Vector{NamedTuple{(:name, :type, :index, :endvalue, :startvalue), Tuple{Symbol, SymbolType, Int64, Float64, Union{Float64, Missing}}}}
     initval_endogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous::Matrix{Union{Float64,Missing}}
     initval_exogenous_deterministic::Matrix{Union{Float64,Missing}}
@@ -870,6 +871,7 @@ mutable struct Work
         qr_jacobian = Matrix{Float64}(undef, 0, 0)
         model_has_trend = [false]
         histval = Matrix{Union{Float64,Missing}}(undef, 0, 0)
+        homotopy_setup = Vector{NamedTuple{(:name, :type, :index, :endvalue, :startvalue), Tuple{Symbol, SymbolType, Int64, Float64, Union{Float64, Missing}}}}(undef, 0)
         initval_endogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous = Matrix{Union{Float64,Missing}}(undef, 0, 0)
         initval_exogenous_deterministic = Matrix{Union{Float64,Missing}}(undef, 0, 0)
@@ -892,6 +894,7 @@ mutable struct Work
             qr_jacobian,
             model_has_trend,
             histval,
+            homotopy_setup,
             initval_endogenous,
             initval_exogenous,
             initval_exogenous_deterministic,

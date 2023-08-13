@@ -608,15 +608,36 @@ function load_steadystate!(context::Context, filename::String)
     end
     DFunctions.static_auxiliary_variables!(endogenous, exogenous, parameters)
 end
-#=
-import Base: +, -, *, /
 
-+(t::TimeDataFrame, a::Float64) = a .+ t     
--(t::TimeDataFrame, a::Float64) = t .- a     
-*(t::TimeDataFrame, a::Float64) = a .* t   
-/(t::TimeDataFrame, a::Float64) = t ./ a     
-+(a::Float64, t::TimeDataFrame) = a .+ t     
--(a::Float64, t::TimeDataFrame) = a .- t     
-*(a::Float64, t::TimeDataFrame) = a .* t     
-/(a::Float64, t::TimeDataFrame) = a ./ t     
-=#
+function load_params_and_steady_state(context::Context, field)
+    st = context.symboltable
+    work = context.work
+    for v in field["values"]
+        vname = v["name"]
+        value = dynare_parse_eval(v["value"], context)
+        symb = st[vname]
+        if symb.symboltype == Dynare.Endogenous
+            work.initval_endogenous[symb.orderintype] = value
+        elseif symb.symboltype == Dynare.Exogenous
+            work.initval_exogenous[symb.orderintype] = value
+        else symb.symboltype == Dynare.Parameter
+            work.params[symb.orderintype] = value
+        end
+    end
+end
+
+function homotopy_setup!(context, field)
+    st = context.symboltable
+    hs = context.work.homotopy_setup
+    empty!(hs)
+    for v in field["values"]
+        sv = v["initial_value"]
+        startvalue = (sv  == "NaN") ? missing : dynare_parse_eval(sv, context)
+        endvalue = dynare_parse_eval(v["final_value"], context)
+        vn = v["name"]
+        vt = st[vn].symboltype
+        index = st[vn].orderintype
+        push!(hs, (name = Symbol(vn), type = vt, index = index, endvalue = endvalue, startvalue = startvalue))
+    end
+end
+                         
