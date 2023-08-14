@@ -408,6 +408,7 @@ function localapproximation!(; context::Context=context,
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
     ws = DynamicWs(context, order=options.order)
+    @show options.order
     stoch_simul_core!(context, ws, options)
 end
 
@@ -552,18 +553,19 @@ function compute_stoch_simul!(
                                               order,
                                               solverWs)
         # FOR DEBUGGING: single simulation
-        KOrderPerturbations.simulate_run(G, 100, solverWs)
-
+        ut0 = sqrt(model.Sigma_e[1,1])
+        KOrderPerturbations.simulate_run(G, ut0, 100, solverWs)
+        #=
         irfs2(G, 100, context, solverWs)
-        path = "$(context.modfileinfo.modfilepath)/graphs/"
-        filename = "$(path)/irfs2"
+        #path = "$(context.modfileinfo.modfilepath)/graphs/"
+        #filename = "$(path)/irfs2"
 
         # for development: delete all files that starts with "irfs2"
-        filter(x -> startswith(x, "irfs2"), readdir("$(path)",  join=true)) .|> x -> rm(x)
+        #filter(x -> startswith(x, "irfs2"), readdir("$(path)",  join=true)) .|> x -> rm(x)
         
         display(context.results.model_results[1].irfs)
         plot_irfs(context.results.model_results[1].irfs, model, context.symboltable, filename)
-    
+        =#
         copy!(results.solution_derivatives, G)
     end
                    
