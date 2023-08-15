@@ -299,6 +299,8 @@ function parse_statements!(context::Context, statements::Vector{Any})
             ramsey_constraints!(context, field)
         elseif statementname == "ramsey_model"
             modfileinfo.has_ramsey_model = true
+        elseif statementname == "save_params_and_steady_state"
+            save_params_and_steady_state(context, field)
         elseif statementname == "shocks"
             shocks!(context, field)
             modfileinfo.has_shocks = true
