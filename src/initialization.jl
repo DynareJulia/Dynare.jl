@@ -351,12 +351,16 @@ function endval!(context::Context, field::Dict{String,Any})
     work = context.work
     endval_endogenous = zeros(m.endogenous_nbr)
     endval_exogenous = zeros(m.exogenous_nbr)
-    endval_exogenous_det = zeros(m.exogenous_deterministic_nbr)
+    endval_exogenous_deterministic = zeros(m.exogenous_deterministic_nbr)
     xs = [Endogenous, Exogenous, ExogenousDeterministic]
-    xw = [endval_endogenous, endval_exogenous, endval_exogenous_det]
+    xw = [endval_endogenous, endval_exogenous, endval_exogenous_deterministic]
     work.endval_endogenous = zeros(m.endogenous_nbr,1)
     work.endval_exogenous = zeros(m.exogenous_nbr,1)
     work.endval_exogenous_deterministic = zeros(m.exogenous_deterministic_nbr,1)
+    work.endval_endogenous .= work.initval_endogenous
+    work.endval_exogenous .= work.initval_exogenous
+    #    work.endval_exogenous_deterministic .= work.initval_exogenous_deterministic
+
     for v in field["vals"]
         s = symboltable[v["name"]::String]
         typ = s.symboltype
@@ -612,20 +616,44 @@ end
 function load_params_and_steady_state(context::Context, field)
     st = context.symboltable
     work = context.work
+    wendo = work.initval_endogenous
+    wexo = work.initval_exogenous
+    isempty(wendo) && (work.initval_endogenous = zeros(context.models[1].endogenous_nbr, 1))
+    isempty(wexo) && (work.initval_exogenous = zeros(context.models[1].exogenous_nbr, 1))
+    wendo = work.initval_endogenous
+    wexo = work.initval_exogenous
     for v in field["values"]
         vname = v["name"]
         value = dynare_parse_eval(v["value"], context)
         symb = st[vname]
-        if symb.symboltype == Dynare.Endogenous
-            work.initval_endogenous[symb.orderintype] = value
-        elseif symb.symboltype == Dynare.Exogenous
-            work.initval_exogenous[symb.orderintype] = value
-        else symb.symboltype == Dynare.Parameter
+        if symb.symboltype == Endogenous
+            wendo[symb.orderintype] = value
+        elseif symb.symboltype == Exogenous
+            wexo[symb.orderintype] = value
+        else symb.symboltype == Parameter
             work.params[symb.orderintype] = value
         end
     end
-end
+    DFunctions.static_auxiliary_variables!(wendo, wexo, context.work.params)
+ end
 
+function save_params_and_steady_state(context, field)
+    iow = open(field["filename"], "w")
+    st = context.symboltable
+    trends = context.results.model_results[1].trends
+    endost = trends.endogenous_steady_state 
+    exost = trends.exogenous_steady_state
+    params = context.work.params
+    for s in st
+        ot = s[2].orderintype
+        type = s[2].symboltype
+        type == Parameter && println(iow, "$(s[1]) $(params[ot])") 
+        type == Endogenous && println(iow, "$(s[1]) $(endost[ot])") 
+        type == Exogenous && println(iow, "$(s[1]) $(exost[ot])") 
+    end
+    close(iow)
+end
+                                      
 function homotopy_setup!(context, field)
     st = context.symboltable
     hs = context.work.homotopy_setup
