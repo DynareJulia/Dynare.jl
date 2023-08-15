@@ -24,8 +24,16 @@ function run_dynare(modfilename::String, dynare_args::Vector{String})
     end
 
     dynare_preprocessor_path = dynare_preprocessor()
-    run(`$dynare_preprocessor_path $dynare_args`)
 
+    try
+        run(`$dynare_preprocessor_path $dynare_args`)
+    catch
+        if length(directory) > 0
+            cd(current_directory)
+        end
+        rethrow()
+    end
+    
     if length(directory) > 0
         cd(current_directory)
     end
