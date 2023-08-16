@@ -446,6 +446,7 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
     # TODO: we should probably have a block like this
     # else if options.order == 2 && options.irf > 0
     #     irfs2(context, options.irf)
+          irfs2(context, options.irf, solverWs)
     #     path = "$(context.modfileinfo.modfilepath)/graphs/"
     #     mkpath(path)
     #     filename = "$(path)/irfs2"
@@ -555,25 +556,25 @@ function compute_stoch_simul!(
         # FOR DEBUGGING: single simulation
         ut0 = sqrt(model.Sigma_e[1,1])
         KOrderPerturbations.simulate_run(G, ut0, 100, solverWs)
-        #=
-        irfs2(G, 100, context, solverWs)
-        #path = "$(context.modfileinfo.modfilepath)/graphs/"
-        #filename = "$(path)/irfs2"
+        copy!(results.solution_derivatives, G)
+        irfs2(context, 100, solverWs)
+        path = "$(context.modfileinfo.modfilepath)/graphs/"
+        filename = "$(path)/irfs2"
 
         # for development: delete all files that starts with "irfs2"
         #filter(x -> startswith(x, "irfs2"), readdir("$(path)",  join=true)) .|> x -> rm(x)
         
         display(context.results.model_results[1].irfs)
-        plot_irfs(context.results.model_results[1].irfs, model, context.symboltable, filename)
-        =#
-        copy!(results.solution_derivatives, G)
+        # plot_irfs(context.results.model_results[1].irfs, model, context.symboltable, filename)
+        
     end
-                   
 end
 
-function irfs2(GD, periods, context, solverWs::KOrderWs)
+function irfs2(context, periods, solverWs::KOrderWs)
     model = context.models[1]
     results = context.results.model_results[1]
+    GD = results.solution_derivatives
+    
     endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
 
