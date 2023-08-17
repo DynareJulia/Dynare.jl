@@ -427,36 +427,28 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
             display_stoch_simul2(context, options)
         end
     end
-    if options.order == 1 && options.irf > 0
-        exogenous_names = get_exogenous_longname(context.symboltable)
-        n = model.endogenous_nbr
-        m = model.exogenous_nbr
-        y = Dict{Symbol,AxisArrayTable}
-        irfs!(context, options.irf)
+
+    if options.irf > 0
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
         filename = "$(path)/irfs"
+        
+        if options.order == 1
+            irfs!(context, options.irf)
+        elseif options.order == 2
+            irfs2!(context, options.irf)
+        end
+
         plot_irfs(
             context.results.model_results[1].irfs,
             model,
             context.symboltable,
             filename,
         )
+        display(context.results.model_results[1].irfs[:e])
     end
-    # TODO: we should probably have a block like this
-    # else if options.order == 2 && options.irf > 0
-    #     irfs2(context, options.irf)
-          irfs2(context, options.irf, solverWs)
-    #     path = "$(context.modfileinfo.modfilepath)/graphs/"
-    #     mkpath(path)
-    #     filename = "$(path)/irfs2"
-    #     plot_irfs(
-    #         context.results.model_results[1].irfs,
-    #         model,
-    #         context.symboltable,
-    #         filename,
-    #     )
-    # end
+
+
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
@@ -553,67 +545,54 @@ function compute_stoch_simul!(
                                               moments,
                                               order,
                                               solverWs)
-        # FOR DEBUGGING: single simulation
-        ut0 = sqrt(model.Sigma_e[1,1])
-        KOrderPerturbations.simulate_run(G, ut0, 100, solverWs)
         copy!(results.solution_derivatives, G)
-        irfs2(context, 100, solverWs)
-        path = "$(context.modfileinfo.modfilepath)/graphs/"
-        filename = "$(path)/irfs2"
-
-        # for development: delete all files that starts with "irfs2"
-        #filter(x -> startswith(x, "irfs2"), readdir("$(path)",  join=true)) .|> x -> rm(x)
-        
-        display(context.results.model_results[1].irfs)
-        # plot_irfs(context.results.model_results[1].irfs, model, context.symboltable, filename)
-        
     end
 end
 
-function irfs2(context, periods, solverWs::KOrderWs)
+function irfs2!(context, periods)
     model = context.models[1]
     results = context.results.model_results[1]
     GD = results.solution_derivatives
     
+    exo_nbr = model.exogenous_nbr
+    state_index = model.i_bkwrd_b
+    
     endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
-
-    nshock = solverWs.nshock
-    u_shock = [zeros(nshock) for _ in 1:periods]
-    u_shock_det = [zeros(nshock) for _ in 1:periods]
     
     gy1 = GD[1][:, 1]
-    y0 = zeros(size(gy1)[1])
-    
-    n = length(y0)
-    simWs = SimulateWs(GD, n, solverWs)
+    n = size(gy1)[1]
+    y0 = zeros(n)
 
-    for exo_var in 1:model.exogenous_nbr
+    simWs = SimulateWs(GD, n, state_index, model.exogenous_nbr)
+
+    for exo_var in 1:exo_nbr
+        u_shock = [zeros(exo_nbr) for _ in 1:periods]
+        
         sigma = diag(model.Sigma_e)[exo_var]
         det_shock = sqrt(sigma)
 
         delta_sims::Vector{Array{Array{Float64}}} = []
         for n_sim in 1:100
-            for i in 2:periods
+            for i in 1:periods
                 random = randn() * det_shock^2
                 u_shock[i][exo_var] = random
             end
-            
-            u_shock_det = deepcopy(u_shock)
-            u_shock_det[2][exo_var] += det_shock
-            simWs = SimulateWs(GD, n, solverWs)
             rand_sim = simulate(GD, y0, u_shock, periods, simWs)
+
+            u_shock_det = deepcopy(u_shock)
+            u_shock_det[1][exo_var] += det_shock
             rand_det_sim = simulate(GD, y0, u_shock_det, periods, simWs)
             
             delta_sim = rand_det_sim - rand_sim
 
             push!(delta_sims, delta_sim)
         end
-        tdf_vec = mean(delta_sims)
-        tdf_mat = reduce(vcat,transpose.(tdf_vec))
 
-        tdf = AxisArrayTable(transpose(tdf_mat'), Undated(1):Undated(periods), endogenous_names) 
-        
+        mean_irf = mean(delta_sims)
+        mean_irf_matrix = reduce(vcat, transpose.(mean_irf))
+
+        tdf = AxisArrayTable(mean_irf_matrix, Undated(1):Undated(periods), endogenous_names) 
         results.irfs[exogenous_names[exo_var]] = tdf
     end
 
