@@ -267,7 +267,7 @@ function perfect_foresight!(;context::Context = context,
 
     scenario = context.work.scenario
     check_scenario(scenario)
-    if length(scenario) == 1
+    if isempty(scenario) || length(scenario) == 1
         _perfect_foresight!(context, options)
     else
         recursive_perfect_foresight!(context, options)
@@ -976,6 +976,7 @@ function recursive_perfect_foresight!(context::Context, options::PerfectForesigh
                 simulation = data
             end
         end
+        @show size(simulation)
         push!(
             context.results.model_results[1].simulations,
             Simulation(
