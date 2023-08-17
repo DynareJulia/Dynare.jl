@@ -5,6 +5,7 @@ using Dynare.FastLapackInterface
 using Test
 using SparseArrays
 using SuiteSparse
+using GeneralizedSylvesterSolver
 
 #Model
 context = @dynare "models/analytical_derivatives/fs2000_sa.mod" "params_derivs_order=1" "notmpterms";
@@ -168,7 +169,6 @@ workspace2 = init_derivatives2_workspace(n, m)
 workspace3 = init_derivatives3_workspace(n, m)
 workspace4 = init_derivatives4_workspace(n, m)
 
-# Luego puedes utilizar workspace para llamar a la función Derivatives con tus matrices df_dx y df_dp
 @time sol1 = Derivatives(workspace1, df_dx, df_dp);
 @time sol2 = Derivatives2(workspace2, df_dx, df_dp);
 @time sol3 = Derivatives3(workspace3, df_dx, df_dp);
@@ -226,6 +226,27 @@ localapproximation!(irf=0, display=false);
 X = zeros(n, n)
 # set nonzero columns
 X[:, k1] .= context.results.model_results[1].linearrationalexpectations.g1_1
+
+#Generalized Sylvester: ax + bxc = d
+a = A*X + B
+b = Matrix(A)
+c = X
+X2 = X*X
+d = zeros(n, n, m)
+
+order=1
+ws = GeneralizedSylvesterWs(n,n,n,order)
+
+for i in 1:m
+    @views begin
+        mul!(d[:,:,i], dA_dp[:,:,i], X2)
+        mul!(d[:,:,i], dB_dp[:,:,i], X, true, true) 
+        d[:,:,i] .+= dC_dp[:,:,i] 
+    end
+    generalized_sylvester_solver!(a, b, c, d[:,:,i], order, ws)
+end
+
+println(d)
 
 end # end module   
 
