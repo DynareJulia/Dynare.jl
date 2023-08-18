@@ -408,7 +408,6 @@ function localapproximation!(; context::Context=context,
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
     ws = DynamicWs(context, order=options.order)
-    @show options.order
     stoch_simul_core!(context, ws, options)
 end
 
@@ -427,7 +426,6 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
             display_stoch_simul2(context, options)
         end
     end
-
     if options.irf > 0
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
@@ -549,7 +547,7 @@ function compute_stoch_simul!(
     end
 end
 
-function irfs2!(context, periods)
+function irfs2!(context, periods; burning = 100)
     model = context.models[1]
     results = context.results.model_results[1]
     GD = results.solution_derivatives
@@ -557,40 +555,38 @@ function irfs2!(context, periods)
     exo_nbr = model.exogenous_nbr
     state_index = model.i_bkwrd_b
     
+    model.Sigma_e
+    active_exogenous = findall(diag(model.Sigma_e) .> 0)
+    nx = length(active_exogenous)
     endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
-    
+    exogenous_names = view(exogenous_names, active_exogenous)
+    Sigma_e = view(model.Sigma_e, active_exogenous, active_exogenous)
+    C = transpose(cholesky(Sigma_e).U)
     gy1 = GD[1][:, 1]
     n = size(gy1)[1]
     y0 = zeros(n)
 
     simWs = SimulateWs(GD, n, state_index, model.exogenous_nbr)
 
-    for exo_var in 1:exo_nbr
-        u_shock = [zeros(exo_nbr) for _ in 1:periods]
-        
-        sigma = diag(model.Sigma_e)[exo_var]
-        det_shock = sqrt(sigma)
+    for (i, exo_var) in enumerate(active_exogenous) 
+        u_shock = [zeros(exo_nbr) for _ in 1:periods + burning]
+        det_shock = C[:, i]
 
-        delta_sims::Vector{Array{Array{Float64}}} = []
-        for n_sim in 1:100
-            for i in 1:periods
-                random = randn() * det_shock^2
-                u_shock[i][exo_var] = random
+        mean_sims = [zeros(model.endogenous_nbr) for _ in 1:periods]
+        replic = 1000
+        for n_sim in 1:replic
+            for i in 1:periods + burning
+                u_shock[i][active_exogenous] = C*randn(nx) 
             end
-            rand_sim = simulate(GD, y0, u_shock, periods, simWs)
-
+            rand_sim = simulate(GD, y0, u_shock, periods + burning, simWs)
             u_shock_det = deepcopy(u_shock)
-            u_shock_det[1][exo_var] += det_shock
-            rand_det_sim = simulate(GD, y0, u_shock_det, periods, simWs)
-            
-            delta_sim = rand_det_sim - rand_sim
-
-            push!(delta_sims, delta_sim)
+            @views u_shock_det[burning + 1] .+= det_shock  
+            rand_det_sim = simulate(GD, y0, u_shock_det, periods + burning, simWs)
+            @views mean_sims .+= (rand_det_sim[burning + 1:end] .- rand_sim[burning + 1:end])/replic
         end
-
-        mean_irf = mean(delta_sims)
-        mean_irf_matrix = reduce(vcat, transpose.(mean_irf))
+        
+        mean_irf_matrix = reduce(vcat, transpose.(mean_sims))
 
         tdf = AxisArrayTable(mean_irf_matrix, Undated(1):Undated(periods), endogenous_names) 
         results.irfs[exogenous_names[exo_var]] = tdf
@@ -637,19 +633,23 @@ end
 
 function irfs!(context, periods)
     model = context.models[1]
+    model.Sigma_e
     results = context.results.model_results[1]
+    active_exogenous = findall(diag(model.Sigma_e) .> 0)
     endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
-    C = cholesky(model.Sigma_e + 1e-14 * I)
-    x = zeros(model.exogenous_nbr)
+    exogenous_names = view(exogenous_names, active_exogenous)
+    Sigma_e = view(model.Sigma_e, active_exogenous, active_exogenous)
+    C = transpose(cholesky(model.Sigma_e).U)
+    x = zeros(length(active_exogenous))
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
     B = zeros(model.endogenous_nbr, model.exogenous_nbr)
     make_A_B!(A, B, model, results)
-    for i = 1:model.exogenous_nbr
+    for (i, j) in enumerate(active_exogenous)
         fill!(x, 0)
-        x[i] = robustsqrt(model.Sigma_e[i, i])
+        @views x .= C[:, j]
         yy = Matrix{Float64}(undef, size(A, 1), periods)
-        mul!(view(yy, :, 1), B, x)
+        @views mul!(view(yy, :, 1), B[:, active_exogenous], x)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end

@@ -47,12 +47,13 @@ shocks;
 var e; stderr 0.009;
 var u; stderr 0.009;
 //var e, u = phi*0.009*0.009;
-var e, u = 0.009*0.009;
+var e, u = 0.1*0.009*0.009;
 end;
 
 check;
 
 stoch_simul(dr=cycle_reduction, order=1, irf=100);
+irfs1 = deepcopy(context.results.model_results[1].irfs)
 stoch_simul(dr=cycle_reduction, order=2, irf=100);
 
 
