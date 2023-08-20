@@ -42,10 +42,10 @@ The results are in the ``context`` structure.
 
 ## Output
 1. The ``context`` structure is saved in the directory
-   ``<path to modfile>/<modfilenane>/output/<modfilename>.jld2``. It can be loaded with
+   ``<path to modfile>/<modfilenane>/output/<modfilename>.jls``. It can be loaded with
    ```
-   using JLD2
-   DD = load("<path to modfile>/<modefilename>/output/<modefilename>.jld2")``
+   using Serialization
+   DD = Serialization.deserialize("<path to modfile>/<modefilename>/output/<modefilename>.jls")``
    ```
 1. The IRF graphs are saved in ``<path to
    modfile>/<modfilenane>/graphs``

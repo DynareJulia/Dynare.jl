@@ -2,7 +2,6 @@ using CSV
 using DataFrames
 using ExtendedDates
 using FastLapackInterface
-using JLD2
 using JSON
 using Plots
 using StatsFuns
@@ -491,7 +490,7 @@ end
 function save_context(context::Context, filepath::String)
     filename = split(filepath, "/")[end]
     outputpath = mkpath(joinpath(filepath, "output"))
-    save(joinpath(outputpath, "$(filename).jld2"), "context", context)
+    serialize(joinpath(outputpath, "$(filename).jls"), context)
     return nothing
 end
 
