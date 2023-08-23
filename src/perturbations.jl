@@ -77,6 +77,41 @@ function display_stoch_simul2(context::Context, options::StochSimulOptions)
     LRE_results = results.linearrationalexpectations
     stationary_variables = LRE_results.stationary_variables
     display_solution_function2(results.solution_derivatives, endogenous_names, exogenous_names, m)
+    simulation_results = long_second_order_simulation(context)
+    display_mean_sd_variance2(simulation_results, endogenous_names, m)
+    display_correlation2(simulation_results, endogenous_names, m)
+    display_autocorrelation2(simulation_results, endogenous_names, m, options)
+end
+
+function long_second_order_simulation(context; periods = 100_000, burning = 100)
+    model = context.models[1]
+    results = context.results.model_results[1]
+    GD = results.solution_derivatives
+    
+    exo_nbr = model.exogenous_nbr
+    original_endo_nbr = model.original_endogenous_nbr
+    state_index = model.i_bkwrd_b
+
+    gy1 = GD[1][:, 1]
+    y0 = zeros(size(gy1, 1))
+
+    active_exogenous = findall(diag(model.Sigma_e) .> 0)
+    Sigma_e = view(model.Sigma_e, active_exogenous, active_exogenous)
+    C = transpose(cholesky(Sigma_e).U)
+    n_active = length(active_exogenous)
+
+    u_shock = [zeros(exo_nbr) for _ in 1:periods]
+    for i in 1:periods
+        u_shock[i][active_exogenous] = C*randn(n_active) 
+    end
+
+    simWs = SimulateWs(GD, length(y0), state_index, model.exogenous_nbr)    
+    simulation_result_vec = simulate(GD, y0, u_shock, periods, simWs)
+    simulation_result_mat = stack(simulation_result_vec)'
+    
+    # ignore burning periods and useless endogenous variables
+    simulation_result_clean = simulation_result_mat[burning:end, 1:original_endo_nbr]
+    return simulation_result_clean
 end
 
 function display_solution_function(
@@ -223,6 +258,20 @@ function display_mean_sd_variance(
     dynare_table(data, title)
 end
 
+function display_mean_sd_variance2(sim_results, endogenous_names, model::Model)
+    original_endo_nbr = model.original_endogenous_nbr    
+    
+    title = "SIMULATED MOMENTS"
+    data = Matrix{Any}(undef, original_endo_nbr + 1, 4)
+    data[1, :] = ["VARIABLE", "MEAN", "STD. DEV.", "VARIANCE"]
+    data[2:end, 1] = endogenous_names[1:original_endo_nbr]
+    data[2:end, 2] .= map(mean, eachcol(sim_results))
+    data[2:end, 3] .= map(std, eachcol(sim_results))
+    data[2:end, 4] .= map(var, eachcol(sim_results))
+    println("\n")
+    dynare_table(data, title)
+end
+
 function display_variance_decomposition(
     LREresults::LinearRationalExpectationsResults,
     endogenous_names::AbstractVector{String},
@@ -318,6 +367,19 @@ function display_correlation(
     dynare_table(data, title)
 end
 
+function display_correlation2(sim_results, endogenous_names, model::Model)
+    original_endo_nbr = model.original_endogenous_nbr    
+
+    title = "SIMULATED CORRELATION MATRIX"
+    data = Matrix{Any}(undef, original_endo_nbr + 1, original_endo_nbr + 1)
+    data[1, 1] = ""
+    data[1, 2:end] = endogenous_names[1:original_endo_nbr] |> permutedims 
+    data[2:end, 1] = endogenous_names[1:original_endo_nbr] 
+    data[2:end, 2:end] = cor(sim_results)
+    println("\n")
+    dynare_table(data, title)
+end
+
 function display_autocorrelation(
     LREresults::LinearRationalExpectationsResults,
     endogenous_names::AbstractVector{String},
@@ -366,6 +428,20 @@ function display_autocorrelation(
             end
         end
     end
+    println("\n")
+    dynare_table(data, title)
+end
+
+function display_autocorrelation2(sim_results, endogenous_names, model, options::StochSimulOptions)
+    original_endo_nbr = model.original_endogenous_nbr    
+    lags = [i for i in 1:options.nar]
+
+    title = "SIMULATED AUTOCORRELATION COEFFICIENTS"
+    data = Matrix{Any}(undef,  original_endo_nbr + 1, options.nar + 1)
+    data[1, 1] = ""
+    data[2:end, 1] = endogenous_names[1:original_endo_nbr]
+    data[1, 2:end] = lags
+    data[2:end, 2:end] = autocor(sim_results, lags)'
     println("\n")
     dynare_table(data, title)
 end
