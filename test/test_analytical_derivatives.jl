@@ -234,9 +234,14 @@ c = X
 X2 = X*X
 d = zeros(n, n, m)
 
+a_orig = copy(a)
+b_orig = copy(b)
+c_orig = copy(c)
+d_orig = copy(d)
+
 order=1
 ws = GeneralizedSylvesterWs(n,n,n,order)
-
+#Solve UQME using generalized_sylvester_solver!
 for i in 1:m
     @views begin
         mul!(d[:,:,i], dA_dp[:,:,i], X2)
@@ -246,7 +251,31 @@ for i in 1:m
     generalized_sylvester_solver!(a, b, c, d[:,:,i], order, ws)
 end
 
-println(d)
+#Test 1
+for i in 1:m
+    @test a_orig*d[:,:,i] + b_orig*d[:,:,i]*c_orig ≈ d_orig[:,:,i] #Fail
+end
+
+#Test 2
+for i in 1:m
+    @test d[:,:,i] ≈ reshape((kron(I(n^order),a_orig) + kron(c_orig',b_orig))\vec(d_orig[:,:,i]),n,n^order) #Fail
+end
+
+#Test 3
+using FiniteDifferences
+
+function funX(params)
+    X = zeros(n, n)
+    X[:, k1] .= context.results.model_results[1].linearrationalexpectations.g1_1
+    return X #vec()
+end
+
+fd = central_fdm(5, 1)
+dX_dz_tuple = jacobian(fd, funX, params)
+dX_dz_matrix = dX_dz_tuple[1]
+dX_dz = permutedims(reshape(dX_dz_matrix, m, n, n), (2, 3, 1))
+
+@test d ≈ dX_dz #Fail
 
 end # end module   
 
