@@ -1,7 +1,7 @@
 using BenchmarkTools
 using Dynare
 
-#context = @dynare "../test/models/fs2000/fs2000_bench.jl"
+context = @dynare "../test/models/fs2000/fs2000_bench"
 
 problem = Dynare.DSGENegativeLogPosteriorDensity(context, "../test/models/fs2000/fsdata_simul.csv", 1, 0)
 transformation = Dynare.DSGETransformation(context.work.estimated_parameters)
