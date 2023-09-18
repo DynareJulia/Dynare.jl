@@ -55,9 +55,11 @@ function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
     parameters = context.work.estimated_parameters
     symbol_table = context.symboltable
     for p in fields["params"]
-        push!(parameters.symbols, Symbol(p["param"]))
+        @show p
+        push!(parameters.name, p["param"])
         push!(parameters.index, symbol_table[p["param"]].orderintype)
         push!(parameters.initialvalue, dynare_parse_eval(p["init_val"], context))
+        #=
         push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"], context))
         push!(parameters.optim_ub, dynare_parse_eval(p["upper_bound"], context))
         push!(
@@ -68,9 +70,10 @@ function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
             parameters.transformtobasic,
             get_transformtobasic(Val(p["prior_distribution"]), p["3"], p["4"]),
         )
-        #        push!(parameters.mh_scale, dynare_parse_eval(p["scale"], context))
+        push!(parameters.mh_scale, dynare_parse_eval(p["scale"], context))
+        =#
         push!(
-            parameters.distributions,
+            parameters.prior,
             parse_prior_distribution(Val(p["prior_distribution"]), p),
         )
     end
