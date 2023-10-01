@@ -63,11 +63,8 @@ function translate_estimation_options(options)
 end
 
 function get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, steady_state, linear_trend)
-    if (filename = datafile) != ""
-        Yorig = get_data(filename, varobs, start = first_obs, last = last_obs)
-    else
-        error("estimation needs a data file or an AxisArrayTable!")
-    end
+    Yorig = get_data(datafile, varobs, start = first_obs, last = last_obs)
+        
     #=
     varobs_ids =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
@@ -97,17 +94,21 @@ function estimation!(context, field::Dict{String, Any})
     varobs = context.work.observed_variables
     trends = results.trends
     has_trends = context.modfileinfo.has_trends
-        
-    observations = get_observables(options.datafile, varobs, options.first_obs, options.last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+    if !isempty(options.datafile)
+        observations = get_observables(options.datafile, varobs, options.first_obs, options.last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+    elseif !isempty(options.data)
+        observations = options.data
+    else
+        error("estimation needs a data file or an AxisArrayTable!")
+    end
     nobs = size(observations, 2)
-    ssws = SSWs(context, nobs, varobs)
     estimated_parameters = context.work.estimated_parameters
     initial_values = get_initial_value_or_mean(estimated_parameters)
     
     set_estimated_parameters!(context, initial_values)
     
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode(context,  initial_values, observations)
+        (res, mode, tstdh, mode_covariance) = posterior_mode(context,  initial_values, observations, transformed_parameters = false)
         @show res
     end
 
@@ -181,7 +182,7 @@ function rwmh_compute!(;context=context,
 
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
     (chain, back_transformed_chain) = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, back_transformation=back_transformation, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains, mcmc_replic=mcmc_replic, transformed_parameters=transformed_parameters)
-    output_mcmc_chain!(context, chain, display, plot_chain)
+    output_MCMCChains(context, chain, display, plot_chain)
     plot_posterior_density && plot_prior_posterior(context, back_transformed_chain)
     plot_chain && StatsPlots.plot(chain)
     return chain
@@ -431,12 +432,12 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
         if abs(lpd) == Inf
             return lpd
         end
-        try
+        #try
             lpd += loglikelihood(x, context, observations, ssws)
-        catch e
-            @debug e
-            lpd = -Inf
-        end
+        #catch e
+        #    @debug e
+        #    lpd = -Inf
+        #end
         return lpd
     end
     return logposteriordensity
@@ -475,7 +476,7 @@ function get_initial_value_or_mean(ep::EstimatedParameters)
     return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
 end
 
-function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Real}
+function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Union{Missing,Real}}
     ep = context.work.estimated_parameters
     for (k, p) in enumerate(zip(ep.index, ep.parametertype))
         set_estimated_parameters!(context, p[1], value[k], Val(p[2]))
@@ -560,10 +561,22 @@ function set_estimated_parameters!(
     return nothing
 end
 
+function get_parameters_initialvalue(; context = context, 
+                                        initialvalues = context.work.estimated_parameters.initialvalues)
+    v = copy(initialvalues)
+    prior = context.work.estimated_parameters.distributions
+    for i in axes(initialvalues)
+        if ismissing(v[i])
+            v[i] = mean(prior[i])
+        end
+    end 
+    return v
+end
+
 function loglikelihood(
     θ,
     context::Context,
-    observations::Matrix{D},
+    observations::AbstractMatrix{D},
     ssws::SSWs{T,I},
 )::T where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
     parameters = collect(θ)
@@ -572,9 +585,7 @@ function loglikelihood(
     work = context.work
     estimated_parameters = work.estimated_parameters
     model_parameters = work.params
-
     set_estimated_parameters!(context, parameters)
-
     fill!(context.results.model_results[1].trends.exogenous_steady_state, 0.0)
     #compute steady state and first order solution
     Dynare.compute_stoch_simul!(
@@ -792,22 +803,36 @@ function posterior_mode(
     first_obs = 1,
     last_obs = 0,
     iterations = 1000,
-    show_trace = false
+    show_trace = false,
+    transformed_parameters = true
 )
     ep = context.work.estimated_parameters
     results = context.results.model_results[1].estimation
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
-    transformation = DSGETransformation(ep)
-    transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
-    transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-    p0 = initialvalue
-    ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
-    res = optimize(
-        transformed_density,
-        ip0,
-        LBFGS(),
-        Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
-    )
+    @show initialvalue
+    if transformed_parameters
+        transformation = DSGETransformation(ep)
+        transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
+        transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
+        p0 = collect(TransformVariables.inverse(transformation, tuple(initialvalue...)))
+        @debug objective(p0)
+        res = optimize(
+            transformed_density,
+            p0,
+            LBFGS(),
+            Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
+        )
+    else
+        objective(θ) = -problem.f(θ)
+        p0 = initialvalue
+        @debug objective(p0)
+        res = optimize(
+            objective,
+            p0,
+            LBFGS(),
+            Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
+        )
+        end
     @show res
     @show res.minimizer
     hess = finite_difference_hessian(transformed_density, res.minimizer)
@@ -885,10 +910,12 @@ end
 
 function run_mcmc(posterior_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)    
     model = DensityModel(posterior_density)
+    @debug initial_values
+    @debug posterior_density(initial_values)
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
         chain = sample(model, spl, mcmc_replic,
-                   init_params = initial_values,
+                   init_params = Float64.(initial_values),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
     else    
@@ -896,7 +923,7 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
         BLAS.set_num_threads(1)
         chain = sample(model, spl, MCMCThreads(), mcmc_replic,
                    mcmc_chains,
-                   init_params = Iterators.repeated(initial_values),
+                   init_params = Iterators.repeated(Float64.(initial_values)),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
         BLAS.set_num_threads(old_blas_threads)

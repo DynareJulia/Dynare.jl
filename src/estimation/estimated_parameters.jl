@@ -55,11 +55,22 @@ function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
     parameters = context.work.estimated_parameters
     symbol_table = context.symboltable
     for p in fields["params"]
-        @show p
-        push!(parameters.name, p["param"])
-        push!(parameters.index, symbol_table[p["param"]].orderintype)
-        push!(parameters.initialvalue, dynare_parse_eval(p["init_val"], context))
-        #=
+        if "param" in keys(p)
+            push!(parameters.name, p["param"])
+            push!(parameters.index, symbol_table[p["param"]].orderintype)
+        elseif "var" in keys(p)
+            push!(parameters.name, p["var"])
+            push!(parameters.index, symbol_table[p["var"]].orderintype)
+        else
+            error("Estimation needs a datafile or an AxisArrayTable")
+        end
+        initval = dynare_parse_eval(p["init_val"], context)
+        if isnan(initval)
+            push!(parameters.initialvalue, missing)
+        else
+            push!(parameters.initialvalue, initval)
+        end
+            #=
         push!(parameters.optim_lb, dynare_parse_eval(p["lower_bound"], context))
         push!(parameters.optim_ub, dynare_parse_eval(p["upper_bound"], context))
         push!(
@@ -92,7 +103,11 @@ function parse_estimated_parameter_init!(context::Context, fields::Dict{String,A
     parameters = context.work.estimated_parameters
     np = length(parameters)
     for p in fields["params"]
-        k = Base.findfirst(p["param"], parameters.name)
+        if "param" in keys(p)
+            k = Base.findfirst(p["param"], parameters.name)
+        elseif "var" in keys(p)
+            k = Base.findfirst(p["var"], parameters.name)
+        end
         if isnothing(k)
             error("estimated_params_init: parameter $(p["param"]) hasn't been declared as an estimated parameter")
         else
@@ -102,6 +117,13 @@ function parse_estimated_parameter_init!(context::Context, fields::Dict{String,A
 end 
 
 function get_basic_parameters(p::Dict{String,Any})
+    if "param" in keys(p)
+        name = p["param"]
+    elseif "var" in keys(p)
+        name = p["var"]
+    else
+        error("Estimation needs a datafile or an AxisArrayTable")
+    end
     return (
         μ = dynare_parse_eval(p["mean"], context),
         σ = dynare_parse_eval(p["std"], context),
@@ -109,7 +131,7 @@ function get_basic_parameters(p::Dict{String,Any})
         p4 = dynare_parse_eval(p["p4"], context),
         lb = dynare_parse_eval(p["lower_bound"], context),
         ub = dynare_parse_eval(p["upper_bound"], context),
-        name = p["param"],
+        name = name,
     )
 end
 
@@ -139,7 +161,13 @@ end
 
 function parse_prior_distribution(::Val{5}, p)
     μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)
-    a, b = uniform_specification(μ, σ*σ)
+    @show μ, σ, p3, p4
+    if isnan(μ) && isnan(σ)
+        a = p3
+        b = p4
+    else
+        a, b = uniform_specification(μ, σ*σ)
+    end
     d = Uniform(a, b)
  end
 
