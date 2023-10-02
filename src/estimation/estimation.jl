@@ -39,6 +39,7 @@ Base.@kwdef struct EstimationOptions
     mcmc_replic::Int =  0
     mode_check::Bool = false
     mode_compute::Bool = true
+    mode_file::String = ""
     nobs::Int = 0
     order::Int = 1
     plot_prior::Bool = false
@@ -103,13 +104,17 @@ function estimation!(context, field::Dict{String, Any})
     end
     nobs = size(observations, 2)
     estimated_parameters = context.work.estimated_parameters
-    initial_values = get_initial_value_or_mean(estimated_parameters)
+    initial_parameter_values = get_initial_value_or_mean()
     
-    set_estimated_parameters!(context, initial_values)
+    set_estimated_parameters!(context, initial_parameter_values)
     
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode(context,  initial_values, observations, transformed_parameters = false)
-        @show res
+        (res, mode, tstdh, mode_covariance) = posterior_mode(context,  initial_parameter_values, observations, transformed_parameters = false)
+        @debug res
+    end
+
+    if !isempty(options.mode_file)
+        mode, mode_covariance = get_mode_file(options.mode_file)
     end
 
     if options.mcmc_replic > 0
@@ -472,10 +477,6 @@ function (problem::DSGELogPosteriorDensity)(θ)
     return lpd
 end    
 
-function get_initial_value_or_mean(ep::EstimatedParameters)
-    return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(ep.initialvalue, ep.prior)]
-end
-
 function set_estimated_parameters!(context::Context, value::AbstractVector{T}) where {T<:Union{Missing,Real}}
     ep = context.work.estimated_parameters
     for (k, p) in enumerate(zip(ep.index, ep.parametertype))
@@ -559,18 +560,6 @@ function set_estimated_parameters!(
     set_covariance!(value, context.models[1].Sigma_e,
     index[1], index[2])
     return nothing
-end
-
-function get_parameters_initialvalue(; context = context, 
-                                        initialvalues = context.work.estimated_parameters.initialvalues)
-    v = copy(initialvalues)
-    prior = context.work.estimated_parameters.distributions
-    for i in axes(initialvalues)
-        if ismissing(v[i])
-            v[i] = mean(prior[i])
-        end
-    end 
-    return v
 end
 
 function loglikelihood(
@@ -761,7 +750,7 @@ function ml_estimation(
     problem = DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem)
-    (p0, v0) = get_initial_values(context.work.estimated_parameters)
+    p0 = context.work.estimated_parameters.initialvalue
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
 
     res = optimize(
@@ -875,7 +864,6 @@ function mh_estimation(
     ep = context.work.estimated_parameters
     param_names = ep.name
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
-    #(p0, v0) = get_initial_values(context.work.estimated_parameters)
 
     if transformed_parameters
         transformation = DSGETransformation(context.work.estimated_parameters)
@@ -938,8 +926,8 @@ function hmc_estimation(
     first_obs = 1,
     last_obs = 0,
     iterations = 1000,
-    initial_values = Vector{Float64}(undef, 0),
-    initial_energy = Vector{Float64}(undef, 0),
+    initial_parameter_values = get_initial_value_or_mean(),
+    initial_energy = get_initial_variance(),
     kwargs...,
 )
     problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
@@ -953,13 +941,9 @@ function hmc_estimation(
                FiniteDiff.finite_difference_gradient(transformed_logdensity, x))
     end
 
-    if ismissing(initial_values)
-        (p0, v0) = get_initial_values(context.work.estimated_parameters)
-        ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
-    else
-        p0, v0 = collect(initial_values), collect(initial_energy)
-    end
-    @show v0
+    p0 = initial_parameter_values
+    v0 = initial_energy
+    
     results = DynamicHMC.mcmc_keep_warmup(
         Random.GLOBAL_RNG,
         #        transformed_problem,
@@ -1049,12 +1033,19 @@ function get_eigenvalues(context)
     return eigenvalues
 end
 
-function get_initial_values(
-    estimated_parameters::EstimatedParameters,
-)::Tuple{Vector{Float64},Vector{Float64}}
-    return (mean.([p for p in estimated_parameters.prior]),
-            var.([p for p in estimated_parameters.prior])
-            )
+function get_initial_value_or_mean(; context = context, 
+                                   initialvalues = context.work.estimated_parameters.initialvalue)
+    epprior = context.work.estimated_parameters
+    return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(initialvalues, epprior)]
+end
+
+function get_mode_file(modfilepath)
+    modfilename = strip(basename(modfilepath), ".mod")
+    context = deserialize(joinpath(modfilepath, "output", modfilename))["context"]
+    results = context.results.model_results[1]
+    mode = results.posterior_mode
+    mode_covariance = results.posterior_mode_covariance
+    return (mode, mode_covariance)
 end
 
 function get_parameter_names(estimated_parameters::EstimatedParameters)
@@ -1274,9 +1265,9 @@ generates a prior for a symbol of a parameter, the standard deviation (`stdev`) 
 - `stdev::Union{Real,Missing}=missing`: stdev of the prior distribution
 - `variance::Union{Real,Missing}=missing`: variance of the prior distribution
 """
-     prior!(s; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+     prior!(s; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
 
-function prior!(s::Symbol; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s)
@@ -1287,7 +1278,7 @@ function prior!(s::Symbol; shape::Distribution, initialvalue::Union{Real,Missing
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
     
-function prior!(s::stdev; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::stdev; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s.s)
@@ -1305,7 +1296,7 @@ function prior!(s::stdev; shape::Distribution, initialvalue::Union{Real,Missing}
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
 
-function prior!(s::variance; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::variance; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s.s)
@@ -1323,7 +1314,7 @@ function prior!(s::variance; shape::Distribution, initialvalue::Union{Real,Missi
     prior_(s, shape, mean, stdev, domain, variance, ep)
 end
 
-function prior!(s::corr; shape::Distribution, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::corr; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name1 = string(s.s1)
@@ -1372,7 +1363,8 @@ function prior_(s, shape, mean, stdev, domain, variance, ep)
         α, β = weibull_specification(mean, stdev)
         push!(ep.prior, Weibull(α, β))
     else
-        erro("Unknown prior shape")
+        pu
+        error("Unknown prior shape")
     end 
 end         
 
