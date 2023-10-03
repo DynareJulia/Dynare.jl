@@ -128,9 +128,10 @@ function estimation!(context, field::Dict{String, Any})
     return nothing
 end
 
-function mode_compute!(; context=context,
-                 datafile = "",
+function mode_compute!(; algorithm = BFGS(),
+                 context=context,
                  data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
+                 datafile = "",
                  diffuse_filter::Bool = false,
                  display::Bool = false,
                  fast_kalman_filter::Bool = true,
@@ -151,7 +152,7 @@ function mode_compute!(; context=context,
     has_trends = context.modfileinfo.has_trends
     
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
-    (res, mode, tstdh, mode_covariance) = posterior_mode(context, initial_values, observations)
+    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, algorithm = algorithm)
 end
 
 function rwmh_compute!(;context=context,
@@ -785,10 +786,11 @@ function ml_estimation(
 =#
 end
 
-function posterior_mode(
+function posterior_mode!(
     context,
     initialvalue,
     observations;
+    algorithm = BFGS(),
     first_obs = 1,
     last_obs = 0,
     iterations = 1000,
@@ -801,48 +803,49 @@ function posterior_mode(
     @show initialvalue
     if transformed_parameters
         transformation = DSGETransformation(ep)
-        transformed_density(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
+        objective(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
         transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
         p0 = collect(TransformVariables.inverse(transformation, tuple(initialvalue...)))
         @debug objective(p0)
         res = optimize(
-            transformed_density,
+            objective,
             p0,
-            LBFGS(),
+            algorithm,
             Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
         )
+        hess = finite_difference_hessian(objective, res.minimizer)
+        inv_hess = inv(hess)
+        hsd = sqrt.(diag(hess))
+        invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
+        stdh = sqrt.(diag(invhess))
+        results.transformed_posterior_mode = res.minimizer
+        results.transformed_posterior_mode_std = stdh
+        results.posterior_mode = collect(TransformVariables.transform(transformation, res.minimizer))
+        results.posterior_mode_std = collect(TransformVariables.transform(transformation, stdh))
+        results.transformed_posterior_mode_covariance = invhess
     else
-        objective(θ) = -problem.f(θ)
+        objective2(θ) = -problem.f(θ)
         p0 = initialvalue
         @debug objective(p0)
         res = optimize(
             objective,
             p0,
-            LBFGS(),
+            algorithm,
             Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
         )
-        end
-    @show res
-    @show res.minimizer
-    hess = finite_difference_hessian(transformed_density, res.minimizer)
-    inv_hess = inv(hess)
-    @show diag(hess)
-    @show TransformVariables.transform(transformation, diag(hess))
-    @show diag(inv_hess)
-    hsd = sqrt.(diag(hess))
-    invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
-    stdh = sqrt.(diag(invhess))
-    std = transform_std(transformation, res.minimizer, stdh)
-    mode = collect(TransformVariables.transform(transformation, res.minimizer))
-    
-    results.posterior_mode = mode
-    results.posterior_mode_std = std
-    results.posterior_mode_covariance = invhess
+        hess = finite_difference_hessian(objective, res.minimizer)
+        inv_hess = inv(hess)
+        hsd = sqrt.(diag(hess))
+        invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
+        results.posterior_mode = res.minimizer
+        results.posterior_mode_std = sqrt.(diag(invhess))
+        results.posterior_mode_covariance = invhess
+    end
     
     estimation_result_table(
         get_parameter_names(ep),
-        mode,
-        std,
+        results.posterior_mode,
+        results.posterior_mode_std,
         "Posterior mode"
     )
     return(res, mode, std, inv_hess)
@@ -971,7 +974,11 @@ function estimation_result_table(param_names, estimated_value, stdh, title)
     table[1, 2] = "Estimated value"
     table[1, 3] = "Standard error"
     table[1, 4] = "80% confidence interval"
+    @show param_names
     for (i, n) in enumerate(param_names)
+        @show n
+        @show estimated_value
+        @show stdh[i]
         table[i+1, 1] = n
         table[i+1, 2] = estimated_value[i]
         table[i+1, 3] = stdh[i]
@@ -1035,7 +1042,7 @@ end
 
 function get_initial_value_or_mean(; context = context, 
                                    initialvalues = context.work.estimated_parameters.initialvalue)
-    epprior = context.work.estimated_parameters
+    epprior = context.work.estimated_parameters.prior
     return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(initialvalues, epprior)]
 end
 
@@ -1363,7 +1370,6 @@ function prior_(s, shape, mean, stdev, domain, variance, ep)
         α, β = weibull_specification(mean, stdev)
         push!(ep.prior, Weibull(α, β))
     else
-        pu
         error("Unknown prior shape")
     end 
 end         
