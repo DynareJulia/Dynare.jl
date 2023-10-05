@@ -10,6 +10,7 @@ using KernelDensity
 using LogDensityProblems
 using MCMCChains
 using MCMCDiagnosticTools
+using Metaheuristics
 using Optim
 using Plots
 using PolynomialMatrixEquations: UndeterminateSystemException, UnstableSystemException
@@ -42,7 +43,7 @@ Base.@kwdef struct EstimationOptions
     mode_file::String = ""
     nobs::Int = 0
     order::Int = 1
-    plot_prior::Bool = false
+    plot_priors::Bool = true
     presample::Int = 0
 end
 
@@ -105,11 +106,12 @@ function estimation!(context, field::Dict{String, Any})
     nobs = size(observations, 2)
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
-    
     set_estimated_parameters!(context, initial_parameter_values)
-    
+    if options.plot_priors
+        plot_priors()
+    end 
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode(context,  initial_parameter_values, observations, transformed_parameters = false)
+        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, transformed_parameters = false)
         @debug res
     end
 
@@ -128,7 +130,7 @@ function estimation!(context, field::Dict{String, Any})
     return nothing
 end
 
-function mode_compute!(; algorithm = BFGS(),
+function mode_compute!(; algorithm = BFGS,
                  context=context,
                  data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
                  datafile = "",
@@ -136,12 +138,13 @@ function mode_compute!(; algorithm = BFGS(),
                  display::Bool = false,
                  fast_kalman_filter::Bool = true,
                  first_obs::PeriodsSinceEpoch = Undated(1),
-                 initial_values = prior_mean(context.work.estimated_parameters),
+                 initial_values = get_initial_value_or_mean(),
                  last_obs::PeriodsSinceEpoch = Undated(0),
                  mode_check::Bool = false,
                  nobs::Int = 0,
                  order::Int = 1,
-                 presample::Int = 0
+                 presample::Int = 0,
+                 transformed_parameters = true
 )
     symboltable = context.symboltable
     results = context.results.model_results[1]
@@ -152,7 +155,7 @@ function mode_compute!(; algorithm = BFGS(),
     has_trends = context.modfileinfo.has_trends
     
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
-    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, algorithm = algorithm)
+    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, algorithm = algorithm, transformed_parameters = transformed_parameters)
 end
 
 function rwmh_compute!(;context=context,
@@ -438,12 +441,12 @@ function make_logposteriordensity(context, observations, first_obs, last_obs, ss
         if abs(lpd) == Inf
             return lpd
         end
-        #try
+        try
             lpd += loglikelihood(x, context, observations, ssws)
-        #catch e
-        #    @debug e
-        #    lpd = -Inf
-        #end
+        catch e
+            @debug e
+            lpd = -Inf
+        end
         return lpd
     end
     return logposteriordensity
@@ -740,6 +743,23 @@ function get_symbol(symboltable, indx)
     end
 end
 
+function dynare_optimize(objective, initialvalue, algorithm; algoptions=(), optimoptions=() )
+    let res, minimizer
+        if algorithm in [ABC]
+            n = length(initialvalue)
+            bounds = BoxConstrainedSpace(lb = -10*ones(n), ub=10*ones(n))
+            res = Metaheuristics.optimize(objective, bounds, algorithm(;algoptions...))
+            minimizer = Metaheuristics.minimizer(res)
+        elseif algorithm in [BFGS, LBFGS, NelderMead, Newton, NewtonTrustRegion]
+            res = Optim.optimize(objective, initialvalue, algorithm(;algoptions...), Optim.Options(;optimoptions...) )
+            minimizer = res.minimizer
+        else
+            error("Unknown algorithm $algorithm")
+        end
+        return res, minimizer
+    end 
+end 
+
 ## Estimation
 function ml_estimation(
     context;
@@ -754,14 +774,14 @@ function ml_estimation(
     p0 = context.work.estimated_parameters.initialvalue
     ip0 = collect(TransformVariables.inverse(transformation, tuple(p0...)))
 
-    res = optimize(
+    (res, minimizer) = dynare_optimize(
         problem.f,
         p0,
-        NelderMead(),
-        Optim.Options(f_tol = 1e-5, show_trace = true),
+        algorithm,
+        optimoptions = (f_tol = 1e-5, show_trace = true)
     )
 
-    hess = finite_difference_hessian(problem.f, res.minimizer)
+    hess = finite_difference_hessian(problem.f, minimizer)
     inv_hess = inv(hess)
     hsd = sqrt.(diag(hess))
     invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
@@ -790,7 +810,7 @@ function posterior_mode!(
     context,
     initialvalue,
     observations;
-    algorithm = BFGS(),
+    algorithm = BFGS,
     first_obs = 1,
     last_obs = 0,
     iterations = 1000,
@@ -800,44 +820,51 @@ function posterior_mode!(
     ep = context.work.estimated_parameters
     results = context.results.model_results[1].estimation
     problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
-    @show initialvalue
     if transformed_parameters
         transformation = DSGETransformation(ep)
         objective(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
         transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
         p0 = collect(TransformVariables.inverse(transformation, tuple(initialvalue...)))
         @debug objective(p0)
-        res = optimize(
+        (res, minimizer) = dynare_optimize(
             objective,
             p0,
             algorithm,
-            Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
+            optimoptions = (show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
         )
-        hess = finite_difference_hessian(objective, res.minimizer)
-        inv_hess = inv(hess)
+        @show res
+        hess = finite_difference_hessian(objective, minimizer)
+        if !isposdef(hess)
+            @show collect(TransformVariables.transform(transformation, minimizer))
+            error("Hessian isn't positive definite")
+        end
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
         stdh = sqrt.(diag(invhess))
-        results.transformed_posterior_mode = res.minimizer
+        results.transformed_posterior_mode = minimizer
         results.transformed_posterior_mode_std = stdh
-        results.posterior_mode = collect(TransformVariables.transform(transformation, res.minimizer))
+        results.posterior_mode = collect(TransformVariables.transform(transformation, minimizer))
         results.posterior_mode_std = collect(TransformVariables.transform(transformation, stdh))
         results.transformed_posterior_mode_covariance = invhess
     else
-        objective2(θ) = -problem.f(θ)
+        objective1(θ) = -problem.f(θ)
         p0 = initialvalue
-        @debug objective(p0)
-        res = optimize(
-            objective,
+        @debug objective1(p0)
+        (res, minimizer) = dynare_optimize(
+            objective1,
             p0,
             algorithm,
-            Optim.Options(show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
+            optimoptions = (show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
         )
-        hess = finite_difference_hessian(objective, res.minimizer)
-        inv_hess = inv(hess)
+        @show res
+        hess = finite_difference_hessian(objective1, minimizer)
+        if !isposdef(hess)
+            @show minimizer
+            error("Hessian isn't positive definite")
+        end 
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
-        results.posterior_mode = res.minimizer
+        results.posterior_mode = minimizer
         results.posterior_mode_std = sqrt.(diag(invhess))
         results.posterior_mode_covariance = invhess
     end
@@ -848,7 +875,7 @@ function posterior_mode!(
         results.posterior_mode_std,
         "Posterior mode"
     )
-    return(res, mode, std, inv_hess)
+    return(res, mode, std, invhess)
 end
 
 function mh_estimation(
@@ -881,7 +908,7 @@ function mh_estimation(
             # Recompute posterior density
             nparams = length(ep.prior)
             n1 = nparams + 1
-            back_transformed_chain = sample(chain, 1000)
+            back_transformed_chain = MCMCChains.sample(chain, 1000)
             y = back_transformed_chain.value.data
             for k in axes(y, 1)
                 @views begin
@@ -905,14 +932,14 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     @debug posterior_density(initial_values)
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
-        chain = sample(model, spl, mcmc_replic,
+        chain = MCMCChains.sample(model, spl, mcmc_replic,
                    init_params = Float64.(initial_values),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
     else    
         old_blas_threads = BLAS.get_num_threads()
         BLAS.set_num_threads(1)
-        chain = sample(model, spl, MCMCThreads(), mcmc_replic,
+        chain = MCMCChains.sample(model, spl, MCMCThreads(), mcmc_replic,
                    mcmc_chains,
                    init_params = Iterators.repeated(Float64.(initial_values)),
                    param_names = context.work.estimated_parameters.name,
@@ -974,11 +1001,7 @@ function estimation_result_table(param_names, estimated_value, stdh, title)
     table[1, 2] = "Estimated value"
     table[1, 3] = "Standard error"
     table[1, 4] = "80% confidence interval"
-    @show param_names
     for (i, n) in enumerate(param_names)
-        @show n
-        @show estimated_value
-        @show stdh[i]
         table[i+1, 1] = n
         table[i+1, 2] = estimated_value[i]
         table[i+1, 3] = stdh[i]
@@ -1043,7 +1066,12 @@ end
 function get_initial_value_or_mean(; context = context, 
                                    initialvalues = context.work.estimated_parameters.initialvalue)
     epprior = context.work.estimated_parameters.prior
-    return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(initialvalues, epprior)]
+    if isempty(initialvalues)
+        return [mean(p) for p in epprior]
+    else
+        @assert length(initialvalues) == length(epprior)
+        return [ismissing(initialvalue) ? mean(prior) : initialvalue for (initialvalue, prior) in zip(initialvalues, epprior)]
+    end
 end
 
 function get_mode_file(modfilepath)
@@ -1272,9 +1300,22 @@ generates a prior for a symbol of a parameter, the standard deviation (`stdev`) 
 - `stdev::Union{Real,Missing}=missing`: stdev of the prior distribution
 - `variance::Union{Real,Missing}=missing`: variance of the prior distribution
 """
-     prior!(s; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+     prior!(s; 
+        shape, 
+        initialvalue::Union{Real,Missing}=missing, 
+        mean::Union{Real,Missing}=missing, 
+        stdev::Union{Real,Missing}=missing, 
+        domain=[], variance ::Union{Real,Missing}=missing, 
+        context::Context=context
+        )
 
-function prior!(s::Symbol; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
+function prior!(s::Symbol; 
+    shape, initialvalue::Union{Real,Missing}=missing, 
+    mean::Union{Real,Missing}=missing, 
+    stdev::Union{Real,Missing}=missing, 
+    domain=[], variance ::Union{Real,Missing}=missing, 
+    context::Context=context
+    )
     ep = context.work.estimated_parameters
     symboltable = context.symboltable
     name = string(s)

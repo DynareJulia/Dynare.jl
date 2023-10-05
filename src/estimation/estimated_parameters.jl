@@ -58,11 +58,19 @@ function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
         if "param" in keys(p)
             push!(parameters.name, p["param"])
             push!(parameters.index, symbol_table[p["param"]].orderintype)
+            push!(parameters.parametertype, EstParameter)
         elseif "var" in keys(p)
             push!(parameters.name, p["var"])
             push!(parameters.index, symbol_table[p["var"]].orderintype)
+            is_endogenous(p["var"]) && push!(parameters.parametertype, EstSDMeasurement) 
+            is_exogenous(p["var"]) && push!(parameters.parametertype, EstSDShock)
+        elseif "var1" in keys(p)
+            push!(parameters.name, (p["var1"] => p["var2"]))
+            push!(parameters.index, (symbol_table[p["var1"]].orderintype => symbol_table[p["var2"]].orderintype))
+            is_endogenous(p["var"]) && push!(parameters.parametertype, EstCorrMeasurement) 
+            is_exogenous(p["var"]) && push!(parameters.parametertype, EstCorrShock)
         else
-            error("Estimation needs a datafile or an AxisArrayTable")
+            error("Unrecognized parameter name")
         end
         initval = dynare_parse_eval(p["init_val"], context)
         if isnan(initval)
@@ -121,6 +129,8 @@ function get_basic_parameters(p::Dict{String,Any})
         name = p["param"]
     elseif "var" in keys(p)
         name = p["var"]
+    elseif "var1" in p["param"]
+        name = (p["var1"] => p["var2"])
     else
         error("Estimation needs a datafile or an AxisArrayTable")
     end
@@ -161,7 +171,6 @@ end
 
 function parse_prior_distribution(::Val{5}, p)
     μ, σ, p3, p4, lb, ub, name = get_basic_parameters(p)
-    @show μ, σ, p3, p4
     if isnan(μ) && isnan(σ)
         a = p3
         b = p4
