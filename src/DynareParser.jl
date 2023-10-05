@@ -220,7 +220,11 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     context = make_context(modeljson, modfilename, commandlineoptions)
     context.work.analytical_steadystate_variables = DFunctions.load_model_functions(modfilename)
     if haskey(modeljson, "statements")
-        parse_statements!(context, modeljson["statements"])
+        try
+            parse_statements!(context, modeljson["statements"])
+        catch e
+            println(e)
+        end
     end
     @info "$(now()): End $(nameof(var"#self#"))"
     return context
