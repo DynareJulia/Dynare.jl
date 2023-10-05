@@ -48,8 +48,8 @@ include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
 include("estimation/estimation.jl")
-export covariance, output_MCMCChains, plot_MCMCChains, prior!, rwmh_compute!, sms_compute! 
-
+export covariance, mode_compute!, output_MCMCChains, plot_MCMCChains, plot_priors 
+export plot_prior_posterior, prior!, rwmh_compute!, sms_compute! 
 export @dynare, dynare
 
 macro dynare(modfile_arg::String, args...)
