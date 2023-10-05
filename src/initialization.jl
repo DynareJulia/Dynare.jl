@@ -357,8 +357,8 @@ function endval!(context::Context, field::Dict{String,Any})
     work.endval_endogenous = zeros(m.endogenous_nbr,1)
     work.endval_exogenous = zeros(m.exogenous_nbr,1)
     work.endval_exogenous_deterministic = zeros(m.exogenous_deterministic_nbr,1)
-    work.endval_endogenous .= work.initval_endogenous
-    work.endval_exogenous .= work.initval_exogenous
+    !isempty(work.initval_endogenous) && (work.endval_endogenous .= work.initval_endogenous)
+    !isempty(work.initval_exogenous) && (work.endval_exogenous .= work.initval_exogenous)
     #    work.endval_exogenous_deterministic .= work.initval_exogenous_deterministic
 
     for v in field["vals"]
