@@ -3,11 +3,12 @@ using Dynare
 using ExtendedDates
 using JLD2
 using LinearAlgebra
+using Serialization
 using Test
 
 @dynare "models/example1ss/example1ss"
 
-context = load("models/example1pf/example1pf_conditional/output/example1pf_conditional.jld2", "context")
+
 function make_f_J(context, scenario, periods, infoperiod)
     datafile = ""
     
@@ -91,6 +92,8 @@ function make_f_J(context, scenario, periods, infoperiod)
                                  )
     return f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1
 end
+
+context = @dynare "models/example1pf/example1pf_conditional"
 
 @testset verbose = true "Scenario" begin
     @testset "shocks!" begin
