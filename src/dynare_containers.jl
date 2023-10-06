@@ -839,6 +839,8 @@ Base.length(ep::EstimatedParameters) = length(ep.prior)
 
 mutable struct Work
     analytical_steadystate_variables::Vector{Int}
+    data::AxisArrayTable
+    datafile::String
     params::Vector{Float64}
     residuals::Vector{Float64}
     dynamic_variables::Vector{Float64}
@@ -862,6 +864,8 @@ mutable struct Work
     estimated_parameters::EstimatedParameters
     function Work(model, varobs)
         analytical_steadystate_variables = Int[]
+        data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0)))
+        datafile = ""
         endo_nbr = model.endogenous_nbr
         exo_nbr = model.exogenous_nbr
         exo_det_nbr = model.exogenous_deterministic_nbr
@@ -893,6 +897,8 @@ mutable struct Work
         estimated_parameters = EstimatedParameters()
         new(
             analytical_steadystate_variables,
+            data,
+            datafile,
             params,
             residuals,
             dynamic_variables,

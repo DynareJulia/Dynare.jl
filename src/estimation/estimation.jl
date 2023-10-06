@@ -168,6 +168,7 @@ function rwmh_compute!(;context=context,
              first_obs::PeriodsSinceEpoch = Undated(1),
              initial_values = prior_mean(context.work.estimated_parameters),
              covariance = Matrix(prior_variance(context.work.estimated_parameters)),
+             transformed_covariance = Matrix(undef, 0,0),
              last_obs::PeriodsSinceEpoch = Undated(0),
              mcmc_chains::Int = 1,
              mcmc_init_scale::Float64 = 0.0,
@@ -188,9 +189,20 @@ function rwmh_compute!(;context=context,
     varobs = context.work.observed_variables
     trends = results.trends
     has_trends = context.modfileinfo.has_trends
-
+    
     observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
-    (chain, back_transformed_chain) = mh_estimation(context, observations, initial_values, mcmc_jscale*covariance, back_transformation=back_transformation, first_obs=first_obs, last_obs=last_obs, mcmc_chains=mcmc_chains, mcmc_replic=mcmc_replic, transformed_parameters=transformed_parameters)
+    (chain, back_transformed_chain) = mh_estimation(context, 
+        observations, 
+        initial_values, 
+        covariance = mcmc_jscale*covariance, 
+        transformed_covariance = mcmc_jscale*transformed_covariance,
+        back_transformation=back_transformation, 
+        first_obs=first_obs, 
+        last_obs=last_obs, 
+        mcmc_chains=mcmc_chains, 
+        mcmc_replic=mcmc_replic, 
+        transformed_parameters=transformed_parameters
+    )
     output_MCMCChains(context, chain, display, plot_chain)
     plot_posterior_density && plot_prior_posterior(context, back_transformed_chain)
     plot_chain && StatsPlots.plot(chain)
@@ -834,10 +846,6 @@ function posterior_mode!(
         )
         @show res
         hess = finite_difference_hessian(objective, minimizer)
-        if !isposdef(hess)
-            @show collect(TransformVariables.transform(transformation, minimizer))
-            error("Hessian isn't positive definite")
-        end
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
         stdh = sqrt.(diag(invhess))
@@ -846,6 +854,11 @@ function posterior_mode!(
         results.posterior_mode = collect(TransformVariables.transform(transformation, minimizer))
         results.posterior_mode_std = collect(TransformVariables.transform(transformation, stdh))
         results.transformed_posterior_mode_covariance = invhess
+        objective2(θ) = -problem.f(θ)
+        hess = finite_difference_hessian(objective2, results.posterior_mode)
+        hsd = sqrt.(diag(hess))
+        invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
+        results.posterior_mode_covariance = invhess
     else
         objective1(θ) = -problem.f(θ)
         p0 = initialvalue
@@ -881,13 +894,14 @@ end
 function mh_estimation(
     context,
     observations,
-    initial_values,
-    covariance;
+    initial_values;
+    covariance,
     back_transformation = true,
     first_obs = 1,
     last_obs = 0,
     mcmc_chains = 1,
     mcmc_replic = 100000,
+    transformed_covariance = Matrix(under, 0, 0),
     transformed_parameters = true,
     kwargs...,
 )
@@ -901,8 +915,14 @@ function mh_estimation(
         transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
         initial_values = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
         posterior_density(θ) = transformed_density(θ)
-        proposal_covariance = inverse_transform_variance(transformation, initial_values, Matrix(covariance))
-        chain = run_mcmc(transformed_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)
+        let proposal_covariance
+            if !isempty(transformed_covariance)
+                proposal_covariance = transformed_covariance
+            else
+                proposal_covariance = inverse_transform_variance(transformation, initial_values, Matrix(covariance))    
+            end
+            chain = run_mcmc(transformed_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)
+        end 
         if back_transformation
             transform_chains(chain, transformation, problem.f)
             # Recompute posterior density
@@ -930,6 +950,9 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     model = DensityModel(posterior_density)
     @debug initial_values
     @debug posterior_density(initial_values)
+    proposal_covariance = (proposal_covariance + proposal_covariance')/2
+    display(proposal_covariance)
+    @show isposdef(proposal_covariance)
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
         chain = MCMCChains.sample(model, spl, mcmc_replic,
