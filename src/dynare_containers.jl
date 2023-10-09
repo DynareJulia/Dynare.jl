@@ -779,6 +779,7 @@ mutable struct ModelResults
     stationary_variables::Vector{Bool}
     estimation::EstimationResults
     filter::AxisArrayTable
+    forecast::Vector{AxisArrayTable}
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
     smoother::AxisArrayTable

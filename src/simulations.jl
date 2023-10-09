@@ -97,15 +97,18 @@ function simul_first_order!(
     T::Int64,
 )
     mul!(view(Y, 2:T+1, :), view(x, 2:T+1, :), transpose(B))
+    @show Y
     r_1 = view(Y, 1, :)
     r_1 .= y0 .- c
+    @show r_1
     for t = 2:T+1
         r = view(Y, t, :)
         mul!(r, A, r_1, 1.0, 1.0)
-        r_1 .+= c
         r_1 = r
+        @show r_1
     end
     r_1 .+= c
+    @show Y
 end
 
 function is_jacobian_sparse(Y, context)

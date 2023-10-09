@@ -6,6 +6,7 @@ using Printf
 
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
+    stoponerror::Bool = false
 end
 
 using LinearRationalExpectations
@@ -49,7 +50,8 @@ include("nonlinear/NLsolve.jl")
 using .NLsolve
 include("estimation/estimation.jl")
 export covariance, mode_compute!, output_MCMCChains, plot_MCMCChains, plot_priors 
-export plot_prior_posterior, prior!, rwmh_compute!, sms_compute! 
+export plot_prior_posterior, prior!, rwmh_compute!, sms_compute!
+include("forecast.jl") 
 export @dynare, dynare
 
 macro dynare(modfile_arg::String, args...)
@@ -63,11 +65,14 @@ function dynare(modfile_arg::String, args...)
     arglist = []
     compilemodule = true
     preprocessing = true
+    stoponerror = false
     for (i, a) in enumerate(args)
         if a == "nocompile"
             compilemodule = false
         elseif a == "nopreprocessing"
             preprocessing = false
+        elseif a == "stoponerror"
+            stoponerror = true
         else
             push!(arglist, a)
         end
@@ -81,7 +86,7 @@ function dynare(modfile_arg::String, args...)
     # onlymodel option performs only preprocessing
     "onlymodel" in arglist && return nothing
     
-    options = CommandLineOptions(compilemodule)
+    options = CommandLineOptions(compilemodule, stoponerror)
     context = parser(modname, options)
     return context
 end

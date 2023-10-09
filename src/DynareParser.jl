@@ -155,6 +155,7 @@ function make_containers(
         Vector{Bool}(undef, endo_nbr),
         EstimationResults(),
         AxisArrayTable([;;], [], Symbol[]),
+        [AxisArrayTable([;;], [], Symbol[])],
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         AxisArrayTable([;;], [], Symbol[]),
@@ -220,11 +221,15 @@ function parser(modfilename::String, commandlineoptions::CommandLineOptions)
     context = make_context(modeljson, modfilename, commandlineoptions)
     context.work.analytical_steadystate_variables = DFunctions.load_model_functions(modfilename)
     if haskey(modeljson, "statements")
-        try
+        if commandlineoptions.stoponerror
             parse_statements!(context, modeljson["statements"])
-        catch e
-            println(e)
-        end
+        else    
+            try
+                parse_statements!(context, modeljson["statements"])
+            catch e
+                println(e)
+            end
+        end 
     end
     @info "$(now()): End $(nameof(var"#self#"))"
     return context
