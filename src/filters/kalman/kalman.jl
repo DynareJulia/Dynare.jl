@@ -31,10 +31,6 @@ function calibsmoother!(; context=context,
                         first_obs = 1,
                         last_obs = -1
                         )
-    calib_smoother_core!(context, datafile, first_obs, last_obs)
-end
-
-function calibsmoother!(contex::Context, datafile, first_obs, last_obs)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
     has_trends = context.modfileinfo.has_trends
@@ -46,21 +42,23 @@ function calibsmoother!(contex::Context, datafile, first_obs, last_obs)
     lre_results = results.linearrationalexpectations
     if (filename = datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
+        @show varnames
         Yorig =
             get_data(filename, varnames, start = first_obs, last = last_obs)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
     Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
+    steadystate = results.trends.endogenous_steady_state
     if has_trends
         remove_linear_trend!(
             Y,
             Yorig,
-            results.trends.endogenous_steady_state[varobs_ids],
+            steadystate[varobs_ids],
             results.trends.endogenous_linear_trend[varobs_ids],
         )
     else
-        Y .= Yorig .- results.trends.endogenous_steady_state[varobs_ids]
+        Y .= Yorig .- steadystate[varobs_ids]
     end
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
@@ -214,15 +212,18 @@ function calibsmoother!(contex::Context, datafile, first_obs, last_obs)
         add_linear_trend!(
             filter,
             a0,
-            results.trends.endogenous_steady_state,
+            steadystate,
             results.trends.endogenous_linear_trend,
         )
         add_linear_trend!(
             smoother,
             alphah,
-            results.trends.endogenous_steady_state,
+            steadystate,
             results.trends.endogenous_linear_trend,
         )
+    else
+        filter .+= steadystate
+        smoother .+= steadystate
     end
     results.smoother = AxisArrayTable(transpose(smoother), Undated(1):Undated(nobs), endo_symb)
     results.filter = AxisArrayTable(transpose(filter), Undated(1):Undated(nobs+1), endo_symb)
