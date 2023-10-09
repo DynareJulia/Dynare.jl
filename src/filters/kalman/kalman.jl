@@ -26,8 +26,15 @@ function calib_smoother!(context::Context, field::Dict{String,Any})
     calib_smoother_core!(context, options)
 end
 
+function calibsmoother!(; context=context,
+                        datafile = "",
+                        first_obs = 1,
+                        last_obs = -1
+                        )
+    calib_smoother_core!(context, datafile, first_obs, last_obs)
+end
 
-function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
+function calibsmoother!(contex::Context, datafile, first_obs, last_obs)
     symboltable = context.symboltable
     varobs = context.work.observed_variables
     has_trends = context.modfileinfo.has_trends
@@ -37,10 +44,10 @@ function calib_smoother_core!(contex::Context, options::CalibSmootherOptions)
     model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
-    if (filename = options.datafile) != ""
+    if (filename = datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
         Yorig =
-            get_data(filename, varnames, start = options.first_obs, last = options.last_obs)
+            get_data(filename, varnames, start = first_obs, last = last_obs)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
