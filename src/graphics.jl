@@ -159,30 +159,24 @@ function plot_irfs(irfs, model, symboltable, filepath)
     end
 end
 
-function plot_priors(;context::Context=context)
-    ep = context.work.estimated_parameters
-    @assert length(ep.prior) > 0 "There is no defined priors"
+function plot_forecast(;context::Context=context)
+    forecast = context.results.model_results[1].forecast
     path = "$(context.modfileinfo.modfilepath)/graphs/"
     mkpath(path)
-    filepath = "$(path)/Priors"
-    nprior = length(ep.prior)
-    X = zeros(100, nprior)
-    Y = zeros(100, nprior)
-    for (i, p) in enumerate(ep.prior)
-        X[:, i] = range(StatsPlots.yz_args(p)..., 100)
-        for j in axes(X, 1)
-            Y[j, i] = pdf(p, X[j, i])
-        end 
-    end     
-    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
+    filepath = "$(path)/Forecast"
+    X = row_labels(forecast[1])
+    vars = column_labels(forecast[1])
+    nvars = length(vars)
+    @assert nvars > 0 "There is no forecast"
+    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nvars)
     ivars = collect(1:nr*nc)
     for p = 1:nbplt-1
         filename = "$(filepath)_$(p).png"
         plot_panel(
-            X[:, ivars],
-            Y[:, ivars],
-            "Priors ($p)",
-            ep.name[ivars],
+            repeat(X, 1, nr*nc),
+            Matrix(forecast[1][:, ivars]),
+            "Forecast ($p)",
+            vars[ivars],
             nr,
             nc,
             nr * nc,
@@ -193,10 +187,10 @@ function plot_priors(;context::Context=context)
     ivars = ivars[1:nstar]
     filename = "$(filepath)_$(nbplt).png"
     plot_panel(
-        X[:, ivars],
-        Y[:, ivars],
-        "Priors ($nbplt)",
-        ep.name[ivars],
+        repeat(X, 1, nstar),
+        Matrix(forecast[1][:, ivars]),
+        "Forecast ($nbplt)",
+        vars[ivars],
         lr,
         lc,
         nstar,
