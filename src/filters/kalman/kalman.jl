@@ -42,7 +42,6 @@ function calibsmoother!(; context=context,
     lre_results = results.linearrationalexpectations
     if (filename = datafile) != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        @show varnames
         Yorig =
             get_data(filename, varnames, start = first_obs, last = last_obs)
     else
