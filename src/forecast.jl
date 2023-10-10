@@ -1,6 +1,16 @@
 @enum ForecastModes histval calibsmoother estimation
 
-function forecasting!(; periods, forecast_mode, context=context, datafile="", first_obs=1, last_obs=0, order=1)
+function forecasting!(; periods, forecast_mode::ForecastModes, context=context, datafile="", first_obs=1, last_obs=0, order=1)
+    results = context.results.model_results[1]
+    Y = forecasting_(; periods, forecast_mode, context=context, datafile=datafile, 
+                       first_obs=first_obs, last_obs=last_obs, order=order)
+    results.forecast = [AxisArrayTable(Y, 
+                        Undated(0):Undated(periods), 
+                        [Symbol(v) for v in get_endogenous(context.symboltable)])]
+    return forecast
+end
+
+function forecasting_(; periods, forecast_mode::ForecastModes, context=context, datafile="", first_obs=1, last_obs=0, order=1)
     model = context.models[1]
     nendo = model.endogenous_nbr
     nexo = model.exogenous_nbr
@@ -12,11 +22,9 @@ function forecasting!(; periods, forecast_mode, context=context, datafile="", fi
     let y0
         if forecast_mode == histval
             y0 = copy(results.trends.endogenous_steady_state)
-            @show y0
             for (i, v) in enumerate(context.work.histval[end,:])
                 !ismissing(v) && (y0[i] = v)
             end
-            @show y0
         elseif forecast_mode == calibsmoother
             calibsmoother!(context=context, datafile=datafile, first_obs=first_obs, last_obs=last_obs)
             @views y0 = Vector(results.smoother[end, :])
@@ -24,17 +32,22 @@ function forecasting!(; periods, forecast_mode, context=context, datafile="", fi
         
         make_A_B!(A, B, model, results)
         if order == 1
-            @show y0
-            @show c
             forecast_!(Y, y0, c, A, B, periods)
         end
     end 
-    results.forecast = [AxisArrayTable(Y, 
-                        Undated(0):Undated(periods), 
-                        [Symbol(v) for v in get_endogenous(context.symboltable)])]
 end
 
-function recursive_forecast!
+function recursive_forecast!(; first_period, 
+                               last_period, 
+                               forecast_mode::ForecastModes, 
+                               context=context, datafile="", 
+                               first_obs=1, 
+                               last_obs=0, 
+                               order=1)
+    forecasts = context.results.model_results[1].forecasts
+    for p = first_period:last_period
+        forecast()
+    end
 end
 
 function conditional_forecast!
