@@ -38,6 +38,7 @@ include("dynare_table.jl")
 export round
 include("reporting/report.jl")
 include("graphics.jl")
+export plot_forecast, plot_recursive_forecast
 include("filters/kalman/kalman.jl")
 include("optimal_policy.jl")
 include("perturbations.jl")
@@ -51,7 +52,9 @@ using .NLsolve
 include("estimation/estimation.jl")
 export covariance, mode_compute!, output_MCMCChains, plot_MCMCChains, plot_priors 
 export plot_prior_posterior, prior!, rwmh_compute!, sms_compute!
+export calibsmoother!
 include("forecast.jl") 
+export forecasting!, recursive_forecasting!
 export @dynare, dynare
 
 macro dynare(modfile_arg::String, args...)
