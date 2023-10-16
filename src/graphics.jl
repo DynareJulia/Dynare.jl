@@ -159,6 +159,14 @@ function plot_irfs(irfs, model, symboltable, filepath)
     end
 end
 
+"""
+    function plot_forecast(; context::Context=context)
+
+plots forcast of model variables in panel
+
+# Keywords arguments
+- `context::Context=context`: context in which the forecast is computed
+"""        
 function plot_forecast(;context::Context=context)
     forecast = context.results.model_results[1].forecast
     path = "$(context.modfileinfo.modfilepath)/graphs/"
@@ -346,6 +354,45 @@ function plot_panel_priorprediction_irfs(
     plot!(p, title=endogenous_name)
     return p
 end
+
+"""
+    function plot_recursive_forecast(; variable::Union{String, Symbol}, 
+                                       context::Context=context,
+                                       title=String(variable))
+plots recursive forecasts for a given variable
+
+# Keywords arguments
+- `variable::Union{String, Symbol}`: forcasted variable [required]
+- `context::Context=context`: context in which the forecast is computed
+- `title`: plot title
+"""
+function plot_recursive_forecast(; variable, context=context, title=String(variable))
+    results = context.results.model_results[1]
+    forecast = results.forecast
+    initial_smoother = results.initial_smoother
+    y = Matrix(initial_smoother[:, Symbol(variable)])
+    x = row_labels(initial_smoother)
+    for (i, f) in enumerate(forecast)
+        if i > 1
+            y = vcat(y, f[1, Symbol(variable)])
+            x = vcat(x, row_labels(f)[1])
+        end
+    end  
+    xmin = 10*floor(x[1]/10)
+    pl = Plots.plot(x, y,title =String(variable),label="",linewidth=2)
+    for f in forecast
+        x = row_labels(f)
+        y = Matrix(f[:, Symbol(variable)])
+        plot!(x, y, label="", linecolor=:black)
+        @show x
+    end
+    @show x[end]
+    xmax = 10*ceil(x[end]/10)
+    @show xmax
+    plot!(xtick = xmin:10:xmax)
+    graph_display(pl)
+end 
+
 
 function plot(aat::AxisArrayTable; label = false, title = "", filename = "")
     aa = getfield(aat, :data) 

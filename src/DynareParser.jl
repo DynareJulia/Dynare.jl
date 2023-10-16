@@ -156,6 +156,7 @@ function make_containers(
         EstimationResults(),
         AxisArrayTable([;;], [], Symbol[]),
         [AxisArrayTable([;;], [], Symbol[])],
+        AxisArrayTable([;;], [], Symbol[]),
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         AxisArrayTable([;;], [], Symbol[]),

@@ -23,13 +23,16 @@ end
 
 function calib_smoother!(context::Context, field::Dict{String,Any})
     options = CalibSmootherOptions(field["options"])
-    calib_smoother_core!(context, options)
+    calibsmoother!(context=context, 
+                    datafile = options.datafile,
+                    first_obs = options.first_obs,
+                    last_obs = options.last_obs)
 end
 
 function calibsmoother!(; context=context,
                         datafile = "",
                         first_obs = 1,
-                        last_obs = -1
+                        last_obs = 0
                         )
     symboltable = context.symboltable
     varobs = context.work.observed_variables
@@ -224,8 +227,9 @@ function calibsmoother!(; context=context,
         filter .+= steadystate
         smoother .+= steadystate
     end
-    results.smoother = AxisArrayTable(transpose(smoother), Undated(1):Undated(nobs), endo_symb)
     results.filter = AxisArrayTable(transpose(filter), Undated(1):Undated(nobs+1), endo_symb)
+    results.smoother = AxisArrayTable(transpose(smoother), Undated(1):Undated(nobs), endo_symb)
+    return nothing
 end
 
 function make_state_space!(

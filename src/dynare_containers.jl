@@ -780,6 +780,7 @@ mutable struct ModelResults
     estimation::EstimationResults
     filter::AxisArrayTable
     forecast::Vector{AxisArrayTable}
+    initial_smoother::AxisArrayTable   # used for recursive forecasts
     linearrationalexpectations::LinearRationalExpectationsResults
     simulations::Vector{Simulation}
     smoother::AxisArrayTable
