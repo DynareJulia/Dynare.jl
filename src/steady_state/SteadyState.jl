@@ -93,8 +93,10 @@ end
                              
  # Keyword arguments
  - `context::Context=context`: context in which the simulation is computed
+ - `homotopy_steps::Int=0`: number of homotopy steps
  - `display::Bool=true`: whether to display the results
  - `maxit::Int=50` maximum number of iterations
+ - `nocheck::Bool=false`: don't check the steady state
  - `tolf::Float64=1e-5`: tolerance for the norm of residualts
  - `tolx::Float64=1e-5`: tolerance for the norm of the change in the result
 """
@@ -507,17 +509,19 @@ function homotopy_steady!(context::Context, homotopy_mode::HomotopyModes, homoto
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
     exogenous_steadystate = context.results.model_results[1].trends.exogenous_steady_state
     if homotopy_mode == SimultaneousFixedSteps
+        length(steadystate) > 0 && (initval_endogenous .= steadystate) 
         steps = zeros(length(hs))
         for (i,v) in enumerate(hs)
             if v.type == Dynare.Parameter
                 startvalue = (ismissing(v.startvalue)) ? params[v.index] : v.startvalue
                 steps[i] = Float64((v.endvalue - startvalue)/homotopy_steps)
+                params[v.index] = startvalue
             elseif v.type == Dynare.Exogenous
                 startvalue = (ismissing(v.startvalue)) ? exogenous_steadystate[v.index] : v.startvalue
                 steps[i] = (v.endvalue - startvalue)/homotopy_steps
+                exogenous_seadystate[v.index] = startvalue
             end
         end
-        length(steadystate) > 0 && (initval_endogenous .= steadystate) 
         compute_steady_state!(context, maxit = maxit, nocheck = false, tolf = tolf)
         for i = 1:homotopy_steps
             for (i, v) in enumerate(hs)
