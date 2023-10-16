@@ -519,7 +519,7 @@ function homotopy_steady!(context::Context, homotopy_mode::HomotopyModes, homoto
             elseif v.type == Dynare.Exogenous
                 startvalue = (ismissing(v.startvalue)) ? exogenous_steadystate[v.index] : v.startvalue
                 steps[i] = (v.endvalue - startvalue)/homotopy_steps
-                exogenous_seadystate[v.index] = startvalue
+                exogenous_steadystate[v.index] = startvalue
             end
         end
         compute_steady_state!(context, maxit = maxit, nocheck = false, tolf = tolf)
