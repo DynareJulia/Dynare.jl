@@ -29,6 +29,22 @@ function calib_smoother!(context::Context, field::Dict{String,Any})
                     last_obs = options.last_obs)
 end
 
+"""
+    calibsmoother!(; context=context,
+                     datafile = "",
+                     first_obs = 1,
+                     last_obs = 0
+                   )
+Compute the smoothed values of the variables for an estimated model
+
+#Keyword arguments
+- `periods::Integer`: number of forecasted periods [required]
+- `datafile::String`: file with the observations for the smoother
+- `first_obs::PeriodSinceEpoch`: first period used by smoother
+                                 (default: first observation in the file)  
+- `last_obs::PeriodSinceEpoch`: last period used by smoother
+                               (default: last observation in the file)
+"""
 function calibsmoother!(; context=context,
                         datafile = "",
                         first_obs = 1,
