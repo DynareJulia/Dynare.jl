@@ -108,7 +108,7 @@ function estimation!(context, field::Dict{String, Any})
     initial_parameter_values = get_initial_value_or_mean()
     set_estimated_parameters!(context, initial_parameter_values)
     if options.plot_priors
-        plot_priors()
+        plot_priors(context, estimated_parameters.name)
     end 
     if options.mode_compute
         (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, transformed_parameters = false)
@@ -121,7 +121,6 @@ function estimation!(context, field::Dict{String, Any})
 
     if options.mcmc_replic > 0
         chain = mh_estimation(context, observations, mode, 
-        #options.mcmc_jscale*Matrix(prior_variance(context.work.estimated_parameters),
         options.mcmc_jscale*mode_covariance,
         mcmc_replic=options.mcmc_replic)
         StatsPlots.plot(chain)
@@ -849,16 +848,16 @@ function posterior_mode!(
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
         stdh = sqrt.(diag(invhess))
-        results.transformed_posterior_mode = minimizer
-        results.transformed_posterior_mode_std = stdh
-        results.posterior_mode = collect(TransformVariables.transform(transformation, minimizer))
-        results.posterior_mode_std = collect(TransformVariables.transform(transformation, stdh))
-        results.transformed_posterior_mode_covariance = invhess
+        results.transformed_posterior_mode = copy(minimizer)
+        results.transformed_posterior_mode_std = copy(stdh)
+        results.transformed_posterior_mode_covariance = copy(invhess)
+        results.posterior_mode = copy(collect(TransformVariables.transform(transformation, minimizer)))
         objective2(θ) = -problem.f(θ)
         hess = finite_difference_hessian(objective2, results.posterior_mode)
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
-        results.posterior_mode_covariance = invhess
+        results.posterior_mode_std = copy(sqrt.(diag(invhess)))
+        results.posterior_mode_covariance = copy(invhess)
     else
         objective1(θ) = -problem.f(θ)
         p0 = initialvalue
@@ -877,9 +876,9 @@ function posterior_mode!(
         end 
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
-        results.posterior_mode = minimizer
-        results.posterior_mode_std = sqrt.(diag(invhess))
-        results.posterior_mode_covariance = invhess
+        results.posterior_mode = copy(minimizer)
+        results.posterior_mode_std = copy(sqrt.(diag(invhess)))
+        results.posterior_mode_covariance = copy(invhess)
     end
     
     estimation_result_table(
@@ -888,7 +887,11 @@ function posterior_mode!(
         results.posterior_mode_std,
         "Posterior mode"
     )
-    return(res, mode, std, invhess)
+    return(res,
+           results.posterior_mode,
+           results.posterior_mode_std,
+           results.posterior_mode_covariance
+           )
 end
 
 function mh_estimation(
@@ -951,8 +954,6 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     @debug initial_values
     @debug posterior_density(initial_values)
     proposal_covariance = (proposal_covariance + proposal_covariance')/2
-    display(proposal_covariance)
-    @show isposdef(proposal_covariance)
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
         chain = MCMCChains.sample(model, spl, mcmc_replic,
