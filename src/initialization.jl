@@ -669,3 +669,114 @@ function homotopy_setup!(context, field)
     end
 end
                          
+"""
+    initialize_from_other_models!(sources::String...; context::Context=context)
+
+set parameter values and initval from the symbols found in the results of one or several models.
+The first value found is used and following sources in the list are ignored.
+
+# Keyword arguments
+- `context::Context = context`: context in which the values are updated
+"""
+function initialize_from_other_models!(sources::String...; context::Context=context)
+    csources = []
+    for m in sources
+        c = deserialize(joinpath(m, "output", "$(m).jls"))
+        push!(csources, c)
+    end 
+
+    allocate_initval!(context)
+    symboltable = context.symboltable
+    work = context.work
+
+    for p in get_parameter(symboltable)
+        index = symboltable[p].orderintype
+        work.params[index] = get_value(p, csources)
+    end
+    for v in get_endogenous(symboltable)
+        index = symboltable[v].orderintype
+        work.initval_endogenous[index] = get_value(v, csources)
+    end
+    for v in get_exogenous(symboltable)
+        index = symboltable[v].orderintype
+        work.initval_exogenous[index] = get_value(v, csources)
+    end
+    for v in get_exogenousdeterministic(symboltable)
+        index = symboltable[v].orderintype
+        work.initval_exogenous_determinstic[index] = get_value(v, csources)
+    end
+    return nothing
+end
+
+function allocate_initval!(context)
+    model = context.models[1]
+    work = context.work
+    work.initval_endogenous = zeros(model.endogenous_nbr,1)
+    work.initval_exogenous = zeros(model.exogenous_nbr,1)
+    work.initval_exogenous_deterministic = zeros(model.exogenous_deterministic_nbr, 1)
+end
+
+function allocate_endval!(context)
+    model = context.models[1]
+    work = context.work
+    work.endval_endogenous = zeros(model.endogenous_nbr)
+    work.endval_exogenous = zeros(model.exogenous_nbr)
+    work.endval_exogenous_deterministic = zeros(model.exogenous_deterministic_nbr)
+end
+
+"""
+    initialize_endval_from_other_models!(sources::String...; context::Context=context)
+
+sets parameter values and endval from the symbols found in results from one or several models.
+The first value found is used and following sources in the list are ignored.
+
+# Keyword arguments
+- `context::Context = context`: context in which the values are updated
+"""
+function initialize_endval_from_other_models!(sources::String...; context::Context=context)
+    allocate_endval!(contex)
+    symboltable = context.symboltable
+    work = context.work
+    
+    for v in get_endogenous(symboltable)
+        index = symboltable[v].orderintype
+        work.endval_endogenous[index] = get_value(v, csources)
+    end
+    for v in get_exogenous(symboltable)
+        index = symboltable[v].orderintype
+        work.endval_exogenous[index] = get_value(v, csources)
+    end
+    for v in get_exogenousdeterministic(symboltable)
+        index = symboltable[v].orderintype
+        work.endval_exogenous_deterministic[index] = get_value(v, csources)
+    end
+    return nothing
+end
+
+function get_value(symbol, csources)
+    for context in csources
+        try
+            return get_symbol_value(context, symbol)
+        catch e
+        end
+    end
+    error("Symbol $symbol not found")
+end
+
+function get_symbol_value(context, s)
+    symboltable = context.symboltable
+    trends = context.results.model_results[1].trends
+    type = symboltable[s].symboltype
+    index = symboltable[s].orderintype
+    if type == Parameter
+        return context.work.params[index]
+    elseif type == Endogenous
+        return trends.endogenous_steady_state[index]
+    elseif type == Exogenous
+        return trends.exogenous_steady_state[index]
+    elseif type == ExogenousDeterministic
+        return trends.exogenous_det_steady_state[index]
+    else
+        error("Unknown type $type")
+    end
+end

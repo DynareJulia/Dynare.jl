@@ -384,11 +384,8 @@ function plot_recursive_forecast(; variable, context=context, title=String(varia
         x = row_labels(f)
         y = Matrix(f[:, Symbol(variable)])
         plot!(x, y, label="", linecolor=:black)
-        @show x
     end
-    @show x[end]
     xmax = 10*ceil(x[end]/10)
-    @show xmax
     plot!(xtick = xmin:10:xmax)
     graph_display(pl)
 end 
