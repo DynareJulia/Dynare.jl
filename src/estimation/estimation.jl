@@ -107,6 +107,7 @@ function estimation!(context, field::Dict{String, Any})
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
     set_estimated_parameters!(context, initial_parameter_values)
+    @show options.plot_priors
     if options.plot_priors
         plot_priors(context, estimated_parameters.name)
     end 
@@ -1260,8 +1261,8 @@ function plot_priors(context, names, n_points = 100)
     prior_pdfs = hcat(prior_pdfs...)
     prior_x_axes = hcat(prior_x_axes...)
     names = hcat(names...)
-    f = Plots.plot(prior_x_axes, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, labels=false, linewidth=3)
-    f
+    f = Plots.plot(prior_x_axes, prior_pdfs, layout=n_plots, title=names, linecolor=:darkgrey, labels=false, linewidth=2)
+    display(f)
 end
 
 function transform_chains(chains, t, posterior_density)
