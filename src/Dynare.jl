@@ -40,6 +40,7 @@ include("reporting/report.jl")
 include("graphics.jl")
 export plot_forecast, plot_recursive_forecast
 include("filters/kalman/kalman.jl")
+export smoother
 include("optimal_policy.jl")
 include("perturbations.jl")
 export localapproximation!
