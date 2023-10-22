@@ -82,7 +82,7 @@ function MyAxisArrayTable(filename)
     cols = AxisArrayTables.Tables.columnnames(table)
     data = AxisArrayTables.Tables.matrix((;ntuple(i -> Symbol(i) => Tables.getcolumn(table, i), length(cols))...))
     for (icol, name) in enumerate(cols)
-        if uppercase(String(name)) in ["DATE", "DATES", "PERIOD", "PERIODS", "TIME"]
+        if uppercase(String(name)) in ["DATE", "DATES", "PERIOD", "PERIODS", "TIME", "COLUMN1"]
             rows = []
             foreach(x -> push!(rows, periodparse(x)), data[:, icol])
             k = union(1:icol-1, icol+1:size(data,2))
