@@ -57,9 +57,9 @@ end;
 
 check;
 
-stoch_simul(order=1, periods=100);
+stoch_simul(order=1, periods=100, irf=0);
 
-CSV.write("data.csv", getfield(context.results.model_results[1].simulations[1].data, :data))
+CSV.write("data.csv", context.results.model_results[1].simulations[1].data)
 
 varobs y;
 calib_smoother(datafile='data.csv', diffuse_filter, filtered_vars);

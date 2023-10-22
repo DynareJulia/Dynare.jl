@@ -54,6 +54,7 @@ function calibsmoother!(; context=context,
     varobs = context.work.observed_variables
     has_trends = context.modfileinfo.has_trends
     endogenous_vars = get_endogenous(symboltable)
+    exogenous_vars = get_exogenous(symboltable)
     varobs_ids =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     model = context.models[1]
@@ -224,6 +225,7 @@ function calibsmoother!(; context=context,
     end 
 
     endo_symb = [Symbol(v) for v in endogenous_vars]
+    exo_symb = [Symbol(v) for v in exogenous_vars]
     smoother = copy(alphah)
     filter = copy(a0)
     if has_trends
@@ -243,8 +245,14 @@ function calibsmoother!(; context=context,
         filter .+= steadystate
         smoother .+= steadystate
     end
-    results.filter = AxisArrayTable(transpose(filter), Undated(1):Undated(nobs+1), endo_symb)
-    results.smoother = AxisArrayTable(transpose(smoother), Undated(1):Undated(nobs), endo_symb)
+    @show size(smoother)
+    @show size(etah)
+    results.filter = AxisArrayTable(transpose(filter), 
+                                    Undated(1):Undated(nobs+1), 
+                                    endo_symb)
+    results.smoother = AxisArrayTable(transpose(vcat(smoother, etah)), 
+                                      Undated(1):Undated(nobs), 
+                                      vcat(endo_symb, exo_symb))
     return nothing
 end
 

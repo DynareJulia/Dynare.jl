@@ -28,15 +28,15 @@ function simulation(simnbr::Int64;
 end
 
 # one simulated variable for a given model and a given simulation
-function simulation(varname::Symbol; 
+function simulation(varname; 
         context = context, 
         model = 1, 
         simnbr = length(context.results.model_results[model].simulations), 
         firstperiod = context.results.model_results[model].simulations[simnbr].firstperiod,
         lastperiod = context.results.model_results[model].simulations[simnbr].lastperiod)
-    return context.results.model_results[model].simulations[simnbr].data[firstperiod..lastperiod, varname]
+    return context.results.model_results[model].simulations[simnbr].data[firstperiod..lastperiod, Symbol.(varname)]
 end
-
+#=
 function simulation(varname::String; 
         context = context, 
         model = 1, 
@@ -70,3 +70,22 @@ simulation(varnames::Tuple;
            firstperiod=context.results.model_results[model].simulations[simnbr].firstperiod,
            lastperiod=context.results.model_results[model].simulations[simnbr].lastperiod) =
                simulation([Symbol(v) for v in varnames]; context = context, model = model, simnbr = simnbr, firstperiod=firstperiod, lastperiod=lastperiod)
+=#
+
+## SMOOTHER
+
+function smoother(; context = context,
+    firstperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][1],
+    lastperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][end],
+    )
+return context.results.model_results[1].smoother[firstperiod..lastperiod]
+end
+
+function smoother(varnames; context = context,
+    firstperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][1],
+    lastperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][end],
+    )
+return context.results.model_results[1].smoother[firstperiod..lastperiod, varnames]
+end
+
+
