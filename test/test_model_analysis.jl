@@ -70,14 +70,42 @@ function contains_forwardvariable(ex::Union{Expr,Symbol}, context)
     return  false
 end 
 
-context = @dynare "models/example3/example3"
+function find_inbounds(f::F) where F <: Function
+    for (i, a) in enumerate(f.body.args)
+        typeof(a) == Expr && a.head == :macrocall && a.args[1] == Symbol("@inbounds") && return i
+    end
+    return nothing
+end
+
+function analyze_SparseDynamicResid(eq_nbr, context, matching)
+    endo_nbr = context.models[1].endogenous_nbr
+    f = Dynare.DFunctions.SparseDynamicResid!
+
+    eq_offset = find_inbounds(f)
+
+    eq = f.body.args[eq_offset].args[3].args[2*eq_nbr]
+    @show eq.args[2]
+    @show contains_forwardvariable(eq.args[2], context)
+    e = @eval :(y[$(endo_nbr + matching[eq_nbr])])
+    @show eq.args[2].args[2]
+    @show e
+    @show contains(eq.args[2].args[2], e)
+end
+    
+
+context = @dynare "models/example3/example3" "notmpterms"
 
 matching = get_maximum_cardinality_matching(context)
 U = get_incidence_bitmatrix_current_forward(context)
 
 rb = get_recursive_blocks(context, matching, U)
 
+@show matching
 @show rb
+
+f = Dynare.DFunctions.SparseDynamicResid!
+
+analyze_SparseDynamicResid(5, context, matching)
 
 #=
 m = context.models[1]
