@@ -82,15 +82,24 @@ function analyze_SparseDynamicResid(eq_nbr, context, matching)
     f = Dynare.DFunctions.SparseDynamicResid!
 
     eq_offset = find_inbounds(f)
-
     eq = f.body.args[eq_offset].args[3].args[2*eq_nbr]
-    @show eq.args[2]
-    @show contains_forwardvariable(eq.args[2], context)
-    e = @eval :(y[$(endo_nbr + matching[eq_nbr])])
-    @show eq.args[2].args[2]
-    @show e
-    @show contains(eq.args[2].args[2], e)
 end
+
+
+function equation_status(eq:Expr)    
+    is_forward = contains_forwardvariable(eq.args[2], context)
+    e = @eval :(y[$(endo_nbr + matching[eq_nbr])])
+    is_normalized =  eq.args[2].args[2] = :(y[$e]) && !contains(eq.args[2].args[3], e)
+    return (is_forward, is_normalized)
+end
+
+function make_prologue()
+    fn = Expr(:function)
+    call = Expr(:call)
+    push!(call.args, :prologue)
+    push!(call.args, :y)
+    block = Expr(:block) 
+function handle_equation!(
     
 
 context = @dynare "models/example3/example3" "notmpterms"
