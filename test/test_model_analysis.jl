@@ -93,16 +93,20 @@ function equation_status(eq:Expr)
     return (is_forward, is_normalized)
 end
 
-function make_prologue()
-    fn = Expr(:function)
-    call = Expr(:call)
-    push!(call.args, :prologue)
-    push!(call.args, :y)
-    block = Expr(:block) 
-function handle_equation!(
-    
+function make_preambule_x()
+    f_call = Expr(:call,
+                  :preamble_x,
+                  Expr(:(::), Symbol(:y), Vector{Float64}),
+                  Expr(:(::), Symbol(:x), Vector{Float64}),
+                  Expr(:(::), Symbol(:params), Vector{Float64}),
+                  Expr(:(::), Symbol(:steadystate), Vector{Float64})
+                  )
+    f_body = Expr(:macrocall
+                  :@inbounds,
+                  Expr(:block))
+end
 
-context = @dynare "models/example3/example3" "notmpterms"
+context = @dynare "models/example3/example3"
 
 matching = get_maximum_cardinality_matching(context)
 U = get_incidence_bitmatrix_current_forward(context)
