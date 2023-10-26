@@ -109,13 +109,18 @@ end
 function get_data(
     filename::String,
     variables::Vector{String};
-    start::Int64 = 1,
-    last::Int64 = 0,
+    start::Integer = 1,
+    last::Integer = 0,
+    nobs::Integer = 0,
 )
     aat = MyAxisArrayTable(filename)
     ny = length(variables)
     if last == 0
-        last = size(aat, 1) - start + 1
+        if nobs > 0
+            last = start + nobs - 1
+        else
+            last = size(aat, 1) - start + 1
+        end
     end
     nobs = last - start + 1
     Y = Matrix{Union{Missing,Float64}}(undef, ny, nobs)
