@@ -74,7 +74,7 @@ PardisoSolver = ["MKL", "Pardiso"]
 PathSolver = "PATHSolver"
 
 [compat]
-AbstractMCMC = "4.4.0"
+AbstractMCMC = "4.4.0, 5"
 AdvancedMH = "0.7.4"
 AxisArrayTables = "0.1.2"
 BenchmarkTools = "1.2.2"
