@@ -330,7 +330,7 @@ function solve_steady_state_!(context::Context,
     results = context.results.model_results[1]
 
     of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
-    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = true, ftol = tolf, iterations = maxit)
+    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = false, ftol = tolf, iterations = maxit)
     @debug result
     if converged(result)
         return result.zero
