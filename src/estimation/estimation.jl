@@ -50,7 +50,11 @@ end
 function translate_estimation_options(options)
     new_options = copy(options)
     for (k, v) in options
-        if k == "mh_jscale"
+        if k == "first_obs"
+            new_options["first_obs"] = v[1]
+        elseif k == "last_obs"
+            new_options["last_obs"] = v[1]
+        elseif k == "mh_jscale"
             new_options["mcmc_jscale"] = v
             delete!(new_options, "mh_jscale")
         elseif k == "mh_nblck"
@@ -59,30 +63,11 @@ function translate_estimation_options(options)
         elseif k == "mh_replic"
             new_options["mcmc_replic"] = v
             delete!(new_options, "mh_replic")
+        elseif k == "nobs"
+            new_options["nobs"] = v[1]
         end
     end
     return new_options 
-end
-
-function get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, steady_state, linear_trend)
-    Yorig = get_data(datafile, varobs, start = first_obs, last = last_obs)
-        
-    #=
-    varobs_ids =
-        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
-    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig
-    if has_trends
-        remove_linear_trend!(
-            Y,
-            Yorig,
-            steady_state[varobs_ids],
-            linear_trend[varobs_ids],
-        )
-    else
-        Y .= Yorig .- steady_state[varobs_ids]
-    end
-    =#
-    return Yorig
 end
 
 function estimation!(context, field::Dict{String, Any})
@@ -93,11 +78,8 @@ function estimation!(context, field::Dict{String, Any})
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    varobs = context.work.observed_variables
-    trends = results.trends
-    has_trends = context.modfileinfo.has_trends
     if !isempty(options.datafile)
-        observations = get_observables(options.datafile, varobs, options.first_obs, options.last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+        observations = get_observations(context, options.datafile, options.first_obs, options.last_obs, options.nobs)
     elseif !isempty(options.data)
         observations = options.data
     else
@@ -107,12 +89,11 @@ function estimation!(context, field::Dict{String, Any})
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
     set_estimated_parameters!(context, initial_parameter_values)
-    @show options.plot_priors
     if options.plot_priors
         plot_priors(context, estimated_parameters.name)
     end 
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, transformed_parameters = false)
+        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, transformed_parameters = true)
         @debug res
     end
 
@@ -150,25 +131,22 @@ function mode_compute!(; algorithm = BFGS,
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    varobs = context.work.observed_variables
-    trends = results.trends
-    has_trends = context.modfileinfo.has_trends
     
-    observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+    observations = get_observations(context, datafile, first_obs, last_obs, nobs)
     (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, algorithm = algorithm, transformed_parameters = transformed_parameters)
 end
 
-function rwmh_compute!(;context=context,
-             datafile = "",
-             back_transformation = true,
-             data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
+function rwmh_compute!(;context::Context=context,
+             datafile::String = "",
+             back_transformation::Bool = true,
+             data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
              diffuse_filter::Bool = false,
              display::Bool = true,
              fast_kalman_filter::Bool = true,
              first_obs::PeriodsSinceEpoch = Undated(1),
-             initial_values = prior_mean(context.work.estimated_parameters),
-             covariance = Matrix(prior_variance(context.work.estimated_parameters)),
-             transformed_covariance = Matrix(undef, 0,0),
+             initial_values::Vector{Float64} = prior_mean(context.work.estimated_parameters),
+             covariance::Matrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
+             transformed_covariance::Matrix{Float64} = Matrix{Float64}(undef, 0,0),
              last_obs::PeriodsSinceEpoch = Undated(0),
              mcmc_chains::Int = 1,
              mcmc_init_scale::Float64 = 0.0,
@@ -178,19 +156,16 @@ function rwmh_compute!(;context=context,
              nobs::Int = 0,
              order::Int = 1,
              plot_chain::Bool = true,
-             plot_posterior_density = false, 
+             plot_posterior_density::Bool = false, 
              presample::Int = 0,
-             transformed_parameters = true
+             transformed_parameters::Bool = true
 )
     symboltable = context.symboltable
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    varobs = context.work.observed_variables
-    trends = results.trends
-    has_trends = context.modfileinfo.has_trends
     
-    observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
+    observations = get_observations(context, datafile, first_obs, last_obs, nobs)
     (chain, back_transformed_chain) = mh_estimation(context, 
         observations, 
         initial_values, 
@@ -229,20 +204,19 @@ end
 function smc_compute!(;context=context,
                       datafile = "",
                       first_obs = 1,
-                      last_obs = 0
+                      last_obs = 0,
+                      nobs = 0
                       )
     symboltable = context.symboltable
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    varobs = context.work.observed_variables
     trends = results.trends
     has_trends = context.modfileinfo.has_trends
 
-    observations = get_observables(datafile, varobs, first_obs, last_obs, symboltable, has_trends, trends.endogenous_steady_state, trends.endogenous_linear_trend)
     ep = context.work.estimated_parameters
     np = length(ep.prior)
-    observations = get_observations(context, datafile, first_obs, last_obs)
+    observations = get_observations(context, datafile, first_obs, last_obs, nobs)
     ssws = SSWs(context, size(observations, 2), context.work.observed_variables)    
     
     pdraw!(θ) = prior_draw!(θ, ep)
@@ -512,21 +486,21 @@ end
 
 function set_estimated_parameters!(
     context::Context,
-    index::Pair{N,N},
+    index::N,
     value::T,
     ::Val{EstSDMeasurement},
 ) where {T<:Real,N<:Integer}
-    context.work.Sigma_m[index[1], index[2]] = value*value
+    context.work.Sigma_m[index, index] = value*value
     return nothing
 end
 
 function set_estimated_parameters!(
     context::Context,
-    index::Pair{N,N},
+    index::N,
     value::T,
     ::Val{EstSDShock},
 ) where {T<:Real,N<:Integer}
-    context.models[1].Sigma_e[index[1], index[2]] = value*value
+    context.models[1].Sigma_e[index, index] = value*value
     return nothing
 end
 
@@ -876,6 +850,7 @@ function posterior_mode!(
             error("Hessian isn't positive definite")
         end 
         hsd = sqrt.(diag(hess))
+        @show hsd
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
         results.posterior_mode = copy(minimizer)
         results.posterior_mode_std = copy(sqrt.(diag(invhess)))
@@ -1115,16 +1090,15 @@ end
 get_parameter_name(name::String) = name
 get_parameter_name(name::Pair{String, String}) = name[1]
 
-function get_observations(context, datafile, first_obs, last_obs)
+function get_observations(context, datafile, first_obs, last_obs, nobs)
     results = context.results.model_results[1]
     symboltable = context.symboltable
     varobs = context.work.observed_variables
     obs_idx =
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
-
     if datafile != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig = get_data(datafile, varnames, start = first_obs, last = last_obs)
+        Yorig = get_data(datafile, varnames, start = first_obs, last = last_obs, nobs = nobs)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
