@@ -358,6 +358,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     a0::Vector{D}
     dynamicws::Dynare.DynamicWs
     cssws::ComputeStochSimulWs
+    stochsimulws::Dynare.StochSimulWs
     H::Matrix{D}
     lagged_state_ids::Vector{I}
     P::Matrix{D}
@@ -377,6 +378,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         symboltable = context.symboltable
         dynamicws = Dynare.DynamicWs(context)
         cssws = Dynare.ComputeStochSimulWs(context)
+        stochsimulws = Dynare.StochSimulWs(context, 1)
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
         obs_idx = [
             symboltable[String(v)].orderintype for
@@ -402,6 +404,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
             a0,
             dynamicws,
             cssws,
+            stochsimulws,
             H,
             lagged_state_ids,
             P,
@@ -614,6 +617,7 @@ function loglikelihood(
         context,
         ssws.dynamicws,
         ssws.cssws,
+        ssws.stochsimulws,
         model_parameters,
         ssws.stoch_simul_options;
         variance_decomposition = false,
