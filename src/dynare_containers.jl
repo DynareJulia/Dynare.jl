@@ -864,6 +864,7 @@ mutable struct Work
     shocks::Vector{Float64}
     perfect_foresight_setup::Dict{String,Any}
     estimated_parameters::EstimatedParameters
+    limits::Dict{Symbol, NamedTuple{(:max,:min), Tuple{Float64, Float64}}}
     function Work(model, varobs)
         analytical_steadystate_variables = Int[]
         data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0)))
@@ -897,6 +898,7 @@ mutable struct Work
         shocks = Vector{Float64}(undef, 0)
         perfect_foresight_setup = Dict("periods" => 0, "datafile" => "")
         estimated_parameters = EstimatedParameters()
+        limits = Dict{Symbol, NamedTuple{(:max, :min), Tuple{Float64, Float64}}}()
         new(
             analytical_steadystate_variables,
             data,
@@ -922,6 +924,7 @@ mutable struct Work
             shocks,
             perfect_foresight_setup,
             estimated_parameters,
+            limits
         )
     end
 end
