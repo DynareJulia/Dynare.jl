@@ -62,6 +62,8 @@ export calibsmoother!
 include("forecast.jl") 
 export forecasting!, recursive_forecasting!
 export @dynare, dynare
+include("macros.jl")
+export limits!, @limits
 
 macro dynare(modfile_arg::String, args...)
     dynare(modfile_arg, args...)
