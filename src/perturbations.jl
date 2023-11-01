@@ -381,12 +381,27 @@ function make_A_B!(
     B .= results.linearrationalexpectations.g1_2
 end
 
+struct StochSimulWs
+    compressed_jacobian::Matrix{Float64}
+    dynamic_variables::Vector{Float64}
+    dynamicws::DynamicWs
+    function StochSimulWs(context, order)
+        m = context.models[1]
+        ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both + m.exogenous_nbr
+        tmp_nbr = m.dynamic_tmp_nbr
+        compressed_jacobian = zeros(m.endogenous_nbr, ncol)
+        dynamic_variables = Vector{Float64}(undef, 3*m.endogenous_nbr)
+        dynamicws = DynamicWs(context, order=order)
+        new(compressed_jacobian, dynamic_variables, dynamicws)
+    end
+end
+
 function stoch_simul!(context::Context, field::Dict{String,Any})
     options = StochSimulOptions(field["options"])
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
-    ws = DynamicWs(context, order=options.order)
+    ws = StochSimulWs(context, order=options.order)
     stoch_simul_core!(context, ws, options)
 end
 
@@ -422,10 +437,7 @@ function localapproximation!(; context::Context = context,
                              )
     options = StochSimulOptions(display, dr_algo, first_period, irf, LRE_options, nar, 
         nonstationary, order, periods)
-    m = context.models[1]
-    ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
-    tmp_nbr = m.dynamic_tmp_nbr
-    ws = DynamicWs(context, order=options.order)
+    ws = StochSimulWs(context, order=options.order)
     @show options.order
     stoch_simul_core!(context, ws, options)
 end
@@ -553,7 +565,7 @@ function compute_stoch_simul!(
         steadystate = context.results.model_results[1].trends.endogenous_steady_state
         values = zeros(size(model.dynamic_g2_sparse_indices, 1))
         get_dynamic_derivatives2!(
-            ws,
+            dynamicws,
             params,
             endogenous3,
             exogenous,
@@ -571,17 +583,17 @@ function compute_stoch_simul!(
         n = 3*m.endogenous_nbr + m.exogenous_nbr
         nc = m.n_bkwrd + 2*m.n_both + m.n_current + m.n_fwrd + m.exogenous_nbr
         F1 = zeros(m.endogenous_nbr, nc)
-        @views F1 .= ws.derivatives[1][:, k]
+        @views F1 .= dynamicws.derivatives[1][:, k]
         kk = vec(reshape(1:n*n, n, n)[k, k])
 
-        sp = ws.derivatives[2]
-        F2 = Matrix(ws.derivatives[2])[:, kk]
+        sp = dynamicws.derivatives[2]
+        F2 = Matrix(sp)[:, kk]
         F = [F1, F2]
         G = Vector{Matrix{Float64}}(undef, 0)
         push!(G, context.results.model_results[1].linearrationalexpectations.g1)
         push!(G, zeros(model.endogenous_nbr,
                        (model.n_states + model.exogenous_nbr + 1)^2))
-        ws = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
+        korderws = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
                                           model.n_fwrd + model.n_both,
                                           model.n_states,
                                           model.n_current,
@@ -596,7 +608,7 @@ function compute_stoch_simul!(
                                               F,
                                               moments,
                                               order,
-                                              ws)
+                                              korderws)
         copy!(results.solution_derivatives, G)
     end
                    
@@ -639,7 +651,7 @@ function compute_first_order_solution!(
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
     jacobian = get_dynamic_jacobian!(
-        ws,
+        ws.dynamicws,
         params,
         endogenous,
         exogenous,
@@ -649,8 +661,7 @@ function compute_first_order_solution!(
     )
     set_compressed_jacobian!(css_ws.compressed_jacobian, jacobian, context)
 
-    LRE.first_order_solver!(LRE_results, css_ws.compressed_jacobian, options.LRE_options,
-                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
+    LRE.first_order_solver!(LRE_results, css_ws.compressed_jacobian, options.LRE_options,                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
     if variance_decomposition
         compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
     end
