@@ -1131,6 +1131,4 @@ of the page displays a centered table:
     rep.write();
     rep.compile();
 
-Once compiled, the report looks like:
 
-![image](_static/report.png)

@@ -9887,23 +9887,6 @@ packages. Requires the following LaTeX packages: `breqn`, `psfrag`,
     to MATLAB or Octave. Those constructions are not addresses in this
     section.
 
-[^3]: In particular, for big models, the compilation step can be very
-    time-consuming, and use of this option may be counter-productive in
-    those cases.
-
-[^4]: See options `conf_sig <confsig>`{.interpreted-text role="ref"} and
-    `mh_conf_sig <mh_conf_sig = DOUBLE>`{.interpreted-text role="opt"}
-    to change the size of the HPD interval.
-
-[^5]: See options `conf_sig <confsig>`{.interpreted-text role="ref"} ()
-    and `mh_conf_sig <mh_conf_sig = DOUBLE>`{.interpreted-text
-    role="opt"} to change the size of the HPD interval.
-
-[^6]: When the shocks are correlated, it is the decomposition of
-    orthogonalized shocks via Cholesky decomposition according to the
-    order of declaration of shocks (see `var-decl`{.interpreted-text
-    role="ref"})
-
 [^7]: See `forecast <forecast = INTEGER>`{.interpreted-text role="opt"}
     for more information.
 
@@ -9915,14 +9898,3 @@ packages. Requires the following LaTeX packages: `breqn`, `psfrag`,
     <https://mathworks.com/matlabcentral/fileexchange/38591-xlwrite--generate-xls-x--files-without-excel-on-mac-linux-win>
     may be helpful.
 
-[^10]: See option `conf_sig <confsig>`{.interpreted-text role="ref"} to
-    change the size of the HPD interval.
-
-[^11]: See option `conf_sig <confsig>`{.interpreted-text role="ref"} to
-    change the size of the HPD interval.
-
-[^12]: If you want to align the paper with the description herein,
-    please note that $A$ is $A^0$ and $F$ is $A^+$.
-
-[^13]: An example can be found at
-    <https://git.dynare.org/Dynare/dynare/blob/master/tests/ms-dsge/test_ms_dsge.mod>.

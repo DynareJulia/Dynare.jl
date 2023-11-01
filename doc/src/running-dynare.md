@@ -31,7 +31,7 @@ name of the `.mod` file or in the first line of the `.mod` file itself
 (see below).
 
 Dynare begins by launching the preprocessor on the `.mod file`. By
-default (unless the [use_dll](@ref) option has been given to `model`), the 
+default (unless the use_dll @ref "use_dll") option has been given to `model`), the 
 preprocessor creates three intermediary files:
 
    -   `+FILENAME/driver.m`
@@ -42,7 +42,7 @@ preprocessor creates three intermediary files:
 
         Contains the dynamic model equations. Note that Dynare might
         introduce auxiliary equations and variables (see
-        [Auxiliary variable](@ref)). Outputs are the
+        auxiliary variable (@ref "Auxiliary variable")). Outputs are the
         residuals of the dynamic model equations in the order the
         equations were declared and the Jacobian of the dynamic model
         equations. For higher order approximations also the Hessian and
@@ -66,7 +66,7 @@ preprocessor creates three intermediary files:
 
         Contains the long run static model equations. Note that Dynare
         might introduce auxiliary equations and variables (see
-        [Auxiliary variables](@ref)). Outputs are the
+        (@ref "Auxiliary variable")). Outputs are the
         residuals of the static model equations in the order the>
         equations were declared and the Jacobian of the static
         equations. Entry `(i,j)` of the Jacobian represents the
@@ -144,9 +144,9 @@ under Octave, it also means that the `.mod` file cannot be named
 - `savemacro\[=FILENAME\]`
 
   Instructs Dynare to save the intermediary file which is obtained
-  after macro processing (see [Macro processing language](@ref)); the 
+  after macro processing (see (@ref "Macro processing language")); the 
   saved output will go in the file specified, or if no file is specified 
-  in `FILENAME-macroexp.mod`. See the [note on quotes](@ref) for info on 
+  in `FILENAME-macroexp.mod`. See the (@ref "note on quotes") for info on 
   passing a `FILENAME` argument containing spaces.
 
 - `onlymacro`
@@ -187,8 +187,8 @@ under Octave, it also means that the `.mod` file cannot be named
 
 - `params\_derivs\_order=02`
 
-  When [identification](@ref),[dynare_sensitivity](@ref) (with
-  identification), or [estimation_cmd](@ref) are present, this option 
+  When (@ref "identification"), (@ref "dynare_sensitivity") (with
+  identification), or (@ref "estimation_cmd") are present, this option 
   is used to limit the order of the derivatives with respect to the 
   parameters that are calculated by the preprocessor. 0 means no derivatives, 
   1 means first derivatives, and 2 means second derivatives. Default: 2
@@ -255,9 +255,9 @@ under Octave, it also means that the `.mod` file cannot be named
 - `warn\_uninit`
  
   Display a warning for each variable or parameter which is not
-  initialized. See [Parameter initilization](@ref), or
-  [load_params_and_steady_state](@ref) for initialization of parameters. 
-  See [Initial and Terminal conditions](@ref), or [load_params_and_steady_state](@ref)
+  initialized. See (@ref "Parameter initialization"), or
+  (@ref "load_params_and_steady_state") for initialization of parameters. 
+  See (@ref "Initial and Terminal conditions"), or (@ref "load_params_and_steady_state")
   for initialization of endogenous and exogenous variables.
 
 - `console`
@@ -267,74 +267,24 @@ under Octave, it also means that the `.mod` file cannot be named
 
 - `nograph`
 
-  Activate the `nograph` option (see [nograph](@ref)), so that 
+  Activate the `nograph` option (see (@ref "graph")), so that 
   Dynare will not produce any graph.
 
 - `nointeractive`
 
   Instructs Dynare to not request user input.
 
-- `nopathchange`
-
-  By default Dynare will change MATLAB/Octave's path if `dynare/matlab`
-  directory is not on top and if Dynare's routines are overriden by
-  routines provided in other toolboxes. If one wishes to override
-  Dynare's routines, the `nopathchange` options can be used.
-  Alternatively, the path can be temporarly modified by the user at the
-  top of the `.mod` file (using MATLAB/Octave's `addpath` command).
-
 - `nopreprocessoroutput`
 
   Prevent Dynare from printing the output of the steps leading up to the
   preprocessor as well as the preprocessor output itself.
 
-- `mexext=mex|mexw32|mexw64|mexmaci64|mexa64`
-
-  The mex extension associated with your platform to be used when
-  compiling output associated with [use_dll](@ref). Dynare is able to set 
-  this automatically, so you should not need to set it yourself.
-
-- `matlabroot=\<\<path\>\>`
-
-  The path to the MATLAB installation for use with
-  `use_dll`{.interpreted-text role="opt"}. Dynare is able to set this
-  automatically, so you should not need to set it yourself. See the
-  [note on quotes](@ref) for info on passing a `<<path>>` argument 
-  containing spaces.
-
-- `parallel\[=CLUSTER\_NAME\]`
-
-  Tells Dynare to perform computations in parallel. If CLUSTER\_NAME is
-  passed, Dynare will use the specified cluster to perform parallel
-  computations. Otherwise, Dynare will use the first cluster specified
-  in the configuration file. See [The configuration file](@ref), for more 
-  information about the configuration file.
-
-- `conffile=FILENAME`
-
-  Specifies the location of the configuration file if it differs from
-  the default. See [The configuration file](@ref), for more
-  information about the configuration file and its default location. See
-  the [note on quotes](@ref) for info on passing
-  a `FILENAME` argument containing spaces.
-
-- `parallel\_follower\_open\_mode`
-
-  Instructs Dynare to leave the connection to the follower node open
-  after computation is complete, closing this connection only when
-  Dynare finishes processing.
-
-- `parallel\_test`
-
-  Tests the parallel setup specified in the configuration file without
-  executing the `.mod` file. See [The configuration file](@ref), for 
-  more information about the configuration file.
 
 - `-DMACRO\_VARIABLE\[=MACRO\_EXPRESSION\]`
 
   Defines a macro-variable from the command line (the same effect as
   using the Macro directive `@#define` in a model file, see
-  [Macro processing language](@ref)). See the [note on quotes](@ref) for 
+  (@ref "Macro processing language")). See the (@ref "note on quotes") for 
   info on passing a `MACRO_EXPRESSION` argument containing spaces. Note 
   that an expression passed on the command line can reference variables 
   defined before it. If `MACRO_EXPRESSION` is omitted, the variable is assigned
@@ -355,7 +305,7 @@ under Octave, it also means that the `.mod` file cannot be named
   passed on the command line. The paths will be searched in the order
   that the `-I` flags are passed and the first matching file will be
   used. The flags passed here take priority over those passed to
-  `@#includepath`. See the [note on quotes](@ref) for info on
+  `@#includepath`. See the (@ref  "note on quotes") for info on
   passing a `<<path>>` argument containing spaces.
 
 - `nostrict`
@@ -473,14 +423,14 @@ under Octave, it also means that the `.mod` file cannot be named
   is specified in the same way as the argument to `exclude_eqs
   <exclude_eqs>`{.interpreted-text role="ref"}. The functionality of
   `include_eqs` is to find which equations to exclude then take actions
-  in accord with [exclude_eqs](@ref).
+  in accord with (@ref "exclude_eqs").
 
 - `use\_dll`
 
   Instructs the preprocessor to create dynamic loadable libraries (DLL)
   containing the model equations and derivatives, instead of writing
   those in M-files. This is equivalent to the
-  [use_dll](@ref) option of the `model` block.
+  (@ref "use_dll") option of the `model` block.
 
 - `nocommutativity`
  
