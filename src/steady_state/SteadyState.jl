@@ -388,7 +388,7 @@ function solve_ramsey_steady_state!(context::Context, x0::AbstractVector{Float64
         @debug "Steady state computation failed"
         throw(DynareSteadyStateComputationFailed())
     else
-        result = Optim.optimize(f!, x00, LBFGS(), Optim.Optoptimizeions(f_tol=1e-6))
+        result = Optim.optimize(f!, x00, LBFGS(), Optim.Options(f_tol=1e-6))
         if Optim.converged(result) && abs(Optim.minimum(result)) < tolf
             view(endogenous, unknown_variable_indices) .= Optim.minimizer(result)
             context.modfileinfo.has_auxiliary_variables &&
