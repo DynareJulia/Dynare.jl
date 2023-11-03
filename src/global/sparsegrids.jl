@@ -61,6 +61,7 @@ function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, grid
 end
 
 # TODO insure that guess is in variable domain
+#=
 function policy_guess(context, aNum, nPols, aPoints, i_polv, i_state)
     results = context.results.model_results[1]
     model = context.models[1]
@@ -81,7 +82,6 @@ function policy_guess(context, aNum, nPols, aPoints, i_polv, i_state)
     return polGuess
 end
 
-#=
 function  ARC_zero(lamb, gridPt, delta, t, gamma, kappa, phi, A, F)
     
     res = 0.0
@@ -102,6 +102,32 @@ function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
     return polGuess
 end
 =#
+
+function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, i_state, system_variables)
+    endogenous[i_state] .= state
+    function f(x)
+        endogenous[system_variables] .= x
+        endogenous[system_variables .+ endogenous_nbr] .= x
+        system_block(residuals, endogenous, exogenous, parameters, steady_state)
+        return residuals
+    end
+    return f
+end
+
+function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, system_variables)
+    guess_values = zeros(aNum, nPols) 
+    x = zeros(nPols)
+    residuals = similar(x)
+    for i in axes(aPoints, 1)
+        @views state = aPoints[i, :]
+        f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystae, i_state, system_variables)
+        result = nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
+        @views guess_values[i, :] .= res.zero
+    end
+    return guess_values
+end
+    
+              
 
 """
 Evaluates residual of forward looking equations for each integration node
@@ -323,6 +349,7 @@ function sparsegridapproximation(; context::Context=context,
                                  
     model = context.models[1]
     states, predetermined_variables, system_variables = make_block_functions(context)
+    
     equation_xref_list, variable_xred_list = xref_lists(context)
 
     params = context.work.params
@@ -354,20 +381,16 @@ function sparsegridapproximation(; context::Context=context,
     # Scale correction in the refinement process:
     isnothing(scaleCorr) && (scaleCorr = zeros(nPols))
     #=
+    TO BE DONE
     # We only let the capital policies of each country determine the addition of grid points
     scaleCorr = zeros(nPols)
     scaleCorr[1:nCountries] .= 1
     =#
     
-    #=
-    gamma = params[1:3:6]
-    t = params[3:3:6]
-    
-
-#    polGuess = policy_guess(context, aNum, nPols, aPoints, [1, 3, 5], model.i_bkwrd_b)    
-    polGuess = policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
+    polGuess = policy_guess(context, aNum, nPols, aPoints, system_variables, i_state)
+    @show polGuess
     Tasmanian.loadNeededPoints!(grid0, polGuess)
-
+#=
 #    steadystate = context.results.model_results[1].trends.endogenous_steady_state
 
     state = zeros(4)
