@@ -81,7 +81,6 @@ end
 function is_block_normalized(b, matching, endogenous_nbr, eq_offset)
     f = Dynare.DFunctions.SparseDynamicResid!
     for eq_no in b
-        @show f.body.args[eq_offset].args[3]
         eq = f.body.args[eq_offset].args[3].args[2*eq_no]
         k = endogenous_nbr + matching[eq_no]
         e = Expr(:ref, :y, k) 
@@ -154,9 +153,22 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
     return (sort!(predetermined_variables), sort!(system_equations))
 end
 
-function make_function(fname, expressions)
+function make_assignment_function(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
+                  Expr(:(::), Symbol(:y), Vector{Float64}),
+                  Expr(:(::), Symbol(:x), Vector{Float64}),
+                  Expr(:(::), Symbol(:params), Vector{Float64}),
+                  Expr(:(::), Symbol(:steadystate), Vector{Float64})
+                  )
+    f_body = Expr(:block, expressions...)
+    return @RuntimeGeneratedFunction(Expr(:function, f_call, f_body))
+end
+
+function make_system_function(fname, expressions)
+    f_call = Expr(:call,
+                  Symbol(fname),
+                  Expr(:(::), Symbol(:residuals), Vector{Float64}),
                   Expr(:(::), Symbol(:y), Vector{Float64}),
                   Expr(:(::), Symbol(:x), Vector{Float64}),
                   Expr(:(::), Symbol(:params), Vector{Float64}),
@@ -207,9 +219,9 @@ function make_block_functions(context)
                                     matching,
                                     context)
     
-    global forward_block = make_function(:forward_block, forward_expressions)
-    global preamble_block = make_function(:preamble_block, preamble_expressions)
-    global system_block = make_function(:system_block, system_expressions)
+    global forward_block = make_system_function(:forward_block, forward_expressions)
+    global preamble_block = make_assignment_function(:preamble_block, preamble_expressions)
+    global system_block = make_system_function(:system_block, system_expressions)
 
     equation_xref_list, variable_xref_list = xref_lists(context)
     states = get_state_variables(predetermined_variables,
