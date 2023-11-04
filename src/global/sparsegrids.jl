@@ -103,32 +103,36 @@ function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
 end
 =#
 
-function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, i_state, system_variables)
+function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, i_state, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     endogenous[i_state] .= state
+    res1 = zeros(other_equations_nbr)
+    res2 = zeros(forward_equations_nbr)
     function f(x)
         endogenous[system_variables] .= x
         endogenous[system_variables .+ endogenous_nbr] .= x
-        system_block(residuals, endogenous, exogenous, parameters, steady_state)
+        other_block(res1, endogenous, exogenous, parameters, steadystate)
+        forward_block(res2, endogenous, exogenous, parameters, steadystate)
+        residuals[1:other_equations_nbr] .= res1
+        residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
     end
     return f
 end
 
-function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, system_variables)
-    guess_values = zeros(aNum, nPols) 
-    x = zeros(nPols)
+function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_index, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    n =  length(system_variables)
+    guess_values = zeros(aNum, n) 
+    x = copy(view(steadystate, system_variables .- endogenous_nbr))
     residuals = similar(x)
     for i in axes(aPoints, 1)
         @views state = aPoints[i, :]
-        f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystae, i_state, system_variables)
-        result = nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
-        @views guess_values[i, :] .= res.zero
+        f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_index, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+        result = Dynare.nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
+        @views guess_values[i, :] .= result.zero
     end
     return guess_values
 end
     
-              
-
 """
 Evaluates residual of forward looking equations for each integration node
 """
@@ -348,12 +352,13 @@ function sparsegridapproximation(; context::Context=context,
                                  )
                                  
     model = context.models[1]
-    states, predetermined_variables, system_variables = make_block_functions(context)
+    work = context.work
+    state_variables, predetermined_variables, system_variables, forward_equations_nbr, other_equations_nbr = make_block_functions(context)
     
     equation_xref_list, variable_xred_list = xref_lists(context)
 
     params = context.work.params
-    nstates = length(states)
+    nstates = length(state_variables)
 
     model = context.models[1]
 
@@ -365,7 +370,7 @@ function sparsegridapproximation(; context::Context=context,
     endogenous_nbr = model.endogenous_nbr
     endogenous_variables = Dynare.get_endogenous(context.symboltable)
     for i in 1:nl
-        k = states[i]
+        k = state_variables[i]
         k > endogenous_nbr && (k -= endogenous_nbr)
         vname = Symbol(endogenous_variables[k])
         gridDomain[i,1] = limits[vname].max
@@ -386,10 +391,16 @@ function sparsegridapproximation(; context::Context=context,
     scaleCorr = zeros(nPols)
     scaleCorr[1:nCountries] .= 1
     =#
-    
-    polGuess = policy_guess(context, aNum, nPols, aPoints, system_variables, i_state)
-    @show polGuess
+
+    endogenous = zeros(3*endogenous_nbr)
+    exogenous_nbr = model.exogenous_nbr
+    exogenous = zeros(exogenous_nbr)
+    parameters = work.params
+    # unused, place holder
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     Tasmanian.loadNeededPoints!(grid0, polGuess)
+    @show grid0
 #=
 #    steadystate = context.results.model_results[1].trends.endogenous_steady_state
 
