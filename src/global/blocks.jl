@@ -140,11 +140,11 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
                 eq = f.body.args[eq_offset].args[3].args[2*eq_no]
                 if contains_forwardvariable(eq.args[2], 2*endogenous_nbr)
                     # residuals[k1] = eq.args[2]
-                    push!(forward_expressions, Expr(:(=), :(:ref, :residuals, $k1), eq.args[2]))
+                    push!(forward_expressions, Expr(:(=), :(residuals[$k1]), eq.args[2]))
                     k1 += 1
                 else
                     # residuals[k2] = eq.args[2]
-                    push!(system_expressions, Expr(:(=), :(:ref, :residuals, $k2), eq.args[2]))
+                    push!(system_expressions, Expr(:(=), :(residuals[$k2]), eq.args[2]))
                     k2 += 1
                 end
             end
@@ -209,20 +209,23 @@ function make_block_functions(context)
     
     forward_expressions = Expr[]
     preamble_expressions = Expr[]
-    system_expressions = Expr[]
+    other_expressions = Expr[]
     
     (predetermined_variables, system_equations) =
         analyze_SparseDynamicResid!(forward_expressions,
                                     preamble_expressions,
-                                    system_expressions, 
+                                    other_expressions, 
                                     rb,
                                     matching,
                                     context)
-    
+    forward_equations_nbr = length(forward_expressions)
+    other_equations_nbr = length(other_expressions)
+
     global forward_block = make_system_function(:forward_block, forward_expressions)
     global preamble_block = make_assignment_function(:preamble_block, preamble_expressions)
-    global system_block = make_system_function(:system_block, system_expressions)
-
+    global other_block = make_system_function(:system_block, other_expressions)
+    
+    
     equation_xref_list, variable_xref_list = xref_lists(context)
     states = get_state_variables(predetermined_variables,
                                  system_equations,
@@ -234,7 +237,7 @@ function make_block_functions(context)
     @show states
     @show predetermined_variables
     @show system_variables
-    return states, predetermined_variables, system_variables
+    return states, predetermined_variables, system_variables, forward_equations_nbr, other_equations_nbr
 end
 
 """
