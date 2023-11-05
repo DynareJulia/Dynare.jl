@@ -1,6 +1,80 @@
 using AxisArrayTables
 using ExtendedDates
 
+function data!(datafile::AbstractString;
+    context::Context = context,
+    variables::Vector{<:Union{String,Symbol}} = [],
+    start::PeriodsSinceEpoch = Undated(typemin(Int)),
+    last::PeriodsSinceEpoch = Undated(typemin(Int)),
+    nobs::Integer = 0,
+)
+    @assert  start == Undated(typemin(Int)) || last == Undated(typemin(Int)) || nobs == 0 "error in data!(): nobs, first  and last can't be used together"
+    aat = MyAxisArrayTable(datafile)
+    Ta = typeof(row_labels(aat)[1])
+    T = Ta.parameters[1]
+    Ts = typeof(start)
+    Tl = typeof(last)
+    ny = length(variables)
+    if typeof(start) != Int || start > typemin(Int)
+        # start option is used
+        @assert Ts == Ta "error in data!(): start must have the same frequency as the datafile"
+        startperiod = start
+        if typeof(last) != Int || last > typemin(Int)
+            # start option and last option are used
+            @assert Ts == Ta "error in data!(): last must have the same frequency as the datafile"
+            lastperiod = last
+        end 
+    elseif typeof(last) != Int || last > typemin(Int)
+        # start option isn't used but last option is used
+        @assert Tl == Ta "error in data!(): last must have the same frequency as the datafile"
+        lastperiod = last
+        if nobs > 0
+            startperiod = last - T(nobs) + T(1)
+        else
+            startperiod = row_labels(aat)[1]
+        end
+    else
+        # neither start option nor last option are used
+        startperiod = row_labels(aat)[1]
+        if nobs > 0
+            lastperiod = start + T(nobs) - T(1)
+        else
+            lastperiod = row_labels(aat)[end]
+        end
+    end
+    if length(variables) == 0
+        context.work.data = copy(aat[startperiod:lastperiod, :])
+    else
+        context.work.data = copy(aat[startperiod:lastperiod, Symbol.(variables)])
+    end 
+    return context.work.data
+end
+
+function get_data!(context::Context,
+                   datafile::String,
+                   data::AxisArrayTable,
+                   variables::Vector{<:Union{String, Symbol}},
+                   first_obs::PeriodsSinceEpoch,
+                   last_obs::PeriodsSinceEpoch,
+                   nobs::Int
+                   )
+    @assert isempty(datafile) || isempty(data) "datafile and data can't be used at the same time"
+    
+    if !isempty(datafile)
+        data!(datafile, 
+              context = context,
+              variables = variables,
+              start = first_obs,
+              last = last_obs,
+              nobs = nobs)
+    elseif !isempty(data)
+        context.work.data = copy(data(first_obs:last_obs, Symbol.(variables)))
+    else
+        error("needs datafile or data argument")
+    end
+    return context.work.data
+end 
+
 function find_letter_in_period(period::AbstractString)
     for c in period
         if 'A' <= c <= 'z'
@@ -11,9 +85,14 @@ function find_letter_in_period(period::AbstractString)
 end
 
 function identify_period_type(period::Union{AbstractString, Number})
+    @show typeof(period)
     if typeof(period) <: Number
         if isinteger(period)
-            return Undated
+            if period == 1
+                return Undated
+            else
+                return YearSE
+            end
         else
             throw(ErrorException)
         end
@@ -58,8 +137,13 @@ end
 
 function periodparse(period::Union{AbstractString, Number})::ExtendedDates.PeriodsSinceEpoch
     period_type = identify_period_type(period)
+    @show period_type
     if period_type == YearSE
-        return parse(period_type, period)
+        if typeof(period) <: Number
+            return(YearSE(Int(period)))
+        else
+            return parse(period_type, period)
+        end
     elseif period_type == SemesterSE
         return parse(period_type, period)
     elseif period_type == QuarterSE
@@ -71,7 +155,7 @@ function periodparse(period::Union{AbstractString, Number})::ExtendedDates.Perio
     elseif period_type == DaySE
         return parse(period_type, period)
     elseif period_type == Undated
-        return Int(period)
+        return Undated(period)
     else
         throw(ErrorException)
     end
@@ -86,6 +170,7 @@ function MyAxisArrayTable(filename)
             rows = []
             foreach(x -> push!(rows, periodparse(x)), data[:, icol])
             k = union(1:icol-1, icol+1:size(data,2))
+            @show rows
             aat = AxisArrayTable(data[:, k], rows, cols[k])
             return aat
         end
@@ -104,28 +189,4 @@ function is_continuous(periods::Vector{ExtendedDates.DatePeriod})
             i += 1
         end
     end
-end
-
-function get_data(
-    filename::String,
-    variables::Vector{String};
-    start::Integer = 1,
-    last::Integer = 0,
-    nobs::Integer = 0,
-)
-    aat = MyAxisArrayTable(filename)
-    ny = length(variables)
-    if last == 0
-        if nobs > 0
-            last = start + nobs - 1
-        else
-            last = size(aat, 1) - start + 1
-        end
-    end
-    nobs = last - start + 1
-    Y = Matrix{Union{Missing,Float64}}(undef, ny, nobs)
-    for (i, v) in enumerate(variables)
-        Y[i, :] .= Matrix(aat[:, Symbol(v)])[start:last]
-    end
-    return Y
 end
