@@ -1,6 +1,8 @@
 module Dynare
 
-using ExtendedDates
+using Reexport
+@reexport using ExtendedDates
+
 using Logging
 using Printf
 
