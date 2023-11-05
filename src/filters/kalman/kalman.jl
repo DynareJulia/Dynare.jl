@@ -43,12 +43,14 @@ Compute the smoothed values of the variables for an estimated model
 - `first_obs::PeriodSinceEpoch`: first period used by smoother
                                  (default: first observation in the file)  
 - `last_obs::PeriodSinceEpoch`: last period used by smoother
-                               (default: last observation in the file)
+                               (default: last observation in the file)data
 """
 function calibsmoother!(; context=context,
                         datafile = "",
-                        first_obs = 1,
-                        last_obs = 0
+                        data::AxisArrayTable = AxisArrayTable([;;], Undated[], Symbol[]),
+                        first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                        last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                        nobs::Int = 0
                         )
     symboltable = context.symboltable
     varobs = context.work.observed_variables
@@ -60,24 +62,18 @@ function calibsmoother!(; context=context,
     model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
-    if (filename = datafile) != ""
-        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig =
-            get_data(filename, varnames, start = first_obs, last = last_obs)
-    else
-        error("calib_smoother needs a data file or a TimeDataFrame!")
-    end
-    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
+    Yorig = get_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    periods = row_labels(Yorig)
+    Y = transpose(Yorig)
     steadystate = results.trends.endogenous_steady_state
     if has_trends
         remove_linear_trend!(
             Y,
-            Yorig,
             steadystate[varobs_ids],
             results.trends.endogenous_linear_trend[varobs_ids],
         )
     else
-        Y .= Yorig .- steadystate[varobs_ids]
+        Y .-= steadystate[varobs_ids]
     end
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
@@ -245,13 +241,14 @@ function calibsmoother!(; context=context,
         filter .+= steadystate
         smoother .+= steadystate
     end
-    @show size(smoother)
-    @show size(etah)
+    lastperiod = periods[end]
+    T = typeof(lastperiod)
+    periods1 = vcat(periods, T(lastperiod.periods.value + 1))
     results.filter = AxisArrayTable(transpose(filter), 
-                                    Undated(1):Undated(nobs+1), 
+                                    periods1, 
                                     endo_symb)
     results.smoother = AxisArrayTable(transpose(vcat(smoother, etah)), 
-                                      Undated(1):Undated(nobs), 
+                                      periods, 
                                       vcat(endo_symb, exo_symb))
     return nothing
 end
