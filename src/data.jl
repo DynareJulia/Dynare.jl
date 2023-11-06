@@ -75,6 +75,44 @@ function get_data!(context::Context,
     return context.work.data
 end 
 
+function get_detrended_data(context::Context,
+    datafile::String,
+    data::AxisArrayTable,
+    variables::Vector{<:Union{String, Symbol}},
+    first_obs::PeriodsSinceEpoch,
+    last_obs::PeriodsSinceEpoch,
+    nobs::Int
+    )
+
+    trends = context.results.model_results[1].trends
+
+    get_data!(context,
+    datafile,
+    data,
+    variables,
+    first_obs,
+    last_obs,
+    nobs
+    )
+    aat = copy(context.work.data)
+    if context.modfileinfo.has_trends
+        if !isempty(trends.endogenous_quadratic_trend)
+            remove_quadratic_trend!(aat, 
+            adjoint(trends.endogenous_steady_state), 
+            adjoint(trends.endogenous_linear_trend), 
+            adjoint(trends.endogenous_quadratic_trend)
+            )
+        else
+            remove_linear_trend!(aat, 
+            adjoint(trends.endogenous_steady_state), 
+            adjoint(trends.endogenous_linear_trend), 
+            )
+        end
+    else
+        aat .-= adjoint(trends.endogenous_steady_state)
+    end
+    return aat
+end 
 function find_letter_in_period(period::AbstractString)
     for c in period
         if 'A' <= c <= 'z'

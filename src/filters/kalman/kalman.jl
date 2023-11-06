@@ -62,6 +62,7 @@ function calibsmoother!(; context=context,
     model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
+    #=
     Yorig = get_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
     periods = row_labels(Yorig)
     Y = transpose(Yorig)
@@ -75,11 +76,14 @@ function calibsmoother!(; context=context,
     else
         Y .-= steadystate[varobs_ids]
     end
+    =#
+    Y = get_detrended_data(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    periods = row_labels(Y)
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)
     np = model.exogenous_nbr
-    ny, nobs = size(Y)
+    nobs, ny = size(Y)
     c = zeros(ny)
     k1 = findall(in(varobs_ids), kalman_statevar_ids)
     k2 = findall(in(statevar_ids), kalman_statevar_ids)
@@ -124,8 +128,10 @@ function calibsmoother!(; context=context,
     last = nobs
     presample = 0
     data_pattern = Vector{Vector{Int64}}(undef, 0)
+    Yt = adjoint(Y)
     for i = 1:nobs
-        push!(data_pattern, findall(.!ismissing.(Y[:, i])))
+        @show findall(.!ismissing(Yt[:, i]))
+        push!(data_pattern, findall(.!ismissing.(Yt[:, i])))
     end
 
     if count(lre_results.stationary_variables) == model.endogenous_nbr

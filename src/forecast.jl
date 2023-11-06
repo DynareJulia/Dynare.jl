@@ -24,14 +24,24 @@ computes an unconditional forecast of the variables of the model
 function forecasting!(; periods::Integer,
                       forecast_mode::ForecastModes,
                       context::Context=context,
+                      data::AxisArrayTable=AxisArrayTable([;;], PeriodsSinceEpoch, Symbol[]),
                       datafile::String="",
-                      first_obs::PeriodsSinceEpoch=Undated(1),
-                      last_obs::PeriodsSinceEpoch=Undated(0),
+                      first_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
+                      last_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
+                      nobs::Int,
                       first_period::PeriodsSinceEpoch=Undated(0),
                       order::Integer=1)
     results = context.results.model_results[1]
-    Y = forecasting_(; periods, forecast_mode, context=context, datafile=datafile, 
-                       first_obs=first_obs, last_obs=last_obs, order=order)
+    Y = forecasting_(periods = periods, 
+                    forecast_mode = forecast_mode, 
+                    context = context, 
+                    data = data, 
+                    datafile = datafile, 
+                    first_obs=first_obs,
+                    last_obs=last_obs,
+                    nobs = nobs, 
+                    first_period = first_period, 
+                    order=order)
     if (forecast_mode == calibsmoother) && first_period == 0
         first_period = size(results.smoother, 1)
     end                     
@@ -41,7 +51,16 @@ function forecasting!(; periods::Integer,
     return results.forecast
 end
 
-function forecasting_(; periods, forecast_mode::ForecastModes, context=context, datafile="", first_obs=1, last_obs=0, first_period = 0, order=1)
+function forecasting_(; periods, 
+    forecast_mode::ForecastModes, 
+    context=context,
+    data = AxisArrayTable([;;], PeriodsSinceEpoch[], Symbol[]), 
+    datafile = "", 
+    first_obs::PeriodsSinceEpoch = Undated(typemin(Int)), 
+    last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+    nobs::Int = nobs, 
+    first_period = 0, 
+    order = 1)
     model = context.models[1]
     nendo = model.endogenous_nbr
     nexo = model.exogenous_nbr
@@ -62,7 +81,7 @@ function forecasting_(; periods, forecast_mode::ForecastModes, context=context, 
                 !ismissing(v) && (y0[i] = v)
             end
         elseif forecast_mode == calibsmoother
-            calibsmoother!(context=context, datafile=datafile, first_obs=first_obs, last_obs=last_obs)
+            calibsmoother!(context=context, data = data, datafile=datafile, first_obs=first_obs, last_obs=last_obs, nobs = 0)
             @views y0 = Vector(results.smoother[end, :])
         end 
         
