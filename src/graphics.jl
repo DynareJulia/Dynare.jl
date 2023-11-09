@@ -366,7 +366,7 @@ plots recursive forecasts for a given variable
 - `context::Context=context`: context in which the forecast is computed
 - `title`: plot title
 """
-function plot_recursive_forecast(; variable, context=context, title=String(variable))
+function plot_recursive_forecast(; variable, context=context, title=String(variable), filename="")
     results = context.results.model_results[1]
     forecast = results.forecast
     initial_smoother = results.initial_smoother
@@ -378,16 +378,14 @@ function plot_recursive_forecast(; variable, context=context, title=String(varia
             x = vcat(x, row_labels(f)[1])
         end
     end  
-    xmin = 10*floor(x[1]/10)
     pl = Plots.plot(x, y,title =String(variable),label="",linewidth=2)
     for f in forecast
         x = row_labels(f)
         y = Matrix(f[:, Symbol(variable)])
         plot!(x, y, label="", linecolor=:black)
     end
-    xmax = 10*ceil(x[end]/10)
-    plot!(xtick = xmin:10:xmax)
     graph_display(pl)
+    !isempty(filename) && savefig(filename)
 end 
 
 
@@ -406,5 +404,5 @@ function plot(aat::AxisArrayTable; label = false, title = "", filename = "")
     end 
 
     graph_display(pl)
-    savefig(filename)
+    !isempty(filename) && savefig(filename)
 end
