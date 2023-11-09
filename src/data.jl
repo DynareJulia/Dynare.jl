@@ -1,3 +1,4 @@
+import AxisArrays
 using AxisArrayTables
 using ExtendedDates
 
@@ -11,7 +12,13 @@ function data!(datafile::AbstractString;
     @assert  start == Undated(typemin(Int)) || last == Undated(typemin(Int)) || nobs == 0 "error in data!(): nobs, first  and last can't be used together"
     aat = MyAxisArrayTable(datafile)
     Ta = typeof(row_labels(aat)[1])
-    T = Ta.parameters[1]
+    if Ta <: Dates.UTInstant
+        T = Ta.parameters[1]
+    elseif Ta == Int
+        T = Int
+    else
+        error("Unrecognized type")
+    end 
     Ts = typeof(start)
     Tl = typeof(last)
     ny = length(variables)
@@ -68,7 +75,9 @@ function get_data!(context::Context,
               last = last_obs,
               nobs = nobs)
     elseif !isempty(data)
-        context.work.data = copy(data(first_obs:last_obs, Symbol.(variables)))
+        first_obs == Undated(typemin(Int)) && (first_obs = row_labels(data)[1])
+        last_obs == Undated(typemin(Int)) && (last_obs = row_labels(data)[end])
+        context.work.data = copy(data[first_obs:last_obs, Symbol.(variables)])
     else
         error("needs datafile or data argument")
     end
@@ -84,7 +93,11 @@ function get_detrended_data(context::Context,
     nobs::Int
     )
 
+    endogenous_names = get_endogenous(context.symboltable)
     trends = context.results.model_results[1].trends
+    steady_state = Vector(AxisArrays.AxisArray(trends.endogenous_steady_state, endogenous_names)[variables])
+    linear_trend = Vector(AxisArrays.AxisArray(trends.endogenous_linear_trend, endogenous_names)[variables])
+    quadratic_trend = Vector(AxisArrays.AxisArray(trends.endogenous_quadratic_trend, endogenous_names)[variables])
 
     get_data!(context,
     datafile,
@@ -96,23 +109,24 @@ function get_detrended_data(context::Context,
     )
     aat = copy(context.work.data)
     if context.modfileinfo.has_trends
-        if !isempty(trends.endogenous_quadratic_trend)
+        if !isempty(quadratic_trend)
             remove_quadratic_trend!(aat, 
-            adjoint(trends.endogenous_steady_state), 
-            adjoint(trends.endogenous_linear_trend), 
-            adjoint(trends.endogenous_quadratic_trend)
+            adjoint(steady_state), 
+            adjoint(linear_trend), 
+            adjoint(quadratic_trend)
             )
         else
             remove_linear_trend!(aat, 
-            adjoint(trends.endogenous_steady_state), 
-            adjoint(trends.endogenous_linear_trend), 
+            adjoint(steady_state), 
+            adjoint(linear_trend), 
             )
         end
     else
-        aat .-= adjoint(trends.endogenous_steady_state)
+        aat .-= adjoint(steady_state)
     end
     return aat
 end 
+
 function find_letter_in_period(period::AbstractString)
     for c in period
         if 'A' <= c <= 'z'
@@ -123,7 +137,6 @@ function find_letter_in_period(period::AbstractString)
 end
 
 function identify_period_type(period::Union{AbstractString, Number})
-    @show typeof(period)
     if typeof(period) <: Number
         if isinteger(period)
             if period == 1
@@ -175,7 +188,6 @@ end
 
 function periodparse(period::Union{AbstractString, Number})::ExtendedDates.PeriodsSinceEpoch
     period_type = identify_period_type(period)
-    @show period_type
     if period_type == YearSE
         if typeof(period) <: Number
             return(YearSE(Int(period)))
@@ -208,7 +220,6 @@ function MyAxisArrayTable(filename)
             rows = []
             foreach(x -> push!(rows, periodparse(x)), data[:, icol])
             k = union(1:icol-1, icol+1:size(data,2))
-            @show rows
             aat = AxisArrayTable(data[:, k], rows, cols[k])
             return aat
         end

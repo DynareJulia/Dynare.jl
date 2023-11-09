@@ -24,11 +24,11 @@ computes an unconditional forecast of the variables of the model
 function forecasting!(; periods::Integer,
                       forecast_mode::ForecastModes,
                       context::Context=context,
-                      data::AxisArrayTable=AxisArrayTable([;;], PeriodsSinceEpoch, Symbol[]),
+                      data::AxisArrayTable=AxisArrayTable([;;], PeriodsSinceEpoch[], Symbol[]),
                       datafile::String="",
                       first_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
                       last_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
-                      nobs::Int,
+                      nobs::Int=0,
                       first_period::PeriodsSinceEpoch=Undated(0),
                       order::Integer=1)
     results = context.results.model_results[1]
@@ -58,7 +58,7 @@ function forecasting_(; periods,
     datafile = "", 
     first_obs::PeriodsSinceEpoch = Undated(typemin(Int)), 
     last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
-    nobs::Int = nobs, 
+    nobs::Int = 0, 
     first_period = 0, 
     order = 1)
     model = context.models[1]
@@ -82,7 +82,8 @@ function forecasting_(; periods,
             end
         elseif forecast_mode == calibsmoother
             calibsmoother!(context=context, data = data, datafile=datafile, first_obs=first_obs, last_obs=last_obs, nobs = 0)
-            @views y0 = Vector(results.smoother[end, :])
+            # take only endogenous variables
+            @views y0 = Vector(results.smoother[end, 1:nendo])
         end 
         
         make_A_B!(A, B, model, results)
@@ -113,23 +114,35 @@ computes an unconditional recursive forecast for one variable
 - `order::Integer`: order of local approximation
 """
 function recursive_forecasting!(; periods::Integer,
-                                first_period::PeriodsSinceEpoch, 
-                                last_period::PeriodsSinceEpoch, 
+                                first_period::PeriodsSinceEpoch=Undated(typemin(Int)), 
+                                last_period::PeriodsSinceEpoch=Undated(typemin(Int)), 
                                 context::Context=context,
-                                datafile::String="", 
-                                first_obs::PeriodsSinceEpoch=Undated(1), 
-                                last_obs::PeriodsSinceEpoch=Undated(0), 
+                                data::AxisArrayTable = AxisArrayTable([;;], PeriodsSinceEpoch[], Symbol[]),
+                                datafile::String="",
+                                variables::Vector{<:Union{Symbol, String}} = Union{Symbol, String}[], 
+                                first_obs::PeriodsSinceEpoch=Undated(typemin(Int)), 
+                                last_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
+                                nobs::Int = 0, 
                                 order::Integer=1)
     #@assert last_period <= last_obs
     results = context.results.model_results[1]
+    data_ = get_data!(context, datafile, data, variables, first_obs, last_obs, nobs)
+    first_period == Undated(typemin(Int)) && (first_period = row_labels(data_)[1]) 
+    last_period == Undated(typemin(Int)) && (last_period = row_labels(data_)[end]) 
+    T = typeof(first_period)
     empty!(results.forecast)
     for p = first_period:last_period
-        Y = forecasting_(context=context, periods=periods, forecast_mode=calibsmoother, first_obs=first_obs, last_obs=p, datafile=datafile, order=order)
+        Y = forecasting_(context=context, periods=periods, forecast_mode=calibsmoother, first_obs=first_obs, last_obs=p, data = data_, order=order)
         if p == first_period
             results.initial_smoother = copy(results.smoother)
+        end
+        if T <: Dates.UTInstant
+            p1 = T(p.periods.value + periods)
+        else
+            p1 = p + periods
         end 
         push!(results.forecast, AxisArrayTable(Y, 
-                                               Undated(p):Undated(p + periods), 
+                                               p:p1, 
                                                [Symbol(v) for v in get_endogenous(context.symboltable)]))
     end
 end

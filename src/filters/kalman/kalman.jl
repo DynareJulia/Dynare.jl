@@ -130,14 +130,13 @@ function calibsmoother!(; context=context,
     data_pattern = Vector{Vector{Int64}}(undef, 0)
     Yt = adjoint(Y)
     for i = 1:nobs
-        @show findall(.!ismissing(Yt[:, i]))
         push!(data_pattern, findall(.!ismissing.(Yt[:, i])))
     end
 
     if count(lre_results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(
-            Y,
+            Yt,
             c,
             Z,
             H,
@@ -195,7 +194,7 @@ function calibsmoother!(; context=context,
         Pinftt = zeros(ns, ns, nobs + 1)
         kws = DiffuseKalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         diffuse_kalman_smoother!(
-            Y,
+            Yt,
             c,
             tZ,
             H,
@@ -230,6 +229,7 @@ function calibsmoother!(; context=context,
     exo_symb = [Symbol(v) for v in exogenous_vars]
     smoother = copy(alphah)
     filter = copy(a0)
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
     if has_trends
         add_linear_trend!(
             filter,
@@ -249,7 +249,11 @@ function calibsmoother!(; context=context,
     end
     lastperiod = periods[end]
     T = typeof(lastperiod)
-    periods1 = vcat(periods, T(lastperiod.periods.value + 1))
+    if T <: Dates.UTInstant
+        periods1 = vcat(periods, T(lastperiod.periods.value + 1))
+    else
+        periods1 = vcat(periods, lastperiod + 1)
+    end 
     results.filter = AxisArrayTable(transpose(filter), 
                                     periods1, 
                                     endo_symb)
