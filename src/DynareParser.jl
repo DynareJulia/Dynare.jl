@@ -119,7 +119,7 @@ end
 
 function isfile_recent(filename, modfilename)
     pathname = joinpath(modfilename, "model/julia", filename)
-    return isfile(pathname) && mtime(pathname) >= mtime("$(modfilename).mod")
+    return isfile(pathname)
 end 
 
 function check_function_files!(modfileinfo::ModFileInfo, modfilename::String)
