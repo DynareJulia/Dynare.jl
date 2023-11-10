@@ -3,8 +3,7 @@
 In order to give instructions to Dynare, the user has to write a *model
 file* whose filename extension must be `.mod`. This file
 contains the description of the model and the computing tasks required
-by the user. Its contents are described in
-[The model file](@ref)
+by the user. Its contents are described in `The model file`
 
 ## Dynare invocation
 
@@ -25,109 +24,13 @@ context = @dynare "FILENAME [.mod ]" [OPTIONS... ]";
 
 This command launches Dynare and executes the instructions included in
 `FILENAME.mod`. This user-supplied file contains the model and the
-processing instructions, as described in [The model file](@ref). The 
+processing instructions, as described in `The model file`. The 
 options, listed below, can be passed on the command line, following the 
 name of the `.mod` file or in the first line of the `.mod` file itself 
 (see below).
 
-Dynare begins by launching the preprocessor on the `.mod file`. By
-default (unless the use_dll @ref "use_dll") option has been given to `model`), the 
-preprocessor creates three intermediary files:
-
-   -   `+FILENAME/driver.m`
-        
-        Contains variable declarations, and computing tasks.
-
-   -   `+FILENAME/dynamic.m`
-
-        Contains the dynamic model equations. Note that Dynare might
-        introduce auxiliary equations and variables (see
-        auxiliary variable (@ref "Auxiliary variable")). Outputs are the
-        residuals of the dynamic model equations in the order the
-        equations were declared and the Jacobian of the dynamic model
-        equations. For higher order approximations also the Hessian and
-        the third-order derivatives are provided. When computing the
-        Jacobian of the dynamic model, the order of the endogenous
-        variables in the columns is stored in `M_.lead_lag_incidence`.
-        The rows of this matrix represent time periods: the first row
-        denotes a lagged (time t-1) variable, the second row a
-        contemporaneous (time t) variable, and the third row a leaded
-        (time t+1) variable. The columns of the matrix represent the
-        endogenous variables in their order of declaration. A zero in
-        the matrix means that this endogenous does not appear in the
-        model in this time period. The value in the
-        `M_.lead_lag_incidence` matrix corresponds to the column of that
-        variable in the Jacobian of the dynamic model. Example: Let the   
-        second declared variable be `c` and the `(3,2)` entry of
-        `M_.lead_lag_incidence` be 15. Then the 15th column of the
-        Jacobian is the derivative with respect to `c(+1)`.
-
-   -   `+FILENAME/static.m`
-
-        Contains the long run static model equations. Note that Dynare
-        might introduce auxiliary equations and variables (see
-        (@ref "Auxiliary variable")). Outputs are the
-        residuals of the static model equations in the order the>
-        equations were declared and the Jacobian of the static
-        equations. Entry `(i,j)` of the Jacobian represents the
-        derivative of the ith static model equation with respect to the
-        jth model variable in declaration order.
-
-These files may be looked at to understand errors reported at the
-simulation stage.
-
-Dynare will then run the computing tasks by executing
-`+FILENAME/driver.m`. If a user needs to rerun the computing tasks
-without calling the preprocessor (or without calling the
-Dynare{.interpreted-text role="mcomm"} command), for instance
-because he has modified the script, he just have to type the following
-on the command line:
-```julia
-julia> FILENAME.driver
-```
-
-A few words of warning are warranted here: under Octave the filename
-of the `.mod` file should be chosen in such a way that the generated
-`.m` files described above do not conflict with `.m` files provided by
-Octave or by Dynare. Not respecting this rule could cause crashes or
-unexpected behaviour. In particular, it means that the `.mod` file
-cannot be given the name of an Octave or Dynare command. For instance,
-under Octave, it also means that the `.mod` file cannot be named
-`test.mod` or `example.mod`.
-
- !!! note
-
-     Note on Quotes
-     When passing command line options that contains a space (or, under
-     Octave, a double quote), you must surround the entire option (keyword
-     and argument) with single quotes, as in the following example.
-     
-     *Example*
-    
-     Call Dynare with options containing spaces
-
-     julia> dynare <<modfile.mod>> '-DA=[ i in [1,2,3] when i > 1 ]' 'conffile=C:\User\My Documents\config.txt'
-
+Dynare begins by launching the preprocessor on the `.mod file`.
 ### Options
-
-- `noclearall`
-
-  By default, Dynare will issue a `clear all` command to MATLAB
-  (\<R2015b) or Octave, thereby deleting all workspace variables and
-  functions; this option instructs Dynare not to clear the workspace.
-  Note that starting with MATLAB 2015b Dynare only deletes the global
-  variables and the functions using persistent variables, in order to
-  benefit from the JIT (Just In Time) compilation. In this case the
-  option instructs Dynare not to clear the globals and functions.
-
-
-- `onlyclearglobals`
-
-  By default, Dynare will issue a `clear all` command to MATLAB
-  versions before 2015b and to Octave, thereby deleting all workspace
-  variables; this option instructs Dynare to clear only the global
-  variables (i.e. `M_, options_, oo_, estim_params_, bayestopt_`, and
-  `dataset_`), leaving the other variables in the workspace.
 
 - `debug`
 
@@ -185,22 +88,13 @@ under Octave, it also means that the `.mod` file cannot be named
   Instructs the preprocessor to write output for MATLAB or Julia.
   Default: MATLAB
 
-- `params\_derivs\_order=02`
+- `params\_derivs\_order=0\|1\|2`
 
   When (@ref "identification"), (@ref "dynare_sensitivity") (with
   identification), or (@ref "estimation_cmd") are present, this option 
   is used to limit the order of the derivatives with respect to the 
   parameters that are calculated by the preprocessor. 0 means no derivatives, 
   1 means first derivatives, and 2 means second derivatives. Default: 2
-
-- `nowarn`
-
-  Suppresses all warnings.
-
-- `notime`
-
-  Do not print the total computing time at the end of the driver, and do
-  not save that total computing time to `oo_.time`.
 
 - `transform\_unary\_ops`
 
@@ -209,7 +103,7 @@ under Octave, it also means that the `.mod` file cannot be named
   `atan`, `cosh`, `sinh`, `tanh`, `acosh`, `asinh`, `atanh`, `sqrt`,
   `cbrt`, `abs`, `sign`, `erf`. Default: no obligatory transformation
 
-- `json = parsetransform\|compute`
+- `json = parse\|transform\|compute`
 
   Causes the preprocessor to output a version of the `.mod` file in JSON
   format to `<<M_.fname>>/model/json/`. When the JSON output is created
@@ -260,20 +154,6 @@ under Octave, it also means that the `.mod` file cannot be named
   See (@ref "Initial and Terminal conditions"), or (@ref "load_params_and_steady_state")
   for initialization of endogenous and exogenous variables.
 
-- `console`
-
-  Activate console mode. In addition to the behavior of `nodisplay`,
-  Dynare will not use graphical waitbars for long computations.
-
-- `nograph`
-
-  Activate the `nograph` option (see (@ref "graph")), so that 
-  Dynare will not produce any graph.
-
-- `nointeractive`
-
-  Instructs Dynare to not request user input.
-
 - `nopreprocessoroutput`
 
   Prevent Dynare from printing the output of the steps leading up to the
@@ -318,22 +198,6 @@ under Octave, it also means that the `.mod` file cannot be named
       it is automatically declared exogenous.
   4.  exogenous variables were declared but not used in the `model`
       block.
-
-- `fast`
-  
-  Only useful with model option `use_dll`{.interpreted-text role="opt"}.
-  Don't recompile the MEX files when running again the same model file
-  and the lists of variables and the equations haven't changed. We use a
-  32 bit checksum, stored in `<model filename>/checksum`. There is a
-  very small probability that the preprocessor misses a change in the
-  model. In case of doubt, re-run without the fast option.
-
-- `minimal\_workspace`
- 
-   Instructs Dynare not to write parameter assignments to parameter names
-   in the .m file produced by the preprocessor. This is potentially
-   useful when running Dynare on a large `.mod` file that runs into
-   workspace size limitations imposed by MATLAB.
 
 - `compute\_xrefs`
 
@@ -454,74 +318,6 @@ under Octave, it also means that the `.mod` file cannot be named
   written `json=compute`. The `nopathchange` option cannot be specified
   in this way, it must be passed on the command-line.
 
-  *Output*
- 
-  Depending on the computing tasks requested in the `.mod` file,
-  executing the Dynare command will leave variables containing results
-  in the workspace available for further processing. More details are
-  given under the relevant computing tasks. The `M_`,`oo_`, and
-  `options_` structures are saved in a file called
-  `FILENAME_results.mat` located in the `MODFILENAME/Output` folder. If
-  they exist, `estim_params_`, `bayestopt_`, `dataset_`, `oo_recursive_`
-  and `estimation_info` are saved in the same file. Note that Matlab by
-  default only allows `.mat`-files up to 2GB. You can lift this
-  restriction by enabling the `save -v7.3`-option in
-  `Preferences -> General -> MAT-Files`.
- 
-- **MATLAB/Octave variable** : **M_**
-
-  Structure containing various information about the model.
-
-- **MATLAB/Octave variable** : **options_**
-
-  Structure contains the values of the various options used by Dynare
-  during the computation.
-
-- **MATLAB/Octave variable** : **oo_**
- 
-  Structure containing the various results of the computations.
-
-- **MATLAB/Octave variable** : **dataset_**
-
-  A `dseries` object containing the data used for estimation.
-
-- **MATLAB/Octave variable** : **oo\__recursive_**
-
-  Cell array containing the `oo_` structures obtained when estimating
-  the model for the different samples when performing recursive
-  estimation and forecasting. The `oo_` structure obtained for the
-  sample ranging to the *i* -th observation is saved in the
-  *i* -th field. The fields for non-estimated endpoints are empty.
-
-- **MATLAB/Octave variable** : **oo_.time**
-
-  Total computing time of the Dynare run, in seconds. This field is not
-  set if the `notime`{.interpreted-text role="opt"} option has been
-  used.
-
-  *Example*:
-
-  Call dynare from the MATLAB or Octave prompt, without or with options:
-  ```
-  dynare ramst
-  dynare ramst.mod savemacro
-  ```
-  Alternatively the options can be passed in the first line of
-  `ramst.mod`:
-
-  ```
-  // --+ options: savemacro, json=compute +--
-  ```
-
-  and then dynare called without passing options on the command line:
-
-  ``` 
-  julia> dynare ramst
-  ```
-
-## Dynare hooks
-
-
 
 ## Understanding Preprocessor Error Messages
 
@@ -545,7 +341,7 @@ parser works, this is not the case. The most common example of
 misleading line and column numbers (and error message for that matter)
 is the case of a missing semicolon, as seen in the following example:
 
-```julia
+```
 varexo a, b
 parameters c, ...;
 ```
@@ -564,7 +360,7 @@ and the parser would continue processing.
 
 It is also helpful to keep in mind that any piece of code that does not
 violate Dynare syntax, but at the same time is not recognized by the
-parser, is interpreted as native MATLAB code. This code will be directly
+parser, is interpreted as native Julia code. This code will be directly
 passed to the `driver` script. Investigating `driver.m` file then helps
 with debugging. Such problems most often occur when defined variable or
 parameter names have been misspelled so that Dynare\'s parser is unable
