@@ -8,8 +8,22 @@ makedocs(
         "Home" => "index.md",
         "Installation and Configuration" => "installation-and-configuration.md",
         "Running Dynare" => "running-dynare.md",
-        "The Model File" => "the-model-file.md",
+        "Model File" => [
+            "Syntax elements" => "model-file/syntax-elements.md",
+            "Model declaration" => "model-file/model-declaration.md",
+            "Initial and terminal conditions" => "model-file/initial-terminal-conditions.md",
+            "Steady state" => "model-file/steady-state.md",
+            "Shocks" => "model-file/shocks.md",
+            "Deterministic simulations" => "model-file/deterministic-simulations.md",
+            "Local approximation" => "model-file/local-approxiation.md",
+            "Estimation" => "model-file/estimation.md",
+            "Forecasting" => "model-file/forecasting.md",
+            "Optimal policy" => "model-file/optimal-policy.md",
+        ],
+        "Macroprocessing language" => "macroprocessor.md"     
     ],
+    pagesonly = true,
+    
 )
 
 #if get(ENV, "CI", nothing) == "true"

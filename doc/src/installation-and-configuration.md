@@ -14,7 +14,7 @@ using Pkg
 pkg"add Dynare"
 ```
 
-## Configuration
+## Running Dynare
 In order to start using Dynare in Julia, type
 ```
 using Dynare
