@@ -129,18 +129,14 @@ function recursive_forecasting!(; periods::Integer,
     data_ = get_data!(context, datafile, data, variables, first_obs, last_obs, nobs)
     first_period == Undated(typemin(Int)) && (first_period = row_labels(data_)[1]) 
     last_period == Undated(typemin(Int)) && (last_period = row_labels(data_)[end]) 
-    T = typeof(first_period)
+    T = typeof(first_period).parameters[1]
     empty!(results.forecast)
     for p = first_period:last_period
         Y = forecasting_(context=context, periods=periods, forecast_mode=calibsmoother, first_obs=first_obs, last_obs=p, data = data_, order=order)
         if p == first_period
             results.initial_smoother = copy(results.smoother)
         end
-        if T <: Dates.UTInstant
-            p1 = T(p.periods.value + periods)
-        else
-            p1 = p + periods
-        end 
+        p1 = p + T(periods)
         push!(results.forecast, AxisArrayTable(Y, 
                                                p:p1, 
                                                [Symbol(v) for v in get_endogenous(context.symboltable)]))

@@ -6,8 +6,8 @@ struct CalibSmootherOptions
     last_obs::Int64
     function CalibSmootherOptions(options::Dict{String,Any})
         datafile = ""
-        first_obs = 1
-        last_obs = 0
+        first_obs = Undated(typemin(Int))
+        last_obs = Undated(typemin(Int))
         for (k, v) in pairs(options)
             if k == "datafile"
                 datafile = v::String
@@ -128,7 +128,7 @@ function calibsmoother!(; context=context,
     last = nobs
     presample = 0
     data_pattern = Vector{Vector{Int64}}(undef, 0)
-    Yt = adjoint(Y)
+    Yt = copy(adjoint(Y))
     for i = 1:nobs
         push!(data_pattern, findall(.!ismissing.(Yt[:, i])))
     end

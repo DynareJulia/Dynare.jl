@@ -28,7 +28,7 @@ function data!(datafile::AbstractString;
         startperiod = start
         if typeof(last) != Int || last > typemin(Int)
             # start option and last option are used
-            @assert Ts == Ta "error in data!(): last must have the same frequency as the datafile"
+            @assert Tl == Ta "error in data!(): last must have the same frequency as the datafile"
             lastperiod = last
         end 
     elseif typeof(last) != Int || last > typemin(Int)
@@ -136,8 +136,10 @@ function find_letter_in_period(period::AbstractString)
     return nothing
 end
 
-function identify_period_type(period::Union{AbstractString, Number})
-    if typeof(period) <: Number
+function identify_period_type(period::Union{AbstractString, Number, Date})
+    if typeof(period) <: Date
+        return Date
+    elseif typeof(period) <: Number
         if isinteger(period)
             if period == 1
                 return Undated
@@ -186,7 +188,7 @@ function identify_period_type(period::Union{AbstractString, Number})
     end
 end
 
-function periodparse(period::Union{AbstractString, Number})::ExtendedDates.PeriodsSinceEpoch
+function periodparse(period::Union{AbstractString, Number, Date})::ExtendedDates.PeriodsSinceEpoch
     period_type = identify_period_type(period)
     if period_type == YearSE
         if typeof(period) <: Number
@@ -204,6 +206,8 @@ function periodparse(period::Union{AbstractString, Number})::ExtendedDates.Perio
         return parse(period_type, period)
     elseif period_type == DaySE
         return parse(period_type, period)
+    elseif period_type == Date
+        return DaySE(period)
     elseif period_type == Undated
         return Undated(period)
     else
@@ -214,13 +218,13 @@ end
 function MyAxisArrayTable(filename)
     table = CSV.File(filename)
     cols = AxisArrayTables.Tables.columnnames(table)
-    data = AxisArrayTables.Tables.matrix((;ntuple(i -> Symbol(i) => Tables.getcolumn(table, i), length(cols))...))
+    data = (AxisArrayTables.Tables.matrix((;ntuple(i -> Symbol(i) => Tables.getcolumn(table, i), length(cols))...)))
     for (icol, name) in enumerate(cols)
         if uppercase(String(name)) in ["DATE", "DATES", "PERIOD", "PERIODS", "TIME", "COLUMN1"]
             rows = []
             foreach(x -> push!(rows, periodparse(x)), data[:, icol])
             k = union(1:icol-1, icol+1:size(data,2))
-            aat = AxisArrayTable(data[:, k], rows, cols[k])
+            aat = AxisArrayTable(Matrix{Union{Float64, Missing}}(data[:, k]), rows, cols[k])
             return aat
         end
     end
