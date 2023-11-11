@@ -154,7 +154,7 @@ function ExpectFOC(x, state, params, grid, nodes, nCountries, steadystate)
         @views evalPt[i, nCountries + 1:end] .= y[i, [12, 14]]
     end
     # 3) Determine relevant variables within the expectations operator
-    X = Tasmanian.evaluateBatch(grid, evalPt)
+    X = Tasmanian.evaluateBatch(grid, transpose(evalPt))
     
     capPrPr = X[:, 1:2]
     lambPr = X[:, 3]
