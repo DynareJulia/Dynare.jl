@@ -32,8 +32,8 @@ Base.@kwdef struct EstimationOptions
     diffuse_filter::Bool = false
     display::Bool = false
     fast_kalman_filter::Bool = true
-    first_obs::PeriodsSinceEpoch = Undated(1)
-    last_obs::PeriodsSinceEpoch = Undated(0)
+    first_obs::PeriodsSinceEpoch = Undated(typemin(Int))
+    last_obs::PeriodsSinceEpoch = Undated(typemin(Int))
     mcmc_chains::Int = 1
     mcmc_init_scale::Float64 = 0
     mcmc_jscale::Float64 = 0
@@ -78,13 +78,7 @@ function estimation!(context, field::Dict{String, Any})
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    if !isempty(options.datafile)
-        observations = get_observations(context, options.datafile, options.first_obs, options.last_obs, options.nobs)
-    elseif !isempty(options.data)
-        observations = options.data
-    else
-        error("estimation needs a data file or an AxisArrayTable!")
-    end
+    observations = get_observations(context, options.datafile, options.data. options.first_obs, options.last_obs, options.nobs)
     nobs = size(observations, 2)
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
@@ -132,7 +126,7 @@ function mode_compute!(; algorithm = BFGS,
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
     
-    observations = get_observations(context, datafile, first_obs, last_obs, nobs)
+    observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
     (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, algorithm = algorithm, transformed_parameters = transformed_parameters)
 end
 
@@ -165,7 +159,7 @@ function rwmh_compute!(;context::Context=context,
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
     
-    observations = get_observations(context, datafile, first_obs, last_obs, nobs)
+    observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
     (chain, back_transformed_chain) = mh_estimation(context, 
         observations, 
         initial_values, 
@@ -216,7 +210,7 @@ function smc_compute!(;context=context,
 
     ep = context.work.estimated_parameters
     np = length(ep.prior)
-    observations = get_observations(context, datafile, first_obs, last_obs, nobs)
+    observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
     ssws = SSWs(context, size(observations, 2), context.work.observed_variables)    
     
     pdraw!(θ) = prior_draw!(θ, ep)
@@ -331,7 +325,7 @@ struct DSGENegativeLogLikelihood{F<:Function, UT}
     ssws::SSWs
     function DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
-        observations = get_observations(context, datafile, first_obs, last_obs)
+        observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
         new{typeof(f),eltype(observations)}(f, n, context, observations, ssws)
@@ -360,7 +354,7 @@ struct DSGENegativeLogPosteriorDensity{F <:Function, UT}
     ssws::SSWs
     function DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
-        observations = get_observations(context, datafile, first_obs, last_obs)
+        observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
         ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
         f = make_negativelogposteriordensity(context, observations, first_obs, last_obs, ssws)
         new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
@@ -818,7 +812,6 @@ function posterior_mode!(
             algorithm,
             optimoptions = (show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
         )
-        @show res
         hess = finite_difference_hessian(objective, minimizer)
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
@@ -850,7 +843,6 @@ function posterior_mode!(
             error("Hessian isn't positive definite")
         end 
         hsd = sqrt.(diag(hess))
-        @show hsd
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
         results.posterior_mode = copy(minimizer)
         results.posterior_mode_std = copy(sqrt.(diag(invhess)))
@@ -1090,7 +1082,7 @@ end
 get_parameter_name(name::String) = name
 get_parameter_name(name::Pair{String, String}) = name[1]
 
-function get_observations(context, datafile, first_obs, last_obs, nobs)
+function get_observations(context, datafile, data, first_obs, last_obs, nobs)
     results = context.results.model_results[1]
     symboltable = context.symboltable
     varobs = context.work.observed_variables
@@ -1098,7 +1090,7 @@ function get_observations(context, datafile, first_obs, last_obs, nobs)
         [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
     if datafile != ""
         varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig = get_data(datafile, varnames, start = first_obs, last = last_obs, nobs = nobs)
+        Yorig = get_data!(context, datafile, data, varnames, first_obs, last_obs, nobs)
     else
         error("calib_smoother needs a data file or a TimeDataFrame!")
     end
