@@ -133,7 +133,7 @@ Dynare begins by launching the preprocessor on the `.mod file`.
 - `jsonstdout`
 
   Instead of writing output requested by `json` to files, write to
-  standard out, i.e. to the MATLAB/Octave command window (and the
+  standard out, i.e. to the Julia command window (and the
   log-file).
 
 - `onlyjson`
@@ -175,7 +175,7 @@ Dynare begins by launching the preprocessor on the `.mod file`.
   Call dynare with command line defines
 
    ```julia
-   julia> dynare <<modfile.mod>> -DA=true '-DB="A string with space"' -DC=[1,2,3] '-DD=[ i in C when i > 1 ]' -DE
+   julia> @dynare <<modfile.mod>> -DA=true '-DB="A string with space"' -DC=[1,2,3] '-DD=[ i in C when i > 1 ]' -DE;
    ```
 
 - `-I\<\<path\>\>`
@@ -198,11 +198,6 @@ Dynare begins by launching the preprocessor on the `.mod file`.
       it is automatically declared exogenous.
   4.  exogenous variables were declared but not used in the `model`
       block.
-
-- `compute\_xrefs`
-
-  Tells Dynare to compute the equation cross references, writing them to
-  the output `.m` file.
 
 - `stochastic`
 
@@ -289,13 +284,6 @@ Dynare begins by launching the preprocessor on the `.mod file`.
   `include_eqs` is to find which equations to exclude then take actions
   in accord with (@ref "exclude_eqs").
 
-- `use\_dll`
-
-  Instructs the preprocessor to create dynamic loadable libraries (DLL)
-  containing the model equations and derivatives, instead of writing
-  those in M-files. This is equivalent to the
-  (@ref "use_dll") option of the `model` block.
-
 - `nocommutativity`
  
   This option tells the preprocessor not to use the commutativity of
@@ -358,10 +346,3 @@ throws an error of the form:
 In this case, you would simply place a semicolon at the end of line one
 and the parser would continue processing.
 
-It is also helpful to keep in mind that any piece of code that does not
-violate Dynare syntax, but at the same time is not recognized by the
-parser, is interpreted as native Julia code. This code will be directly
-passed to the `driver` script. Investigating `driver.m` file then helps
-with debugging. Such problems most often occur when defined variable or
-parameter names have been misspelled so that Dynare\'s parser is unable
-to recognize them.
