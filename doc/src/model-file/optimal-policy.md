@@ -376,7 +376,7 @@ Describes the path of constrained endogenous, before calling
 `shocks`, see `conditional_forecast` for an example.
 
 The syntax of the block is the same as for the deterministic shocks in
-the `shocks` blocks (see `shocks-exo`{.interpreted-text role="ref"}).
+the `shocks` blocks (see `shocks-exo`).
 Note that you need to specify the full path for all constrained
 endogenous variables between the first and last specified period. If an
 intermediate period is not specified, a value of 0 is assumed. That is,
@@ -470,7 +470,7 @@ scenario initialization using the function `init_plan`:
 
 Creates a new forecast scenario for a forecast period (indicated as a
 dates class, see `dates class members
-<dates-members>`{.interpreted-text role="ref"}). This function return a
+<dates-members>`). This function return a
 handle on the new forecast scenario.
 
 The forecast scenario can contain some simple shocks on the exogenous
@@ -488,7 +488,7 @@ be specified in the third argument between quotes: 'surprise' in case of
 an unexpected shock or 'perfect_foresight' for a perfectly anticipated
 shock. The fourth argument indicates the period of the shock using a
 dates class (see `dates class
-members <dates-members>`{.interpreted-text role="ref"}). The last
+members <dates-members>`). The last
 argument is the shock path indicated as a MATLAB vector of double. This
 function return the handle of the updated forecast scenario.
 
@@ -514,7 +514,7 @@ fourth argument between quotes: 'surprise' in case of an unexpected path
 or 'perfect\_foresight' for a perfectly anticipated path. The fifth
 argument indicates the period where the path of the endogenous variable
 is constrained using a dates class (see `dates class
-members <dates-members>`{.interpreted-text role="ref"}). The last
+members <dates-members>`). The last
 argument contains the constrained path as a MATLAB vector of double.
 This function return the handle of the updated forecast scenario.
 
@@ -530,7 +530,7 @@ Computes the forecast or the conditional forecast using an extended path
 method for the given forecast scenario (first argument). The past values
 of the endogenous and exogenous variables provided with a dseries class
 (see `dseries class
-members <dseries-members>`{.interpreted-text role="ref"}) can be
+members <dseries-members>`) can be
 indicated in the second argument. By default, the past values of the
 variables are equal to their steady-state values. The initial date of
 the forecast can be provided in the third argument. By default, the

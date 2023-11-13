@@ -29,11 +29,11 @@ Multiline comments are introduced by `/*` and terminated by `*/`.
      */
 
 Note that these comment marks should not be used in native 
-ulia code
+Julia code
 regions where the [#]{.title-ref} should be preferred instead to
 introduce a comment. In a `verbatim` block, see
-`verbatim`{.interpreted-text role="ref"}, this would result in a crash
-since `//` is not a valid MATLAB statement).
+`verbatim`, this would result in a crash
+since `//` is not a valid Julia statement).
 
 Most Dynare commands have arguments and several accept options,
 indicated in parentheses after the command keyword. Several options are
@@ -55,13 +55,13 @@ observed:
 -   NUMERICAL_VECTOR indicates a vector of numbers separated by spaces,
     enclosed by square brackets;
 -   EXPRESSION indicates a mathematical expression valid outside the
-    model description (see `expr`{.interpreted-text role="ref"});
+    model description (see `expr`);
 -   MODEL_EXPRESSION (sometimes MODEL_EXP) indicates a mathematical
     expression valid in the model description (see
-    `expr`{.interpreted-text role="ref"} and
-    `model-decl`{.interpreted-text role="ref"});
+    `expr` and
+    `model-decl`);
 -   MACRO_EXPRESSION designates an expression of the macro processor
-    (see `macro-exp`{.interpreted-text role="ref"});
+    (see `macro-exp`);
 -   VARIABLE_NAME (sometimes VAR_NAME) indicates a variable name
     starting with an alphabetical character and can't contain:
     '()+-*/\^=!;:@#.' or accentuated characters;
@@ -111,7 +111,7 @@ var (log_deflator=MODEL_EXPR) VAR_NAME (... same options apply)
 ```
 
 This required command declares the endogenous variables in the model.
-See `conv`{.interpreted-text role="ref"} for the syntax of *VAR\_NAME*
+See `conv` for the syntax of *VAR\_NAME*
 and *MODEL\_EXPR*. Optionally it is possible to give a LaTeX name to the
 variable or, if it is nonstationary, provide information regarding its
 deflator. The variables in the list can be separated by spaces or by
@@ -197,7 +197,7 @@ varexo_det VAR_NAME [$TEX_NAME$][(long_name=QUOTED_STRING|NAME=QUOTED_STRING)...
 ```
 
 This optional command declares exogenous deterministic variables in a
-stochastic model. See `conv`{.interpreted-text role="ref"} for the
+stochastic model. See `conv` for the
 syntax of `VAR_NAME`. Optionally it is possible to give a LaTeX name
 to the variable. The variables in the list can be separated by spaces or
 by commas. `varexo_det` commands can appear several times in the file
@@ -218,12 +218,12 @@ a lag in the model.
 
 - `long_name = QUOTED_STRING`
 
-Like `long_name <long-name>`{.interpreted-text role="ref"} but value
+Like `long_name <long-name>` but value
 stored in `M_.exo_det_names_long`.
 
 - NAME = QUOTED_STRING
 
-Like `partitioning <partitioning>`{.interpreted-text role="ref"} but
+Like `partitioning <partitioning>` but
 QUOTED_STRING stored in `M_.exo_det_partitions.NAME`.
 
 *Example*
@@ -321,7 +321,7 @@ trend_var (growth_factor = MODEL_EXPR) VAR_NAME[$LATEX_NAME$]...;
 ```
 
 This optional command declares the trend variables in the model. See
-`conv`{.interpreted-text role="ref"} for the syntax of `MODEL_EXPR` and
+`conv` for the syntax of `MODEL_EXPR` and
 `VAR_NAME`. Optionally it is possible to give a LaTeX name to the
 variable.
 
@@ -356,9 +356,9 @@ model_local_variable VARIABLE_NAME [LATEX_NAME]... ;
 ```
 
 This optional command declares a model local variable. See
-`conv`{.interpreted-text role="ref"} for the syntax of `VARIABLE_NAME`.
+`conv` for the syntax of `VARIABLE_NAME`.
 As you can create model local variables on the fly in the model block
-(see `model-decl`{.interpreted-text role="ref"}), the interest of this
+(see `model-decl`), the interest of this
 command is primarily to assign a `LATEX_NAME` to the model local
 variable.
 
@@ -486,7 +486,7 @@ When used in an expression outside the model block, a parameter or a
 variable simply refers to the last value given to that variable. More
 precisely, for a parameter it refers to the value given in the
 corresponding parameter initialization (see
-`param-init`{.interpreted-text role="ref"}); for an endogenous or
+`param-init`); for an endogenous or
 exogenous variable, it refers to the value given in the most recent
 `initval` or `endval` block.
 
@@ -674,66 +674,6 @@ Gauss error function.
 Complementary error function, *i.e.*
 $\mathrm{erfc}(x) = 1-\mathrm{erf}(x)$.
 
-#### External functions
-
-Any other user-defined (or built-in) MATLAB or Octave function may be
-used in both a `MODEL_EXPRESSION` and an `EXPRESSION`, provided that this
-function has a scalar argument as a return value.
-
-To use an external function in a `MODEL_EXPRESSION`, one must declare the
-function using the `external_function` statement. This is not required
-for external functions used in an EXPRESSION outside of a `model` block
-or `steady_state_model` block.
-
-*Command*: `external_function (OPTIONS...);`
-
-This command declares the external functions used in the model block. It
-is required for every unique function used in the model block.
-
-`external_function` commands can appear several times in the file and
-must come before the model block.
-
-*Options*
-
-- `name = NAME`
-
-The name of the function, which must also be the name of the Julia file
-implementing it. This option is mandatory.
-
-- `nargs = INTEGER`
-
-The number of arguments of the function. If this option is not provided,
-Dynare assumes `nargs = 1`.
-
-- `first_deriv_provided [= NAME]`
-
-If NAME is provided, this tells Dynare that the Jacobian is provided as
-the only output of the Julia file given as the option argument. If NAME
-is not provided, this tells Dynare that the Julia file specified by the
-argument passed to NAME returns the Jacobian as its second output
-argument. When this option is not provided, Dynare will use finite
-difference approximations for computing the derivatives of the function,
-whenever needed.
-
-- `second_deriv_provided [= NAME]`
-
-If NAME is provided, this tells Dynare that the Hessian is provided as
-the only output of the Julia file given as the option argument. If NAME
-is not provided, this tells Dynare that the Julia file specified by the
-argument passed to NAME returns the Hessian as its third output
-argument. NB: This option can only be used if the `first_deriv_provided`
-option is used in the same `external_function` command. When this option
-is not provided, Dynare will use finite difference approximations for
-computing the Hessian derivatives of the function, whenever needed.
-
-*Example*
-
-```
-external_function(name = funcname);
-external_function(name = otherfuncname, nargs = 2, first_deriv_provided, second_deriv_provided);
-external_function(name = yetotherfuncname, nargs = 3, first_deriv_provided = funcname_deriv);
-```
-
 ### A few words of warning in stochastic context
 
 The use of the following functions and operators is strongly discouraged
@@ -773,31 +713,7 @@ alpha = 0.36;
 A = 1-alpha*beta;
 ```
 
-Internally, the parameter values are stored in `M_.params`:
-
-- *MATLAB/Octave variable*: `M_.params`
-
-Contains the values of model parameters. The parameters are in the order
-that was used in the `parameters` command, hence ordered as in
-`M_.param_names`.
-
-The parameter names are stored in `M_.param_names`:
-
-- *MATLAB/Octave variable*: `M_.param_names`
-
-Cell array containing the names of the model parameters.
-
-- *MATLAB/Octave variable*: `get_param_by_name ('PARAMETER_NAME')`;
-
-Given the name of a parameter, returns its calibrated value as it is
-stored in `M_.params`.
-
-- *MATLAB/Octave variable*: `set_param_value ('PARAMETER_NAME', MATLAB_EXPRESSION);`
-
-Sets the calibrated value of a parameter to the provided expression.
-This does essentially the same as the parameter initialization syntax
-described above, except that it accepts arbitrary MATLAB/Octave
-expressions, and that it works from MATLAB/Octave scripts.
+Internally, the parameter values are stored in `context.work.params`
 
 **Footnotes**
 

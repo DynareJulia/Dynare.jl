@@ -280,7 +280,7 @@ Dynare begins by launching the preprocessor on the `.mod file`.
   argument; in other words, Dynare will exclude all equations not
   specified by the argument. The argument `<<equation_tags_to_include>>`
   is specified in the same way as the argument to `exclude_eqs
-  <exclude_eqs>`{.interpreted-text role="ref"}. The functionality of
+  <exclude_eqs>`. The functionality of
   `include_eqs` is to find which equations to exclude then take actions
   in accord with (@ref "exclude_eqs").
 
