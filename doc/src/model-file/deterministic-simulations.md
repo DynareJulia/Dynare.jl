@@ -142,7 +142,7 @@ irreversible investment). This option is equivalent to
 requires a particular model setup as the goal is to get rid of any
 min/max operators and complementary slackness conditions that might
 introduce a singularity into the Jacobian. This is done by attaching an
-equation tag (see `model-decl`{.interpreted-text role="ref"}) with the
+equation tag (see `model-decl`) with the
 `mcp` keyword to affected equations. This tag states that the equation
 to which the tag is attached has to hold unless the expression within
 the tag is binding. For instance, a ZLB on the nominal interest rate

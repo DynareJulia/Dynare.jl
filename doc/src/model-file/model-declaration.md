@@ -14,7 +14,7 @@ model, except when computing the unconstrained optimal policy with
 `ramsey_model`, `ramsey_policy` or `discretionary_policy`.
 
 The syntax of equations must follow the conventions for
-`MODEL_EXPRESSION` as described in `expr`{.interpreted-text role="ref"}.
+`MODEL_EXPRESSION` as described in `expr`.
 Each equation must be terminated by a semicolon (';'). A normal equation
 looks like:
 
@@ -34,7 +34,7 @@ Inside the model block, Dynare allows the creation of *model-local
 variables*, which constitute a simple way to share a common expression
 between several equations. The syntax consists of a pound sign (\#)
 followed by the name of the new model local variable (which must **not**
-be declared as in `var-decl`{.interpreted-text role="ref"}, but may have
+be declared as in `var-decl`, but may have
 been declared by `model_local_variable`{.interpreted-text role="comm"}),
 an equal sign, and the expression for which this new variable will
 stand. Later on, every time this variable appears in the model, Dynare
@@ -126,7 +126,7 @@ state) and this in many cases helps convergence of simulations.
 
 Declares a list of extra files that should be transferred to follower
 nodes when doing a parallel computation (see
-`paral-conf`{.interpreted-text role="ref"}).
+`paral-conf`).
 
 - `balanced_growth_test_tol = DOUBLE`
 
@@ -273,7 +273,7 @@ called `FILENAME/latex/original.tex`, which includes a file called
 containing the list of all the original model equations.
 
 If LaTeX names were given for variables and parameters (see
-`var-decl`{.interpreted-text role="ref"}), then those will be used;
+`var-decl`), then those will be used;
 otherwise, the plain text names will be used.
 
 Time subscripts (`t`, `t+1`, `t-1`, \...) will be appended to the
@@ -302,7 +302,7 @@ called `FILENAME/latex/dynamic.tex`, which includes a file called
 the list of all the dynamic model equations.
 
 If LaTeX names were given for variables and parameters (see
-`var-decl`{.interpreted-text role="ref"}), then those will be used;
+`var-decl`), then those will be used;
 otherwise, the plain text names will be used.
 
 Time subscripts (`t`, `t+1`, `t-1`, \...) will be appended to the
@@ -347,7 +347,7 @@ called `FILENAME/latex/static.tex`, which includes a file called
 the list of all the steady state model equations.
 
 If LaTeX names were given for variables and parameters (see
-`var-decl`{.interpreted-text role="ref"}), then those will be used;
+`var-decl`), then those will be used;
 otherwise, the plain text names will be used.
 
 Note that the model written in the TeX file will differ from the model
@@ -381,7 +381,7 @@ called `FILENAME/latex/steady_state.tex`, which includes a file called
 containing the list of all the steady state model equations.
 
 If LaTeX names were given for variables and parameters (see
-`var-decl`{.interpreted-text role="ref"}), then those will be used;
+`var-decl`), then those will be used;
 otherwise, the plain text names will be used.
 
 Note that the model written in the `.tex` file will differ from the

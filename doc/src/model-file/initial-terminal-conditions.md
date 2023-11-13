@@ -19,7 +19,7 @@ but not necessarily.
 One typical application is to consider an economy at the equilibrium at
 time 0, trigger a shock in first period, and study the trajectory of
 return to the initial equilibrium. To do that, one needs `initval` and
-`shocks` (see `shocks-exo`{.interpreted-text role="ref"}).
+`shocks` (see `shocks-exo`).
 
 Another one is to study how an economy, starting from arbitrary initial
 conditions at time 0 converges towards equilibrium. In this case models,
@@ -429,12 +429,12 @@ This can be used
     unlogged starting values.
 -   In `forecast`{.interpreted-text role="comm"} as the initial point
     at which the forecasts are computed. When using the `loglinear
-    <logl>`{.interpreted-text role="ref"} option, the `histval` block
+    <logl>` option, the `histval` block
     nevertheless takes the unlogged starting values.
 -   In `conditional_forecast`{.interpreted-text role="comm"} for a
     calibrated model as the initial point at which the conditional
     forecasts are computed. When using the
-    `loglinear <logl>`{.interpreted-text role="ref"} option, the
+    `loglinear <logl>` option, the
     histval-block nevertheless takes the unlogged starting values.
 -   In `Ramsey policy <ramsey_model>`{.interpreted-text role="comm"},
     where it also specifies the values of the endogenous states
@@ -482,7 +482,7 @@ stoch_simul(periods=100);
 This command will display the residuals of the static equations of the
 model, using the values given for the endogenous in the last `initval`
 or `endval` block (or the steady state file if you provided one, see
-`st-st`{.interpreted-text role="ref"}).
+`st-st`).
 
 *Options*
 
@@ -541,13 +541,13 @@ following file formats:
 
 - `first_obs = {INTEGER | DATE}`
 
-The observation number or the date (see `dates-members`{.interpreted-text role="ref"}) of 
+The observation number or the date (see `dates-members`) of 
 the first observation to be used in the file
 
 - `first_simulation_period = {INTEGER | DATE}`
 
 The observation number in the file or the date (see
-`dates <dates-members>`{.interpreted-text role="ref"}) at which the
+`dates <dates-members>`) at which the
 simulation (or the forecast) is starting. This option avoids to have to
 compute the maximum number of lags in the model. The observation
 corresponding to the first period of simulation doesn't need to exist in
@@ -557,13 +557,13 @@ date.
 - `last_simulation_period = {INTEGER | DATE}`
 
 The observation number in the file or the date (see
-`dates <dates-members>`{.interpreted-text role="ref"}) at which the
+`dates <dates-members>`) at which the
 simulation (or the forecast) is ending. This option avoids to have to
 compute the maximum number of leads in the model.
 
 - `last_obs = {INTEGER | DATE}`
 
-The observaton number or the date (see `dates-members`{.interpreted-text role="ref"}) of the last observation
+The observaton number or the date (see `dates-members`) of the last observation
 to be used in the file.
 
 - `nobs = INTEGER`
@@ -574,7 +574,7 @@ of `first_obs` observation).
 - `series = DSERIES NAME`
 
 The name of a DSERIES containing the data (see
-`dseries-members`{.interpreted-text role="ref"})
+`dseries-members`)
 
 *Example 1*
 
@@ -808,13 +808,13 @@ The name of the file containing the data. The command accepts the following file
 - `first_obs = {INTEGER | DATE}`
 
 The observation number or the date (see
-`dates-members`{.interpreted-text role="ref"}) of
+`dates-members`) of
 the first observation to be used in the file
 
 - `first_simulation_period = {INTEGER | DATE}`
 
 The observation number in the file or the date (see
-`dates-members`{.interpreted-text role="ref"}) at which the simulation
+`dates-members`) at which the simulation
 (or the forecast) is starting. This option avoids to have to compute the
 maximum number of lags in the model. The observation corresponding to
 the first period of simulation doesn't need to exist in the file as the
@@ -823,14 +823,14 @@ only dates necessary for initialization are before that date.
 - `last_simulation_period = {INTEGER | DATE}`
 
 The observation number in the file or the date (see
-`dates <dates-members>`{.interpreted-text role="ref"}) at which the
+`dates <dates-members>`) at which the
 simulation (or the forecast) is ending. This option avoids to have to
 compute the maximum number of leads in the model.
 
 - `last_obs = {INTEGER | DATE}`
 
 The observation number or the date (see
-`dates-members`{.interpreted-text role="ref"}) of the
+`dates-members`) of the
 last observation to be used in the file.
 
 - `nobs = INTEGER`
@@ -841,7 +841,7 @@ of `first_obs` observation).
 - `series = DSERIES NAME`
 
 The name of a DSERIES containing the data (see
-`dseries-members`{.interpreted-text role="ref"})
+`dseries-members`)
 
 *Example 1*
 

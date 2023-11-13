@@ -21,7 +21,7 @@ role="opt"}).
 
 This command lists the name of observed endogenous variables for the
 estimation procedure. These variables must be available in the data file
-(see `estimation_cmd <estim-comm>`{.interpreted-text role="ref"}).
+(see `estimation_cmd <estim-comm>`).
 
 Alternatively, this command is also used in conjunction with the
 `partial_information` option of `stoch_simul`, for declaring the set of
@@ -505,7 +505,7 @@ respective first observation of the rolling window.
 
 A value of 1 means that the estimation procedure will demean each data
 series by its empirical mean. If the `loglinear
-<logl>`{.interpreted-text role="ref"} option without the
+<logl>` option without the
 `logdata`{.interpreted-text role="opt"} option is requested, the data
 will first be logged and then demeaned. Default: `0`, i.e. no
 prefiltering.
@@ -702,7 +702,7 @@ role="ref"}. The resulting scale parameter will be saved into a file
 named `MODEL_FILENAME_mh_scale.mat` in the `FILENAME/Output`-folder.
 This file can be loaded in subsequent runs via the
 `posterior_sampler_options` option
-`scale_file <scale-file>`{.interpreted-text role="ref"}. Both
+`scale_file <scale-file>`. Both
 `mode_compute=6` and `scale_file` will overwrite any value specified in
 `estimated_params` with the tuned value. Default: `0.2`.
 
@@ -723,7 +723,7 @@ It is important to keep in mind that `mh_init_scale` is set at the
 beginning of Dynare execution, i.e. the default will not take into
 account potential changes in `mh_jscale` introduced by either
 `mode_compute=6` or the `posterior_sampler_options` option `scale_file
-<scale-file>`{.interpreted-text role="ref"}. If `mh_init_scale` is too
+<scale-file>`. If `mh_init_scale` is too
 wide during initalization of the posterior sampler so that 100 tested
 draws are inadmissible (e.g. Blanchard-Kahn conditions are always
 violated), Dynare will request user input of a new `mh_init_scale` value
@@ -1406,7 +1406,7 @@ selected posterior sampling routine (i.e. on the value of option
 
     `'save_tmp_file'`
 
-    See `save_tmp_file <savetmp>`{.interpreted-text role="ref"}.
+    See `save_tmp_file <savetmp>`.
     Default: `1`.
 
     `'tailored_random_block_metropolis_hastings'`
@@ -1442,11 +1442,11 @@ selected posterior sampling routine (i.e. on the value of option
 
     `'scale_file'`
 
-    See `scale_file <scale-file>`{.interpreted-text role="ref"}..
+    See `scale_file <scale-file>`..
 
     `'save_tmp_file'`
 
-    See `save_tmp_file <savetmp>`{.interpreted-text role="ref"}.
+    See `save_tmp_file <savetmp>`.
     Default: `1`.
 
 - `moments_varendo`
@@ -1467,7 +1467,7 @@ option has no effect.
 - `no_posterior_kernel_density`
 
 Shuts off the computation of the kernel density estimator for the
-posterior objects (see `density <dens>`{.interpreted-text role="ref"}
+posterior objects (see `density <dens>`
 field).
 
 ```
@@ -1543,7 +1543,7 @@ Metropolis-Hastings is computed, the result is stored in variable
 `oo_.forecast` and corresponds to the forecast at the posterior mode. If
 a Metropolis-Hastings is computed, the distribution of forecasts is
 stored in variables `oo_.PointForecast` and `oo_.MeanForecast`. See
-`fore`{.interpreted-text role="ref"}, for a description of these
+`fore`, for a description of these
 variables.
 
 - `tex`
@@ -1700,7 +1700,7 @@ Default is `1`.
 
 - `solve_algo = INTEGER`
 
-See `solve_algo <solvalg>`{.interpreted-text role="ref"}.
+See `solve_algo <solvalg>`.
 
 - `order = INTEGER`
 
@@ -1928,7 +1928,7 @@ that all valid parameter draws for the model must generate fiscal
 multipliers that are bigger than 1 by specifying how the IRF to a
 government spending shock must look like. The prior restrictions can be
 imposed via `irf_calibration` and `moment_calibration` blocks (see
-`irf-momcal`{.interpreted-text role="ref"}). The way it works internally
+`irf-momcal`). The way it works internally
 is that any parameter draw that is inconsistent with the "calibration"
 provided in these blocks is discarded, i.e. assigned a prior density of
 0. When specifying these blocks, it is important to keep in mind that
@@ -1963,7 +1963,7 @@ It also fills `oo_.UpdatedVariables`.
 
 - `datafile = FILENAME`
 
-See `datafile <dataf>`{.interpreted-text role="ref"}.
+See `datafile <dataf>`.
 
 - `filtered_vars`
 
@@ -1987,7 +1987,7 @@ role="opt"} for possible values. Default: `calibration`.
 
 - `loglinear`
 
-See `loglinear <logl>`{.interpreted-text role="ref"}.
+See `loglinear <logl>`.
 
 - `first_obs = INTEGER`
 

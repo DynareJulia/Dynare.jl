@@ -37,7 +37,7 @@ the shocks are correlated, the variance decomposition depends upon the
 order of the variables in the `varexo` command.
 
 The Taylor approximation is computed around the steady state (see
-`st-st`{.interpreted-text role="ref"}).
+`st-st`).
 
 The IRFs are computed as the difference between the trajectory of a
 variable following a shock at the beginning of period `1` and its steady
@@ -58,7 +58,7 @@ between the sum of the contribution of each shock and aggregate variance
 is larger than `0.01%`.
 
 The covariance matrix of the shocks is specified with the `shocks`
-command (see `shocks-exo`{.interpreted-text role="ref"}).
+command (see `shocks-exo`).
 
 When a list of `VARIABLE_NAME` is specified, results are displayed only
 for these variables.
@@ -218,7 +218,7 @@ value used for the estimation).
 
 Use a k-order solver (implemented in C++) instead of the default Dynare
 solver. This option is not yet compatible with the `bytecode` option
-(see `model-decl`{.interpreted-text role="ref"}). Default: disabled for
+(see `model-decl`). Default: disabled for
 order 1 and 2, enabled for order 3 and above.
 
 - `periods = INTEGER`
@@ -239,7 +239,7 @@ Value used to split stable from unstable eigenvalues in reordering the
 Generalized Schur decomposition used for solving first order problems.
 Default: `1.000001` (except when estimating with `lik_init` option equal
 to `1`: the default is `0.999999` in that case; see
-`estim`{.interpreted-text role="ref"}).
+`estim`).
 
 - `qz_zero_threshold = DOUBLE`
 
@@ -260,7 +260,7 @@ the `FILENAME/Output`-folder. Default: `1`.
 
 - `solve_algo = INTEGER`
 
-See `solve_algo <solvalg>`{.interpreted-text role="ref"}, for the
+See `solve_algo <solvalg>`, for the
 possible values and their meaning.
 
 - `conditional_variance_decomposition = INTEGER`
@@ -698,7 +698,7 @@ variables is stored in `M_.nstatic`.
 
 Note that all endogenous variables fall into one of these four
 categories, since after the creation of auxiliary variables (see
-`aux-variables`{.interpreted-text role="ref"}), all endogenous have at
+`aux-variables`), all endogenous have at
 most one lead and one lag. We therefore have the following identity:
 
 ``` {.sourceCode .matlab}

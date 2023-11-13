@@ -21,7 +21,7 @@ the Dynare parser. The key point to understand is that the macro
 processor only does text substitution (like the C preprocessor or the
 PHP language). Note that it is possible to see the output of the macro
 processor by using the `savemacro` option of the `dynare` command (see
-`dyn-invoc`{.interpreted-text role="ref"}).
+`dyn-invoc`).
 
 The macro processor is invoked by placing *macro directives* in the
 `.mod` file. Directives begin with an at-sign followed by a pound sign
@@ -867,7 +867,7 @@ statements.
 
 Also note that you can take advantage of the `@#include` directive to
 share the model equations between the two files (see
-`macro-proc-lang`{.interpreted-text role="ref"}).
+`macro-proc-lang`).
 
 - `load_params_and_steady_state (FILENAME);`
 
