@@ -5,7 +5,7 @@ each element of a block is terminated by a semicolon (;). Blocks are
 terminated by `end;`.
 
 If Dynare encounters an unknown expression at the beginning of a line or
-after a semicolon, it will parse the rest of that line as native MATLAB
+after a semicolon, it will parse the rest of that line as native Julia
 code, even if there are more statements separated by semicolons present.
 To prevent cryptic error messages, it is strongly recommended to always
 only put one statement/command into each line and start a new line after
@@ -29,8 +29,7 @@ Multiline comments are introduced by `/*` and terminated by `*/`.
      */
 
 Note that these comment marks should not be used in native 
-Julia code
-regions where the [#]{.title-ref} should be preferred instead to
+Julia code regions where the [#] should be preferred instead to
 introduce a comment. In a `verbatim` block, see
 `verbatim`, this would result in a crash
 since `//` is not a valid Julia statement).
@@ -70,12 +69,13 @@ observed:
     '()+-*/\^=!;:@#.' or accentuated characters;
 -   LATEX_NAME (sometimes TEX_NAME) indicates a valid LaTeX expression
     in math mode (not including the dollar signs);
--   FUNCTION_NAME indicates a valid MATLAB function name;
+-   FUNCTION_NAME indicates a valid Julia function name;
 -   FILENAME indicates a filename valid in the underlying operating
     system; it is necessary to put it between quotes when specifying the
     extension or if the filename contains a non-alphanumeric character;
 -   QUOTED_STRING indicates an arbitrary string enclosed between
-    (single) quotes.
+    (single) quotes. Note that Dynare commands call for single quotes
+    around a string while in Julia strings are enclosed between double quotes.
 
 ## Variable declarations
 
@@ -84,17 +84,7 @@ are some restrictions to be kept in mind. First, variables and
 parameters must not have the same name as Dynare commands or built-in
 functions. In this respect, Dynare is not case-sensitive. For example,
 do not use `Ln` or `Sigma_e` to name your variable. Not conforming to
-this rule might yield hard-to-debug error messages or crashes. Second,
-when employing user-defined steady state files it is recommended to
-avoid using the name of MATLAB functions as this may cause conflicts. In
-particular, when working with user-defined steady state files, do not
-use correctly-spelled greek names like [alpha]{.title-ref}, because
-there are MATLAB functions of the same name. Rather go for `alppha` or
-`alph`. Lastly, please do not name a variable or parameter `i`. This may
-interfere with the imaginary number i and the index in many loops.
-Rather, name investment `invest`. Using `inv` is also not recommended as
-it already denotes the inverse operator. Commands for declaring
-variables and parameters are described below.
+this rule might yield hard-to-debug error messages or crashes. 
 
 *command*
 
@@ -111,13 +101,11 @@ var (log_deflator=MODEL_EXPR) VAR_NAME (... same options apply)
 ```
 
 This required command declares the endogenous variables in the model.
-See `conv` for the syntax of *VAR\_NAME*
-and *MODEL\_EXPR*. Optionally it is possible to give a LaTeX name to the
+Optionally it is possible to give a LaTeX name to the
 variable or, if it is nonstationary, provide information regarding its
 deflator. The variables in the list can be separated by spaces or by
 commas. `var` commands can appear several times in the file and Dynare
-will concatenate them. Dynare stores the list of declared parameters, in
-the order of declaration, in a column cell array `M_.endo_names`.
+will concatenate them. 
 
 *Options*
 
@@ -173,22 +161,43 @@ trend.
     `M_.endo_names`). In case multiple `long_name` options are provided, the
     last one will be used. Default: `VAR_NAME`.
 
-
-- `NAME = QUOTED_STRING`
-
-    This is used to create a partitioning of variables. It results in the
-    direct output in the `.m` file analogous to:
-    `M_.endo_partitions.NAME = QUOTED_STRING`;.
     
 
-*Example (variable partitioning)*
+*Example*
 
 ```
-var c gnp cva (country=`US', state=`VA')
-          cca (country=`US', state=`CA', long_name=`Consumption CA');
+var c gnp cva 
+          cca (long_name=`Consumption CA');
 var(deflator=A) i b;
 var c $C$ (long_name=`Consumption');
 ```
+
+ *Command*:
+
+``` 
+ varexo VAR_NAME [$TEX_NAME$] [(long_name=QUOTED_STRING|NAME=QUOTED_STRING)...];
+```
+
+    This optional command declares the exogenous variables in the model. Optionally it is possible to give a LaTeX name to the variable. Exogenous variables are required if the user wants to be able to apply shocks to her model. The variables in the list can be separated by spaces or by commas. varexo commands can appear several times in the file and Dynare will concatenate them.
+
+*Options*
+
+- `long_name = QUOTED_STRING`
+
+*Example*
+
+        varexo m gov;
+
+*Remarks*
+
+    An exogenous variable is an innovation, in the sense that this
+    variable cannot be predicted from the knowledge of the current
+    state of the economy. For instance, if logged TFP is a first order
+    autoregressive process:
+	```
+    a_t=ρa_{t−1}+ε_t
+    ```
+then logged TFP is an endogenous variable to be declared with var, while the innovation `ε_t` is to be declared with varexo.
 
 *Command*:
 
@@ -197,8 +206,7 @@ varexo_det VAR_NAME [$TEX_NAME$][(long_name=QUOTED_STRING|NAME=QUOTED_STRING)...
 ```
 
 This optional command declares exogenous deterministic variables in a
-stochastic model. See `conv` for the
-syntax of `VAR_NAME`. Optionally it is possible to give a LaTeX name
+stochastic model. Optionally it is possible to give a LaTeX name
 to the variable. The variables in the list can be separated by spaces or
 by commas. `varexo_det` commands can appear several times in the file
 and Dynare will concatenate them.
@@ -218,13 +226,8 @@ a lag in the model.
 
 - `long_name = QUOTED_STRING`
 
-Like `long_name <long-name>` but value
-stored in `M_.exo_det_names_long`.
+- `NAME = QUOTED_STRING`
 
-- NAME = QUOTED_STRING
-
-Like `partitioning <partitioning>` but
-QUOTED_STRING stored in `M_.exo_det_partitions.NAME`.
 
 *Example*
 
@@ -429,7 +432,7 @@ outside the model block (e.g. for initializing parameters or variables,
 or as command options). In this manual, those two types of expressions
 are respectively denoted by `MODEL_EXPRESSION` and `EXPRESSION`.
 
-Unlike MATLAB or Octave expressions, Dynare expressions are necessarily
+Unlike Julia expressions, Dynare expressions are necessarily
 scalar ones: they cannot contain matrices or evaluate to matrices.[^2]
 
 Expressions can be constructed using integers (INTEGER), floating point
@@ -455,8 +458,7 @@ different whether they are used inside or outside the model block.
 #### Inside the model
 
 Parameters used inside the model refer to the value given through
-parameter initialization (see `param-init`{.interpreted-text
-role="ref"}) or `homotopy_setup` when doing a simulation, or are the
+parameter initialization (see `param-init`) or `homotopy_setup` when doing a simulation, or are the
 estimated variables when doing an estimation.
 
 Variables used in a `MODEL_EXPRESSION` denote current period values when
@@ -538,8 +540,7 @@ This operator is used to take the expectation of some expression using a
 different information set than the information available at current
 period. For example, `EXPECTATION(-1)(x(+1))` is equal to the expected
 value of variable x at next period, using the information set available
-at the previous period. See `aux-variables`{.interpreted-text
-role="ref"} for an explanation of how this operator is handled
+at the previous period. See `aux-variables` for an explanation of how this operator is handled
 internally and how this affects the output.
 
 ### Functions
