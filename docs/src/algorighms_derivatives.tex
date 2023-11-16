@@ -1,0 +1,158 @@
+\documentclass{article}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+
+\title{Derivatives of the solution of the first order approximation of
+a DSGE model}
+\author{Michel Juillard}
+
+\begin{document}
+\maketitle
+
+The first order approximation of a DSGE model is computed around the
+deterministic steady state. Computing the derivatives of this
+approximation with respect to the model parameters requires to compute
+\begin{enumerate}
+  \item the derivatives of the steady state with respect to
+    the parameters.
+  \item the derivatives of the coefficients of the linear
+    approximation with respect to the parameters
+  \item the derivatives of solution the Unilateral Quadratic
+    Matrix Equation (UQME) used to obtain the solution of a linear
+    rational expectation model
+  \item the derivatives of the coeficients of response to shocks
+\end{enumerate}
+
+We consider the general model
+\[
+\mathbb{E}_t \left\{ f(y_{t+1}, y_t, y_{t-1}, \epsilon_t;
+\theta)\right\} = 0
+\]
+where
+\begin{align*}
+  \mathbb{E}_t\left\{\epsilon_t\right\} &= 0\\
+  \mathbb{E}_t\left\{\epsilon_t\epsilon_t'\right\} &= \Sigma_\epsilon\\
+  \mathbb{E}_t\left\{\epsilon_t\epsilon_\tau'\right\} &= 0\;\;\;
+  t\ne\tau
+\end{align*}
+$y_t$ is a vector of $n$ endogenous variables and $\epsilon_t$, a
+vector of $m$ exogenous shocks.
+
+\section{Derivatives of the steady state}
+
+The steady state $\bar y$ satisfies
+\[
+f(\bar y, \bar y, \bar y, 0;\theta) = 0
+\]
+and
+\[
+\frac{\partial \bar y}{\partial \theta} = -\left(\frac{\partial
+  f}{\partial y_{t+1}} +\frac{\partial f}{\partial y_t} + \frac{\partial
+      f}{\partial y_{t-1}}\right)^{-1}\frac{\partial f}{\partial \theta}
+\]
+
+\section{Derivatives of the coefficents of the linear
+  approximation of the model}  
+The first order approximation of the model is written
+\[
+A \mathbb{E}_t\hat y_{t+1} + B \hat y_t + C \hat y_{t-1} + Du_t = 0
+\]
+where $\hat y_t=y_t - \bar y$ and
+\begin{align*}
+  A &= \left.\frac{\partial f}{\partial y_{t+1}} \right|_{\bar y}\\
+  B &= \left.\frac{\partial f}{\partial y_t} \right|_{\bar y}\\
+  C &= \left.\frac{\partial f}{\partial y_{t-1}} \right|_{\bar y}\\
+  D &= \left.\frac{\partial f}{\partial u_t} \right|_{\bar y}
+\end{align*}
+Then,
+\begin{align*}
+  A &= \frac{\partial^2 f}{\partial y_{t+1}\partial \theta} + \left(\frac{\partial^2
+  f}{\partial y_{t+1}\partial y_{t+1}} +\frac{\partial^2 f}{\partial y_t\partial y_{t+1}} + \frac{\partial^2
+      f}{\partial y_{t-1}\partial y_{t+1}}\right)\left(e_n\otimes \frac{\partial \bar
+    y}{\partial \theta}\right)\\ 
+  B &= \frac{\partial^2 f}{\partial y_t\partial \theta} + \left(\frac{\partial^2
+  f}{\partial y_{t+1}\partial y_t} +\frac{\partial^2 f}{\partial y_t\partial y_t} + \frac{\partial^2
+      f}{\partial y_{t-1}\partial y_t}\right)\left(e_n\otimes \frac{\partial \bar
+    y}{\partial \theta}\right)\\ 
+  C &= \frac{\partial^2 f}{\partial y_{t-1}\partial \theta} + \left(\frac{\partial^2
+  f}{\partial y_{t+1}\partial y_{t-1}} +\frac{\partial^2 f}{\partial y_t\partial y_{t-1}} + \frac{\partial^2
+      f}{\partial y_{t-1}\partial y_{t-1}}\right)\left((e_n\otimes \frac{\partial \bar
+    y}{\partial \theta}\right)\\ 
+  D &= \frac{\partial^2 f}{\partial u_t\partial \theta} + \left(\frac{\partial^2
+  f}{\partial y_{t+1}\partial u_t} +\frac{\partial^2 f}{\partial y_t\partial u_t} + \frac{\partial^2
+      f}{\partial y_{t-1}\partial u_t}\right)\left(e_n\otimes \frac{\partial \bar
+    y}{\partial \theta}\right)
+\end{align*}
+where $e_n$ is a 1-vector of size $n$.
+\section{Derivatives of the solution of the UQME}
+
+We assume that the solution of the first order approximation of the
+model take the form
+\[
+\hat y_t = G\hat y_{t-1} + Hu_t
+\]
+
+Matrix $G$ must satisfies the UQME
+\[
+A G^2 + B G + C = 0
+\]
+
+We want to compute $\frac{\partial G}{\partial z}$ given $\frac{\partial
+  A}{\partial z}$, $\frac{\partial B}{\partial z}$, $\frac{\partial
+  C}{\partial z}$.
+
+Derivative of an implicit function:
+\[
+  \frac{\partial A}{\partial z}G^2 + A\frac{\partial G}{\partial z}G
+  + AG\frac{\partial G}{\partial z} + B\frac{\partial G}{\partial z}
+  + \frac{\partial B}{\partial z}G + \frac{\partial C}{\partial z} = 0
+\]
+Can be reorganized as
+\[
+  A\frac{\partial G}{\partial z}G
+  + (AG + B)\frac{\partial G}{\partial z} +\frac{\partial A}{\partial z}G^2 
+  + \frac{\partial B}{\partial z}G + \frac{\partial C}{\partial z} = 0
+\]
+T
+It has the form of a generalized Sylvester equation:
+\[
+  ax + bxc = d
+\]
+where, 
+\begin{align*}
+  a &= AG + B\\
+  b &= A\\
+  c &= G\\
+  d &= \frac{\partial A}{\partial z}G^2 
+      + \frac{\partial B}{\partial z}G + \frac{\partial C}{\partial z}\\
+\end{align*}
+
+This equation can be rewritten as
+\[
+  x + a^{-1}bxc = a^{-1}d,
+\]  
+and vectorized as
+\[
+  (I + c'\otimes(a^{-1}b)x = vec(a^{-1}d)
+\]
+The linear system can be solved for $x$.
+
+
+\section{Derivatives of the coefficients of response to the shocks}
+Matrix $H$ must satisfy
+\[
+A G H + BH + D = 0
+\]
+and
+\[
+H = -(AG + B)^{-1}D
+\]
+
+Then
+\[
+\frac{\partial H}{\partial \theta_i} = -(AG + B)\left(\frac{\partial
+  A}{\partial \theta_i}GH + A\frac{\partial G}{\partial \theta_i}H +
+  \frac{\partial B}{\partial \theta_i}H + D\right)
+\]
+\end{document}
