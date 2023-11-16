@@ -78,7 +78,7 @@ function estimation!(context, field::Dict{String, Any})
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    observations = get_observations(context, options.datafile, options.data. options.first_obs, options.last_obs, options.nobs)
+    observations,obsvarnames  = get_observations(context, options.datafile, options.data. options.first_obs, options.last_obs, options.nobs)
     nobs = size(observations, 2)
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
@@ -112,9 +112,9 @@ function mode_compute!(; algorithm = BFGS,
                  diffuse_filter::Bool = false,
                  display::Bool = false,
                  fast_kalman_filter::Bool = true,
-                 first_obs::PeriodsSinceEpoch = Undated(1),
+                 first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
                  initial_values = get_initial_value_or_mean(),
-                 last_obs::PeriodsSinceEpoch = Undated(0),
+                 last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
                  mode_check::Bool = false,
                  nobs::Int = 0,
                  order::Int = 1,
@@ -126,8 +126,8 @@ function mode_compute!(; algorithm = BFGS,
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
     
-    observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
-    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, algorithm = algorithm, transformed_parameters = transformed_parameters)
+    observations, obsvarnames = get_observations(context, datafile, data, first_obs, last_obs, nobs)
+    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, obsvarnames, algorithm = algorithm, transformed_parameters = transformed_parameters)
 end
 
 function rwmh_compute!(;context::Context=context,
@@ -137,11 +137,11 @@ function rwmh_compute!(;context::Context=context,
              diffuse_filter::Bool = false,
              display::Bool = true,
              fast_kalman_filter::Bool = true,
-             first_obs::PeriodsSinceEpoch = Undated(1),
+             first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
              initial_values::Vector{Float64} = prior_mean(context.work.estimated_parameters),
              covariance::Matrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
              transformed_covariance::Matrix{Float64} = Matrix{Float64}(undef, 0,0),
-             last_obs::PeriodsSinceEpoch = Undated(0),
+             last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
              mcmc_chains::Int = 1,
              mcmc_init_scale::Float64 = 0.0,
              mcmc_jscale::Float64 = 0.0,
@@ -159,9 +159,10 @@ function rwmh_compute!(;context::Context=context,
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
     
-    observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
+    observations, obsvarnames = get_observations(context, datafile, data, first_obs, last_obs, nobs)
     (chain, back_transformed_chain) = mh_estimation(context, 
-        observations, 
+        observations,
+        obsvarnames, 
         initial_values, 
         covariance = mcmc_jscale*covariance, 
         transformed_covariance = mcmc_jscale*transformed_covariance,
@@ -273,7 +274,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         dynamicws = Dynare.DynamicWs(context)
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
         obs_idx = [
-            symboltable[v].orderintype for
+            symboltable[String(v)].orderintype for
             v in varobs]
         state_ids = sort!(union(obs_idx, model.i_bkwrd_b))
         obs_idx_state = [Base.findfirst(isequal(i), 
@@ -338,10 +339,10 @@ struct DSGELogPosteriorDensity{F <: Function, UT}
     context::Context
     observations::Matrix{Union{Missing,UT}}
     ssws::SSWs
-    function DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
+    function DSGELogPosteriorDensity(context, observations, obsvarnames)
         n = length(context.work.estimated_parameters)
-        ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
-        f = make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
+        ssws = SSWs(context, size(observations, 2), obsvarnames)
+        f = make_logposteriordensity(context, observations, ssws)
         new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
     end
 end
@@ -415,7 +416,7 @@ function make_negativeloglikelihood(context, observations, first_obs, last_obs, 
     return lognegativelikelihood
 end
 
-function make_logposteriordensity(context, observations, first_obs, last_obs, ssws)
+function make_logposteriordensity(context, observations, ssws)
     function logposteriordensity(x)::Float64
         lpd = logpriordensity(x, context.work.estimated_parameters)
         if abs(lpd) == Inf
@@ -561,7 +562,8 @@ function loglikelihood(
     set_estimated_parameters!(context, parameters)
     fill!(context.results.model_results[1].trends.exogenous_steady_state, 0.0)
     #compute steady state and first order solution
-    Dynare.compute_stoch_simul!(
+    compute_steady_state!(context)
+    compute_stoch_simul!(
         context,
         ssws.dynamicws,
         model_parameters,
@@ -575,7 +577,7 @@ function loglikelihood(
     steady_state = results.trends.endogenous_steady_state[ssws.obs_idx]
     n = size(ssws.Y, 2)
     row = 1
-    Dynare.remove_linear_trend!(
+    remove_linear_trend!(
         ssws.Y,
         observations,
         results.trends.endogenous_steady_state[ssws.obs_idx],
@@ -789,17 +791,16 @@ end
 function posterior_mode!(
     context,
     initialvalue,
-    observations;
+    observations,
+    obsvarnames;
     algorithm = BFGS,
-    first_obs = 1,
-    last_obs = 0,
     iterations = 1000,
     show_trace = false,
     transformed_parameters = true
 )
     ep = context.work.estimated_parameters
     results = context.results.model_results[1].estimation
-    problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
+    problem = DSGELogPosteriorDensity(context, observations, obsvarnames)
     if transformed_parameters
         transformation = DSGETransformation(ep)
         objective(θ) = -problem.f(collect(Dynare.TransformVariables.transform(transformation, θ)))
@@ -838,7 +839,7 @@ function posterior_mode!(
         )
         @show res
         hess = finite_difference_hessian(objective1, minimizer)
-        if !isposdef(hess)
+        if !isposdef((hess + hess')/2)
             @show minimizer
             error("Hessian isn't positive definite")
         end 
@@ -865,6 +866,7 @@ end
 function mh_estimation(
     context,
     observations,
+    obsvarnames,
     initial_values;
     covariance,
     back_transformation = true,
@@ -878,7 +880,7 @@ function mh_estimation(
 )
     ep = context.work.estimated_parameters
     param_names = ep.name
-    problem = DSGELogPosteriorDensity(context, observations, first_obs, last_obs)
+    problem = DSGELogPosteriorDensity(context, observations, obsvarnames)
 
     if transformed_parameters
         transformation = DSGETransformation(context.work.estimated_parameters)
@@ -909,7 +911,7 @@ function mh_estimation(
             end 
         end 
     else
-        chain = run_mcmc(problem.f, initial_values, Matrix(covariance), param_names, mcmc_replic, mcmc_chains)
+        chain = run_mcmc(problem, initial_values, Matrix(covariance), param_names, mcmc_replic, mcmc_chains)
         back_transformed_chain  = chain
     end 
     #imode1 = argmax(chain.value.data[:,end,1])
@@ -919,13 +921,12 @@ end
 
 function run_mcmc(posterior_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)    
     model = DensityModel(posterior_density)
-    @debug initial_values
     @debug posterior_density(initial_values)
     proposal_covariance = (proposal_covariance + proposal_covariance')/2
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
-        chain = MCMCChains.sample(model, spl, mcmc_replic,
-                   init_params = Float64.(initial_values),
+        chain = MCMCChains.sample(posterior_density, spl, mcmc_replic,
+                   initial_params = Float64.(initial_values),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
     else    
@@ -933,7 +934,7 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
         BLAS.set_num_threads(1)
         chain = MCMCChains.sample(model, spl, MCMCThreads(), mcmc_replic,
                    mcmc_chains,
-                   init_params = Iterators.repeated(Float64.(initial_values)),
+                   initial_params = Iterators.repeated(Float64.(initial_values)),
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
         BLAS.set_num_threads(old_blas_threads)
@@ -952,7 +953,7 @@ function hmc_estimation(
     initial_energy = get_initial_variance(),
     kwargs...,
 )
-    problem = DSGELogPosteriorDensity(context, datafile, first_obs, last_obs)
+    problem = DSGELogPosteriorDensity(context, datafile)
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem.f)
     transformed_logdensity(θ) = TransformVariables.transform_logdensity(transformed_problem.transformation,
@@ -1086,23 +1087,12 @@ function get_observations(context, datafile, data, first_obs, last_obs, nobs)
     results = context.results.model_results[1]
     symboltable = context.symboltable
     varobs = context.work.observed_variables
-    obs_idx =
-        [symboltable[v].orderintype for v in varobs if is_endogenous(v, symboltable)]
-    if datafile != ""
-        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig = get_data!(context, datafile, data, varnames, first_obs, last_obs, nobs)
+    if datafile != "" || length(data) > 0
+        Yorig = get_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
     else
-        error("calib_smoother needs a data file or a TimeDataFrame!")
+        error("The procedure needs a data file or a AxisArrayTable!")
     end
-    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
-
-    remove_linear_trend!(
-        Y,
-        Yorig,
-        results.trends.endogenous_steady_state[obs_idx],
-        results.trends.endogenous_linear_trend[obs_idx],
-    )
-    return Y
+    return transpose(Yorig), column_labels(Yorig)
 end
 
 # Pretty printing name of estimated parameters
