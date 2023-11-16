@@ -9,7 +9,6 @@ function data!(datafile::AbstractString;
     last::PeriodsSinceEpoch = Undated(typemin(Int)),
     nobs::Integer = 0,
 )
-    @assert  start == Undated(typemin(Int)) || last == Undated(typemin(Int)) || nobs == 0 "error in data!(): nobs, first  and last can't be used together"
     aat = MyAxisArrayTable(datafile)
     Ta = typeof(row_labels(aat)[1])
     if Ta <: Dates.UTInstant
@@ -30,6 +29,10 @@ function data!(datafile::AbstractString;
             # start option and last option are used
             @assert Tl == Ta "error in data!(): last must have the same frequency as the datafile"
             lastperiod = last
+        elseif nobs > 0
+            lastperiod = startperiod + T(nobs) - T(1)
+        else
+            lastperiod = row_labels(aat)[end]
         end 
     elseif typeof(last) != Int || last > typemin(Int)
         # start option isn't used but last option is used
