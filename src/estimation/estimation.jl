@@ -257,6 +257,7 @@ end
 struct SSWs{D<:AbstractFloat,I<:Integer}
     a0::Vector{D}
     dynamicws::Dynare.DynamicWs
+    cssws::ComputeStochSimulWs
     H::Matrix{D}
     lagged_state_ids::Vector{I}
     P::Matrix{D}
@@ -275,6 +276,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         D = eltype(context.work.params)
         symboltable = context.symboltable
         dynamicws = Dynare.DynamicWs(context)
+        cssws = Dynare.ComputeStochSimulWs(context)
         stoch_simul_options = Dynare.StochSimulOptions(Dict{String,Any}())
         obs_idx = [
             symboltable[String(v)].orderintype for
@@ -298,6 +300,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         new{D,Int64}(
             a0,
             dynamicws,
+            cssws,
             H,
             lagged_state_ids,
             P,
@@ -428,6 +431,7 @@ function make_logposteriordensity(context, observations, ssws)
         try
             lpd += loglikelihood(x, context, observations, ssws)
         catch e
+            error(e)
             @debug e
             lpd = -Inf
         end
@@ -569,6 +573,7 @@ function loglikelihood(
     compute_stoch_simul!(
         context,
         ssws.dynamicws,
+        ssws.cssws,
         model_parameters,
         ssws.stoch_simul_options;
         variance_decomposition = false,
@@ -613,7 +618,7 @@ function loglikelihood(
     Y = ssws.Y
     if any(ismissing.(Y))
         # indices of non-missing observations are in data_pattern
-        data_pattern = Vector{Vector{I}}(undef, I(0))
+        data_pattern = Vector{Vector{Int}}(undef, 0)
         for i = 1:nobs
             push!(data_pattern, findall(.!ismissing.(view(Y[:, i]))))
         end

@@ -430,14 +430,28 @@ function localapproximation!(; context::Context = context,
     stoch_simul_core!(context, ws, options)
 end
 
+struct ComputeStochSimulWs
+    endogenous3::Vector{Float64}
+    compressed_jacobian::Matrix{Float64}
+    function ComputeStochSimulWs(context)
+        m = context.models[1]
+        n = m.endogenous_nbr
+        n_dyn = m.n_bkwrd + 2*m.n_both + m.n_fwrd + m.n_current + m.exogenous_nbr
+        endogenous3 = Vector{Float64}(undef, 3*n)
+        compressed_jacobian = Matrix{Float64}(undef, n, n_dyn)
+        new(endogenous3, compressed_jacobian)
+    end
+end
+
 function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulOptions)
     model = context.models[1]
     modfileinfo = context.modfileinfo
     results = context.results.model_results[1]
     work = context.work
+    css_ws = ComputeStochSimulWs(context)
     #check_parameters(work.params, context.symboltable)
     #check_endogenous(results.trends.endogenous_steady_state)
-    compute_stoch_simul!(context, ws, work.params, options; variance_decomposition = true)
+    compute_stoch_simul!(context, ws, css_ws, work.params, options; variance_decomposition = true)
     if options.display
         if options.order == 1
             display_stoch_simul(context, options)
@@ -498,9 +512,17 @@ function check!(context::Context, field::Dict{String,Any})
     Nothing
 end
 
+function set_endogenous3!(endogenous3, endogenous)
+    n = length(endogenous)
+    copyto!(endogenous3, endogenous)
+    copyto!(endogenous3, n+1, endogenous, 1, n)
+    copyto!(endogenous3, 2*n+1, endogenous, 1, n)
+end 
+
 function compute_stoch_simul!(
     context::Context,
     ws::DynamicWs,
+    css_ws::ComputeStochSimulWs,
     params::Vector{Float64},
     options::StochSimulOptions;
     kwargs...
@@ -512,7 +534,8 @@ function compute_stoch_simul!(
     fill!(results.trends.exogenous_steady_state, 0.0)
     compute_steady_state!(context, nocheck = options.nonstationary)
     endogenous = results.trends.endogenous_steady_state
-    endogenous3 = repeat(endogenous, 3)
+    endogenous3 = css_ws.endogenous3
+    set_endogenous3!(css_ws.endogenous3, endogenous)
     exogenous = results.trends.exogenous_steady_state
     compute_first_order_solution!(
         context,
@@ -522,6 +545,7 @@ function compute_stoch_simul!(
         params,
         model,
         ws,
+        css_ws,
         options; kwargs...
             )
     if order == 2
@@ -578,6 +602,27 @@ function compute_stoch_simul!(
                    
 end
 
+function set_compressed_jacobian!(compressed_jacobian, jacobian, context)
+    model = context.models[1]
+    n = model.endogenous_nbr
+    nx = model.exogenous_nbr
+    lli = model.lead_lag_incidence
+    k = 1
+    m = 1
+    for i = 1:3
+        for j = 1:n
+            if lli[i, j] > 0
+                copyto!(compressed_jacobian, k, jacobian, m, n)
+                k += n
+            end
+            m += n
+        end
+    end
+    copyto!(compressed_jacobian, k, jacobian, m, nx*n)
+    return nothing
+end
+
+
 function compute_first_order_solution!(
     context::Context,
     endogenous::AbstractVector{Float64},
@@ -586,6 +631,7 @@ function compute_first_order_solution!(
     params::AbstractVector{Float64},
     model::Model,
     ws::DynamicWs,
+    css_ws::ComputeStochSimulWs, 
     options::StochSimulOptions;
     variance_decomposition::Bool = true,
 )
@@ -601,13 +647,9 @@ function compute_first_order_solution!(
         model,
         2,
     )
-    lli = model.lead_lag_incidence
-    @views jacobian = hcat(Matrix(jacobian[:, findall(lli[1, :] .> 0)]),
-                           Matrix(jacobian[:, model.endogenous_nbr .+ findall(lli[2, :] .> 0)]),
-                           Matrix(jacobian[:, 2*model.endogenous_nbr .+ findall(lli[3, :] .> 0)]),
-                           Matrix(jacobian[:, 3*model.endogenous_nbr .+ collect(1:model.exogenous_nbr)]))
-    #    LRE.remove_static!(jacobian, wsLRE)
-    LRE.first_order_solver!(LRE_results, jacobian, options.LRE_options,
+    set_compressed_jacobian!(css_ws.compressed_jacobian, jacobian, context)
+
+    LRE.first_order_solver!(LRE_results, css_ws.compressed_jacobian, options.LRE_options,
                             workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
     if variance_decomposition
         compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
