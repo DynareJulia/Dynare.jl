@@ -35,14 +35,14 @@ variables*, which constitute a simple way to share a common expression
 between several equations. The syntax consists of a pound sign (\#)
 followed by the name of the new model local variable (which must **not**
 be declared as in `var-decl`, but may have
-been declared by `model_local_variable`{.interpreted-text role="comm"}),
+been declared by `model_local_variable`),
 an equal sign, and the expression for which this new variable will
 stand. Later on, every time this variable appears in the model, Dynare
 will substitute it by the expression assigned to the variable. Note that
 the scope of this variable is restricted to the model block; it cannot
 be used outside. To assign a LaTeX name to the model local variable, use
 the declaration syntax outlined by
-`model_local_variable`{.interpreted-text role="comm"}. A model local
+`model_local_variable`. A model local
 variable declaration looks like:
 
 ```
@@ -85,7 +85,7 @@ More information on tags is available at
 There can be several `model` blocks, in which case they are simply
 concatenated. The set of effective options is also the concatenation of
 the options declared in all the blocks, but in that case you may rather
-want to use the `model_options`{.interpreted-text role="comm"} command.
+want to use the `model_options` command.
 
 *Options*
 
@@ -180,8 +180,7 @@ end;
 
 - `model_options (OPTIONS...);`
 
-This command accepts the same options as the `model`{.interpreted-text
-role="bck"} block.
+This command accepts the same options as the `model` block.
 
 The purpose of this statement is to specify the options that apply to
 the whole model, when there are several `model` blocks, so as to restore
@@ -192,7 +191,7 @@ have no option).
 - `model_remove (TAGS...);`
 
 This command removes equations that appeared in a previous
-`model`{.interpreted-text role="bck"} block.
+`model` block.
 
 The equations must be specified by a list of tag values, separated by
 commas. Each element of the list is either a simple quoted string, in
@@ -230,9 +229,9 @@ will be turned into an exogenous, and `dummy2` will be removed.
 
 This block replaces several equations in the model. It removes the
 equations given by the tags list (with the same syntax as in
-`model_remove`{.interpreted-text role="comm"}), and it adds equations
+`model_remove`), and it adds equations
 given within the block (with the same syntax as
-`model`{.interpreted-text role="bck"}).
+`model`).
 
 No variable is removed or has its type changed in the process.
 
@@ -254,142 +253,6 @@ end;
  
 In the above example, the dummy equation is replaced by a proper Euler
 equation.
-
-Dynare has the ability to output the original list of model equations to
-a LaTeX file, using the `write_latex_original_model` command, the list
-of transformed model equations using the
-`write_latex_dynamic_model command`, and the list of static model
-equations using the `write_latex_static_model` command.
-
-- *Command*: `write_latex_original_model (OPTIONS);`
-
-This command creates two LaTeX files: one containing the model as
-defined in the model block and one containing the LaTeX document header
-information.
-
-If your `.mod` file is `FILENAME.mod`, then Dynare will create a file
-called `FILENAME/latex/original.tex`, which includes a file called
-`FILENAME/latex/original_content.tex` (also created by Dynare)
-containing the list of all the original model equations.
-
-If LaTeX names were given for variables and parameters (see
-`var-decl`), then those will be used;
-otherwise, the plain text names will be used.
-
-Time subscripts (`t`, `t+1`, `t-1`, \...) will be appended to the
-variable names, as LaTeX subscripts.
-
-Compiling the TeX file requires the following LaTeX packages:
-`geometry, fullpage, breqn`.
-
-*Options*
-
-- `write\_equation\_tags`
-
-Write the equation tags in the LaTeX output. The equation tags will be
-interpreted with LaTeX markups.
-
-- *Command*: `write_latex_dynamic_model ; 
-
-- *Command*: `write_latex_dynamic_model (OPTIONS);`
-
-This command creates two LaTeX files: one containing the dynamic model
-and one containing the LaTeX document header information.
-
-If your `.mod` file is `FILENAME.mod`, then Dynare will create a file
-called `FILENAME/latex/dynamic.tex`, which includes a file called
-`FILENAME/latex/dynamic_content.tex` (also created by Dynare) containing
-the list of all the dynamic model equations.
-
-If LaTeX names were given for variables and parameters (see
-`var-decl`), then those will be used;
-otherwise, the plain text names will be used.
-
-Time subscripts (`t`, `t+1`, `t-1`, \...) will be appended to the
-variable names, as LaTeX subscripts.
-
-Note that the model written in the TeX file will differ from the model
-declared by the user in the following dimensions:
-
--   The timing convention of predetermined variables (see
-    `predetermined_variables`{.interpreted-text role="comm"}) will
-    have been changed to the default Dynare timing convention; in
-    other words, variables declared as predetermined will be lagged on
-    period back,
--   The `EXPECTATION` operators will have been removed, replaced by
-    auxiliary variables and new equations (as explained in the
-    documentation of
-    `EXPECTATION <EXPECTATION (INTEGER) (MODEL_EXPRESSION)>`{.interpreted-text
-    role="op"}),
--   Endogenous variables with leads or lags greater or equal than two
-    will have been removed, replaced by new auxiliary variables and
-    equations,
--   Exogenous variables with leads or lags will also have been
-    replaced by new auxiliary variables and equations.
-
-For the required LaTeX packages, see
-`write_latex_original_model`{.interpreted-text role="comm"}.
-
-*Options*
-
-- *write\_equation\_tags*
-
-See `write_equation_tags`{.interpreted-text role="opt"}
-
-- *Command*: `write_latex_static_model (OPTIONS);`
-
-This command creates two LaTeX files: one containing the static model
-and one containing the LaTeX document header information.
-
-If your `.mod` file is `FILENAME.mod`, then Dynare will create a file
-called `FILENAME/latex/static.tex`, which includes a file called
-`FILENAME/latex/static_content.tex` (also created by Dynare) containing
-the list of all the steady state model equations.
-
-If LaTeX names were given for variables and parameters (see
-`var-decl`), then those will be used;
-otherwise, the plain text names will be used.
-
-Note that the model written in the TeX file will differ from the model
-declared by the user in the some dimensions (see
-`write_latex_dynamic_model`{.interpreted-text role="comm"} for details).
-
-Also note that this command will not output the contents of the optional
-`steady_state_model` block (see `steady_state_model`{.interpreted-text
-role="bck"}); it will rather output a static version (i.e. without leads
-and lags) of the dynamic `model` declared in the model block. To write
-the LaTeX contents of the `steady_state_model` see
-`write_latex_steady_state_model`{.interpreted-text role="comm"}.
-
-For the required LaTeX packages, see
-`write_latex_original_model`{.interpreted-text role="comm"}.
-
-*Options*
-
-- *write_equation_tags*: 
-
-See `write_equation_tags`{.interpreted-text role="opt"}.
-
-- *Command*: `write_latex_steady_state_model`
-
-This command creates two LaTeX files: one containing the steady state
-model and one containing the LaTeX document header information.
-
-If your `.mod` file is `FILENAME.mod`, then Dynare will create a file
-called `FILENAME/latex/steady_state.tex`, which includes a file called
-`FILENAME/latex/steady_state_content.tex` (also created by Dynare)
-containing the list of all the steady state model equations.
-
-If LaTeX names were given for variables and parameters (see
-`var-decl`), then those will be used;
-otherwise, the plain text names will be used.
-
-Note that the model written in the `.tex` file will differ from the
-model declared by the user in some dimensions (see
-`write_latex_dynamic_model`{.interpreted-text role="comm"} for details).
-
-For the required LaTeX packages, see
-`write_latex_original_model`{.interpreted-text role="comm"}.
 
 ## Auxiliary variables
 
@@ -440,9 +303,7 @@ that auxiliary variable names are replaced by the original variables
 they refer to.
 
 The number of endogenous variables before the creation of auxiliary
-variables is stored in `M_.orig_endo_nbr`, and the number of endogenous
+variables is stored in `context.models[1].orig_endo_nbr`, and the number of endogenous
 variables after the creation of auxiliary variables is stored in
-`M_.endo_nbr`.
+`context.models[1].endogenous_nbr`.
 
-See [https://git.dynare.org/Dynare/dynare/-/wikis/Auxiliary-variables](https://git.dynare.org/Dynare/dynare/-/wikis/Auxiliary-variables)
-for more technical details on auxiliary variables.
