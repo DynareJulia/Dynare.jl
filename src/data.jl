@@ -33,7 +33,7 @@ function data!(datafile::AbstractString;
             lastperiod = startperiod + T(nobs) - T(1)
         else
             lastperiod = row_labels(aat)[end]
-        end 
+        end
     elseif typeof(last) != Int || last > typemin(Int)
         # start option isn't used but last option is used
         @assert Tl == Ta "error in data!(): last must have the same frequency as the datafile"

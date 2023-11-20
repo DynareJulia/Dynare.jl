@@ -27,7 +27,7 @@ include("estimated_parameters.jl")
 
 Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
-    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0)))
+    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray([;;], PeriodsSinceEpoch[], Symbol[]))
     datafile::String = ""
     diffuse_filter::Bool = false
     display::Bool = false
@@ -81,7 +81,7 @@ function estimation!(context, field::Dict{String, Any})
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    observations,obsvarnames  = get_observations(context, options.datafile, options.data. options.first_obs, options.last_obs, options.nobs)
+    observations,obsvarnames  = get_observations(context, options.datafile, options.data, options.first_obs, options.last_obs, options.nobs)
     nobs = size(observations, 2)
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
@@ -90,7 +90,7 @@ function estimation!(context, field::Dict{String, Any})
         plot_priors(context, estimated_parameters.name)
     end 
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, transformed_parameters = true)
+        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, obsvarnames, transformed_parameters = true)
         @debug res
     end
 
