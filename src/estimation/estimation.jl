@@ -32,8 +32,8 @@ Base.@kwdef struct EstimationOptions
     diffuse_filter::Bool = false
     display::Bool = false
     fast_kalman_filter::Bool = true
-    first_obs::PeriodsSinceEpoch = Undated(1)
-    last_obs::PeriodsSinceEpoch = Undated(0)
+    first_obs::PeriodsSinceEpoch = Undated(typemin(Int))
+    last_obs::PeriodsSinceEpoch = Undated(typemin(Int))
     mcmc_chains::Int = 1
     mcmc_init_scale::Float64 = 0
     mcmc_jscale::Float64 = 0
@@ -50,7 +50,11 @@ end
 function translate_estimation_options(options)
     new_options = copy(options)
     for (k, v) in options
-        if k == "mh_jscale"
+        if k == "first_obs"
+            new_options["first_obs"] = v[1]
+        elseif k == "last_obs"
+            new_options["last_obs"] = v[1]
+        elseif k == "mh_jscale"
             new_options["mcmc_jscale"] = v
             delete!(new_options, "mh_jscale")
         elseif k == "mh_nblck"
@@ -59,6 +63,8 @@ function translate_estimation_options(options)
         elseif k == "mh_replic"
             new_options["mcmc_replic"] = v
             delete!(new_options, "mh_replic")
+        elseif k == "plot_priors"
+            v == 0 && (options["plot_priors"] = false)
         end
     end
     return new_options 
@@ -87,6 +93,7 @@ end
 
 function estimation!(context, field::Dict{String, Any})
     opt = translate_estimation_options(field["options"])
+    @show opt
     ff = NamedTuple{Tuple(Symbol.(keys(opt)))}(values(opt))
     options = EstimationOptions(; ff...)
     symboltable = context.symboltable

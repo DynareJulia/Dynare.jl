@@ -53,22 +53,22 @@ end
 
 function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
     parameters = context.work.estimated_parameters
-    symbol_table = context.symboltable
+    symboltable = context.symboltable
     for p in fields["params"]
         if "param" in keys(p)
             push!(parameters.name, p["param"])
-            push!(parameters.index, symbol_table[p["param"]].orderintype)
+            push!(parameters.index, symboltable[p["param"]].orderintype)
             push!(parameters.parametertype, EstParameter)
         elseif "var" in keys(p)
             push!(parameters.name, p["var"])
-            push!(parameters.index, symbol_table[p["var"]].orderintype)
-            is_endogenous(p["var"]) && push!(parameters.parametertype, EstSDMeasurement) 
-            is_exogenous(p["var"]) && push!(parameters.parametertype, EstSDShock)
+            push!(parameters.index, symboltable[p["var"]].orderintype)
+            is_endogenous(p["var"], symboltable) && push!(parameters.parametertype, EstSDMeasurement) 
+            is_exogenous(p["var"], symboltable) && push!(parameters.parametertype, EstSDShock)
         elseif "var1" in keys(p)
             push!(parameters.name, (p["var1"] => p["var2"]))
-            push!(parameters.index, (symbol_table[p["var1"]].orderintype => symbol_table[p["var2"]].orderintype))
-            is_endogenous(p["var"]) && push!(parameters.parametertype, EstCorrMeasurement) 
-            is_exogenous(p["var"]) && push!(parameters.parametertype, EstCorrShock)
+            push!(parameters.index, (symboltable[p["var1"]].orderintype => symbol_table[p["var2"]].orderintype))
+            is_endogenous(p["var"], symboltable) && push!(parameters.parametertype, EstCorrMeasurement) 
+            is_exogenous(p["var"], symboltable) && push!(parameters.parametertype, EstCorrShock)
         else
             error("Unrecognized parameter name")
         end
