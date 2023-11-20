@@ -576,15 +576,15 @@ Cube root.
 
 Signum function, defined as:
 
-```
-$$\begin{aligned}
+```math
+\begin{aligned}
   \textrm{sign}(x) =
          \begin{cases}
          -1 &\quad\text{if }x<0\\
          0 &\quad\text{if }x=0\\
          1 &\quad\text{if }x>0
          \end{cases}
-  \end{aligned}$$
+  \end{aligned}
 ```
 
 Note that this function is not continuous, hence not differentiable, at
