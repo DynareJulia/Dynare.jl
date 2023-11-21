@@ -10,8 +10,9 @@ makedocs(
         "Running Dynare" => "running-dynare.md",
         "Model File" => [
             "Syntax elements" => "model-file/syntax-elements.md",
+            "Variables and parameters declaration" => "model-file/variable-declarations.md",
             "Model declaration" => "model-file/model-declaration.md",
-            "Initial and terminal conditions" => "model-file/initial-terminal-conditions.md",
+#            "Initial and terminal conditions" => "model-file/initial-terminal-conditions.md",
             "Steady state" => "model-file/steady-state.md",
             "Shocks" => "model-file/shocks.md",
             "Deterministic simulations" => "model-file/deterministic-simulations.md",

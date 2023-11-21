@@ -701,7 +701,7 @@ categories, since after the creation of auxiliary variables (see
 `aux-variables`), all endogenous have at
 most one lead and one lag. We therefore have the following identity:
 
-``` {.sourceCode .matlab}
+```
 M_.npred + M_.both + M_.nfwrd + M_.nstatic = M_.endo_nbr
 ```
 
