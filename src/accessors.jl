@@ -73,19 +73,55 @@ simulation(varnames::Tuple;
 =#
 
 ## SMOOTHER
-
 function smoother(; context = context,
-    firstperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][1],
-    lastperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][end],
+    firstperiod = row_labels(context.results.model_results[1].smoother)[1],
+    lastperiod = row_labels(context.results.model_results[1].smoother)[end],
     )
-return context.results.model_results[1].smoother[firstperiod..lastperiod]
+    return context.results.model_results[1].smoother[firstperiod:lastperiod]
 end
 
 function smoother(varnames; context = context,
-    firstperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][1],
-    lastperiod = AxisArrayTables.axes(context.results.model_results[1].smoother)[1][end],
+    firstperiod = row_labels(context.results.model_results[1].smoother)[1],
+    lastperiod = row_labels(context.results.model_results[1].smoother)[end],
     )
-return context.results.model_results[1].smoother[firstperiod..lastperiod, varnames]
+    return context.results.model_results[1].smoother[firstperiod:lastperiod, varnames]
 end
 
+## FORECAST
+function forecast(; context = context,
+    firstperiod = row_labels(context.results.model_results[1].smoother)[1],
+    lastperiod = row_labels(context.results.model_results[1].smoother)[end],
+    informationperiod = Undated(typemin(Int))
+    )
+    forecast_ = context.results.model_results[1].forecast
+    if length(forecast_) == 1
+        return forecast_[1][firstperiod:lastperiod]
+    else
+        D = Dict((row_labels(d)[1] => d) for d in forecast_)
+        if informationperiod != Undated(typemin(Int))
+            return D[informationperiod]
+        else
+            return D
+        end 
+    end
+end
+
+function forecast(varnames; 
+    context = context,
+    firstperiod = row_labels(context.results.model_results[1].smoother)[1],
+    lastperiod = row_labels(context.results.model_results[1].smoother)[end],
+    informationperiod = Undated(typemin(Int))
+    )
+    forecast_ = context.results.model_results[1].forecast
+    if length(forecast_) == 1
+        return forecast_[1][firstperiod:lastperiod]
+    else
+        D = Dict((row_labels(d)[1] => d[varnames]) for d in forecast_)
+        if informationperiod != Undated(typemin(Int))
+            return D[informationperiod]
+        else
+            return D
+        end 
+    end
+end
 

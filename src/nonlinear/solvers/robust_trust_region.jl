@@ -48,7 +48,7 @@ macro trustregiontrace(stepnorm)
 end
 
 function dogleg!(p, p_c, p_i, r, d, J, linsolve, delta::Real)
-    @debug "$(now()): start dogleg!"
+    @debug "start dogleg!"
     T = eltype(d)
     #Jbal = copy(J)
     try

@@ -117,22 +117,19 @@ function get_varobs(modeljson::Dict{String,Any})
     return varobs
 end
 
+function isfile_recent(filename, modfilename)
+    pathname = joinpath(modfilename, "model/julia", filename)
+    return isfile(pathname)
+end 
+
 function check_function_files!(modfileinfo::ModFileInfo, modfilename::String)
     dirname = modfilename * "/model/julia/"
-    if isfile(dirname * "SparseDynamicResid!.jl")
-        modfileinfo.has_dynamic_file = true
-    end
-    if isfile(dirname * "SparseStaticResid!.jl")
-        modfileinfo.has_static_file = true
-    end
-    if isfile(dirname * "DynamicSetAuxiliarySeries.jl")
-        modfileinfo.has_auxiliary_variables = true
-        if !isfile(dirname * "SetAuxiliaryVariables.jl")
-            error(dirname * "SetAuxiliaryVariables.jl is missing")
-        end
-    end
-    if isfile(dirname * "SteadyState2.jl")
-        modfileinfo.has_steadystate_file = true
+    modfileinfo.has_dynamic_file = isfile_recent("SparseDynamicResid!.jl", modfilename)
+    modfileinfo.has_static_file = isfile_recent("SparseStaticResid!.jl", modfilename)
+    modfileinfo.has_steadystate_file = isfile_recent("SteadyState2.jl", modfilename)
+    modfileinfo.has_auxiliary_variables = isfile_recent("DynamicSetAuxiliarySeries.jl", modfilename)
+    if modfileinfo.has_auxiliary_variables && !isfile(dirname * "SetAuxiliaryVariables.jl")
+        error(dirname * "SetAuxiliaryVariables.jl is missing")
     end
 end
 

@@ -6,8 +6,8 @@ struct CalibSmootherOptions
     last_obs::Int64
     function CalibSmootherOptions(options::Dict{String,Any})
         datafile = ""
-        first_obs = 1
-        last_obs = 0
+        first_obs = Undated(typemin(Int))
+        last_obs = Undated(typemin(Int))
         for (k, v) in pairs(options)
             if k == "datafile"
                 datafile = v::String
@@ -43,12 +43,14 @@ Compute the smoothed values of the variables for an estimated model
 - `first_obs::PeriodSinceEpoch`: first period used by smoother
                                  (default: first observation in the file)  
 - `last_obs::PeriodSinceEpoch`: last period used by smoother
-                               (default: last observation in the file)
+                               (default: last observation in the file)data
 """
 function calibsmoother!(; context=context,
                         datafile = "",
-                        first_obs = 1,
-                        last_obs = 0
+                        data::AxisArrayTable = AxisArrayTable([;;], Undated[], Symbol[]),
+                        first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                        last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                        nobs::Int = 0
                         )
     symboltable = context.symboltable
     varobs = context.work.observed_variables
@@ -60,30 +62,28 @@ function calibsmoother!(; context=context,
     model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
-    if (filename = datafile) != ""
-        varnames = [v for v in varobs if is_endogenous(v, symboltable)]
-        Yorig =
-            get_data(filename, varnames, start = first_obs, last = last_obs)
-    else
-        error("calib_smoother needs a data file or a TimeDataFrame!")
-    end
-    Y = Matrix{Union{Float64,Missing}}(undef, size(Yorig))
+    #=
+    Yorig = get_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    periods = row_labels(Yorig)
+    Y = transpose(Yorig)
     steadystate = results.trends.endogenous_steady_state
     if has_trends
         remove_linear_trend!(
             Y,
-            Yorig,
             steadystate[varobs_ids],
             results.trends.endogenous_linear_trend[varobs_ids],
         )
     else
-        Y .= Yorig .- steadystate[varobs_ids]
+        Y .-= steadystate[varobs_ids]
     end
+    =#
+    Y = get_detrended_data(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    periods = row_labels(Y)
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)
     np = model.exogenous_nbr
-    ny, nobs = size(Y)
+    nobs, ny = size(Y)
     c = zeros(ny)
     k1 = findall(in(varobs_ids), kalman_statevar_ids)
     k2 = findall(in(statevar_ids), kalman_statevar_ids)
@@ -128,14 +128,15 @@ function calibsmoother!(; context=context,
     last = nobs
     presample = 0
     data_pattern = Vector{Vector{Int64}}(undef, 0)
+    Yt = copy(adjoint(Y))
     for i = 1:nobs
-        push!(data_pattern, findall(.!ismissing.(Y[:, i])))
+        push!(data_pattern, findall(.!ismissing.(Yt[:, i])))
     end
 
     if count(lre_results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(
-            Y,
+            Yt,
             c,
             Z,
             H,
@@ -193,7 +194,7 @@ function calibsmoother!(; context=context,
         Pinftt = zeros(ns, ns, nobs + 1)
         kws = DiffuseKalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         diffuse_kalman_smoother!(
-            Y,
+            Yt,
             c,
             tZ,
             H,
@@ -228,6 +229,7 @@ function calibsmoother!(; context=context,
     exo_symb = [Symbol(v) for v in exogenous_vars]
     smoother = copy(alphah)
     filter = copy(a0)
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
     if has_trends
         add_linear_trend!(
             filter,
@@ -245,13 +247,18 @@ function calibsmoother!(; context=context,
         filter .+= steadystate
         smoother .+= steadystate
     end
-    @show size(smoother)
-    @show size(etah)
+    lastperiod = periods[end]
+    T = typeof(lastperiod)
+    if T <: Dates.UTInstant
+        periods1 = vcat(periods, T(lastperiod.periods.value + 1))
+    else
+        periods1 = vcat(periods, lastperiod + 1)
+    end 
     results.filter = AxisArrayTable(transpose(filter), 
-                                    Undated(1):Undated(nobs+1), 
+                                    periods1, 
                                     endo_symb)
     results.smoother = AxisArrayTable(transpose(vcat(smoother, etah)), 
-                                      Undated(1):Undated(nobs), 
+                                      periods, 
                                       vcat(endo_symb, exo_symb))
     return nothing
 end
