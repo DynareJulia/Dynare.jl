@@ -522,19 +522,7 @@ statement resets `oo_.initval_series`.
 - `datafile = FILENAME filename = FILENAME (deprecated)`
 
 The name of the file containing the data. It must be included in quotes
-if the filename contains a path or an extension. The command accepts the
-following file formats:
-
--   M-file (extension `.m`): for each endogenous and exogenous variable,
-    the file must contain a row or column vector of the same name.
--   MAT-file (extension `.mat`): same as for M-files.
--   Excel file (extension `.xls` or `.xlsx`): for each endogenous and
-    exogenous variable, the file must contain a column of the same name.
-    NB: Octave only supports the `.xlsx` file extension and must have
-    the [io](https://octave.sourceforge.io/io/) package installed
-    (easily done via octave by typing '`pkg install -forge io`'). The
-    first column may contain the date of each observation.
--   CSV files (extension `.csv`): for each endogenous and
+if the filename contains a path or an extension. The format must CSV. For each endogenous and
     exogenous variable, the file must contain a column of the same
     name. The first column may contain the date of each
     observation.
@@ -789,19 +777,7 @@ from a file, and is typically used in conjunction with
 
    `filename = FILENAME (deprecated)`
 
-The name of the file containing the data. The command accepts the following file formats:
-
--   M-file (extension `.m`): for each endogenous and exogenous
-    variable, the file must contain a row or column vector of the same
-    name.
--   MAT-file (extension `.mat`): same as for M-files.
--   Excel file (extension `.xls` or `.xlsx`): for each endogenous and
-    exogenous variable, the file must contain a column of the same
-    name. NB: Octave only supports the `.xlsx` file extension and must
-    have the [io](https://octave.sourceforge.io/io/) package installed
-    (easily done via octave by typing '`pkg install -forge io`'). The
-    first column may contain the date of each observation.
--   CSV files (extension `.csv`): for each endogenous and exogenous
+The name of the file containing the data. The format must CSV. For each endogenous and exogenous
     variable, the file must contain a column of the same name. The
     first column may contain the date of each observation.
 
