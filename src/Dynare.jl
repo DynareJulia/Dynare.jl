@@ -49,6 +49,7 @@ export localapproximation!
 include("perfectforesight/perfectforesight.jl")
 export perfect_foresight!, scenario!
 include("estimation/priorprediction.jl")
+export priorprediction
 include("simulations.jl")
 include("nonlinear/NLsolve.jl")
 using .NLsolve
