@@ -6,7 +6,7 @@ using LinearAlgebra
 using Serialization
 using Test
 
-@dynare "models/example1ss/example1ss"
+@dynare "models/example1pf/example1pf_conditional"
 
 
 function make_f_J(context, scenario, periods, infoperiod)
@@ -308,7 +308,7 @@ context = @dynare "models/example1pf/example1pf_conditional"
     @testset "example1pf_conditional" begin
         context = @dynare "models/example1pf/example1pf_conditional"
         
-                e = AxisArrayTables.data(simulation(:e))
+        e = AxisArrayTables.data(simulation(:e))
         u = AxisArrayTables.data(simulation(:u))
         y = AxisArrayTables.data(simulation(:y))
         c1 = AxisArrayTables.data(simulation(:c, simnbr=1))

@@ -77,6 +77,41 @@ function display_stoch_simul2(context::Context, options::StochSimulOptions)
     LRE_results = results.linearrationalexpectations
     stationary_variables = LRE_results.stationary_variables
     display_solution_function2(results.solution_derivatives, endogenous_names, exogenous_names, m)
+    simulation_results = long_second_order_simulation(context)
+    display_mean_sd_variance2(simulation_results, endogenous_names, m)
+    display_correlation2(simulation_results, endogenous_names, m)
+    display_autocorrelation2(simulation_results, endogenous_names, m, options)
+end
+
+function long_second_order_simulation(context; periods = 100_000, burning = 100)
+    model = context.models[1]
+    results = context.results.model_results[1]
+    GD = results.solution_derivatives
+    
+    exo_nbr = model.exogenous_nbr
+    original_endo_nbr = model.original_endogenous_nbr
+    state_index = model.i_bkwrd_b
+
+    gy1 = GD[1][:, 1]
+    y0 = zeros(size(gy1, 1))
+
+    active_exogenous = findall(diag(model.Sigma_e) .> 0)
+    Sigma_e = view(model.Sigma_e, active_exogenous, active_exogenous)
+    C = transpose(cholesky(Sigma_e).U)
+    n_active = length(active_exogenous)
+
+    u_shock = [zeros(exo_nbr) for _ in 1:periods]
+    for i in 1:periods
+        u_shock[i][active_exogenous] = C*randn(n_active) 
+    end
+
+    simWs = SimulateWs(GD, length(y0), state_index, model.exogenous_nbr)    
+    simulation_result_vec = simulate(GD, y0, u_shock, periods, simWs)
+    simulation_result_mat = stack(simulation_result_vec)'
+    
+    # ignore burning periods and useless endogenous variables
+    simulation_result_clean = simulation_result_mat[burning:end, 1:original_endo_nbr]
+    return simulation_result_clean
 end
 
 function display_solution_function(
@@ -223,6 +258,20 @@ function display_mean_sd_variance(
     dynare_table(data, title)
 end
 
+function display_mean_sd_variance2(sim_results, endogenous_names, model::Model)
+    original_endo_nbr = model.original_endogenous_nbr    
+    
+    title = "SIMULATED MOMENTS"
+    data = Matrix{Any}(undef, original_endo_nbr + 1, 4)
+    data[1, :] = ["VARIABLE", "MEAN", "STD. DEV.", "VARIANCE"]
+    data[2:end, 1] = endogenous_names[1:original_endo_nbr]
+    data[2:end, 2] .= map(mean, eachcol(sim_results))
+    data[2:end, 3] .= map(std, eachcol(sim_results))
+    data[2:end, 4] .= map(var, eachcol(sim_results))
+    println("\n")
+    dynare_table(data, title)
+end
+
 function display_variance_decomposition(
     LREresults::LinearRationalExpectationsResults,
     endogenous_names::AbstractVector{String},
@@ -318,6 +367,19 @@ function display_correlation(
     dynare_table(data, title)
 end
 
+function display_correlation2(sim_results, endogenous_names, model::Model)
+    original_endo_nbr = model.original_endogenous_nbr    
+
+    title = "SIMULATED CORRELATION MATRIX"
+    data = Matrix{Any}(undef, original_endo_nbr + 1, original_endo_nbr + 1)
+    data[1, 1] = ""
+    data[1, 2:end] = endogenous_names[1:original_endo_nbr] |> permutedims 
+    data[2:end, 1] = endogenous_names[1:original_endo_nbr] 
+    data[2:end, 2:end] = cor(sim_results)
+    println("\n")
+    dynare_table(data, title)
+end
+
 function display_autocorrelation(
     LREresults::LinearRationalExpectationsResults,
     endogenous_names::AbstractVector{String},
@@ -366,6 +428,20 @@ function display_autocorrelation(
             end
         end
     end
+    println("\n")
+    dynare_table(data, title)
+end
+
+function display_autocorrelation2(sim_results, endogenous_names, model, options::StochSimulOptions)
+    original_endo_nbr = model.original_endogenous_nbr    
+    lags = [i for i in 1:options.nar]
+
+    title = "SIMULATED AUTOCORRELATION COEFFICIENTS"
+    data = Matrix{Any}(undef,  original_endo_nbr + 1, options.nar + 1)
+    data[1, 1] = ""
+    data[2:end, 1] = endogenous_names[1:original_endo_nbr]
+    data[1, 2:end] = lags
+    data[2:end, 2:end] = autocor(sim_results, lags)'
     println("\n")
     dynare_table(data, title)
 end
@@ -445,22 +521,27 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
             display_stoch_simul2(context, options)
         end
     end
-    if options.order == 1 && options.irf > 0
-        exogenous_names = get_exogenous_longname(context.symboltable)
-        n = model.endogenous_nbr
-        m = model.exogenous_nbr
-        y = Dict{Symbol,AxisArrayTable}
-        irfs!(context, options.irf)
+    if options.irf > 0
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
         filename = "$(path)/irfs"
+        
+        if options.order == 1
+            irfs!(context, options.irf)
+        elseif options.order == 2
+            irfs2!(context, options.irf)
+        end
+
         plot_irfs(
             context.results.model_results[1].irfs,
             model,
             context.symboltable,
             filename,
         )
+        display(context.results.model_results[1].irfs[:e])
     end
+
+
     if (periods = options.periods) > 0
         steadystate = results.trends.endogenous_steady_state
         linear_trend = results.trends.endogenous_linear_trend
@@ -538,26 +619,11 @@ function compute_stoch_simul!(
             model,
         )
         m = model
-        k = vcat(
-            m.i_bkwrd_b,
-            m.endogenous_nbr .+ model.i_current,
-            2*m.endogenous_nbr .+ model.i_fwrd_b,
-            3*m.endogenous_nbr .+ collect(1:m.exogenous_nbr)
-        )
-        n = 3*m.endogenous_nbr + m.exogenous_nbr
-        nc = m.n_bkwrd + 2*m.n_both + m.n_current + m.n_fwrd + m.exogenous_nbr
-        F1 = zeros(m.endogenous_nbr, nc)
-        @views F1 .= ws.derivatives[1][:, k]
-        kk = vec(reshape(1:n*n, n, n)[k, k])
-
-        sp = ws.derivatives[2]
-        F2 = Matrix(ws.derivatives[2])[:, kk]
-        F = [F1, F2]
         G = Vector{Matrix{Float64}}(undef, 0)
         push!(G, context.results.model_results[1].linearrationalexpectations.g1)
         push!(G, zeros(model.endogenous_nbr,
                        (model.n_states + model.exogenous_nbr + 1)^2))
-        ws = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
+        solverWs = KOrderPerturbations.KOrderWs(model.endogenous_nbr,
                                           model.n_fwrd + model.n_both,
                                           model.n_states,
                                           model.n_current,
@@ -569,14 +635,61 @@ function compute_stoch_simul!(
                                           order)
         moments = [0, vec(model.Sigma_e)]
         KOrderPerturbations.k_order_solution!(G,
-                                              F,
+                                              ws.derivatives,
                                               moments,
                                               order,
-                                              ws)
+                                              solverWs)
         copy!(results.solution_derivatives, G)
     end
-                   
 end
+
+function irfs2!(context, periods; burning = 100)
+    model = context.models[1]
+    results = context.results.model_results[1]
+    GD = results.solution_derivatives
+    
+    exo_nbr = model.exogenous_nbr
+    state_index = model.i_bkwrd_b
+    
+    model.Sigma_e
+    active_exogenous = findall(diag(model.Sigma_e) .> 0)
+    nx = length(active_exogenous)
+    endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
+    exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
+    exogenous_names = view(exogenous_names, active_exogenous)
+    Sigma_e = view(model.Sigma_e, active_exogenous, active_exogenous)
+    C = transpose(cholesky(Sigma_e).U)
+    gy1 = GD[1][:, 1]
+    n = size(gy1)[1]
+    y0 = zeros(n)
+
+    simWs = SimulateWs(GD, n, state_index, model.exogenous_nbr)
+
+    for (i, exo_var) in enumerate(active_exogenous) 
+        u_shock = [zeros(exo_nbr) for _ in 1:periods + burning]
+        det_shock = C[:, i]
+
+        mean_sims = [zeros(model.endogenous_nbr) for _ in 1:periods]
+        replic = 1000
+        for n_sim in 1:replic
+            for i in 1:periods + burning
+                u_shock[i][active_exogenous] = C*randn(nx) 
+            end
+            rand_sim = simulate(GD, y0, u_shock, periods + burning, simWs)
+            u_shock_det = deepcopy(u_shock)
+            @views u_shock_det[burning + 1] .+= det_shock  
+            rand_det_sim = simulate(GD, y0, u_shock_det, periods + burning, simWs)
+            @views mean_sims .+= (rand_det_sim[burning + 1:end] .- rand_sim[burning + 1:end])/replic
+        end
+        
+        mean_irf_matrix = reduce(vcat, transpose.(mean_sims))
+
+        tdf = AxisArrayTable(mean_irf_matrix, Undated(1):Undated(periods), endogenous_names) 
+        results.irfs[exogenous_names[exo_var]] = tdf
+    end
+
+end
+
 
 function compute_first_order_solution!(
     context::Context,
@@ -616,19 +729,23 @@ end
 
 function irfs!(context, periods)
     model = context.models[1]
+    model.Sigma_e
     results = context.results.model_results[1]
+    active_exogenous = findall(diag(model.Sigma_e) .> 0)
     endogenous_names = [Symbol(n) for n in get_endogenous_longname(context.symboltable)]
     exogenous_names = [Symbol(n) for n in get_exogenous_longname(context.symboltable)]
-    C = cholesky(model.Sigma_e + 1e-14 * I)
-    x = zeros(model.exogenous_nbr)
+    exogenous_names = view(exogenous_names, active_exogenous)
+    Sigma_e = view(model.Sigma_e, active_exogenous, active_exogenous)
+    C = transpose(cholesky(model.Sigma_e).U)
+    x = zeros(length(active_exogenous))
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
     B = zeros(model.endogenous_nbr, model.exogenous_nbr)
     make_A_B!(A, B, model, results)
-    for i = 1:model.exogenous_nbr
+    for (i, j) in enumerate(active_exogenous)
         fill!(x, 0)
-        x[i] = robustsqrt(model.Sigma_e[i, i])
+        @views x .= C[:, j]
         yy = Matrix{Float64}(undef, size(A, 1), periods)
-        mul!(view(yy, :, 1), B, x)
+        @views mul!(view(yy, :, 1), B[:, active_exogenous], x)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
