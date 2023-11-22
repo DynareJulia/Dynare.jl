@@ -543,3 +543,6 @@ function ramsey_constraints!(context, field)
     end
 end
 
+# redefinition normcdf, normpdf
+normcdf(x; μ = 0, σ = 1) = cdf(Normal(μ, σ), x)
+normpdf(x; μ = 0, σ = 1) = pdf(Normal(μ, σ), x)
