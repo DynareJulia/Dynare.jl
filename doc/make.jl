@@ -14,7 +14,7 @@ makedocs(
             "Model declaration" => "model-file/model-declaration.md",
 #            "Initial and terminal conditions" => "model-file/initial-terminal-conditions.md",
             "Steady state" => "model-file/steady-state.md",
-            "Shocks" => "model-file/shocks.md",
+            "Shocks on exgogenous variables" => "model-file/shocks.md",
             "Deterministic simulations" => "model-file/deterministic-simulations.md",
             "Local approximation" => "model-file/local-approxiation.md",
             "Estimation" => "model-file/estimation.md",

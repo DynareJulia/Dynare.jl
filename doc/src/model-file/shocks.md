@@ -1,43 +1,34 @@
-## Shocks on exogenous variables
+To study the effects of a temporary shock
+after which the system goes back to the original equilibrium (if the
+model is stable...) one uses a temporary shock. A temporary shock is a temporary change of value
+of one or several exogenous variables in the model. Temporary shocks are
+specified with the command `shocks`.
 
 In a deterministic context, when one wants to study the transition of
 one equilibrium position to another, it is equivalent to analyze the
-consequences of a permanent shock and this in done in Dynare through the
-proper use of `initval` and `endval`.
-
-Another typical experiment is to study the effects of a temporary shock
-after which the system goes back to the original equilibrium (if the
-model is stable...). A temporary shock is a temporary change of value
-of one or several exogenous variables in the model. Temporary shocks are
-specified with the command `shocks`.
+consequences of a permanent shock. In Dynare this is done with `initval`,
+`endval` and `steady`.
 
 In a stochastic framework, the exogenous variables take random values in
 each period. In Dynare, these random values follow a normal distribution
 with zero mean, but it belongs to the user to specify the variability of
 these shocks. The non-zero elements of the matrix of variance-covariance
-of the shocks can be entered with the `shocks` command. Or, the entire
-matrix can be directly entered with `Sigma_e` (this use is however
-deprecated).
+of the shocks can be entered with the `shocks` command.
 
-If the variance of an exogenous variable is set to zero, this variable
-will appear in the report on policy and transition functions, but isn't
-used in the computation of moments and of Impulse Response Functions.
-Setting a variance to zero is an easy way of removing an exogenous
-shock.
+## Dynare commands
 
-Note that, by default, if there are several `shocks` or `mshocks` blocks
-in the same `.mod` file, then they are cumulative: all the shocks
-declared in all the blocks are considered; however, if a `shocks` or
-`mshocks` block is declared with the `overwrite` option, then it
-replaces all the previous `shocks` and `mshocks` blocks.
-
+### shocks
 - *block*: `shocks ;` 
-          
 - *block*: `shocks(overwrite);`
 
-See above for the meaning of the `overwrite` option.
+#### Options
 
-*In deterministic context*
+- `overwrite`: By default, if there are several `shocks` blocks
+in the same `.mod` file, then they are cumulative: all the shocks
+declared in all the blocks are considered; however, if a `shocks` block is declared with the `overwrite` option, then it
+replaces all the previous `shocks` blocks.
+
+#### In a deterministic context
 
 For deterministic simulations, the `shocks` block specifies temporary
 changes in the value of exogenous variables. For permanent shocks, use
@@ -110,7 +101,8 @@ values (xx);
 end;
 ```
 
-*In stochastic context*
+
+#### In a stochastic context
 
 For stochastic simulations, the `shocks` block specifies the non zero
 elements of the covariance matrix of the shocks of exogenous variables.
@@ -148,7 +140,7 @@ interpreted as the calibration of the measurement errors on these
 variables. This requires the `varobs` command to be specified before the
 `shocks` block.
 
-*Example*
+##### Example
 
 ```
 shocks;
@@ -158,6 +150,15 @@ corr e, u = 0.8;
 var v, w = 2;
 end;
 ```
+
+##### Remark
+
+If the variance of an exogenous variable is set to zero, this variable
+will appear in the report on policy and transition functions, but isn't
+used in the computation of moments and of Impulse Response Functions.
+Setting a variance to zero is an easy way of removing an exogenous
+shock.
+
 
 *In stochastic optimal policy context*
 
