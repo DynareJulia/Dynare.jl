@@ -1,37 +1,24 @@
-## Deterministic simulation
-
-### Perfect foresight
+## Perfect foresight
 
 When the framework is deterministic, Dynare can be used for models with
-the assumption of perfect foresight. Typically, the system is supposed
-to be in a state of equilibrium before a period `1` when the news of a
+the assumption of perfect foresight. The system is supposed
+to be in a given state before a period `1` (often a steady state) 
+when the news of a
 contemporaneous or of a future shock is learned by the agents in the
 model. The purpose of the simulation is to describe the reaction in
 anticipation of, then in reaction to the shock, until the system returns
-to the old or to a new state of equilibrium. In most models, this return
+to equilibrium. This return
 to equilibrium is only an asymptotic phenomenon, which one must
 approximate by an horizon of simulation far enough in the future.
 Another exercise for which Dynare is well suited is to study the
 transition path to a new equilibrium following a permanent shock. For
 deterministic simulations, the numerical problem consists of solving a
 nonlinear system of simultaneous equations in `n` endogenous variables
-in `T` periods. Dynare offers several algorithms for solving this
-problem, which can be chosen via the `stack_solve_algo` option. By
-default (`stack_solve_algo=0`), Dynare uses a Newton-type method to
+in `T` periods. Dynare uses a Newton-type method to
 solve the simultaneous equation system. Because the resulting Jacobian
 is in the order of `n` by `T` and hence will be very large for long
 simulations with many variables, Dynare makes use of the sparse matrix
-capacities of MATLAB/Octave. A slower but potentially less memory
-consuming alternative (`stack_solve_algo=1`) is based on a Newton-type
-algorithm first proposed by *Laffargue (1990)* and *Boucekkine (1995)*,
-which avoids ever storing the full Jacobian. The details of the
-algorithm can be found in *Juillard (1996)*. The third type of
-algorithms makes use of block decomposition techniques
-(divide-and-conquer methods) that exploit the structure of the model.
-The principle is to identify recursive and simultaneous blocks in the
-model structure and use this information to aid the solution process.
-These solution algorithms can provide a significant speed-up on large
-models.
+code .
 
 !!! note
     Be careful when employing auxiliary variables in the context of perfect
@@ -63,6 +50,7 @@ beta*C/C(+1)*R(+1)= 1;
 ```
 
 will work.
+
 
 *Command*: `perfect_foresight_setup ;
 

@@ -15,13 +15,13 @@ with zero mean, but it belongs to the user to specify the variability of
 these shocks. The non-zero elements of the matrix of variance-covariance
 of the shocks can be entered with the `shocks` command.
 
-## Dynare commands
+### Dynare commands
 
-### shocks
+#### shocks
 - *block*: `shocks ;` 
 - *block*: `shocks(overwrite);`
 
-#### Options
+##### Options
 
 - `overwrite`: By default, if there are several `shocks` blocks
 in the same `.mod` file, then they are cumulative: all the shocks
@@ -56,19 +56,7 @@ Note that shock values are not restricted to numerical constants:
 arbitrary expressions are also allowed, but you have to enclose them
 inside parentheses.
 
-The feasible range of `periods` is from 0 to the number of `periods`
-specified in `perfect_foresight_setup`.
-
-!!! note
-
-    Note that the first endogenous simulation period is period 1. Thus, a
-    shock value specified for the initial period 0 may conflict with (i.e.
-    may overwrite or be overwritten by) values for the initial period
-    specified with `initval` or `endval` (depending on the exact context).
-    Users should always verify the correct setting of `oo_.exo_simul` after
-    `perfect_foresight_setup`.
-
-*Example* (with scalar values)
+##### Example 1
 
 ```
 shocks;
@@ -89,7 +77,7 @@ values (1+p) (exp(z));
 end;
 ```
 
-*Example* (with vector values)
+##### Example 2
 
 ```
 xx = [1.2; 1.3; 1];
@@ -100,7 +88,6 @@ periods 1:3;
 values (xx);
 end;
 ```
-
 
 #### In a stochastic context
 
@@ -211,20 +198,36 @@ forecast;
 ```
 ### Julia function
 
-- *Function*: scenario!(; name, period, value, context=context,
-  exogenous=Symbol(), infoperiod=Undated(1)) 
-
-Arguments
-
-- name: the name of an endogenous or exogenous variable written as a
-  symbol
-- period: the period in which the value is set
-- value: the value of the endogenous or exogenous variables
-- context: the context is which the function operates (optional,
-  default = context)
-- exogenous: when an endogenous variable is set, the name of the
-  exogenous that must be freed (required when an endogenous variables
-  is set)
-- infoperiod: the period in which the information is learned
-  (optional, default = Undated(1))
+#### scenario!()
+The Julia function `scenario!()` lets you
+- declare shocks on exogenous variables as the `shocks` block
+- set the future value of endogenous variables (for conditional
+  forecasts)
+- add the date at which the above information is made available to the
+  agents in the model
   
+```@docs
+scenario!
+```
+
+##### Examples
+```
+scenario!(name = :e, value = 0.1, period = 2)
+```
+Exogenous variable `e`, takes value 0.1 in period 2.
+
+```
+scenario!(name = :y, value = 0.2, period=2, exogenous = :u)
+```
+Endogenous variable `y` is set to 0.2 in period 2 and exogenous
+variable `u` is treated as endogenous in the same period. Agents in
+the model know at the beginning of period 1 that this will happen.
+
+```
+scenario!(infoperiod = 2, name = :y, value = 0.2, period = 2,
+                exogenous = :u)
+```
+Endogenous variable `y` is set to 0.2 in period 2 and exogenous
+variable `u` is treated as endogenous in the same period. Agents in
+the model only learn at the beginning of period 2 that this will happen.
+
