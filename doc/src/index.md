@@ -13,15 +13,17 @@ Currently the development team of Dynare is composed of:
 -   Normann Rion (CY Cergy Paris Université and CEPREMAP)
 -   Sébastien Villemot (CEPREMAP)
 
-The development team of DynareJulia is composed of
+The following people contribute or have contributed to  DynareJulia
 -   Satyanarayana Bade
 -   Petre Caraiani
 -   Lilith Hafner
 -   Michel Juillard
+-   Félix Ordoñez
 -   Louis Ponet
--   Roger Powell
 -   Rohit Singh Rathaur
-The following people used to be members of the team:
+-   Dawie van Lill
+
+The following people used to be members of the Dynare team:
 
 -   Houtan Bastani
 -   Abdeljabar Benzougar
@@ -33,7 +35,7 @@ The following people used to be members of the team:
 -   Ferhat Mihoubi
 -   George Perendia
 
-Copyright © 1996-2022, Dynare Team.
+Copyright © 1996-2023, Dynare Team.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or
