@@ -1,5 +1,3 @@
-## Perfect foresight
-
 When the framework is deterministic, Dynare can be used for models with
 the assumption of perfect foresight. The system is supposed
 to be in a given state before a period `1` (often a steady state) 
@@ -20,50 +18,21 @@ is in the order of `n` by `T` and hence will be very large for long
 simulations with many variables, Dynare makes use of the sparse matrix
 code .
 
-!!! note
-    Be careful when employing auxiliary variables in the context of perfect
-    foresight computations. The same model may work for stochastic
-    simulations, but fail for perfect foresight simulations. The issue
-    arises when an equation suddenly only contains variables dated `t+1` (or
-    `t-1` for that matter). In this case, the derivative in the last (first)
-    period with respect to all variables will be 0, rendering the stacked
-    Jacobian singular.
+### Dynare commands
 
-*Example*
+#### perfect\_foresight\_setup
+*Command*: `perfect\_foresight\_setup ;
 
-Consider the following specification of an Euler equation with log
-utility:
-
-```
-Lambda = beta*C(-1)/C;
-Lambda(+1)*R(+1)= 1;
-```
-
-Clearly, the derivative of the second equation with respect to all
-endogenous variables at time `t` is zero, causing
-`perfect_foresight_solver` to generally fail. This is due to the use
-of the Lagrange multiplier `Lambda` as an auxiliary variable. Instead,
-employing the identical
-
-```
-beta*C/C(+1)*R(+1)= 1;
-```
-
-will work.
-
-
-*Command*: `perfect_foresight_setup ;
-
-*Command*: `perfect_foresight_setup (OPTIONS...);`
+*Command*: `perfect\_foresight\_setup (OPTIONS...);`
 
 Prepares a perfect foresight simulation, by extracting the information
 in the `initval`, `endval` and `shocks` blocks and converting them into
 simulation paths for exogenous and endogenous variables.
 
 This command must always be called before running the simulation with
-`perfect_foresight_solver`.
+`perfect\_foresight\_solver`.
 
-*Options*
+##### Options
 
 - `periods = INTEGER`
 
@@ -72,27 +41,29 @@ Number of periods of the simulation.
 - `datafile = FILENAME`
 
 Used to specify path for all endogenous and exogenous variables.
-Strictly equivalent to `initval_file`{.interpreted-text role="comm"}.
+Strictly equivalent to `initval_file`.
 
-*Output*
+##### Output
 
-The paths for the exogenous variables are stored into `oo_.exo_simul`.
+The paths for the exogenous variables are stored into `context.results.model_resultst[1].simulations`.
 
 The initial and terminal conditions for the endogenous variables and the
 initial guess for the path of endogenous variables are stored into
-`oo_.endo_simul`.
+`context.results.model_results[1].simulations`.
 
-*Command*: `perfect_foresight_solver ;`
+#### perfect\_foresight\_solver
 
-*Command*: `perfect_foresight_solver (OPTIONS...);`
+*Command*: `perfect\_foresight\_solver ;`
+
+*Command*: `perfect\_foresight\_solver (OPTIONS...);`
 
 Computes the perfect foresight (or deterministic) simulation of the
 model.
 
-Note that `perfect_foresight_setup` must be called before this command,
+Note that `perfect\_foresight\_setup` must be called before this command,
 in order to setup the environment for the simulation.
 
-*Options*
+##### Options
 
 - `maxit = INTEGER`
 
@@ -121,12 +92,10 @@ Print results (opposite of `noprint`).
 
 - `lmmcp`
 
-Solves the perfect foresight model with a Levenberg-Marquardt mixed
-complementarity problem (LMMCP) solver (*Kanzow and Petra (2004)*),
-which allows to consider inequality constraints on the endogenous
-variables (such as a ZLB on the nominal interest rate or a model with
-irreversible investment). This option is equivalent to
-`stack_solve_algo=7` **and** `solve_algo=10`. Using the LMMCP solver
+Solves mixed complementarity problems. The term refers to the LMMCP solver (_Kanzow and Petra, 2004_),
+that is used by DynareMatlab.  DynareJulia uses the PATH package
+
+Using the LMMCP solver
 requires a particular model setup as the goal is to get rid of any
 min/max operators and complementary slackness conditions that might
 introduce a singularity into the Jacobian. This is done by attaching an
@@ -136,7 +105,7 @@ to which the tag is attached has to hold unless the expression within
 the tag is binding. For instance, a ZLB on the nominal interest rate
 would be specified as follows in the model block:
 
-```
+``_
     model;
        ...
        [mcp = 'r > -1.94478']
@@ -188,6 +157,38 @@ option `stack_solve_algo==0`.
 Solves the linearized version of the perfect foresight model. The model
 must be stationary. Only available with option `stack_solve_algo==0` or
 `stack_solve_algo==7`.
+
+#### Remark
+    Be careful when employing auxiliary variables in the context of perfect
+    foresight computations. The same model may work for stochastic
+    simulations, but fail for perfect foresight simulations. The issue
+    arises when an equation suddenly only contains variables dated `t+1` (or
+    `t-1` for that matter). In this case, the derivative in the last (first)
+    period with respect to all variables will be 0, rendering the stacked
+    Jacobian singular.
+
+##### Example
+
+Consider the following specification of an Euler equation with log
+utility:
+
+```
+Lambda = beta*C(-1)/C;
+Lambda(+1)*R(+1)= 1;
+```
+
+Clearly, the derivative of the second equation with respect to all
+endogenous variables at time `t` is zero, causing
+`perfect_foresight_solver` to generally fail. This is due to the use
+of the Lagrange multiplier `Lambda` as an auxiliary variable. Instead,
+employing the identical
+
+```
+beta*C/C(+1)*R(+1)= 1;
+```
+
+will work.
+
 
 ### Julia function
 ```@docs
