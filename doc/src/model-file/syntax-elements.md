@@ -55,19 +55,19 @@ observed:
     enclosed by square brackets;
 -   EXPRESSION indicates a mathematical expression valid outside the
     model description (see `expr`);
--   MODEL_EXPRESSION (sometimes MODEL_EXP) indicates a mathematical
+-   MODEL\_EXPRESSION (sometimes MODEL\_EXP) indicates a mathematical
     expression valid in the model description (see
     `expr` and
     `model-decl`);
 -   MACRO_EXPRESSION designates an expression of the macro processor
     (see `macro-exp`);
--   VARIABLE_NAME (sometimes VAR_NAME) indicates a variable name
+-   VARIABLE\_NAME (sometimes VAR\_NAME) indicates a variable name
     starting with an alphabetical character and can't contain:
     '()+-*/\^=!;:@#.' or accentuated characters;
--   PARAMETER_NAME (sometimes PARAM_NAME) indicates a parameter name
+-   PARAMETER\_NAME (sometimes PARAM\_NAME) indicates a parameter name
     starting with an alphabetical character and can't contain:
     '()+-*/\^=!;:@#.' or accentuated characters;
--   LATEX_NAME (sometimes TEX_NAME) indicates a valid LaTeX expression
+-   LATEX\_NAME (sometimes TEX\_NAME) indicates a valid LaTeX expression
     in math mode (not including the dollar signs);
 -   FUNCTION_NAME indicates a valid Julia function name;
 -   FILENAME indicates a filename valid in the underlying operating
