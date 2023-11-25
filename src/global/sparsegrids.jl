@@ -104,6 +104,8 @@ end
 =#
 
 function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, i_state, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    @show i_state
+    @show state
     endogenous[i_state] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
@@ -121,14 +123,14 @@ end
 
 function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_index, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     n =  length(system_variables)
-    guess_values = zeros(aNum, n) 
+    guess_values = zeros(n, aNum) 
     x = copy(view(steadystate, system_variables .- endogenous_nbr))
     residuals = similar(x)
     for i in axes(aPoints, 1)
-        @views state = aPoints[i, :]
+        @views state = aPoints[:, i]
         f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_index, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
         result = Dynare.nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
-        @views guess_values[i, :] .= result.zero
+        @views guess_values[:, i] .= result.zero
     end
     return guess_values
 end
@@ -220,7 +222,7 @@ function forward_looking_equations(y, yp1, ym1, params)
 end
 =#
 
-function monomial_power(nShocks, sigE)
+function monomial_power(nShocks)
     # Number of integration nodes
     numNodes = 2*nShocks^2 + 1
 
@@ -401,32 +403,32 @@ function sparsegridapproximation(; context::Context=context,
     polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     Tasmanian.loadNeededPoints!(grid0, polGuess)
     @show grid0
-#=
-#    steadystate = context.results.model_results[1].trends.endogenous_steady_state
 
-    state = zeros(4)
+    #    steadystate = context.results.model_results[1].trends.endogenous_steady_state
+#    state = zeros(4)
 #    state[1:2:4] = steadystate[1:2:4]
 #    state[2:2:4] = steadystate[2:2:4]
 #    ktemp = steadystate[2:2:4]
-    state = [1, 0, 1, 0]
-    ktemp = [1, 1]
+#    state = [1, 0, 1, 0]
+#    ktemp = [1, 1]
     
     params = context.work.params
-    nshocks = 3
+#    nshocks = 3
 
-    (nodes, weights) = monomial_power(nshocks, sigE)
+    (nodes, weights) = monomial_power(exogenous_nbr)
 
-    iter0 = 0
-    iterRefStart = 25
+#    iter0 = 0
+#    iterRefStart = 25
     #polGuess1 = copy(polGuess)
-    gridOrder = 1
-    gridRule = "localp"
-    gridDim = length(state)
-    gridOut = nPols
+#    gridOrder = 1
+#    gridRule = "localp"
+#    gridDim = length(state)
+#    gridOut = nPols
 
     maxiter = 300
     
-    for iter0 in 1:maxiter
+ #=
+   for iter0 in 1:maxiter
 
         polGuess1 = copy(polGuess)
         grid1 = fresh_grid(gridDim, gridOut, gridDepth, gridDomain, gridOrder, gridRule)
