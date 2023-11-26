@@ -2,7 +2,7 @@ module SparseGrids
 
 include("blocks.jl")
 
-#using Blocks
+#using Block
 using Distributions
 #using Dynare
 using LinearAlgebra
@@ -136,33 +136,37 @@ function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, para
 end
     
 """
-Evaluates residual of forward looking equations for each integration node
+    Evaluates residual of forward looking equations for each integration node
 """
-function ExpectFOC(x, state, params, grid, nodes, nCountries, steadystate)
+function ExpectFOC(x, state, params, grid, nodes, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, system_variables)
     numNodes = size(nodes, 1)
-    residuals = zeros(numNodes, nCountries)
-    y = zeros(numNodes, 15)
-    evalPt = zeros(numNodes, nCountries*2)
+    residuals = zeros(numNodes, forward_equations_nbr)
+    y = zeros(numNodes, 3*endogenous_nbr)
+    evalPt = zeros(getNumDimensions(grid), numNodes)
+    @show i_state
     for i in 1:numNodes
         @views y[i, i_state] .= state
-        yy = copy(y[i,:])
-        # 1) Determine t+1  tfp states using preamble between t-1 and 6
-        @views preamble_block!(y, nodes[i,:], params, steadystate)
-        y[i, :] .= yy
-        @views y[i, [12, 14]] .= y[i, [7, 9]]
-        @views y[i, [7, 9]] .= y[i, [2, 4]]
+        #yy = copy(y[i,:])
+        # 1) Determine t+1  variables using preamble
+        @views preamble_block(y, nodes[i,:], params, steadystate)
+        #y[i, :] .= yy
+        @views copy!(y[i, 2*endogenous_nbr .+ (1:endogenous_nbr)], y[i, endogenous_nbr .+ (1:endogenous_nbr)]) 
+        @views copy!(y[i, endogenous_nbr .+ (1:endogenous_nbr)], y[i, 1:endogenous_nbr])
+        @views y[i, i_state] .= x
+        #@views y[i, [12, 14]] .= y[i, [7, 9]]
+        #@views y[i, [7, 9]] .= y[i, [2, 4]]
         # 2) Determine next period's state variables
-        @views evalPt[i, 1:nCountries] .= x[1:nCountries]
-        @views evalPt[i, nCountries + 1:end] .= y[i, [12, 14]]
+        @views evalPt[:, i] .= y[i, endogenous_nbr .+ i_state]
+        #@views evalPt[i, nCountries + 1:end] .= y[i, [12, 14]]
     end
     # 3) Determine relevant variables within the expectations operator
-    X = Tasmanian.evaluateBatch(grid, transpose(evalPt))
+    X = Tasmanian.evaluateBatch(grid, evalPt)
     
-    capPrPr = X[:, 1:2]
-    lambPr = X[:, 3]
+    #capPrPr = X[:, 1:2]
+    #lambPr = X[:, 3]
 
 
-    resid = zeros(2)
+    resid = zeros(forward_equations_nbr)
     for i in 1:numNodes
         #=
         if typeIRBC=='non-smooth':
@@ -183,13 +187,18 @@ function ExpectFOC(x, state, params, grid, nodes, nCountries, steadystate)
         density = 1.0
         =#
         #Specify Integrand
-        y[i, [6,8]] .= x[1:2]
-        y[i, 10] = x[3]
+        #@views copy!(y[:, endogenous_nbr .+ (1:endogenous_nbr)], y[:,1:endogenous_nbr])
+        #y[i, [6,8]] .= x[1:2]
+        #y[i, 10] = x[3]
+                     
         #yp1[:, 2:2:4] .= newstate
-        y[i, [11,13]] .= capPrPr[i, :]
-        y[i, 15] = lambPr[i]
+        #@views copy!(y[:, 2*endogenous_nbr .+ (1:endogenous_nbr)], y[:,endogenous_nbr .+ (1:endogenous_nbr)])
+        #y[i, [11,13]] .= capPrPr[i, :]
+        #y[i, 15] = lambPr[i]
         # residuals numNodes x nbr forward equations
-        forwardblock!(resid, y[i, :], zeros(2), params)
+        @views y[i, endogenous_nbr .+ system_variables] .= X[:, i]
+        @show y
+        forward_block(resid, y[i, :], zeros(exogenous_nbr), params, steadystate)
         residuals[i,:] .= resid
         #=
         if typeIRBC=='non-smooth':
@@ -264,16 +273,18 @@ function monomial_power(nShocks)
     return IntNodes, IntWeights
 end
 
-function expectation_equations!(expected_residuals, x, state, params, grid0, nodes, weights, nCountries)
+function expectation_equations!(expected_residuals, x, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, system_variables)
     # get numNodes x numForwardEquations
-    Integrand = ExpectFOC(x, state, params, grid0, nodes, nCountries)
+    Integrand = ExpectFOC(x, state, params, grid0, nodes, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, system_variables)
     for i in axes(expected_residuals, 1)
         expected_residuals[i] = dot(Integrand[:, i], weights)
     end
     return expected_residuals
 end
 
-function sysOfEqs(policy, state, grid, F, AdjCost, nCountries, nPols, nodes, weights, params)
+function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
+    @show size(policy)
+    #=
     # State variables
     capStates = state[[1, 3]]
     tfpStates = state[[2, 4]]
@@ -281,11 +292,19 @@ function sysOfEqs(policy, state, grid, F, AdjCost, nCountries, nPols, nodes, wei
     # Policy values
     capPolicies = x[1:nCountries]
     lamb = x[nCountries + 1]
+    =#
+    @views begin
+        y[state_variables] .= state
+        y[system_variables] .= policy 
+    end 
+    res = zeros(length(policy))
 
-    res = zeros(nPols)
-
-    expectation_equations!(res, policy, state, params, grid, nodes, weights, nCountries)
+    @views begin
+        expectation_equations!(res[1:forward_equations_nbr], state, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, system_variables)
+        other_block(res[forward_equations_nbr + 1:end], y, zeros(exogenous_nbr), params, steadystate)
+    end 
     # Aggregate resource constraint
+    #=
     gamma = params[1:3:6]
     t = params[3:3:6]
     kappa, beta, delta, phi, rho, A, sigE = params[7:13]
@@ -294,7 +313,9 @@ function sysOfEqs(policy, state, grid, F, AdjCost, nCountries, nPols, nodes, wei
                                 - AdjCost(capStates[ires2],capPolicies[ires2]) - (lamb/t[ires2])^(-gamma[ires2]))
 #        @show ((lamb/t[ires2])^(-gamma[ires2]))
     end
-#    @show (res[nCountries + 1])
+#    @show (res[nCountries + 1] )
+=#
+    @show res
     return res
 end
 
@@ -402,7 +423,6 @@ function sparsegridapproximation(; context::Context=context,
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
     polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     Tasmanian.loadNeededPoints!(grid0, polGuess)
-    @show grid0
 
     #    steadystate = context.results.model_results[1].trends.endogenous_steady_state
 #    state = zeros(4)
@@ -424,10 +444,19 @@ function sparsegridapproximation(; context::Context=context,
 #    gridRule = "localp"
 #    gridDim = length(state)
 #    gridOut = nPols
-
+    state = rand(nstates)
+    i_state = context.models[1].i_bkwrd_b
+    x1 = rand(length(system_variables))
+    resEFOC = ExpectFOC(x1, state, params, grid0, nodes, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, system_variables)
+    @show resEFOC
+    res = zeros(forward_equations_nbr)
+    expectation_equations!(res, x1, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, system_variables)
+    x2 = rand(length(system_variables))
+    resSOE = sysOfEqs(x2, endogenous, state, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
+    @show resSOE
+    #=
     maxiter = 300
-    
- #=
+    @show "OK"
    for iter0 in 1:maxiter
 
         polGuess1 = copy(polGuess)
@@ -438,7 +467,7 @@ function sparsegridapproximation(; context::Context=context,
         
         while ((Tasmanian.getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
         
-            grid1 = ti_step(grid1, polGuess1, grid0, F, AdjCost, nPols, nCountries, nodes, weights, params)
+            grid1 = ti_step(grid1, polGuess1, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, state_variables, system_variables, endogenous)
         
             # We start the refinement process after a given number of iterations
             if (iter0 - 1 > iterRefStart)
@@ -463,7 +492,7 @@ function sparsegridapproximation(; context::Context=context,
             break
         end
     end
-    =#
+=#
 end
 
 function test_sparsegrids()

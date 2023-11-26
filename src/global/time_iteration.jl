@@ -3,7 +3,7 @@
 ################################################################################
 
 
-function ti_step(grid, pol_guess, gridZero, F, AdjCost, nPols, nCountries, nodes, weights, params)
+function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, state_variables, system_variables, y)
 
     # Get the points that require function values
     aPoints1 = Tasmanian.getNeededPoints(grid)
@@ -13,12 +13,12 @@ function ti_step(grid, pol_guess, gridZero, F, AdjCost, nPols, nCountries, nodes
     # Array for intermediate update step
     polInt = zeros(aNumAdd, nPols)
     let state
-        fnl(x) = sysOfEqs(x, state, gridZero, F, AdjCost, nCountries, nPols, nodes, weights, params)
+        fnl(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, i_state, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
         
         # Time Iteration step
         for ii1 in 1:aNumAdd
-            @views state = aPoints1[ii1, [1, 3, 2, 4]]
-            @views pol = pol_guess[ii1, :]
+            @views state = aPoints1[:, ii1]
+            @views pol = pol_guess[:, ii1]
             res = Dynare.nlsolve(fnl, pol, method = :robust_trust_region, show_trace = false)
             polInt[ii1, :] .= res.zero
 #            @show polInt[ii1, :]
