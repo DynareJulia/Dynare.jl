@@ -162,6 +162,7 @@ function make_assignment_function(fname, expressions)
                   Expr(:(::), Symbol(:steadystate), Vector{Float64})
                   )
     f_body = Expr(:block, expressions...)
+    @show f_body
     return @RuntimeGeneratedFunction(Expr(:function, f_call, f_body))
 end
 
