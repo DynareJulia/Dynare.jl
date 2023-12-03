@@ -55,6 +55,7 @@ function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, grid
     Tasmanian.setDomainTransform!(grid, gridDomain)
     # Get the points that require function values
     aPoints = Tasmanian.getPoints(grid)
+    @show size(aPoints)
     # Get the number of points that require function values
     aNum = Tasmanian.getNumPoints(grid)
     return grid, aPoints, aNum, gridDim, gridDepth, gridDomain
@@ -103,10 +104,9 @@ function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
 end
 =#
 
-function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, i_state, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    @show i_state
+function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     @show state
-    endogenous[i_state] .= state
+    endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
     function f(x)
@@ -118,18 +118,20 @@ function make_guess_system(x, residuals, state, endogenous, exogenous, parameter
         residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
     end
+    @show residuals
     return f
 end
 
-function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_index, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     n =  length(system_variables)
     guess_values = zeros(n, aNum) 
     x = copy(view(steadystate, system_variables .- endogenous_nbr))
     residuals = similar(x)
-    for i in axes(aPoints, 1)
+    for i in axes(aPoints, 2)
         @views state = aPoints[:, i]
-        f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_index, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+        f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
         result = Dynare.nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
+        @show result.zero
         @views guess_values[:, i] .= result.zero
     end
     return guess_values
@@ -316,6 +318,27 @@ function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadys
     return res
 end
 
+test_points = hcat( vcat(collect(0.8:0.01:1.2)',
+                         zeros(1,41),
+                         ones(1,41),
+                         zeros(1,41)),
+                    vcat(ones(1,41),
+                         zeros(1,41),
+                         collect(0.8:0.01:1.2)',
+                         zeros(1,41)),
+                    vcat(ones(1,41),
+                         collect(-0.2:0.01:0.2)',
+                         ones(1,41),
+                         zeros(1,41)),
+                    vcat(ones(1,41),
+                         zeros(1,41),
+                         ones(1,41),
+                         collect(-0.2:0.01:0.2)'),
+                    vcat(collect(0.8:0.01:1.2)',
+                         collect(0.2:-0.01:-0.2)',
+                         collect(1.2:-0.01:0.8)',
+                         collect(-0.2:0.01:0.2)'))
+                    
 """
     #=
     # Number of dimensions (capital stock and tfp for each country)
@@ -398,7 +421,7 @@ function sparsegridapproximation(; context::Context=context,
     end
     grid0, aPoints, aNum, nPols, =
         set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain);
-
+    display(aPoints)
     ################################################################################
     #                        Adaptivity parameters                                 #
     ################################################################################
@@ -418,7 +441,11 @@ function sparsegridapproximation(; context::Context=context,
     parameters = work.params
     # unused, place holder
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    @show aNum
+    @show getNumNeeded(grid0)
+    @show getNumDimensions(grid0)
     polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    display(polGuess)
     Tasmanian.loadNeededPoints!(grid0, polGuess)
 
     #    steadystate = context.results.model_results[1].trends.endogenous_steady_state
@@ -435,18 +462,40 @@ function sparsegridapproximation(; context::Context=context,
     (nodes, weights) = monomial_power(exogenous_nbr)
 
 #    iter0 = 0
-#    iterRefStart = 25
+    iterRefStart = 25
     #polGuess1 = copy(polGuess)
 #    gridOrder = 1
 #    gridRule = "localp"
 #    gridDim = length(state)
 #    gridOut = nPols
-    state = rand(nstates)
+    state = [1, 0, 1, 0]
     i_state = context.models[1].i_bkwrd_b
-    x1 = rand(length(system_variables))
+    y = zeros(15)
+    @views y[state_variables] .= state
+    @views preamble_block(y[endogenous_nbr + 1: end], nodes[1,:], params, steadystate)
+    x1 = [1.1, 0.9, 0.6]
+    y[6] = x1[1]
+    y[7] = state[2]
+    y[8] = x1[2]
+    y[9] = state[4]
+    y[10] = x1[3]
+    y[1] = state[1]
+    y[3] = state[3]
+    y[[11, 13, 15]] = evaluateBatch(grid0, reshape(y[[6, 12, 7, 14]], 4, 1))
+    @show y
+    residuals = zeros(2)
+    E1 = y[15] * (((1 + exp(y[12]) * params[7] * params[12] * y[6] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[11] / y[6] - 1) * (1 + y[11] / y[6]))
+    residuals[1] = y[10] * (1 + params[10] * (y[6] / y[1] - 1)) - params[8] * y[15] * (((1 + exp(y[12]) * params[7] * params[12] * y[6] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[11] / y[6] - 1) * (1 + y[11] / y[6]))
+    E2 = y[15] * (((1 + params[12] * params[7] * exp(y[14]) * y[8] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[13] / y[8] - 1) * (1 + y[13] / y[8]))
+    residuals[2] = y[10] * (1 + params[10] * (y[8] / y[3] - 1)) - params[8] * y[15] * (((1 + params[12] * params[7] * exp(y[14]) * y[8] ^ (params[7] - 1)) - params[9]) + (params[10]                                                                                                                                                                                                                                                                       / 2) * (y[13] / y[8] - 1) * (1 + y[13] / y[8]))
+    @show E1, E2
+    @show residuals[1]
+    @show residuals[2]
     resEFOC = ExpectFOC(x1, state, params, grid0, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+    @show resEFOC
     res = zeros(forward_equations_nbr)
     expectation_equations!(res, x1, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+    @show res
     x2 = rand(length(system_variables))
     resSOE = sysOfEqs(x2, endogenous, state, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
     
@@ -472,7 +521,7 @@ function sparsegridapproximation(; context::Context=context,
         end
         
         ## Calculate (approximate) errors on tomorrow's policy grid
-        metric, polGuess, grid0 = policy_update(grid0, grid1, nPols)
+        metric, polGuess, grid0 = policy_update(grid0, grid1, length(system_variables))
  
         println("Iteration: $iter0, Grid pts: $(Tasmanian.getNumPoints(grid0)), Level: $ilev, Metric: $metric")
 
@@ -484,6 +533,9 @@ function sparsegridapproximation(; context::Context=context,
             break
         end
     end
+    Y = evaluateBatch(grid0, test_points)
+    Y[:, 1:15]
+    Y[:, 191:205]
 end
 
 function test_sparsegrids()
