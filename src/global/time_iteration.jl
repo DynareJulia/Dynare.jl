@@ -11,17 +11,17 @@ function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, stead
     aNumAdd = Tasmanian.getNumNeeded(grid)
 
     # Array for intermediate update step
-    polInt = zeros(aNumAdd, length(system_variables))
+    polInt = zeros(length(system_variables), aNumAdd)
     let state
         fnl(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
         
         # Time Iteration step
-        for ii1 in 1:aNumAdd
+        for ii1 in 1:1#aNumAdd
             @views state = aPoints1[:, ii1]
             @views pol = pol_guess[:, ii1]
             res = Dynare.nlsolve(fnl, pol, method = :robust_trust_region, show_trace = false)
-            polInt[ii1, :] .= res.zero
-            @show polInt[ii1, :]
+            polInt[:, ii1] .= res.zero
+            @show polInt[:, ii1]
         end
 #        ln(-1)
     end
@@ -119,8 +119,9 @@ function policy_update(gridOld, gridNew, nPols)
 
     # Now update pol_guess and grid
 
-    polGuess = zeros(aNumTot, nPols)
-
+    polGuess = zeros(nPols, aNumTot)
+    @show size(polGuess)
+    @show size(polGuessTr1)
     for iupd in 1:nPols
         @views polGuess[:,iupd] = 0.5*polGuessTr0[:,iupd] + 0.5*polGuessTr1[:,iupd]
     end
