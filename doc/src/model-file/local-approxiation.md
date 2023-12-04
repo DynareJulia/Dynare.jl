@@ -15,6 +15,7 @@ computed using the `stoch_simul` command.
 #### stoch\_simul
 
 *Command*: `stoch_simul;
+
 *Command*: `stoch_simul (OPTIONS...);
 
 Solves a stochastic (i.e. rational expectations) model, using
@@ -121,39 +122,22 @@ X_{i,n_s+n_k+1} &= \frac{\partial g_i}{\partial \sigma} = 0
 ```
 where ``g_i`` is the solution function for variable `i`, `y`, the vector of endogenous variables, `x`, the vector en exogenous variables and ``\sigma`` the stochastic scale of the model. Note that at first order, this derivative is alwasy equal to zero. 
 
-The matrix of second order derivatives is ``n x n^2`` matrix where each column contains derivatives with respect to a pair of endogenous variab
-eigenvalues::Vector{Complex{Float64}}
-    g1::Matrix{Float64}  # full approximation
-    gs1::Matrix{Float64} # state transition matrices: states x states
-    hs1::Matrix{Float64} # states x shocks
-    gns1::Matrix{Float64} # non states x states
-    hns1::Matrix{Float64} # non states x shocsks
-    # solution first order derivatives w.r. to state variables
-    g1_1::SubArray{Float64, 2, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int}}, UnitRange{Int}}, true}
-    # solution first order derivatives w.r. to current exogenous variables
-    g1_2::SubArray{Float64, 2, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int}}, UnitRange{Int}}, true}
-    endogenous_variance::Matrix{Float64}
-    #    g1_3::SubArray # solution first order derivatives w.r. to lagged exogenous variables
-    stationary_variables::Vector{Bool}
+The matrix of second order derivatives is ``n \times n^2`` matrix where each column contains derivatives with respect to a pair of endogenous variables
+  -  eigenvalues::Vector{Complex{Float64}}
+  -  g1::Matrix{Float64}  # full approximation
+  -  gs1::Matrix{Float64} # state transition matrices: states x states
+  -  hs1::Matrix{Float64} # states x shocks
+  -  gns1::Matrix{Float64} # non states x states
+  -  hns1::Matrix{Float64} # non states x shocsks
+  -  g1_1::SubArray{Float64, 2, Matrix{Float64},
+     Tuple{Base.Slice{Base.OneTo{Int}}, UnitRange{Int}}, true}	 # solution first order derivatives w.r. to state variables
+  -  g1_2::SubArray{Float64, 2, Matrix{Float64},
+     Tuple{Base.Slice{Base.OneTo{Int}}, UnitRange{Int}}, true}   # solution first order derivatives w.r. to current exogenous variables
+  -  endogenous_variance::Matrix{Float64}
+  -  stationary_variables::Vector{Bool}
 
-This command sets `oo_.dr`, `oo_.mean`, `oo_.var`, `oo_.var_list`, and
-`oo_.autocorr`, which are described below.
 
-If the `periods` option is present, sets `oo_.skewness`, `oo_.kurtosis`,
-and `oo_.endo_simul` (see `oo_.endo_simul`{.interpreted-text
-role="mvar"}), and also saves the simulated variables in MATLAB/Octave
-vectors of the global workspace with the same name as the endogenous
-variables.
-
-If option `irf` is different from zero, sets `oo_.irfs` (see below) and
-also saves the IRFs in MATLAB/Octave vectors of the global workspace
-(this latter way of accessing the IRFs is deprecated and will disappear
-in a future version).
-
-If the option `contemporaneous_correlation` is different from `0`, sets
-`oo_.contemporaneous_correlation`, which is described below.
-
-*Example*
+##### Example 1
 
 ```
 shocks;
@@ -164,142 +148,39 @@ end;
 stoch_simul;
 ```
 
-Performs the simulation of the 2nd-order approximation of a model with
+Performs the simulation of the 1st-order approximation of a model with
 a single stochastic shock `e`, with a standard error of `0.0348`.
 
-*Example*
+###### Example 2
 
 ```
-    stoch_simul(irf=60) y k;
+    stoch_simul(irf=60);
 ```
 
 Performs the simulation of a model and displays impulse response
-functions on 60 periods for variables `y` and `k`.
-
-
-*MATLAB/Octave*: `oo.irfs`
-
-After a run of `stoch_simul` with option `irf` different from zero,
-contains the impulse responses, with the following naming convention:
-[VARIABLE_NAME_SHOCK_NAME]{.title-ref}.
-
-For example, `oo_.irfs.gnp_ea` contains the effect on `gnp` of a
-one-standard deviation shock on `ea`.
-
-*MATLAB/Octave*: `get_irf ('EXOGENOUS_NAME' [, 'ENDOGENOUS_NAME']... );`
-
-
-### Typology and ordering of variables
-
-Dynare distinguishes four types of endogenous variables:
-
-*Purely backward (or purely predetermined) variables*
-
-Those that appear only at current and past period in the model, but
-not at future period (i.e. at $t$ and $t-1$ but not $t+1$). The number
-of such variables is equal to `M_.npred`.
-
-*Purely forward variables*
-
-Those that appear only at current and future period in the model, but
-not at past period (i.e. at $t$ and $t+1$ but not $t-1$). The number
-of such variables is stored in `M_.nfwrd`.
-
-*Mixed variables*
-
-Those that appear at current, past and future period in the model
-(i.e. at $t$, $t+1$ and $t-1$). The number of such variables is stored
-in `M_.nboth`.
-
-*Static variables*
-
-Those that appear only at current, not past and future period in the
-model (i.e. only at $t$, not at $t+1$ or $t-1$). The number of such
-variables is stored in `M_.nstatic`.
-
-Note that all endogenous variables fall into one of these four
-categories, since after the creation of auxiliary variables (see
-`aux-variables`), all endogenous have at
-most one lead and one lag. We therefore have the following identity:
-
-```
-M_.npred + M_.both + M_.nfwrd + M_.nstatic = M_.endo_nbr
-```
-
+functions on 60 periods.
 
 ### First-order approximation
 
 The approximation has the stylized form:
+```math
+y_t = y^s + A \phi(y_{t-1}) + B u_t
+```
 
-$$y_t = y^s + A y^h_{t-1} + B u_t$$
+where $y^s$ is the steady state value of $y$ and
+$\phi(y_{t-1})=y_{t-1}-y^s$.
 
-where $y^s$ is the steady state value of $y$ and $y^h_t=y_t-y^s$.
-
-*MATLAB/Octave variable*: `oo.dr.state_var`
-
-Vector of numerical indices identifying the state variables in the
-vector of declared variables, *given the current parameter values* for
-which the decision rules have been computed. It may differ from
-`M_.state_var` in case a state variable drops from the model given the
-current parameterization, because it only gets 0 coefficients in the
-decision rules. See `M_.state_var`.
-:::
-
-The coefficients of the decision rules are stored as follows:
-
--   $y^s$ is stored in `oo_.dr.ys`. The vector rows correspond to all
-    endogenous in the declaration order.
--   $A$ is stored in `oo_.dr.ghx`. The matrix rows correspond to all
-    endogenous in DR-order. The matrix columns correspond to state
-    variables in DR-order, as given by `oo_.dr.state_var`. (N.B.: if the
-    `block` option to the `model` block has been specified, then rows
-    are in declaration order, and columns are ordered according to
-    `oo_.dr.state_var` which may differ from DR-order.)
--   $B$ is stored `oo_.dr.ghu`. The matrix rows correspond to all
-    endogenous in DR-order. The matrix columns correspond to exogenous
-    variables in declaration order. (N.B.: if the `block` option to the
-    `model` block has been specified, then rows are in declaration
-    order.)
-
-Of course, the shown form of the approximation is only stylized, because
-it neglects the required different ordering in $y^s$ and $y^h_t$. The
-precise form of the approximation that shows the way Dynare deals with
-differences between declaration and DR-order, is
-
-$$y_t(\mathrm{oo\_.dr.order\_var}) =
-y^s(\mathrm{oo\_.dr.order\_var}) + A \cdot
-y_{t-1}(\mathrm{oo\_.dr.order\_var(k2)}) -
-y^s(\mathrm{oo\_.dr.order\_var(k2)}) + B\cdot u_t$$
-
-where $\mathrm{k2}$ selects the state variables, $y_t$ and $y^s$ are in
-declaration order and the coefficient matrices are in DR-order.
-Effectively, all variables on the right hand side are brought into DR
-order for computations and then assigned to $y_t$ in declaration order.
 
 ### Second-order approximation
 
 The approximation has the form:
+```math
+y_t = y^s + 0.5 \Delta^2 + A \phi(y_{t-1}) + B u_t + 0.5 C
+(\phi(y_{t-1})\otimes \phi(y_{t-1})) + 0.5 D (u_t \otimes u_t) + E
+(\phi(y_{t-1}) \otimes u_t)
+```
 
-$$y_t = y^s + 0.5 \Delta^2 + A y^h_{t-1} + B u_t + 0.5 C (y^h_{t-1}\otimes y^h_{t-1}) + 0.5 D (u_t \otimes u_t) + E (y^h_{t-1} \otimes u_t)$$
+where $y^s$ is the steady state value of $y$, $\phi(y_{t-1})=y_{t-1}-y^s$, and
+$\Delta^2$ is the shift effect of the variance of future shocks.
 
-where $y^s$ is the steady state value of $y$, $y^h_t=y_t-y^s$, and
-$\Delta^2$ is the shift effect of the variance of future shocks. For the
-reordering required due to differences in declaration and DR order, see
-the first order approximation.
-
-The coefficients of the decision rules are stored in the variables
-described for first order approximation, plus the following variables:
-
--   $\Delta^2$ is stored in `oo_.dr.ghs2`. The vector rows correspond to
-    all endogenous in DR-order.
--   $C$ is stored in `oo_.dr.ghxx`. The matrix rows correspond to all
-    endogenous in DR-order. The matrix columns correspond to the
-    Kronecker product of the vector of state variables in DR-order.
--   $D$ is stored in `oo_.dr.ghuu`. The matrix rows correspond to all
-    endogenous in DR-order. The matrix columns correspond to the
-    Kronecker product of exogenous variables in declaration order.
--   $E$ is stored in `oo_.dr.ghxu`. The matrix rows correspond to all
-    endogenous in DR-order. The matrix columns correspond to the
-    Kronecker product of the vector of state variables (in DR-order) by
-    the vector of exogenous variables (in declaration order).
 
