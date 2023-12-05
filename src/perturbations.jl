@@ -406,7 +406,7 @@ computes a local approximation of a model contained in `context`
  - `irf::Int = 40`: number of periods for IRFs. Use 0 for no IRF computation
  - `LRE_options::LinearRationalExpectationsOptions = LinearRationalExpectationsOptions()`: options passed to the LinearRationalExpectation package
  - `nar::Int = 5`: numnber of periods for autocorrelations. Use 0 for no autocorrelation computation
- - 'nonstationary::Bool = false`: to specify a nonstationary model
+ - `nonstationary::Bool = false`: to specify a nonstationary model
  - `periods::Int = 0`: number of periods for an optional Monte Carlo simulation of the model
 """
 function localapproximation!(; context::Context = context,
