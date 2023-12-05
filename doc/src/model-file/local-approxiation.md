@@ -160,6 +160,11 @@ a single stochastic shock `e`, with a standard error of `0.0348`.
 Performs the simulation of a model and displays impulse response
 functions on 60 periods.
 
+### Julia function
+```@docs
+localapproximation!
+```
+
 ### First-order approximation
 
 The approximation has the stylized form:
@@ -168,7 +173,8 @@ y_t = y^s + A \phi(y_{t-1}) + B u_t
 ```
 
 where $y^s$ is the steady state value of $y$ and
-$\phi(y_{t-1})=y_{t-1}-y^s$.
+$\phi(y_{t-1})=y_{t-1}-y^s$. Matrices of coefficients $A$ and $B$ are
+computed by Dynare.
 
 
 ### Second-order approximation
@@ -181,6 +187,8 @@ y_t = y^s + 0.5 \Delta^2 + A \phi(y_{t-1}) + B u_t + 0.5 C
 ```
 
 where $y^s$ is the steady state value of $y$, $\phi(y_{t-1})=y_{t-1}-y^s$, and
-$\Delta^2$ is the shift effect of the variance of future shocks.
+$\Delta^2$ is the shift effect of the variance of future
+shocks. Matrices of coefficients $A$, $B$, $C$, $D$ and $E$ are
+computed by Dynare. 
 
 
