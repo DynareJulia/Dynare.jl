@@ -82,7 +82,7 @@ function policy_guess(context, aNum, nPols, aPoints, i_polv, i_state)
     end
     return polGuess
 end
-
+=#
 function  ARC_zero(lamb, gridPt, delta, t, gamma, kappa, phi, A, F)
     
     res = 0.0
@@ -94,16 +94,16 @@ function  ARC_zero(lamb, gridPt, delta, t, gamma, kappa, phi, A, F)
 end
 
 function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
-    polGuess = zeros(aNum, nPols)
-    @views polGuess[:, 1:2] .= (1 - delta) .* aPoints[:, 1:2] 
-    for i in axes(aPoints, 1)
-        f(x) = ARC_zero(x, aPoints[i, :], delta, t, gamma, kappa, phi, A, F)
-        polGuess[i, 3] = find_zero(f, [0.1, 1.5], Bisection(), atol=1e-8)
+    polGuess = zeros(nPols, aNum)
+    @views polGuess[1:2, :] .= (1 - delta) .* aPoints[1:2, :] 
+    for i in axes(aPoints, 2)
+        f(x) = ARC_zero(x, aPoints[:, i], delta, t, gamma, kappa, phi, A, F)
+        polGuess[3, i] = find_zero(f, [0.1, 1.5], Bisection(), atol=1e-8)
     end
     return polGuess
 end
-=#
 
+#=
 function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     @show state
     endogenous[state_variables] .= state
@@ -136,7 +136,7 @@ function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, para
     end
     return guess_values
 end
-    
+=#    
 """
     Evaluates residual of forward looking equations for each integration node
 """
@@ -412,6 +412,8 @@ function sparsegridapproximation(; context::Context=context,
     gridDomain = zeros(nl, 2)
     endogenous_nbr = model.endogenous_nbr
     endogenous_variables = Dynare.get_endogenous(context.symboltable)
+    @show endogenous_variables
+    @show state_variables
     for i in 1:nl
         k = state_variables[i]
         k > endogenous_nbr && (k -= endogenous_nbr)
@@ -419,6 +421,7 @@ function sparsegridapproximation(; context::Context=context,
         gridDomain[i,1] = limits[vname].max
         gridDomain[i,2] = limits[vname].min
     end
+    display(gridDomain)
     grid0, aPoints, aNum, nPols, =
         set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain);
     display(aPoints)
@@ -444,7 +447,15 @@ function sparsegridapproximation(; context::Context=context,
     @show aNum
     @show getNumNeeded(grid0)
     @show getNumDimensions(grid0)
-    polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+#    let 
+        gamma = params[[1,4]]
+        t = params[[3, 6]]
+        kappa, beta, delta, phi, rho, A, sigE = params[7:13]
+        F(k, a) = A*exp(a)*max(k, 1e-6)^kappa
+
+        polGuess = policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, 3, F)
+#    end
+    #  polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     display(polGuess)
     Tasmanian.loadNeededPoints!(grid0, polGuess)
 
@@ -463,7 +474,7 @@ function sparsegridapproximation(; context::Context=context,
 
 #    iter0 = 0
     iterRefStart = 25
-    #polGuess1 = copy(polGuess)
+    polGuess1 = copy(polGuess)
 #    gridOrder = 1
 #    gridRule = "localp"
 #    gridDim = length(state)
@@ -475,13 +486,14 @@ function sparsegridapproximation(; context::Context=context,
     @views preamble_block(y[endogenous_nbr + 1: end], nodes[1,:], params, steadystate)
     x1 = [1.1, 0.9, 0.6]
     y[6] = x1[1]
-    y[7] = state[2]
+    y[7] = state[3]
     y[8] = x1[2]
     y[9] = state[4]
     y[10] = x1[3]
     y[1] = state[1]
-    y[3] = state[3]
-    y[[11, 13, 15]] = evaluateBatch(grid0, reshape(y[[6, 12, 7, 14]], 4, 1))
+    y[3] = state[2]
+    @show y[[6, 7, 12, 14]]
+    y[[11, 13, 15]] = evaluateBatch(grid0, reshape(y[[6, 7, 12, 14]], 4, 1))
     @show y
     residuals = zeros(2)
     E1 = y[15] * (((1 + exp(y[12]) * params[7] * params[12] * y[6] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[11] / y[6] - 1) * (1 + y[11] / y[6]))
