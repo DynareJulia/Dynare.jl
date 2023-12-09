@@ -9,21 +9,18 @@ function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, stead
     aPoints1 = Tasmanian.getNeededPoints(grid)
     # Get the number of points that require function values
     aNumAdd = Tasmanian.getNumNeeded(grid)
-
     # Array for intermediate update step
     polInt = zeros(length(system_variables), aNumAdd)
     let state
         fnl(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
         
         # Time Iteration step
-        for ii1 in 1:1#aNumAdd
+        for ii1 in 1:aNumAdd
             @views state = aPoints1[:, ii1]
             @views pol = pol_guess[:, ii1]
             res = Dynare.nlsolve(fnl, pol, method = :robust_trust_region, show_trace = false)
             polInt[:, ii1] .= res.zero
-            @show polInt[:, ii1]
         end
-#        ln(-1)
     end
 
     # Add the new function values to grid1
@@ -101,7 +98,7 @@ function policy_update(gridOld, gridNew, nPols)
     metricAux = zeros(nPols)
 
     for imet in 1:nPols
-        @views metricAux[imet] = maximum(abs.(polGuessTr0[:, imet] - polGuessTr1[:, imet]))
+        @views metricAux[imet] = maximum(abs.(polGuessTr0[imet, :] - polGuessTr1[imet, :]))
     end
     metricSup = maximum(metricAux)
 
@@ -110,7 +107,7 @@ function policy_update(gridOld, gridNew, nPols)
     metricL2 = 0.0
 
     for imetL2 in 1:nPols
-        @views metricL2 += sum(abs.(polGuessTr0[:, imetL2] - polGuessTr1[:, imetL2]).^2)
+        @views metricL2 += sum(abs.(polGuessTr0[imetL2, :] - polGuessTr1[imetL2, :]).^2)
     end
     
     metricL2 = (metricL2/(aNumTot*nPols))^0.5
@@ -120,10 +117,8 @@ function policy_update(gridOld, gridNew, nPols)
     # Now update pol_guess and grid
 
     polGuess = zeros(nPols, aNumTot)
-    @show size(polGuess)
-    @show size(polGuessTr1)
     for iupd in 1:nPols
-        @views polGuess[:,iupd] = 0.5*polGuessTr0[:,iupd] + 0.5*polGuessTr1[:,iupd]
+        @views polGuess[iupd, :] = 0.5*polGuessTr0[iupd, :] + 0.5*polGuessTr1[iupd, :]
     end
 
     ### !!! to be implemented !!!
