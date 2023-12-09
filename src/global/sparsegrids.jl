@@ -55,7 +55,6 @@ function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, grid
     Tasmanian.setDomainTransform!(grid, gridDomain)
     # Get the points that require function values
     aPoints = Tasmanian.getPoints(grid)
-    @show size(aPoints)
     # Get the number of points that require function values
     aNum = Tasmanian.getNumPoints(grid)
     return grid, aPoints, aNum, gridDim, gridDepth, gridDomain
@@ -284,15 +283,6 @@ function expectation_equations!(expected_residuals, x, state, params, grid0, nod
 end
 
 function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
-    #=
-    # State variables
-    capStates = state[[1, 3]]
-    tfpStates = state[[2, 4]]
-
-    # Policy values
-    capPolicies = x[1:nCountries]
-    lamb = x[nCountries + 1]
-    =#
     @views begin
         y[state_variables] .= state
         y[system_variables] .= policy 
@@ -303,18 +293,6 @@ function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadys
         expectation_equations!(res[1:forward_equations_nbr], policy, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
         other_block(res[forward_equations_nbr + 1:end], y, zeros(exogenous_nbr), params, steadystate)
     end 
-    # Aggregate resource constraint
-    #=
-    gamma = params[1:3:6]
-    t = params[3:3:6]
-    kappa, beta, delta, phi, rho, A, sigE = params[7:13]
-    for ires2 in 1:nCountries
-        res[nCountries + 1] += (F(capStates[ires2],tfpStates[ires2]) + (1.0 - delta)*capStates[ires2] - capPolicies[ires2]
-                                - AdjCost(capStates[ires2],capPolicies[ires2]) - (lamb/t[ires2])^(-gamma[ires2]))
-#        @show ((lamb/t[ires2])^(-gamma[ires2]))
-    end
-#    @show (res[nCountries + 1] )
-=#
     return res
 end
 
@@ -397,7 +375,6 @@ function sparsegridapproximation(; context::Context=context,
     model = context.models[1]
     work = context.work
     state_variables, predetermined_variables, system_variables, forward_equations_nbr, other_equations_nbr = make_block_functions(context)
-    @show state_variables
     equation_xref_list, variable_xred_list = xref_lists(context)
 
     params = context.work.params
@@ -412,8 +389,6 @@ function sparsegridapproximation(; context::Context=context,
     gridDomain = zeros(nl, 2)
     endogenous_nbr = model.endogenous_nbr
     endogenous_variables = Dynare.get_endogenous(context.symboltable)
-    @show endogenous_variables
-    @show state_variables
     for i in 1:nl
         k = state_variables[i]
         k > endogenous_nbr && (k -= endogenous_nbr)
@@ -421,10 +396,9 @@ function sparsegridapproximation(; context::Context=context,
         gridDomain[i,1] = limits[vname].max
         gridDomain[i,2] = limits[vname].min
     end
-    display(gridDomain)
     grid0, aPoints, aNum, nPols, =
         set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain);
-    display(aPoints)
+
     ################################################################################
     #                        Adaptivity parameters                                 #
     ################################################################################
@@ -444,73 +418,23 @@ function sparsegridapproximation(; context::Context=context,
     parameters = work.params
     # unused, place holder
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
-    @show aNum
-    @show getNumNeeded(grid0)
-    @show getNumDimensions(grid0)
-#    let 
-        gamma = params[[1,4]]
-        t = params[[3, 6]]
-        kappa, beta, delta, phi, rho, A, sigE = params[7:13]
-        F(k, a) = A*exp(a)*max(k, 1e-6)^kappa
 
-        polGuess = policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, 3, F)
-#    end
+    gamma = params[[1,4]]
+    t = params[[3, 6]]
+    kappa, beta, delta, phi, rho, A, sigE = params[7:13]
+    F(k, a) = A*exp(a)*max(k, 1e-6)^kappa
+    
+    polGuess = policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, 3, F)
     #  polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    display(polGuess)
     Tasmanian.loadNeededPoints!(grid0, polGuess)
 
-    #    steadystate = context.results.model_results[1].trends.endogenous_steady_state
-#    state = zeros(4)
-#    state[1:2:4] = steadystate[1:2:4]
-#    state[2:2:4] = steadystate[2:2:4]
-#    ktemp = steadystate[2:2:4]
-#    state = [1, 0, 1, 0]
-#    ktemp = [1, 1]
-    
     params = context.work.params
-#    nshocks = 3
+
 
     (nodes, weights) = monomial_power(exogenous_nbr)
 
-#    iter0 = 0
     iterRefStart = 25
     polGuess1 = copy(polGuess)
-#    gridOrder = 1
-#    gridRule = "localp"
-#    gridDim = length(state)
-#    gridOut = nPols
-    state = [1, 0, 1, 0]
-    i_state = context.models[1].i_bkwrd_b
-    y = zeros(15)
-    @views y[state_variables] .= state
-    @views preamble_block(y[endogenous_nbr + 1: end], nodes[1,:], params, steadystate)
-    x1 = [1.1, 0.9, 0.6]
-    y[6] = x1[1]
-    y[7] = state[3]
-    y[8] = x1[2]
-    y[9] = state[4]
-    y[10] = x1[3]
-    y[1] = state[1]
-    y[3] = state[2]
-    @show y[[6, 7, 12, 14]]
-    y[[11, 13, 15]] = evaluateBatch(grid0, reshape(y[[6, 7, 12, 14]], 4, 1))
-    @show y
-    residuals = zeros(2)
-    E1 = y[15] * (((1 + exp(y[12]) * params[7] * params[12] * y[6] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[11] / y[6] - 1) * (1 + y[11] / y[6]))
-    residuals[1] = y[10] * (1 + params[10] * (y[6] / y[1] - 1)) - params[8] * y[15] * (((1 + exp(y[12]) * params[7] * params[12] * y[6] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[11] / y[6] - 1) * (1 + y[11] / y[6]))
-    E2 = y[15] * (((1 + params[12] * params[7] * exp(y[14]) * y[8] ^ (params[7] - 1)) - params[9]) + (params[10] / 2) * (y[13] / y[8] - 1) * (1 + y[13] / y[8]))
-    residuals[2] = y[10] * (1 + params[10] * (y[8] / y[3] - 1)) - params[8] * y[15] * (((1 + params[12] * params[7] * exp(y[14]) * y[8] ^ (params[7] - 1)) - params[9]) + (params[10]                                                                                                                                                                                                                                                                       / 2) * (y[13] / y[8] - 1) * (1 + y[13] / y[8]))
-    @show E1, E2
-    @show residuals[1]
-    @show residuals[2]
-    resEFOC = ExpectFOC(x1, state, params, grid0, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
-    @show resEFOC
-    res = zeros(forward_equations_nbr)
-    expectation_equations!(res, x1, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
-    @show res
-    x2 = rand(length(system_variables))
-    resSOE = sysOfEqs(x2, endogenous, state, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
-    
     maxiter = 300
     for iter0 in 1:maxiter
 
@@ -546,8 +470,7 @@ function sparsegridapproximation(; context::Context=context,
         end
     end
     Y = evaluateBatch(grid0, test_points)
-    Y[:, 1:15]
-    Y[:, 191:205]
+    display(Y')
 end
 
 function test_sparsegrids()
