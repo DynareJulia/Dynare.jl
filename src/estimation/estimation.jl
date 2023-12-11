@@ -108,6 +108,37 @@ function estimation!(context, field::Dict{String, Any})
     return nothing
 end
 
+"""
+     mode_compute!(; 
+                 context=context,
+                 data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
+                 datafile = "",
+                 diffuse_filter::Bool = false,
+                 display::Bool = false,
+                 fast_kalman_filter::Bool = true,
+                 first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                 initial_values = get_initial_value_or_mean(),
+                 last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                 mode_check::Bool = false,
+                 nobs::Int = 0,
+                 order::Int = 1,
+                 presample::Int = 0,
+                 transformed_parameters = true)
+
+computes the posterior mode.
+
+# Keywork arguments
+- `context::Context=context`: context of the computation
+- `data::AxisArrayTable`: AxisArrayTable containing observed variables
+- `datafile::String:  data filename
+- `first_obs::PeriodsSinceEpoch`: first observation (default: 1)
+- `initial_values`: initival parameter values for optimization algorithm (default: `estimated_params_init` block if present or prior mean)
+- `last_obs::PeriodsSinceEpoch`: last period (default: last period of the dataset)
+- `nobs::Int = 0`: number of observations (default: entire dataset)
+- `transformed_parameters = true`: whether to transform estimated parameter so as they take their value on R
+
+Either `data` or `datafile` must be specified.
+"""
 function mode_compute!(; algorithm = BFGS,
                  context=context,
                  data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
@@ -133,9 +164,56 @@ function mode_compute!(; algorithm = BFGS,
     (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, obsvarnames, algorithm = algorithm, transformed_parameters = transformed_parameters)
 end
 
-function rwmh_compute!(;context::Context=context,
-             datafile::String = "",
+"""
+    rwmh_compute!(;context::Context=context,
              back_transformation::Bool = true,
+             datafile::String = "",
+             data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
+             diffuse_filter::Bool = false,
+             display::Bool = true,
+             fast_kalman_filter::Bool = true,
+             first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+             initial_values::Vector{Float64} = prior_mean(context.work.estimated_parameters),
+             covariance::Matrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
+             transformed_covariance::Matrix{Float64} = Matrix{Float64}(undef, 0,0),
+             last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+             mcmc_chains::Int = 1,
+             mcmc_init_scale::Float64 = 0.0,
+             mcmc_jscale::Float64 = 0.0,
+             mcmc_replic::Int =  0,
+             mode_compute::Bool = true,
+             nobs::Int = 0,
+             order::Int = 1,
+             plot_chain::Bool = true,
+             plot_posterior_density::Bool = false, 
+             presample::Int = 0,
+             transformed_parameters::Bool = true
+)
+
+runs random walk Monte Carlo simulations of the posterior
+
+# Keywork arguments
+- `context::Context=context`: context of the computation
+- `covariance::Matrix{Float64}`: 
+- `data::AxisArrayTable`: AxisArrayTable containing observed variables
+- `datafile::String:  data filename
+- `first_obs::PeriodsSinceEpoch`: first observation (default: 1)
+- `initial_values`: initival parameter values for optimization algorithm (default: `estimated_params_init` block if present or prior mean)
+- `last_obs::PeriodsSinceEpoch`: last period (default: last period of the dataset)
+- `mcmc_chains::Int` number of MCMC chains (default: 1)
+- `mcmc_jscale::Float64`: scale factor of proposal
+- `mcmc_replic::Int`: =  0,
+- `nobs::Int = 0`: number of observations (default: entire dataset)
+- `plot_chain::Bool`: whether to display standard MCMC chain output (default:true)
+- `plot_posterior_density::Bool`: wether to display plots with prior and posterior densities (default: false)
+- `transformed_covariance::Matrix{Float64}`: covariance of transformed parameters (default: empty)
+- `transformed_parameters = true`: whether to transform estimated parameter so as they take their value on R
+
+Either `data` or `datafile` must be specified.
+"""
+function rwmh_compute!(;context::Context=context,
+             back_transformation::Bool = true,
+             datafile::String = "",
              data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
              diffuse_filter::Bool = false,
              display::Bool = true,
@@ -247,6 +325,11 @@ function prior_variance(ep::EstimatedParameters)
     return Diagonal(d)
 end 
 
+"""
+ covariance(chain:Chains)
+
+computes the covariance matrix of MCMC `chain`
+"""
 function covariance(chain::Chains)
     c = copy(chain.value.data[:,1:end-1,1])
     m = mean(c)
@@ -1208,7 +1291,11 @@ function mcmc_diagnostics(chains, context, names)
     f
 end
 
+"""
+    plot_priors(context, names, n_points = 100)
 
+plots prior density
+"""
 function plot_priors(context, names, n_points = 100)
     indices = [find(context.work.estimated_parameters.name, e) for e in names]
     prior_pdfs = []

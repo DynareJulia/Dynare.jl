@@ -1,8 +1,6 @@
-# Estimation based on likelihood
 
 Provided that you have observations on some endogenous variables, it is
-possible to use Dynare to estimate some or all parameters. Both maximum
-likelihood (as in *Ireland (2004)*) and Bayesian techniques (as in
+possible to use Dynare to estimate some or all parameters. Bayesian techniques (as in
 *Fernández-Villaverde and Rubio-Ramírez (2004)*, *Rabanal and
 Rubio-Ramirez (2003)*, *Schorfheide (2000)* or *Smets and Wouters
 (2003)*) are available. Using Bayesian methods, it is possible to
@@ -12,6 +10,7 @@ Note that in order to avoid stochastic singularity, you must have at
 least as many shocks or measurement errors in your model as you have
 observed variables.
 
+### Dynare commands
 
 *Command*: `varobs VARIABLE_NAME...;`
 
@@ -580,3 +579,29 @@ role="opt"}.
 - `xls_range = RANGE`
 
 See `xls_range <xls_range = RANGE>`{.interpreted-text role="opt"}.
+
+### Julia functions
+
+```@docs
+calibsmoother!
+```
+
+```@docs
+covariance
+```
+
+```@docs
+mode_compute!
+```
+
+```@docs
+plot_priors 
+```
+
+```@docs
+prior!
+```
+
+```@docs
+rwmh_compute!
+```
