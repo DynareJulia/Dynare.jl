@@ -329,7 +329,7 @@ test_points = hcat( vcat(collect(0.8:0.01:1.2)',
     gridOrder = 1
     # Type of base functions
     gridRule = "localp"
-# Surplus threshold
+    # Surplus threshold
     surplThreshold = 1e-3
     # Number of maximum refinements
     maxRef = 1
@@ -443,13 +443,11 @@ function sparsegridapproximation(; context::Context=context,
 
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
-        
-        while ((Tasmanian.getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
+        while ((getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
             grid1 = ti_step(grid1, polGuess1, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, endogenous)
             # We start the refinement process after a given number of iterations
             if (iter0 - 1 > iterRefStart)
-                grid1, polGuess1 = refine(grid1, nPols, scaleCorr, surplThreshold, dimRef, typeRefinement)
-                #grid1 = time_iter.refine(grid1)
+                grid1, polGuess1 = refine(grid1, gridOut, scaleCorr, surplThreshold, dimRef, typeRefinement)
             end
             
             # Track the grid level
@@ -475,7 +473,7 @@ end
 
 function test_sparsegrids()
     context = @dynare "irbc_small"  "notmpterms" "stoponerror" "savemacro";
-    sparsegridapproximation(context=context)
+    sparsegridapproximation(context=context, scaleCorr=[1,1,0])
 end
 
 
