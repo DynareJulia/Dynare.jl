@@ -41,7 +41,7 @@ function refine(grid, nPols, scaleCorr, surplThreshold, dimRef, typeRefinement)
     # Scaling to only allow for those policies that are supposed to
     # determine the refinement process (in this case only the capital policies)
     scaleCorrMat = zeros(nPols, aNumLoad )
-    scaleCorrMat .= scaleCorr
+    scaleCorrMat .= repeat(scaleCorr, 1, aNumLoad)
     
     # Refine the grid based on the surplus coefficients
     Tasmanian.setSurplusRefinement!(grid, surplThreshold, iOutput=dimRef, sCriteria=typeRefinement, llfScaleCorrection=scaleCorrMat)
