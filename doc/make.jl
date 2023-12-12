@@ -17,6 +17,7 @@ makedocs(
             "Shocks on exgogenous variables" => "model-file/shocks.md",
             "Deterministic simulations" => "model-file/deterministic-simulations.md",
             "Local approximation" => "model-file/local-approxiation.md",
+            "Filtering and smoothing" => "model-file/filtersmoother.md",
             "Estimation" => "model-file/estimation.md",
             "Forecasting" => "model-file/forecasting.md",
             "Optimal policy" => "model-file/optimal-policy.md",
