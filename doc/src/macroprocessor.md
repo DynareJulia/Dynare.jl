@@ -48,13 +48,13 @@ assigned using the `@#define` directive and can be of the following
 basic types: boolean, real, string, tuple, function, and array (of any
 of the previous types).
 
-### Macro expressions {#macro-exp}
+### Macro expressions
 
 Macro-expressions can be used in two places:
 
 -   Inside macro directives, directly;
 -   In the body of the `.mod` file, between an at-sign and curly
-    braces (like `@{expr}`): the macro processor will substitute the
+    braces: the macro processor will substitute the
     expression with its value
 
 It is possible to construct macro-expressions that can be assigned to
@@ -145,8 +145,8 @@ The following operators can be used on arrays:
 
 Comprehension syntax is a shorthand way to make arrays from other
 arrays. There are three different ways the comprehension syntax can be
-employed: [filtering]{.title-ref}, [mapping]{.title-ref}, and [filtering
-and mapping]{.title-ref}.
+employed: [filtering], [mapping], and [filtering
+and mapping].
 
 **Filtering**
 
@@ -235,15 +235,12 @@ using the following functions: `isboolean`, `isreal`, `isstring`,
 
 *Examples*
 
-  ----------------------------------
-  **Code**              **Output**
-  --------------------- ------------
-  `isboolean(0)`        `false`
+| **Code**          |     **Output** |
+|:----------------  |:-------------- |
+| `isboolean(0)`    |     `false`    |
+| `isboolean(true)` |     `true`     |
+| `isreal("str")`   |     `false`    |
 
-  `isboolean(true)`     `true`
-
-  `isreal("str")`       `false`
-  ----------------------------------
 
 **Casting between types**
 
@@ -255,41 +252,30 @@ element array containing a type that can be cast to [real]{.title-ref}).
 
 *Examples*
 
-  -----------------------------------------------
-  **Code**                           **Output**
-  ---------------------------------- ------------
-  `(bool) -1.1`                      `true`
+|**Code**                      |     **Output** |
+|:-----------------------------|:---------------|
+|`(bool) -1.1`                 |     `true`	|
+|`(bool) 0`                    |     `false`	|
+|`(real) "2.2"`                |     `2.2`	|
+|`(tuple) [3.3]`               |     `(3.3)`	|
+|`(array) 4.4`                 |     `[4.4]`	|
+|`(real) [5.5]`                |     `5.5`	|
+|`(real) [6.6, 7.7]`           |     `error`	|
+|`(real) "8.8 in a string"`    |     `error`	|
 
-  `(bool) 0`                         `false`
-
-  `(real) "2.2"`                     `2.2`
-
-  `(tuple) [3.3]`                    `(3.3)`
-
-  `(array) 4.4`                      `[4.4]`
-
-  `(real) [5.5]`                     `5.5`
-
-  `(real) [6.6, 7.7]`                `error`
-
-  `(real) "8.8 in a string"`         `error`
-  -----------------------------------------------
 
 Casts can be used in expressions:
 
 *Examples*
 
-  ----------------------------------------
-  **Code**                    **Output**
-  --------------------------- ------------
-  `(bool) 0 && true`          `false`
 
-  `(real) "1" + 2`            `3`
+|**Code**                 |   **Output** |
+|:------------------------|:-------------|
+|`(bool) 0 && true`       |   `false`	 |
+|`(real) "1" + 2`         |   `3`	 |
+|`(string) (3 + 4)`       |   `"7"`	 |
+|`(array) 5 + (array) 6`  |   `[5, 6]`	 |
 
-  `(string) (3 + 4)`          `"7"`
-
-  `(array) 5 + (array) 6`     `[5, 6]`
-  ----------------------------------------
 
 ### Macro directives
 

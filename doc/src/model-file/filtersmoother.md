@@ -3,6 +3,15 @@ components models: only a few variables are observed. Filtering or
 smoothing provide estimate of the unobserved variables given the
 observations.
 
+The model is put in state space form
+```math
+\begin{align*}
+y^o_t &= M s_t + N\epsilon_t\\
+s_t &= Ts_{t-1} + R\eta_t
+\end{align*}
+```
+where $$y^o_t$$ represents observed variable at period `t`. The coefficient matrices of the transition equation, `T` and `R` are provided by the solution of the linear(-isze) rational expectation model. $$\epsilon_t$$ are possible measurement errors and $$\eta_t$$ the structural shocks. Most often matrix `M` is a selection matrix.
+
 Filtering provides estimates conditional only on past observations:
 ```math
 \mathbb{E}(y^{no}_t|Y^o_{t-1})
@@ -19,6 +28,10 @@ where $$Y^o_T$$ represents the all observations in the sample.
 
 ### Dynare command
 
+#### varobs
+
+Observed variables are declared with the `varobs` command
+
 *Command*: `varobs VARIABLE_NAME...;`
 
 This command lists the name of observed endogenous variables for the
@@ -33,11 +46,44 @@ Only one instance of `varobs` is allowed in a model file. If one needs
 to declare observed variables in a loop, the macro processor can be used
 as shown in the second example below.
 
-*Example*
+##### Example
 
 ```
      varobs C y rr;
 ```
+
+#### observation\_trends
+
+It is possible to declare a deterministic linear trend that is removed for the computations and added back in the results
+
+*Block*: `observation_trends ;`
+
+This block specifies linear trends for observed variables as functions
+of model parameters. In case the `loglinear` option is used, this
+corresponds to a linear trend in the logged observables, i.e. an
+exponential trend in the level of the observables.
+
+Each line inside of the block should be of the form:
+
+```
+    VARIABLE_NAME(EXPRESSION);
+```
+
+In most cases, variables shouldn't be centered when `observation_trends`
+is used.
+
+##### Example
+
+```
+     observation_trends;
+     Y (eta);
+     P (mu/eta);
+     end;
+```
+
+#### calib\_smoother
+
+This command triggers the computation of the filter and smoother for calibrated models
 
 *Command*: `calib_smoother [VARIABLE_NAME]...;` 
 
@@ -56,68 +102,10 @@ It also fills `oo_.UpdatedVariables`.
 
 *Options*
 
-- `datafile = FILENAME`
+- `datafile = FILENAME`: file containing the observation in CSV format.
 
-See `datafile <dataf>`.
+- `filtered_vars`: triggers the computation of filtered variables.
 
-- `filtered_vars`
+- `first_obs = INTEGER`: first observation
 
-Triggers the computation of filtered variables. See
-`filtered_vars`{.interpreted-text role="opt"}, for more details.
-
-- `filter_step_ahead = [INTEGER1:INTEGER2]`
-
-See
-`filter_step_ahead <filter_step_ahead = [INTEGER1:INTEGER2]>`{.interpreted-text
-role="opt"}.
-
-- `prefilter = INTEGER`
-
-See `prefilter <prefilter = INTEGER>`{.interpreted-text role="opt"}.
-
-- `parameter_set = OPTION`
-
-See `parameter_set <parameter_set = OPTION>`{.interpreted-text
-role="opt"} for possible values. Default: `calibration`.
-
-- `loglinear`
-
-See `loglinear <logl>`.
-
-- `first_obs = INTEGER`
-
-See `first_obs <first_obs = INTEGER>`{.interpreted-text role="opt"}.
-
-- `filter_decomposition`
-
-See `filter_decomposition`{.interpreted-text role="opt"}.
-
-- `filter_covariance`
-
-See `filter_covariance`{.interpreted-text role="opt"}.
-
-- `smoother_redux`
-
-See `smoother_redux`{.interpreted-text role="opt"}.
-
-- `kalman_algo = INTEGER`
-
-See `kalman_algo <kalman_algo = INTEGER>`{.interpreted-text role="opt"}.
-
-- `diffuse_filter = INTEGER`
-
-See `diffuse_filter`{.interpreted-text role="opt"}.
-
-- `diffuse_kalman_tol = DOUBLE`
-
-See `diffuse_kalman_tol <diffuse_kalman_tol = DOUBLE>`{.interpreted-text
-role="opt"}.
-
-- xls_sheet = QUOTED_STRING`
-
-See `xls_sheet <xls_sheet = QUOTED_STRING>`{.interpreted-text
-role="opt"}.
-
-- `xls_range = RANGE`
-
-See `xls_range <xls_range = RANGE>`{.interpreted-text role="opt"}.
+- `diffuse_filter = INTEGER`: use a diffuse filter for nonstationary models.
