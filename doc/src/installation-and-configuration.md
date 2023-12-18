@@ -14,8 +14,28 @@ using Pkg
 pkg"add Dynare"
 ```
 
-## Running Dynare
+## Using Dynare
 In order to start using Dynare in Julia, type
 ```
 using Dynare
 ```
+
+## Optional extensions
+
+### Pardiso
+If you want the solution of very large perfect foresight models and
+reduce the memory consumption, use the Pardiso package
+(https://github.com/JuliaSparse/Pardiso.jl) and type
+
+```
+using MKL, Pardiso
+```
+
+### PATHSolver
+If youw want to solve perfect foresight models with occasionally
+binding constraints use the PATHSolver package
+(https://github.com/chkwon/PATHSolver.jl) and type
+```
+using PATHSolver
+```
+

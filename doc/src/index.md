@@ -1,4 +1,24 @@
 # The Dynare Julia Reference Manual
+# Introduction 
+
+DynareJulia is a rewriting of Dynare (https://www.dynare.org) that was initially written in
+Gauss in 1994 and rewritten in Matlab around 2000.
+
+Dynare provides several algorithms to work with Dynamic Stochastic
+General Equilibrium (DSGE) models often used in macroeconomics. Among
+other features, it helps
+ - solving such models,
+ - simulating them,
+ - estimating the parameters,
+ - making forecasts.
+ 
+The user of the package writes a text file, usually with an ".mod"
+extension, that contains the equations of the model and the
+computation tasks. Then, DynareJulia compiles the model and runs the computations.
+
+
+
+## The Dynare Team
 
 Currently the development team of Dynare is composed of:
 
@@ -45,11 +65,5 @@ Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
 A copy of the license can be found at
 <https://www.gnu.org/licenses/fdl.txt>.
 
-## Package Manual
 
-```@contents
-Pages = ["installation-and-configuration.md",
-         "running-dynare.md",
-         "the-model-file.md"]
-Depth = 2
-```
+

@@ -1,4 +1,6 @@
-## Conventions
+# Model File
+## Syntax elements
+### Conventions
 
 A model file contains a list of commands and of blocks. Each command and
 each element of a block is terminated by a semicolon (;). Blocks are
@@ -78,7 +80,7 @@ observed:
     around a string while in Julia strings are enclosed between double quotes.
 
 
-## Expressions
+### Expressions
 
 Dynare distinguishes between two types of mathematical expressions:
 those that are used to describe the model, and those that are used
