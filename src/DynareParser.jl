@@ -170,6 +170,7 @@ function make_context(modeljson, modfilename, commandlineoptions)
     @debug "$(now()): get Modelfile"
     modfileinfo = ModFileInfo(modfilename)
     check_function_files!(modfileinfo, modfilename)
+    modfileinfo.has_steadystate_file = modeljson["steady_state_model"]
     @debug "$(now()): get model"
     dynamic_g2_sparse_indices = Vector{Vector{Int}}(get(modeljson,
                                                         "dynamic_g2_sparse_indices",
