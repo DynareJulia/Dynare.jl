@@ -94,7 +94,7 @@ function forecasting_(; periods,
 end
 
 """
-function recursive_forecasting!(; periods::Integer,
+function recursive_forecasting!(; Np::Integer,
                                 first_period::PeriodsSinceEpoch, 
                                 last_period::PeriodsSinceEpoch, 
                                 context::Context=context,
@@ -102,10 +102,11 @@ function recursive_forecasting!(; periods::Integer,
                                 first_obs::PeriodsSinceEpoch=Undated(1), 
                                 last_obs::PeriodsSinceEpoch=Undated(0), 
                                 order::Integer=1)
-computes an unconditional recursive forecast for one variable
+computes an unconditional recursive forecast for one variable by adding one period to the
+sample used for the smoother before forecasting over `Np` periods.
 
 # Keyword arguments
-- `periods::Integer`: number of forecasted periods [required]
+- `Np::Integer`: number of forecasted periods [required]
 - `first_period::PeriodsSinceEpoch`: initial period of first forecast [required]
 - `last_period::PeriodsSinceEpoch`: initial period of last forecast [required]
 - `datafile::String`: file with the observations for the smoother
@@ -113,7 +114,7 @@ computes an unconditional recursive forecast for one variable
 - `last_obs::PeriodsSinceEpoch`: last period used by smoother  (default: last observation in the file)
 - `order::Integer`: order of local approximation
 """
-function recursive_forecasting!(; periods::Integer,
+function recursive_forecasting!(; Np::Integer,
                                 first_period::PeriodsSinceEpoch=Undated(typemin(Int)), 
                                 last_period::PeriodsSinceEpoch=Undated(typemin(Int)), 
                                 context::Context=context,
@@ -132,11 +133,11 @@ function recursive_forecasting!(; periods::Integer,
     T = typeof(first_period).parameters[1]
     empty!(results.forecast)
     for p = first_period:last_period
-        Y = forecasting_(context=context, periods=periods, forecast_mode=calibsmoother, first_obs=first_obs, last_obs=p, data = data_, order=order)
+        Y = forecasting_(context=context, periods=Np, forecast_mode=calibsmoother, first_obs=first_obs, last_obs=p, data = data_, order=order)
         if p == first_period
             results.initial_smoother = copy(results.smoother)
         end
-        p1 = p + T(periods)
+        p1 = p + T(Np)
         push!(results.forecast, AxisArrayTable(Y, 
                                                p:p1, 
                                                [Symbol(v) for v in get_endogenous(context.symboltable)]))
