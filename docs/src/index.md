@@ -12,11 +12,15 @@ other features, it helps
  - estimating the parameters,
  - making forecasts.
  
-The user of the package writes a text file, usually with an ".mod"
+The user of the package writes a text file, usually with an `.mod`
 extension, that contains the equations of the model and the
 computation tasks. Then, DynareJulia compiles the model and runs the computations.
 
+DynareJulia honors a subset of commands valid in DynareMatlab. Tell us if one of your favorite command or option is missing.
 
+For many computing tasks, DynareJulia provides also Julia functions that can be used in the `*.mod` file or issued interactively after having run the `*.mod` file. These Julia functions use keyword arguments for the options and you need only to enter them if you want to change the default value. The keyword arguments without a default value are required arguments. In the sections of this documentation, the Dynare Commands are presented first, then the Julia functions.
+
+Dynare has benefited from many contributions over the years. Here is a list of the contributors:
 
 ## The Dynare Team
 
