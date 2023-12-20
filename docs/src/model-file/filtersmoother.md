@@ -109,3 +109,10 @@ It also fills `oo_.UpdatedVariables`.
 - `first_obs = INTEGER`: first observation
 
 - `diffuse_filter = INTEGER`: use a diffuse filter for nonstationary models.
+
+### Julia functions
+
+```@docs
+calibsmoother!
+```
+

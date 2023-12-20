@@ -21,7 +21,7 @@ code .
 ### Dynare commands
 
 #### perfect\_foresight\_setup
-*Command*: `perfect\_foresight\_setup ;
+*Command*: `perfect\_foresight\_setup;`
 
 *Command*: `perfect\_foresight\_setup (OPTIONS...);`
 

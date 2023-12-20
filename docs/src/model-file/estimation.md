@@ -295,10 +295,6 @@ this scale parameter. This can be done in the
 ### Julia functions
 
 ```@docs
-calibsmoother!
-```
-
-```@docs
 covariance
 ```
 
