@@ -110,7 +110,7 @@ context = @dynare "models/example1pf/example1pf_conditional"
         @test context.work.scenario[2][3][:y] == (0.3 => :u)
 
         Dynare.scenario!(infoperiod=Undated(3), name= :e, value = 0.1, period = 3, context = context)
-        @test_throws "A shock must be explicitly"  Dynare.check_scenario(context.work.scenario)
+        @test_throws ErrorException  Dynare.check_scenario(context.work.scenario)
     end
 
     @testset "set_future_information" begin
@@ -308,7 +308,7 @@ context = @dynare "models/example1pf/example1pf_conditional"
     @testset "example1pf_conditional" begin
         context = @dynare "models/example1pf/example1pf_conditional"
         
-                e = AxisArrayTables.data(simulation(:e))
+        e = AxisArrayTables.data(simulation(:e))
         u = AxisArrayTables.data(simulation(:u))
         y = AxisArrayTables.data(simulation(:y))
         c1 = AxisArrayTables.data(simulation(:c, simnbr=1))

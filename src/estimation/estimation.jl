@@ -27,7 +27,7 @@ include("estimated_parameters.jl")
 
 Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
-    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray([;;], PeriodsSinceEpoch[], Symbol[]))
+    data::AxisArrayTable = AxisArrayTable(AxisArrayTables.AxisArray(Matrix{Float64}(undef, 0, 0), PeriodsSinceEpoch[], Symbol[]))
     datafile::String = ""
     diffuse_filter::Bool = false
     display::Bool = false

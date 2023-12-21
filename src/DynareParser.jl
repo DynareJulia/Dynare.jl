@@ -151,12 +151,12 @@ function make_containers(
         Trends(endo_nbr, exo_nbr, exo_det_nbr),
         Vector{Bool}(undef, endo_nbr),
         EstimationResults(),
-        AxisArrayTable([;;], [], Symbol[]),
-        [AxisArrayTable([;;], [], Symbol[])],
-        AxisArrayTable([;;], [], Symbol[]),
+        AxisArrayTable(Matrix{Float64}(undef, 0, 0), [], Symbol[]),
+        [AxisArrayTable(Matrix{Float64}(undef, 0, 0), [], Symbol[])],
+        AxisArrayTable(Matrix{Float64}(undef, 0, 0), [], Symbol[]),
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
-        AxisArrayTable([;;], [], Symbol[]),
+        AxisArrayTable(Matrix{Float64}(undef, 0, 0), [], Symbol[]),
         Vector{Matrix{Float64}}(undef, 0)
     )
     results = Results([modelresults])

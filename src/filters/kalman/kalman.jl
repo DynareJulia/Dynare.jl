@@ -47,7 +47,7 @@ Compute the smoothed values of the variables for an estimated model
 """
 function calibsmoother!(; context=context,
                         datafile = "",
-                        data::AxisArrayTable = AxisArrayTable([;;], Undated[], Symbol[]),
+                        data::AxisArrayTable = AxisArrayTable(Matrix{Float64}(undef, 0, 0), Undated[], Symbol[]),
                         first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
                         last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
                         nobs::Int = 0

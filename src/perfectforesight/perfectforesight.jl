@@ -304,12 +304,12 @@ function check_scenario(scenario)
                 end
                 p2 = collect(keys(scenario[k2]))
                 if !(p1 in p2)
-                    error("A shock must be explicitly confirmed or modifier in all relevant subsequent infoperiods")
+                    error("A shock must be explicitly confirmed or modified in all relevant subsequent infoperiods")
                 else
                     for v in p1
                         @show collect(keys(scenario[k2][p1]))
                         if !(v in keys(scenario[k2][p1]))
-                            error("A shock must be explicitly confirmed or modifier in all relevant subsequent infoperiods")
+                            error("A shock must be explicitly confirmed or modified in all relevant subsequent infoperiods")
 
                         end
                     end
@@ -980,7 +980,7 @@ function recursive_perfect_foresight!(context::Context, options::PerfectForesigh
     else
         initial_periods = 1
     end
-    let simulation = Float64[;;]
+    let simulation = Matrix{Float64}(undef, 0, 0)
         for (j, i) in enumerate(sort(collect(keys(scenario))))
             if i == 1
                 initial_values = get_dynamic_initialvalues(context)
