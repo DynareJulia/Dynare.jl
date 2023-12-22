@@ -1,3 +1,7 @@
+0.8.2
+=====
+- update DynarePreprocessor_jll to v6.4.0
+
 0.8.1
 =====
 - conditional simulations with MCP
