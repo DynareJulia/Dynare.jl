@@ -6,9 +6,6 @@ using LinearAlgebra
 using Serialization
 using Test
 
-@dynare "models/example1ss/example1ss"
-
-
 function make_f_J(context, scenario, periods, infoperiod)
     datafile = ""
     
