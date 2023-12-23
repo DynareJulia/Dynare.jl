@@ -9,7 +9,8 @@ function dynare_table_text(
     fmt::String = "%10.4f",
 )
     if length(title) > 0
-        pretty_table(
+        @info pretty_table(
+            String,
             [title],
             show_header = false,
             tf = tf_borderless,
@@ -27,7 +28,8 @@ function dynare_table_text(
         hlines = nothing
         highlighters = hl_col(1, crayon"bold")
     end
-    pretty_table(
+    @info pretty_table(
+        String,
         data,
         show_header = false,
         formatters = formatter,
@@ -39,7 +41,7 @@ function dynare_table_text(
         backend = Val(:text),
     )
     if length(note) > 0
-        pretty_table([note], show_header = false, tf = tf_borderless, backend = Val(:text))
+        @info pretty_table(String, [note], show_header = false, tf = tf_borderless, backend = Val(:text))
     end
 end
 

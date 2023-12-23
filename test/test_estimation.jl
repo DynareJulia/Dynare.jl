@@ -197,12 +197,12 @@ end
 # generate artificial data with model example5
 # provide model parsing
 #context = @dynare "test/models/example5/example5_est_a.mod";
-Dynare.load("models/example5/example5_est_a/output/example5_est_a.jld2")
+Dynare.deserialize("models/example5/example5_est_a/output/example5_est_a.jls")
 
 
 # simulation is an accessor to simulated series
 # we assume that we observe output, y, and consumption, c
-varobs = ("y", "c")
+varobs = ["y", "c"]
 observations = copy(transpose(Matrix(Dynare.simulation(varobs))))
 nobs = size(observations, 2)
 ssws = SSWs(context, nobs, varobs)

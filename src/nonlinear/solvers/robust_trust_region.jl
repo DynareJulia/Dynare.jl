@@ -48,7 +48,6 @@ macro trustregiontrace(stepnorm)
 end
 
 function dogleg!(p, p_c, p_i, r, d, J, linsolve, delta::Real)
-    @debug "start dogleg!"
     T = eltype(d)
     #Jbal = copy(J)
     try
@@ -62,12 +61,10 @@ function dogleg!(p, p_c, p_i, r, d, J, linsolve, delta::Real)
         @debug "$(now()): end Jbal"
         =#
         #        copyto!(p_i, J \ vec(r)) # Gauss-Newton step
-        @debug "$(now()): start J\vec(r)"
         #copyto!(p_i, (J \ vec(r)) ./ d)
         # F = lu(J)
         # ldiv!(p_i, F, vec(r))
         linsolve(p_i, J, vec(r))
-        @debug "$(now()): end J\vec(r)"
     catch e
         if isa(e, LAPACKException) || isa(e, SingularException)
             # If Jacobian is singular, compute a least-squares solution to J*x+r=0
@@ -127,7 +124,6 @@ function dogleg!(p, p_c, p_i, r, d, J, linsolve, delta::Real)
             copyto!(p, p_c)
         end
     end
-    @debug "$(now()): end dogleg!"
 end
 
 function robust_trust_region_(

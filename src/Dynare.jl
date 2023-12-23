@@ -3,7 +3,7 @@ module Dynare
 using Reexport
 @reexport using ExtendedDates
 
-using Logging
+using LoggingExtras
 using Printf
 
 Base.@kwdef struct CommandLineOptions
@@ -17,6 +17,7 @@ const LRE = LinearRationalExpectations
 using KalmanFilterTools
 using KOrderPerturbations
 
+include("logging.jl")
 include("utils.jl")
 include("dynare_functions.jl")
 include("dynare_containers.jl")
@@ -66,8 +67,9 @@ macro dynare(modfile_arg::String, args...)
 end
 
 function dynare(modfile_arg::String, args...)
-    @info "Dynare version: $(module_version(Dynare))"
     modname = get_modname(modfile_arg)
+    set_logging(modname)
+    @info "Dynare version: $(module_version(Dynare))"
     @info "$(now()): Starting @dynare $modfile_arg"
     arglist = []
     compilemodule = true

@@ -904,14 +904,14 @@ function get_residuals_3!(
 end
 
 function print_nlsolver_results(r)
-    @printf "Results of Nonlinear Solver Algorithm\n"
-    @printf " * Algorithm: %s\n" r.method
-    @printf " * Inf-norm of residuals: %f\n" r.residual_norm
-    @printf " * Iterations: %d\n" r.iterations
-    @printf " * Convergence: %s\n" converged(r)
-    @printf "   * |x - x'| < %.1e: %s\n" r.xtol r.x_converged
-    @printf "   * |f(x)| < %.1e: %s\n" r.ftol r.f_converged
-    @printf " * Function Calls (f): %d\n" r.f_calls
+    @info @sprintf "Results of Nonlinear Solver Algorithm"
+    @info @sprintf " * Algorithm: %s" r.method
+    @info @sprintf " * Inf-norm of residuals: %f" r.residual_norm
+    @info @sprintf " * Iterations: %d" r.iterations
+    @info @sprintf " * Convergence: %s" converged(r)
+    @info @sprintf "   * |x - x'| < %.1e: %s" r.xtol r.x_converged
+    @info @sprintf "   * |f(x)| < %.1e: %s" r.ftol r.f_converged
+    @info @sprintf " * Function Calls (f): %d" r.f_calls
     return
 end
 
