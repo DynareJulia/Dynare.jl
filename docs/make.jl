@@ -20,7 +20,7 @@ makedocs(
             "State space, filtering and smoothing" => "model-file/filtersmoother.md",
             "Estimation" => "model-file/estimation.md",
             "Forecasting" => "model-file/forecasting.md",
-            "Optimal policy" => "model-file/optimal-policy.md",
+#            "Optimal policy" => "model-file/optimal-policy.md",
         ],
         "Macroprocessing language" => "macroprocessor.md"     
     ],
