@@ -1,5 +1,3 @@
-module SparseGrids
-
 include("blocks.jl")
 
 #using Block
@@ -8,6 +6,8 @@ using Distributions
 using LinearAlgebra
 using Roots
 using Tasmanian
+
+export sparsegridapproximation
 
 include("time_iteration.jl")
 
@@ -296,6 +296,21 @@ function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadys
     return res
 end
 
+function make_scaleCorr(scaleCorrInclude, scaleCorrExclude, policy_variables)
+    @assert isempty(scaleCorrInclude) || isempty(scaleCorrExclude) "scaleCorrInclude and scaleCorrExclude are mutually exclusive"
+
+    n = length(policy_variables)
+    if !isempty(scaleCorrInclude)
+        scaleCorr = [any(occursin.(v, scaleCorrInclude)) for v in policy_variables]
+        return scaleCorr
+    elseif !isempty(scaleCorrExclude)
+        scaleCorr = [any(.!occursin.(v, scaleCorrExclude)) for v in policy_variables]
+        return scaleCorr
+    else
+        return ones(n)
+    end
+end 
+
 test_points = hcat( vcat(collect(0.8:0.01:1.2)',
                          zeros(1,41),
                          ones(1,41),
@@ -318,7 +333,6 @@ test_points = hcat( vcat(collect(0.8:0.01:1.2)',
                          collect(-0.2:0.01:0.2)'))
                     
 """
-    #=
     # Number of dimensions (capital stock and tfp for each country)
     gridDim = nstates
     # Number of outputs (capital policy & multiplier for each country + ARC multiplier)
@@ -365,7 +379,8 @@ function sparsegridapproximation(; context::Context=context,
                                  maxRefLevel = gridDepth + maxRef,
                                  numstart = 0,
                                  savefreq = 10,
-                                 scaleCorr = nothing,
+                                 scaleCorrInclude = [],
+                                 scaleCorrExclude = [],
                                  surplThreshold= 1e-3,
                                  tol_ti = 1e-4,
                                  TT = 10000,
@@ -403,15 +418,6 @@ function sparsegridapproximation(; context::Context=context,
     #                        Adaptivity parameters                                 #
     ################################################################################
 
-    # Scale correction in the refinement process:
-    isnothing(scaleCorr) && (scaleCorr = zeros(nPols))
-    #=
-    TO BE DONE
-    # We only let the capital policies of each country determine the addition of grid points
-    scaleCorr = zeros(nPols)
-    scaleCorr[1:nCountries] .= 1
-    =#
-
     endogenous = zeros(3*endogenous_nbr)
     exogenous_nbr = model.exogenous_nbr
     exogenous = zeros(exogenous_nbr)
@@ -430,8 +436,11 @@ function sparsegridapproximation(; context::Context=context,
 
     params = context.work.params
 
-
     (nodes, weights) = monomial_power(exogenous_nbr)
+
+    # Scale correction in the refinement process:
+    scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables .- endogenous_nbr])
+    @show scaleCorr
 
     iterRefStart = 25
     polGuess1 = copy(polGuess)
@@ -471,12 +480,7 @@ function sparsegridapproximation(; context::Context=context,
     display(Y')
 end
 
-function test_sparsegrids()
-    context = @dynare "irbc_small"  "notmpterms" "stoponerror" "savemacro";
-    sparsegridapproximation(context=context, scaleCorr=[1,1,0])
-end
 
 
-end # module SparseGrids
 
-SparseGrids.test_sparsegrids()
+
