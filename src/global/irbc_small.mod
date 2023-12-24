@@ -93,6 +93,8 @@ end;
 //stoch_simul(order=1, irf=0);
 
 @#for j in 1:N
-  limits!("k_@{j}", min = 0.8, max = 1.2)
-  limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho))
+  limits!("k_@{j}", min = 0.8, max = 1.2);
+  limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
+
+sparsegridapproximation(scaleCorrExclude=["lambda"])

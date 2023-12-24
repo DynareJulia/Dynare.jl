@@ -63,6 +63,8 @@ export forecasting!, recursive_forecasting!
 export @dynare, dynare
 include("macros.jl")
 export limits!, @limits
+include("global/sparsegrids.jl")
+export sparsegridapproximation
 
 macro dynare(modfile_arg::String, args...)
     dynare(modfile_arg, args...)
