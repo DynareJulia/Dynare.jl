@@ -4,6 +4,7 @@ using AdvancedMH
 using AbstractMCMC
 using Distributions
 using DynamicHMC
+using FillArrays
 using FiniteDiff: finite_difference_gradient, finite_difference_hessian
 using .Iterators
 using KernelDensity
@@ -74,7 +75,6 @@ end
 
 function estimation!(context, field::Dict{String, Any})
     opt = translate_estimation_options(field["options"])
-    @show opt
     ff = NamedTuple{Tuple(Symbol.(keys(opt)))}(values(opt))
     options = EstimationOptions(; ff...)
     symboltable = context.symboltable
@@ -174,7 +174,7 @@ end
              fast_kalman_filter::Bool = true,
              first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
              initial_values::Vector{Float64} = prior_mean(context.work.estimated_parameters),
-             covariance::Matrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
+             covariance::AbstractMatrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
              transformed_covariance::Matrix{Float64} = Matrix{Float64}(undef, 0,0),
              last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
              mcmc_chains::Int = 1,
@@ -194,7 +194,7 @@ runs random walk Monte Carlo simulations of the posterior
 
 # Keywork arguments
 - `context::Context=context`: context of the computation
-- `covariance::Matrix{Float64}`: 
+- `covariance::AbstractMatrix{Float64}`: 
 - `data::AxisArrayTable`: AxisArrayTable containing observed variables
 - `datafile::String:  data filename
 - `first_obs::PeriodsSinceEpoch`: first observation (default: 1)
@@ -219,8 +219,8 @@ function rwmh_compute!(;context::Context=context,
              display::Bool = true,
              fast_kalman_filter::Bool = true,
              first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
-             initial_values::Vector{Float64} = prior_mean(context.work.estimated_parameters),
-             covariance::Matrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
+             initial_values::AbstractVector{Float64} = prior_mean(context.work.estimated_parameters),
+             covariance::AbstractMatrix{Float64} = Matrix(prior_variance(context.work.estimated_parameters)),
              transformed_covariance::Matrix{Float64} = Matrix{Float64}(undef, 0,0),
              last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
              mcmc_chains::Int = 1,
@@ -239,7 +239,6 @@ function rwmh_compute!(;context::Context=context,
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    
     observations, obsvarnames = get_observations(context, datafile, data, first_obs, last_obs, nobs)
     (chain, back_transformed_chain) = mh_estimation(context, 
         observations,
@@ -976,8 +975,9 @@ function mh_estimation(
     if transformed_parameters
         transformation = DSGETransformation(context.work.estimated_parameters)
         transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
+        transformed_problem = TransformedLogDensity(transformation, problem)
         transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-        initial_values = collect(TransformVariables.inverse(transformation, tuple(initial_values...)))
+        initial_values = Vector(collect(TransformVariables.inverse(transformation, tuple(initial_values...))))
         posterior_density(θ) = transformed_density(θ)
         let proposal_covariance
             if !isempty(transformed_covariance)
@@ -985,7 +985,7 @@ function mh_estimation(
             else
                 proposal_covariance = inverse_transform_variance(transformation, initial_values, Matrix(covariance))    
             end
-            chain = run_mcmc(transformed_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)
+            chain = run_mcmc(transformed_problem, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)
         end 
         if back_transformation
             transform_chains(chain, transformation, problem.f)
@@ -1023,9 +1023,12 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     else    
         old_blas_threads = BLAS.get_num_threads()
         BLAS.set_num_threads(1)
-        chain = MCMCChains.sample(model, spl, MCMCThreads(), mcmc_replic,
+        if ndims(initial_values) == 1 || size(initial_values, 2) == 1
+            initial_values_ = FillArrays.Fill(initial_values, mcmc_chains)
+        end
+        chain = MCMCChains.sample(posterior_density, spl, MCMCThreads(), mcmc_replic,
                    mcmc_chains,
-                   initial_params = Iterators.repeated(Float64.(initial_values)),
+                   initial_params = initial_values_,
                    param_names = context.work.estimated_parameters.name,
                    chain_type = Chains)
         BLAS.set_num_threads(old_blas_threads)
