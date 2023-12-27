@@ -1537,7 +1537,7 @@ plots priors posterios and mode if computed on the same plots
 - `context::Context=context`: context used to get the estimation results
 
 # Output
-- the plots are saved in `./<modfilename>/Graphs/PriorPoserior_<x>.png`
+- the plots are saved in `./<modfilename>/Graphs/PriorPosterior_<x>.png`
 """
 function plot_prior_posterior(chains; context::Context=context)
     ep = context.work.estimated_parameters
