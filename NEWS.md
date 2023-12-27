@@ -1,3 +1,17 @@
+0.9.0
+=====
+- add normcdf and normpdf
+- add periods for calibsmoother and forecast
+- add smoothed shocks computation
+- fix steady state in filter and smoother
+- add forecasting and recursive forecasting
+- fix endval
+- add posterior mode computation
+- add homotopy for steady state 
+- add exported functions
+- add docstrings
+- add documentation
+
 0.8.2
 =====
 - update DynarePreprocessor_jll to v6.4.0
