@@ -1527,7 +1527,18 @@ function plot_panel_priors(
     graph_display(pl)
     savefig(filename)
 end
-    
+
+"""
+    plot_prior_posterior(chains; context::Context=context)
+
+plots priors posterios and mode if computed on the same plots
+
+# Keyword arguments
+- `context::Context=context`: context used to get the estimation results
+
+# Output
+- the plots are saved in `./<modfilename>/Graphs/PriorPoserior_<x>.png`
+"""
 function plot_prior_posterior(chains; context::Context=context)
     ep = context.work.estimated_parameters
     mode = context.results.model_results[1].estimation.posterior_mode
