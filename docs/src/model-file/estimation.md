@@ -307,6 +307,10 @@ plot_priors
 ```
 
 ```@docs
+plot_prior_posterior 
+```
+
+```@docs
 prior!
 ```
 
