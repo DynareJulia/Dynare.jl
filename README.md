@@ -3,6 +3,9 @@
 ## Requirements
 Julia 64bit >= v1.6
 
+## Documentation
+- https://DynareJulia.github.io/Dynare.jl
+
 ## Installation 
 
 ```
@@ -47,9 +50,10 @@ The results are in the ``context`` structure.
    using Serialization
    DD = Serialization.deserialize("<path to modfile>/<modefilename>/output/<modefilename>.jls")``
    ```
-1. The IRF graphs are saved in ``<path to
+1. Graphs are saved in ``<path to
    modfile>/<modfilenane>/graphs``
-   
+1. A log of the session is kept in `<filename>.log`.
+
 ## Project web site
 
 - https://www.dynare.org
