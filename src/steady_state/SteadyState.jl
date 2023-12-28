@@ -97,8 +97,8 @@ end
  - `display::Bool=true`: whether to display the results
  - `maxit::Int=50` maximum number of iterations
  - `nocheck::Bool=false`: don't check the steady state
- - `tolf::Float64=1e-5`: tolerance for the norm of residualts
- - `tolx::Float64=1e-5`: tolerance for the norm of the change in the result
+ - `tolf::Float64=cbrt(eps())`: tolerance for the norm of residualts
+ - `tolx::Float64=0`: tolerance for the norm of the change in the result
 """
 function steadystate!(; context::Context=context,
                       display = true,

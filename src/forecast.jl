@@ -5,9 +5,9 @@
                    forecast_mode::ForecastModes,
                    context::Context=context,
                    datafile::String="",
-                   first_obs::PeriodsSinceEpoch=1,
-                   last_obs::PeriodsSinceEpoch=0,
-                   first_period::PeriodsSinceEpoch=0,
+                   first_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
+                   first_period::PeriodsSinceEpoch=Undated(0),
+                   last_obs::PeriodsSinceEpoch=Undated(typemin(Int)),
                    order::Integer=1)
 computes an unconditional forecast of the variables of the model
 
@@ -16,9 +16,9 @@ computes an unconditional forecast of the variables of the model
 - `forecast_mode::ForecastModes`: one of `histval` or `calibsmoother` [required]
 - `datafile::String`: file with the observations for the smoother
 - `first_obs::PeriodsSinceEpoch`: first period used by smoother (default: first observation in the file)  
-- `last_obs::PeriodsSinceEpoch`: last period used by smoother  (default: last observation in the file)
 - `first_period::PeriodsSinceEpoch`: initial_period for the forecast (default when histval: Undated(0),
                                                                      default when calibsmoother: last period of the smoother)
+- `last_obs::PeriodsSinceEpoch`: last period used by smoother  (default: last observation in the file)
 - `order::Integer`: order of local approximation
 """
 function forecasting!(; periods::Integer,

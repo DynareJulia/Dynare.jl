@@ -137,8 +137,8 @@ computes the posterior mode.
 # Keyword arguments
 - `context::Context=context`: context of the computation
 - `data::AxisArrayTable`: AxisArrayTable containing observed variables
-- `datafile::String:  data filename
-- `first_obs::PeriodsSinceEpoch`: first observation (default: 1)
+- `datafile::String:  data filename (can't be used as the same time as `dataset`)
+- `first_obs::PeriodsSinceEpoch`: first observation (default: first observation in the dataset)
 - `initial_values`: initival parameter values for optimization algorithm (default: `estimated_params_init` block if present or prior mean)
 - `last_obs::PeriodsSinceEpoch`: last period (default: last period of the dataset)
 - `nobs::Int = 0`: number of observations (default: entire dataset)
@@ -204,10 +204,10 @@ runs random walk Monte Carlo simulations of the posterior
 - `context::Context=context`: context of the computation
 - `covariance::AbstractMatrix{Float64}`: 
 - `data::AxisArrayTable`: AxisArrayTable containing observed variables
-- `datafile::String:  data filename
-- `first_obs::PeriodsSinceEpoch`: first observation (default: 1)
+- `datafile::String`:  data filename
+- `first_obs::PeriodsSinceEpoch`: first observation (default: first observation in the dataset)
 - `initial_values`: initival parameter values for optimization algorithm (default: `estimated_params_init` block if present or prior mean)
-- `last_obs::PeriodsSinceEpoch`: last period (default: last period of the dataset)
+- `last_obs::PeriodsSinceEpoch`: last period (default: last dataseet in the dataset)
 - `mcmc_chains::Int` number of MCMC chains (default: 1)
 - `mcmc_jscale::Float64`: scale factor of proposal
 - `mcmc_replic::Int`: =  0,

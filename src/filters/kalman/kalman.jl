@@ -30,20 +30,24 @@ function calib_smoother!(context::Context, field::Dict{String,Any})
 end
 
 """
-    calibsmoother!(; context=context,
-                     datafile = "",
-                     first_obs = 1,
-                     last_obs = 0
+    calibsmoother!(; context::Context=context,
+                     datafile::String = "",
+                         data::AxisArrayTable = AxisArrayTable(Matrix{Float64}(undef, 0, 0), Undated[], Symbol[]),
+                     first_obs::PeriodSinceEpoch = Undated(typemin(Int)),
+                     last_obs::PeriodSinceEpoch = Undated(typemin(Int)),
+                     nobs::Int = 0
                    )
 Compute the smoothed values of the variables for an estimated model
 
 #Keyword arguments
 - `periods::Integer`: number of forecasted periods [required]
 - `datafile::String`: file with the observations for the smoother
+- `data::AxisArrayTable`: AxisArrayTable containing observed variables (can't be used at the same time as `datafile`)
 - `first_obs::PeriodSinceEpoch`: first period used by smoother
-                                 (default: first observation in the file)  
+                                 (default: first observation in the dataset)  
 - `last_obs::PeriodSinceEpoch`: last period used by smoother
-                               (default: last observation in the file)data
+                                (default: last observation in the dataset)
+- `nobs::Int`: number of observations (default: entire dataset)
 """
 function calibsmoother!(; context=context,
                         datafile = "",
