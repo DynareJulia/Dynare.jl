@@ -10,6 +10,7 @@ using Tasmanian
 export sparsegridapproximation
 
 include("time_iteration.jl")
+include("simulation.jl")
 
 function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain)
     #=
@@ -478,6 +479,7 @@ function sparsegridapproximation(; context::Context=context,
     end
     Y = evaluateBatch(grid0, test_points)
     display(Y')
+    return (grid0, state_variables, system_variables)
 end
 
 
