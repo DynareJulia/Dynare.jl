@@ -1,3 +1,7 @@
+0.9.1
+=====
+- retore printing of Dynare parsing errors
+
 0.9.0
 =====
 - add normcdf and normpdf
