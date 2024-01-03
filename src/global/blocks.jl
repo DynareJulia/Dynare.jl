@@ -1,7 +1,6 @@
 #module Blocks
-using BipartiteMatching
-using Dynare
-using Graphs
+using BipartiteMatching: findmaxcardinalitybipartitematching
+using Graphs: SimpleDiGraph, strongly_connected_components
 using RuntimeGeneratedFunctions
 using SparseArrays
 
@@ -11,12 +10,12 @@ function get_dynamic_incidence_matrix(context)
     #Get Jacobian
     model = context.models[1]
     results = context.results.model_results[1]
-    ws = Dynare.DynamicWs(context)
+    ws = DynamicWs(context)
     params = context.work.params
     steadystate = results.trends.endogenous_steady_state
     endogenous = repeat(steadystate, 3)
     exogenous = results.trends.exogenous_steady_state 
-    J = Dynare.get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate, model, 200)
+    J = get_dynamic_jacobian!(ws, params, endogenous, exogenous, steadystate, model, 200)
 
     #Incidence matrix
     T=Vector{Bool}(undef, length(J.rowval)) # all T elements must be true
@@ -79,7 +78,7 @@ function find_inbounds(f::F) where F <: Function
 end
 
 function is_block_normalized(b, matching, endogenous_nbr, eq_offset)
-    f = Dynare.DFunctions.SparseDynamicResid!
+    f = DFunctions.SparseDynamicResid!
     for eq_no in b
         eq = f.body.args[eq_offset].args[3].args[2*eq_no]
         k = endogenous_nbr + matching[eq_no]
@@ -110,7 +109,7 @@ function is_block_linear(b, context)
 end
 
 function add_block_to_preamble!(preamble_expressions, b, eq_offset)
-    f = Dynare.DFunctions.SparseDynamicResid!
+    f = DFunctions.SparseDynamicResid!
     for eq_no in b
         eq = f.body.args[eq_offset].args[3].args[2*eq_no]
         push!(preamble_expressions, Expr(:(=), eq.args[2].args[2], eq.args[2].args[3]))
@@ -118,7 +117,7 @@ function add_block_to_preamble!(preamble_expressions, b, eq_offset)
 end
 
 function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, system_expressions, blocks, matching, context)
-    f = Dynare.DFunctions.SparseDynamicResid!
+    f = DFunctions.SparseDynamicResid!
     endogenous_nbr = context.models[1].endogenous_nbr
 
     eq_offset = find_inbounds(f)
@@ -206,7 +205,7 @@ function make_block_functions(context)
     
     rb = get_recursive_blocks(context, matching, U)
     
-    f = Dynare.DFunctions.SparseDynamicResid!
+    f = DFunctions.SparseDynamicResid!
     
     forward_expressions = Expr[]
     preamble_expressions = Expr[]
@@ -257,8 +256,8 @@ function xref_lists(context)
     exogenous = trends.exogenous_steady_state
     model = context.models[1]
     params = context.work.params
-    ws = Dynare.DynamicWs(context) 
-    jacobian = Dynare.get_dynamic_jacobian!(
+    ws = DynamicWs(context) 
+    jacobian = get_dynamic_jacobian!(
         ws,
         params,
         endogenous,
