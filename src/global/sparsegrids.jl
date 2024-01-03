@@ -19,7 +19,7 @@ function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, grid
     # Number of outputs (capital policy & multiplier for each country + ARC multiplier)
     gridOut = nPols
     # Grid level (we start with a sparse grid of level 3)
-    gridDepth = 2
+    gridDepth = 2Dynare.c
     # 1=linear, 2=quadratic, 3=cubic
     gridOrder = 1
     # Type of base functions
@@ -96,6 +96,7 @@ end
 function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
     polGuess = zeros(nPols, aNum)
     @views polGuess[1:2, :] .= (1 - delta) .* aPoints[1:2, :] 
+    @show typeof(aPoints)
     for i in axes(aPoints, 2)
         f(x) = ARC_zero(x, aPoints[:, i], delta, t, gamma, kappa, phi, A, F)
         polGuess[3, i] = find_zero(f, [0.1, 1.5], Bisection(), atol=1e-8)
