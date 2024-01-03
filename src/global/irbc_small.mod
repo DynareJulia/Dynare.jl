@@ -82,9 +82,9 @@ end;
 steady;
 
 shocks;
-  var e; stderr 0.01;
+  var e; stderr 1;
   @#for j in 1:N
-    var e_@{j}; stderr 0.01;
+    var e_@{j}; stderr 1;
   @#endfor
 end;
 
@@ -97,4 +97,5 @@ end;
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
 
-sparsegridapproximation(scaleCorrExclude=["lambda"])
+(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"])
+Y = simulate!(context, grid, 5, policy_variables, state_variables, 1)
