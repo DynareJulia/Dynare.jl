@@ -10,7 +10,7 @@ function dynare_preprocess(modfilename::String, args::Vector{Any})
             push!(dynare_args, astring)
         end
     end
-    println(dynare_args)
+    @info dynare_args
     run_dynare(modfilename, dynare_args)
     println("")
 end
@@ -26,13 +26,12 @@ function run_dynare(modfilename::String, dynare_args::Vector{String})
     dynare_preprocessor_path = dynare_preprocessor()
 
     try
-        result = read(`$dynare_preprocessor_path $dynare_args`, String)
-        @info result
+        run(`$dynare_preprocessor_path $dynare_args`)
     catch
         if length(directory) > 0
             cd(current_directory)
         end
-        rethrow()
+        error("")
     end
     
     if length(directory) > 0

@@ -88,7 +88,11 @@ function dynare(modfile_arg::String, args...)
     end
     if preprocessing
         modfilename = modname * ".mod"
-        dynare_preprocess(modfilename, arglist)
+        try
+            dynare_preprocess(modfilename, arglist)
+        catch
+            return []
+        end
     end
     @info "$(now()): End of preprocessing"
 
