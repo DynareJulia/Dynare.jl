@@ -1,63 +1,25 @@
 include("blocks.jl")
 
-#using Block
 using Distributions
-#using Dynare
 using LinearAlgebra
 using Roots
 using Tasmanian
 
-export sparsegridapproximation
-
 include("time_iteration.jl")
 include("simulation.jl")
 
+export sparsegridapproximation
+
 function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain)
-    #=
-    # Number of dimensions (capital stock and tfp for each country)
-    gridDim = nstates
-    # Number of outputs (capital policy & multiplier for each country + ARC multiplier)
-    gridOut = nPols
-    # Grid level (we start with a sparse grid of level 3)
-    gridDepth = 2Dynare.c
-    # 1=linear, 2=quadratic, 3=cubic
-    gridOrder = 1
-    # Type of base functions
-    gridRule = "localp"
-
-    # Set the grid domain to [kmin,kmax]^n x [amin,amax]^n
-    gridDomain = zeros(gridDim,2)
-    for i in 1:nstates
-        
-    
-    sigE = 0.01
-    rhoZ = 0.95
-    # Lower bound for capital
-    kMin = 0.8
-    # Upper bound for capital
-    kMax = 1.2
-    # Lower bound for TFP
-    aMin = -0.8*sigE/(1.0-rhoZ)
-    # Upper bound for TFP
-    aMax = 0.8*sigE/(1.0-rhoZ)
-
-    i_k = 1:2
-    i_a = 3:4
-    gridDomain[i_k, 1] .= kMin
-    gridDomain[i_k, 2] .= kMax
-    gridDomain[i_a, 1] .= aMin
-    gridDomain[i_a, 2] .= aMax
-    =#
-    
     # Generate the grid structure
     grid = Tasmanian.TasmanianSG(gridDim, gridOut, gridDepth)
-    Tasmanian.makeLocalPolynomialGrid!(grid, iOrder = gridOrder, sRule = gridRule)
+    makeLocalPolynomialGrid!(grid, iOrder = gridOrder, sRule = gridRule)
     # Transform the domain
-    Tasmanian.setDomainTransform!(grid, gridDomain)
+    setDomainTransform!(grid, gridDomain)
     # Get the points that require function values
-    aPoints = Tasmanian.getPoints(grid)
+    aPoints = getPoints(grid)
     # Get the number of points that require function values
-    aNum = Tasmanian.getNumPoints(grid)
+    aNum = getNumPoints(grid)
     return grid, aPoints, aNum, gridDim, gridDepth, gridDomain
 end
 
@@ -92,7 +54,7 @@ function  ARC_zero(lamb, gridPt, delta, t, gamma, kappa, phi, A, F)
     
     return res
 end
-
+#=
 function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
     polGuess = zeros(nPols, aNum)
     @views polGuess[1:2, :] .= (1 - delta) .* aPoints[1:2, :] 
@@ -103,10 +65,9 @@ function policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, nPols, F)
     end
     return polGuess
 end
+=#
 
-#=
 function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    @show state
     endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
@@ -119,25 +80,23 @@ function make_guess_system(x, residuals, state, endogenous, exogenous, parameter
         residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
     end
-    @show residuals
     return f
 end
 
 function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     n =  length(system_variables)
-    guess_values = zeros(n, aNum) 
-    x = copy(view(steadystate, system_variables .- endogenous_nbr))
+    guess_values = zeros(n, aNum)
+    @views x = copy(steadystate[system_variables .- endogenous_nbr])
     residuals = similar(x)
     for i in axes(aPoints, 2)
         @views state = aPoints[:, i]
         f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
         result = Dynare.nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
-        @show result.zero
         @views guess_values[:, i] .= result.zero
     end
     return guess_values
 end
-=#    
+
 """
     Evaluates residual of forward looking equations for each integration node
 """
@@ -148,90 +107,23 @@ function ExpectFOC(x, state, params, grid, nodes, steadystate, forward_equations
     evalPt = zeros(getNumDimensions(grid), numNodes)
     for i in 1:numNodes
         @views y[i, state_variables] .= state
-        #yy = copy(y[i,:])
         # 1) Determine t+1  variables using preamble
         @views preamble_block(y[i, endogenous_nbr + 1: end], nodes[i,:], params, steadystate)
-        #y[i, :] .= yy
-        #@views copy!(y[i, 2*endogenous_nbr .+ (1:endogenous_nbr)], y[i, endogenous_nbr .+ (1:endogenous_nbr)]) 
-        #@views copy!(y[i, endogenous_nbr .+ (1:endogenous_nbr)], y[i, 1:endogenous_nbr])
         @views y[i, system_variables] .= x
-        #@views y[i, [12, 14]] .= y[i, [7, 9]]
-        #@views y[i, [7, 9]] .= y[i, [2, 4]]
         # 2) Determine next period's state variables
         @views evalPt[:, i] .= y[i, endogenous_nbr .+ state_variables]
-        #@views evalPt[i, nCountries + 1:end] .= y[i, [12, 14]]
     end
     # 3) Determine relevant variables within the expectations operator
-    X = Tasmanian.evaluateBatch(grid, evalPt)
+    X = evaluateBatch(grid, evalPt)
     
-    #capPrPr = X[:, 1:2]
-    #lambPr = X[:, 3]
-
-
     resid = zeros(forward_equations_nbr)
     for i in 1:numNodes
-        #=
-        if typeIRBC=='non-smooth':
-        gzAlphaPr = grid.evaluateBatch(evalPt)[:,nCountries+1:]
-        gzAplusPr = np.maximum(0.0,gzAlphaPr)
-        
-        
-        # Compute tomorrow's marginal productivity of capital
-        MPKtom = np.zeros((numNodes,nCountries))
-        for impk in range(nCountries):
-        MPKtom[:,impk] = 1.0 - delta + Fk(ktemp[impk],newstate[:,impk]) - AdjCost_k(ktemp[impk],capPrPr[:,impk])
-        
-        
-        #Compute Density
-        if typeInt=='GH-quadrature':
-        density = np.pi**(-(nCountries+1) * 0.5)
-        else:
-        density = 1.0
-        =#
-        #Specify Integrand
-        #@views copy!(y[:, endogenous_nbr .+ (1:endogenous_nbr)], y[:,1:endogenous_nbr])
-        #y[i, [6,8]] .= x[1:2]
-        #y[i, 10] = x[3]
-                     
-        #yp1[:, 2:2:4] .= newstate
-        #@views copy!(y[:, 2*endogenous_nbr .+ (1:endogenous_nbr)], y[:,endogenous_nbr .+ (1:endogenous_nbr)])
-        #y[i, [11,13]] .= capPrPr[i, :]
-        #y[i, 15] = lambPr[i]
-        # residuals numNodes x nbr forward equations
         @views y[i, endogenous_nbr .+ system_variables] .= X[:, i]
         forward_block(resid, y[i, :], zeros(exogenous_nbr), params, steadystate)
         residuals[i,:] .= resid
-        #=
-        if typeIRBC=='non-smooth':
-        
-        for iexp in range(nCountries):
-        ExpectFOC[:,iexp] = (MPKtom[:,iexp]*lambPr - (1.0-delta)*gzAplusPr[:,iexp]) * density
-        
-        else:
-        
-        for iexp in range(nCountries):
-        ExpectFOC[:,iexp] = MPKtom[:,iexp]*lambPr * density
-        
-        =#
     end
     return residuals
 end
-
-
-#=
-function forward_looking_equations(y, yp1, ym1, params)
-    Y = zeros(21)
-    @views Y[1:4] .= ym1
-    @views Y[6:10] .= y
-    x = zeros(2)
-    residuals = zeros(size(yp1,1), 2)
-    @views for i in axes(yp1, 1)
-        Y[11:15] .= yp1[i, :]
-        forwardblock!(residuals[i, :], Y, x, params)
-    end
-    return residuals
-end
-=#
 
 function monomial_power(nShocks)
     # Number of integration nodes
@@ -313,6 +205,7 @@ function make_scaleCorr(scaleCorrInclude, scaleCorrExclude, policy_variables)
     end
 end 
 
+#=
 test_points = hcat( vcat(collect(0.8:0.01:1.2)',
                          zeros(1,41),
                          ones(1,41),
@@ -333,7 +226,8 @@ test_points = hcat( vcat(collect(0.8:0.01:1.2)',
                          collect(0.2:-0.01:-0.2)',
                          collect(1.2:-0.01:0.8)',
                          collect(-0.2:0.01:0.2)'))
-                    
+=#
+
 """
     # Number of dimensions (capital stock and tfp for each country)
     gridDim = nstates
@@ -372,7 +266,7 @@ test_points = hcat( vcat(collect(0.8:0.01:1.2)',
 """
 function sparsegridapproximation(; context::Context=context,
                                  dimRef = -1,
-                                 iterrRefStart = 25,
+                                 iterRefStart = 25,
                                  gridDepth = 2,
                                  gridOrder = 1,
                                  gridRule = "localp",
@@ -424,29 +318,20 @@ function sparsegridapproximation(; context::Context=context,
     exogenous_nbr = model.exogenous_nbr
     exogenous = zeros(exogenous_nbr)
     parameters = work.params
-    # unused, place holder
+
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
 
-    gamma = params[[1,4]]
-    t = params[[3, 6]]
-    kappa, beta, delta, phi, rho, A, sigE = params[7:13]
-    F(k, a) = A*exp(a)*max(k, 1e-6)^kappa
-    
-    polGuess = policy_guess(aPoints, delta, t, gamma, kappa, phi, A, aNum, 3, F)
-    #  polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    Tasmanian.loadNeededPoints!(grid0, polGuess)
+    polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    loadNeededPoints!(grid0, polGuess)
 
     params = context.work.params
 
     (nodes, weights) = monomial_power(exogenous_nbr)
 
     # Scale correction in the refinement process:
-    scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables .- endogenous_nbr])
-    @show scaleCorr
+    @views scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables .- endogenous_nbr])
 
-    iterRefStart = 25
     polGuess1 = copy(polGuess)
-    maxiter = 300
     for iter0 in 1:maxiter
 
         polGuess1 = copy(polGuess)
@@ -465,21 +350,21 @@ function sparsegridapproximation(; context::Context=context,
             ilev += 1
         end
         
-        ## Calculate (approximate) errors on tomorrow's policy grid
+        # Calculate (approximate) errors on tomorrow's policy grid
         metric, polGuess, grid0 = policy_update(grid0, grid1, length(system_variables))
  
-        println("Iteration: $iter0, Grid pts: $(Tasmanian.getNumPoints(grid0)), Level: $ilev, Metric: $metric")
+        println("Iteration: $iter0, Grid pts: $(getNumPoints(grid0)), Level: $ilev, Metric: $metric")
 
         if (mod(iter0 + 1, savefreq) == 0)
             #            save_grid(grid0,iter0)
         end
-        
+
         if (metric < tol_ti)
             break
         end
     end
-    Y = evaluateBatch(grid0, test_points)
-    display(Y')
+#    Y = evaluateBatch(grid0, test_points)
+#    display(Y')
     return (grid0, state_variables, system_variables)
 end
 
