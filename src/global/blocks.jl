@@ -161,7 +161,6 @@ function make_assignment_function(fname, expressions)
                   Expr(:(::), Symbol(:steadystate), Vector{Float64})
                   )
     f_body = Expr(:block, expressions...)
-    @show f_body
     return @RuntimeGeneratedFunction(Expr(:function, f_call, f_body))
 end
 
@@ -234,9 +233,6 @@ function make_block_functions(context)
                                  endogenous_nbr)
     system_variables = [matching[e] + endogenous_nbr for e in system_equations]
     sort!(system_variables)
-    @show states
-    @show predetermined_variables
-    @show system_variables
     return states, predetermined_variables, system_variables, forward_equations_nbr, other_equations_nbr
 end
 
