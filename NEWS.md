@@ -1,6 +1,10 @@
+0.9.2
+=====
+- fix bug in rwmh_compute!()
+
 0.9.1
 =====
-- retore printing of Dynare parsing errors
+- restore printing of Dynare parsing errors
 
 0.9.0
 =====
