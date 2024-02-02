@@ -100,4 +100,6 @@ end;
 
 (grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"]);
 Y = simulate!(context, grid, 100, policy_variables, state_variables, 10000);
+M = mean(Y, dims=3);
+display(Plots.plot(M[:, [1,3]], label=["k_1" "k_2"], title="10-period shock on e_1"));
 
