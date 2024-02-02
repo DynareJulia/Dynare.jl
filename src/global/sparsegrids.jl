@@ -1,5 +1,6 @@
 include("blocks.jl")
 
+using AxisArrays: AxisArray
 using Distributions
 using LinearAlgebra
 using Roots
