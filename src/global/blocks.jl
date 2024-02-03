@@ -33,8 +33,7 @@ function get_incidence_bitmatrix_current_forward(context)
     return U
 end 
 
-function get_maximum_cardinality_matching(context)
-    U = get_incidence_bitmatrix_current_forward(context)
+function get_maximum_cardinality_matching(context, U)
     matching, matched = findmaxcardinalitybipartitematching(U) #maximum cardinality matching of the graph
     !all(matched) && error("Model can't be normalized")
     return matching
@@ -199,8 +198,8 @@ end
 function make_block_functions(context)
     model = context.models[1]
     endogenous_nbr = model.endogenous_nbr
-    matching = get_maximum_cardinality_matching(context)
     U = get_incidence_bitmatrix_current_forward(context)
+    matching = get_maximum_cardinality_matching(context, U)
     
     rb = get_recursive_blocks(context, matching, U)
     
