@@ -1,7 +1,8 @@
 # WORK IN PROGRESS
 
 ## Requirements
-Julia 64bit >= v1.6
+- Julia 64bit >= v1.6
+- Recommended version: Julia 64 bit v1.10
 
 ## Documentation
 - https://DynareJulia.github.io/Dynare.jl
@@ -63,7 +64,7 @@ The results are in the ``context`` structure.
   - You need to load PATHSolver before running Dynare (once per Julia
     session)
 ```
-	using PATHSolver
+    using PATHSolver
     context = @dynare ...
 ```
 1. PARDISO is high-performance solver for very large sparse linear
@@ -113,3 +114,7 @@ https://pages.cs.wisc.edu/~ferris/path/LICENSE in your file
 1. In the dropdown ``Save as type`` option at the bottom of the pop-up window select ``All files``
 1. In the field ``File name`` write ``startup.jl``.
 1. Press ``Save``
+
+## Bugs, limitations,  and other issues
+1. With older Julia versions, in some circumstances, it is necessary to install first `Pardiso`, then build it, and finally install `Dynare.jl`
+2. Purely backward models (without any forward looking variable) aren't supported yet
