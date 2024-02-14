@@ -1,3 +1,8 @@
+0.9.3
+=====
+- add support for purely backward linear models
+
+
 0.9.2
 =====
 - fix bug in rwmh_compute!()
