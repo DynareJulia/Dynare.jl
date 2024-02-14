@@ -117,4 +117,4 @@ https://pages.cs.wisc.edu/~ferris/path/LICENSE in your file
 
 ## Bugs, limitations,  and other issues
 1. With older Julia versions, in some circumstances, it is necessary to install first `Pardiso`, then build it, and finally install `Dynare.jl`
-2. Purely backward models (without any forward looking variable) aren't supported yet
+2. Perfect foresight simulations for purely backward models (without any forward look isn't supported yet
