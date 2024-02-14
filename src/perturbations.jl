@@ -609,7 +609,7 @@ function set_compressed_jacobian!(compressed_jacobian, jacobian, context)
     lli = model.lead_lag_incidence
     k = 1
     m = 1
-    for i = 1:3
+    for i in axes(lli, 1)
         for j = 1:n
             if lli[i, j] > 0
                 copyto!(compressed_jacobian, k, jacobian, m, n)
@@ -618,10 +618,10 @@ function set_compressed_jacobian!(compressed_jacobian, jacobian, context)
             m += n
         end
     end
-    copyto!(compressed_jacobian, k, jacobian, m, nx*n)
+    # jacobian has 3*n + nx columns
+    copyto!(compressed_jacobian, k, jacobian, 3*n*n + 1, n*nx)
     return nothing
 end
-
 
 function compute_first_order_solution!(
     context::Context,
