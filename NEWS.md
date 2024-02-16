@@ -1,7 +1,10 @@
+0.9.4
+=====
+- downgrading compat for MUMPS to 1.4.0 to solve installation problem on Windows
+
 0.9.3
 =====
 - add support for purely backward linear models
-
 
 0.9.2
 =====
