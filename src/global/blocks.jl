@@ -124,15 +124,19 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
     predetermined_variables = Int[]
     system_equations = Int[]
     k1 = k2 = 1
+    forward_expressions_eqs = Int[]
+    system_expressions_eqs = Int[]
+    preamble = true
     for b in blocks
         if is_block_normalized(b, matching, endogenous_nbr, eq_offset) &&
-            is_block_linear(b, context)
+            is_block_linear(b, context) && preamble
             add_block_to_preamble!(preamble_expressions, b, eq_offset)
             for eq in b
                 # predetermined variables at the current period
                 push!(predetermined_variables, matching[eq] + endogenous_nbr)
             end
         else
+            preamble = false
             for eq_no in b
                 push!(system_equations, eq_no)
                 eq = f.body.args[eq_offset].args[3].args[2*eq_no]
@@ -140,15 +144,17 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
                     # residuals[k1] = eq.args[2]
                     push!(forward_expressions, Expr(:(=), :(residuals[$k1]), eq.args[2]))
                     k1 += 1
+                    push!(forward_expressions_eqs, eq_no)
                 else
                     # residuals[k2] = eq.args[2]
                     push!(system_expressions, Expr(:(=), :(residuals[$k2]), eq.args[2]))
                     k2 += 1
+                    push!(system_expressions_eqs, eq_no)
                 end
             end
         end
     end
-    return (sort!(predetermined_variables), sort!(system_equations))
+    return (sort!(predetermined_variables), sort!(system_equations), forward_expressions_eqs, system_expressions_eqs)
 end
 
 function make_assignment_function(fname, expressions)
@@ -209,13 +215,16 @@ function make_block_functions(context)
     preamble_expressions = Expr[]
     other_expressions = Expr[]
     
-    (predetermined_variables, system_equations) =
+    @show rb
+    (predetermined_variables, system_equations, forward_expressions_eqs, system_expressions_eqs) =
         analyze_SparseDynamicResid!(forward_expressions,
                                     preamble_expressions,
                                     other_expressions, 
                                     rb,
                                     matching,
                                     context)
+    @show forward_expressions_eqs
+    @show system_expressions_eqs
     forward_equations_nbr = length(forward_expressions)
     other_equations_nbr = length(other_expressions)
 
@@ -232,7 +241,9 @@ function make_block_functions(context)
                                  endogenous_nbr)
     system_variables = [matching[e] + endogenous_nbr for e in system_equations]
     sort!(system_variables)
-    return states, predetermined_variables, system_variables, forward_equations_nbr, other_equations_nbr
+    return (states, predetermined_variables, system_variables,
+            forward_equations_nbr, other_equations_nbr,
+            forward_expressions_eqs, system_expressions_eqs)
 end
 
 """
