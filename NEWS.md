@@ -1,3 +1,7 @@
+0.9.5
+=====
+- fix compat for MUMPS
+
 0.9.4
 =====
 - downgrading compat for MUMPS to 1.4.0 to solve installation problem on Windows
