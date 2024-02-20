@@ -65,7 +65,19 @@ function sparsegridapproximation(; context::Context=context,
                                  
     model = context.models[1]
     work = context.work
-    state_variables, predetermined_variables, system_variables, forward_equations_nbr, other_equations_nbr = make_block_functions(context)
+    (state_variables, predetermined_variables, system_variables,
+     forward_equations_nbr, other_equations_nbr,
+     forward_expressions_eqs, system_expressions_eqs) = make_block_functions(context)
+    lb = Vector{Float64}(undef, 0)
+    ub = Vector{Float64}(undef, 0)
+    bmcps = Vector{Vector{Int}}(undef, 0)
+    block_eqs = union(forward_expressions_eqs, system_expressions_eqs)
+    block_mcp!(lb, ub, bmcps, context, block_eqs,
+               system_variables)
+    @show lb
+    @show ub
+    @show bmcps
+    
     equation_xref_list, variable_xred_list = xref_lists(context)
 
     params = context.work.params
@@ -120,7 +132,7 @@ function sparsegridapproximation(; context::Context=context,
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
         while ((getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
-            grid1 = ti_step(grid1, polGuess1, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, endogenous)
+            grid1 = ti_step(grid1, polGuess1, grid0, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, endogenous, bmcps)
             # We start the refinement process after a given number of iterations
             if (iter0 - 1 > iterRefStart)
                 grid1, polGuess1 = refine(grid1, gridOut, scaleCorr, surplThreshold, dimRef, typeRefinement)
@@ -254,6 +266,22 @@ function make_guess_system(x, residuals, state, endogenous, exogenous, parameter
     return f
 end
 
+function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, permutations)
+    endogenous[state_variables] .= state
+    res1 = zeros(other_equations_nbr)
+    res2 = zeros(forward_equations_nbr)
+    function f(x)
+        endogenous[system_variables] .= x
+        endogenous[system_variables .+ endogenous_nbr] .= x
+        other_block(res1, endogenous, exogenous, parameters, steadystate)
+        forward_block(res2, endogenous, exogenous, parameters, steadystate)
+        residuals[1:other_equations_nbr] .= res1
+        residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
+        return residuals
+    end
+    return f
+end
+
 function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     n =  length(system_variables)
     guess_values = zeros(n, aNum)
@@ -305,7 +333,7 @@ function expectation_equations!(expected_residuals, x, state, params, grid0, nod
     return expected_residuals
 end
 
-function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
+function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
     @views begin
         y[state_variables] .= state
         y[system_variables] .= policy 
@@ -315,7 +343,8 @@ function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadys
     @views begin
         expectation_equations!(res[1:forward_equations_nbr], policy, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
         other_block(res[forward_equations_nbr + 1:end], y, zeros(exogenous_nbr), params, steadystate)
-    end 
+    end
+    reorder!(res, bmcps)
     return res
 end
 
@@ -337,7 +366,7 @@ end
 """
    Time iteration step
 """
-function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, y)
+function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps)
 
     # Get the points that require function values
     aPoints1 = Tasmanian.getNeededPoints(grid)
@@ -346,7 +375,7 @@ function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, stead
     # Array for intermediate update step
     polInt = zeros(length(system_variables), aNumAdd)
     let state
-        fnl(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables)
+        fnl(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
         
         # Time Iteration step
         for ii1 in 1:aNumAdd
@@ -509,3 +538,32 @@ function monomial_power(nShocks)
     return IntNodes, IntWeights
 end
 
+
+function block_mcp!(lb, ub, bmcps, context, block_eqs, block_vars)
+    n = length(block_eqs)
+    resize!(lb, n)
+    resize!(ub, n)
+    fill!(lb, -Inf)
+    fill!(ub, Inf)
+    for m in context.models[1].mcps
+        (eqn, var, op, expr) = m
+        @show m
+        @show block_vars  .- context.models[1].endogenous_nbr
+        bvar = findfirst(var .== block_vars .- context.models[1].endogenous_nbr)
+        @show bvar
+        @show block_eqs
+        beqn = findfirst(eqn .== block_eqs)
+        @show beqn
+        push!(bmcps, [beqn, bvar])
+        @show bmcps
+        boundary = Dynare.dynare_parse_eval(String(expr), context)
+        if op[1] == '<'
+            ub[bvar] = boundary
+        elseif op[1] == '>'
+            lb[bvar] = boundary
+        else
+            error("MCP operator must be <, <=, > or >=")
+        end
+    end
+end
+    
