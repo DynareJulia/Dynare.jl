@@ -207,37 +207,6 @@ end
 
 include("conditional_simulation.jl")
 
-# Dummy definition for PathSolver extension
-function mcp_perfectforesight_core!(::DefaultNLS,
-                                    perfect_foresight_ws::PerfectForesightWs,
-                                    context::Dynare.Context,
-                                    periods::Int64,
-                                    guess_values::Vector{Float64},
-                                    initialvalues::Vector{Float64},
-                                    terminalvalues::Vector{Float64},
-                                    dynamic_ws::Dynare.DynamicWs;
-                                    maxit = maxit,
-                                    tolf = tolf,
-                                    tolx = tolx
-                                    )
-end
-
-function mcp_perfectforesight_core!(::DefaultNLS,
-                                    perfect_foresight_ws::PerfectForesightWs,
-                                    context::Dynare.Context,
-                                    periods::Int64,
-                                    guess_values::Vector{Float64},
-                                    initialvalues::Vector{Float64},
-                                    terminalvalues::Vector{Float64},
-                                    dynamic_ws::Dynare.DynamicWs,
-                                    flipinfo::FlipInformation,
-                                    infoperiod;
-                                    maxit= maxit,
-                                    tolf = tolf,
-                                    tolx = tolx
-                                    )
-end
-
 function perfect_foresight_setup!(context::Context, field=Dict{String, Any})
     periods = 0
     datafile = ""
