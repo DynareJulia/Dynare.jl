@@ -1,6 +1,5 @@
 import Base.print
 using Dates
-using Formatting
 using Tokenize
 
 struct Graph
