@@ -177,6 +177,7 @@ struct Model
     auxiliary_variables::Vector{Dict{String,Any}}
     mcps::Vector{Tuple{Int,Int,String,String}}
     dynamic_g1_sparse_rowval::Vector{Int}
+    dynamic_g1_sparse_colval::Vector{Int}
     dynamic_g1_sparse_colptr::Vector{Int}
     dynamic_g2_sparse_indices::Vector{Vector{Int}}
     static_g1_sparse_rowval::Vector{Int}
@@ -418,6 +419,7 @@ function Model(
     NNZDerivatives::Vector{Int},
     compileoption::Bool,
     dynamic_g1_sparse_rowval::Vector{Int},
+    dynamic_g1_sparse_colval::Vector{Int},
     dynamic_g1_sparse_colptr::Vector{Int},
     dynamic_g2_sparse_indices::Vector{Vector{Int}},
     static_g1_sparse_rowval::Vector{Int},
@@ -684,6 +686,7 @@ function Model(
         aux_vars,
         mcps,
         dynamic_g1_sparse_rowval,
+        dynamic_g1_sparse_colval,
         dynamic_g1_sparse_colptr,
         dynamic_g2_sparse_indices,
         static_g1_sparse_rowval,
