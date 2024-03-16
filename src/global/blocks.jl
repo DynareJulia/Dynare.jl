@@ -121,11 +121,12 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
 
     eq_offset = find_inbounds(f)
 
-    predetermined_variables = Int[]
-    system_equations = Int[]
+    predetermined_variables = Vector{Int}(undef, 0)
+    preamble_eqs = similar(predetermined_variables)
+    system_equations = similar(predetermined_variables)
+    forward_expressions_eqs = similar(predetermined_variables)
+    system_expressions_eqs = similar(predetermined_variables)
     k1 = k2 = 1
-    forward_expressions_eqs = Int[]
-    system_expressions_eqs = Int[]
     preamble = true
     for b in blocks
         if is_block_normalized(b, matching, endogenous_nbr, eq_offset) &&
@@ -134,6 +135,7 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
             for eq in b
                 # predetermined variables at the current period
                 push!(predetermined_variables, matching[eq] + endogenous_nbr)
+                push!(preamble_eqs, eq)
             end
         else
             preamble = false
@@ -154,7 +156,100 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
             end
         end
     end
-    return (sort!(predetermined_variables), sort!(system_equations), forward_expressions_eqs, system_expressions_eqs)
+    return (sort!(predetermined_variables), sort!(system_equations), preamble_eqs, forward_expressions_eqs, system_expressions_eqs)
+end
+
+function make_jacobian_submatrix(colptr::AbstractVector{I},
+                               rowval::AbstractVector{I}, colval::AbstractVector{I},
+                               rows::AbstractVector{I}, cols::AbstractVector{I}) where I <: Integer
+    scolptr = Vector{Int}(undef, length(cols) + 1)
+    srowval = Vector{Int}(undef, 0)
+    f = Dynare.DFunctions.SparseDynamicG1!
+    eq_offset = Dynare.find_inbounds(f)
+    feqs = f.body.args[eq_offset].args[3]
+    deriv_expressions = Vector{Expr}(undef, 0)
+    scolptr[1] = 1
+    oldptr = 1
+    kr = 1
+    kc = 1
+    for (i, r) in enumerate(rowval)
+        row_small = findfirst(r .== rows)
+        col_small = findfirst(colval[i] .== cols)
+        if !isnothing(row_small) && !isnothing(col_small)
+            push!(srowval, row_small)
+            # renumber output vector elements
+            e = feqs.args[2*i]
+            e.args[1].args[2] = kr
+            push!(deriv_expressions, feqs.args[2*i])
+            if col_small != kc
+                while col_small > kc + 1
+                    kc += 1
+                    scolptr[kc] = oldptr
+                end
+                if col_small == kc + 1
+                    kc += 1
+                    scolptr[kc] = kr
+                    oldptr = kr
+                end 
+            end
+            kr += 1
+        end
+    end
+    while kc <= length(cols)
+        kc += 1
+        scolptr[kc] = kr
+    end
+    snzval = similar(srowval, Float64)
+
+    return (SparseMatrixCSC(length(rows), length(cols), scolptr, srowval, snzval),
+            deriv_expressions)
+end
+
+function preamble_block_derivatives(colptr::AbstractVector{I},
+                                    rowval::AbstractVector{I}, colval::AbstractVector{I},
+                                    rows::AbstractVector{I}, cols::AbstractVector{I}) where I <: Integer
+    scolptr = Vector{Int}(undef, length(cols) + 1)
+    srowval = Vector{Int}(undef, 0)
+    f = Dynare.DFunctions.SparseDynamicG1!
+    eq_offset = Dynare.find_inbounds(f)
+    feqs = f.body.args[eq_offset].args[3]
+    deriv_expressions = Vector{Expr}(undef, 0)
+    scolptr[1] = 1
+    oldptr = 1
+    kr = 1
+    kc = 1
+    for (i, r) in enumerate(rowval)
+        row_small = findfirst(r .== rows)
+        col_small = findfirst(colval[i] .== cols)
+        # in assignment block ignore derivative of assigned variable
+        if !isnothing(row_small) && !isnothing(col_small) && r != colval[i]
+            push!(srowval, row_small)
+            # renumber output vector elements
+            e = feqs.args[2*i]
+            e.args[1].args[2] = kr
+            push!(deriv_expressions, feqs.args[2*i])
+            if col_small != kc
+                while col_small > kc + 1
+                    kc += 1
+                    scolptr[kc] = oldptr
+                end
+                if col_small == kc + 1
+                    kc += 1
+                    scolptr[kc] = kr
+                    oldptr = kr
+                end 
+            end
+            kr += 1
+        end
+    end
+    while kc <= length(cols)
+        kc += 1
+        scolptr[kc] = kr
+    end
+    snzval = similar(srowval, Float64)
+
+    return (SparseMatrixCSC(length(rows), length(cols), scolptr, srowval, snzval),
+            deriv_expressions)
 end
 
 function make_assignment_function(fname, expressions)
@@ -173,6 +268,19 @@ function make_system_function(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
                   Expr(:(::), Symbol(:residuals), Vector{Float64}),
+                  Expr(:(::), Symbol(:y), Vector{Float64}),
+                  Expr(:(::), Symbol(:x), Vector{Float64}),
+                  Expr(:(::), Symbol(:params), Vector{Float64}),
+                  Expr(:(::), Symbol(:steadystate), Vector{Float64})
+                  )
+    f_body = Expr(:block, expressions...)
+    return @RuntimeGeneratedFunction(Expr(:function, f_call, f_body))
+end
+
+function make_system_jacobian(fname, expressions)
+    f_call = Expr(:call,
+                  Symbol(fname),
+                  Expr(:(::), Symbol(:g1_v), Vector{Float64}),
                   Expr(:(::), Symbol(:y), Vector{Float64}),
                   Expr(:(::), Symbol(:x), Vector{Float64}),
                   Expr(:(::), Symbol(:params), Vector{Float64}),
@@ -211,27 +319,25 @@ function make_block_functions(context)
     
     f = DFunctions.SparseDynamicResid!
     
-    forward_expressions = Expr[]
-    preamble_expressions = Expr[]
-    other_expressions = Expr[]
+    forward_expressions = Vector{Expr}(undef, 0)
+    preamble_expressions = Vector{Expr}(undef, 0)
+    other_expressions = Vector{Expr}(undef, 0)
     
-    @show rb
-    (predetermined_variables, system_equations, forward_expressions_eqs, system_expressions_eqs) =
+    (predetermined_variables, system_equations, preamble_eqs, forward_expressions_eqs, system_expressions_eqs) =
         analyze_SparseDynamicResid!(forward_expressions,
                                     preamble_expressions,
                                     other_expressions, 
                                     rb,
                                     matching,
                                     context)
-    @show forward_expressions_eqs
-    @show system_expressions_eqs
+                                                            
     forward_equations_nbr = length(forward_expressions)
     other_equations_nbr = length(other_expressions)
-
+    
     global forward_block = make_system_function(:forward_block, forward_expressions)
     global preamble_block = make_assignment_function(:preamble_block, preamble_expressions)
     global other_block = make_system_function(:system_block, other_expressions)
-    
+#    global system_jacobian = make_system_jacobian(:system_jacobian, jacobian_expressions)
     
     equation_xref_list, variable_xref_list = xref_lists(context)
     states = get_state_variables(predetermined_variables,
@@ -241,8 +347,13 @@ function make_block_functions(context)
                                  endogenous_nbr)
     system_variables = [matching[e] + endogenous_nbr for e in system_equations]
     sort!(system_variables)
+
+    #rows = union(forward_expressions_eqs, system_expressions_eqs)
+    #make_sparse_submatrix(SM, colval, rows , system_variables)
+
+
     return (states, predetermined_variables, system_variables,
-            forward_equations_nbr, other_equations_nbr,
+            forward_equations_nbr, other_equations_nbr, preamble_eqs,
             forward_expressions_eqs, system_expressions_eqs)
 end
 
