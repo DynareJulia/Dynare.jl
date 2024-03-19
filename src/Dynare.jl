@@ -65,6 +65,7 @@ include("macros.jl")
 export limits!, @limits
 include("global/sparsegrids.jl")
 export sparsegridapproximation
+include("mcp.jl")
 
 macro dynare(modfile_arg::String, args...)
     dynare(modfile_arg, args...)
@@ -118,7 +119,8 @@ function get_modname(modfilename::String)
 end
 
 if !isdefined(Base, :get_extension)
-  include("../ext/PardisoSolver.jl")
+    @show isdefined(Base, :get_extension)
+    include("../ext/PardisoSolver.jl")
   include("../ext/PathSolver.jl")
 end
 
