@@ -157,6 +157,7 @@ function sparsegridapproximation(; context::Context=context,
     @views scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables .- endogenous_nbr])
 
     polGuess1 = copy(polGuess)
+    pol = Vector{Float64}(undef, size(polGuess1, 1))
     for iter0 in 1:maxiter
 
         polGuess1 = copy(polGuess)
@@ -165,11 +166,11 @@ function sparsegridapproximation(; context::Context=context,
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
         while ((getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
-            grid1 = ti_step(grid1, polGuess1, grid0, nPols, nodes, weights, params, 
+            grid1 = ti_step(grid1, polGuess1, pol, grid0, nPols, nodes, weights, params, 
                             steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, 
                             state_variables, system_variables, endogenous, bmcps, dynamicws, model, 
                             preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
-                            forward_expressions_eqs, other_expressions_eqs, ids, mcp = mcp)
+                            forward_expressions_eqs, other_expressions_eqs, ids, lb, ub, mcp = mcp)
             # We start the refinement process after a given number of iterations
             if (iter0 - 1 > iterRefStart)
                 grid1, polGuess1 = refine(grid1, gridOut, scaleCorr, surplThreshold, dimRef, typeRefinement)
@@ -211,7 +212,6 @@ function simulate!(context, grid, periods, policy_variables, state_variables, re
     Sigma_e = model.Sigma_e
     chol_sigma_e_L = cholesky(Sigma_e).L
     x = reshape(perfect_foresight_ws.x, exogenous_nbr, periods)
-        display(x)
     
     Y = Array{Float64}(undef, periods, endogenous_nbr + exogenous_nbr, replications)
     y = Vector{Float64}(undef, 3*endogenous_nbr)
@@ -384,7 +384,7 @@ function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadys
         expectation_equations!(res[1:forward_equations_nbr], policy, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
         other_block(res[forward_equations_nbr + 1:end], y, zeros(exogenous_nbr), params, steadystate)
     end
-    #reorder!(res, bmcps)
+    reorder!(res, bmcps)
     return res
 end
 
@@ -421,10 +421,10 @@ end
 """
    Time iteration step
 """
-function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, 
+function ti_step(grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, 
                  endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
                  preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
-                 forward_expressions_eqs, other_expressions_eqs, ids; mcp = false)
+                 forward_expressions_eqs, other_expressions_eqs, ids, lb, ub; mcp = false)
 
     # Get the points that require function values
     aPoints1 = Tasmanian.getNeededPoints(grid)
@@ -440,34 +440,10 @@ function ti_step(grid, pol_guess, gridZero, nPols, nodes, weights, params, stead
     let state
         # Time Iteration step
         if mcp
-            function f1!(fx, x)
-                fx .= sysOfEqs(x, y, state, gridZero, nPols, nodes, weights,
-                              params, steadystate, forward_equations_nbr, endogenous_nbr,
-                              exogenous_nbr, state_variables, system_variables, bmcps)
-            end
-            function JA1!(J, x)
-                sysOfEqs_derivatives!(J, x, y, state, gridZero,
-                                      nPols, exogenous, nodes, weights, params, steadystate,
-                                      forward_equations_nbr, endogenous_nbr, exogenous_nbr,
-                                      state_variables, system_variables, bmcps, dynamicws, model, preamble_eqs, 
-                                      predetermined_variables, preamble_lagged_variables, forward_system_variables,
-                                      forward_expressions_eqs, other_expressions_eqs, ids)                    
-            end
-            @views state = aPoints1[:, 1]
-            JA1!(J, pol_guess[:, 1])
-            test_diff(J, pol_guess[:, 1], y, state, gridZero,
-                      nPols, exogenous, nodes, weights, params, steadystate,
-                      forward_equations_nbr, endogenous_nbr, exogenous_nbr,
-                      state_variables, system_variables, bmcps, dynamicws, model, preamble_eqs, 
-                      predetermined_variables, preamble_lagged_variables, forward_system_variables,
-                     forward_expressions_eqs, other_expressions_eqs, ids)
-            error()
-            for ii1 in 1:aNumAdd
-                @views state = aPoints1[:, ii1]
-                @views pol = pol_guess[:, ii1]
-                (status, results, info) =     (status, results, info) = solve_path!(f1!, JA1!, JJ, lb, ub, guess_values)
-                polInt[:, ii1] .= results
-            end
+            mcp_sg_core!(PathNLS(), grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, 
+                      endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
+                      preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
+                      forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, J, lb, ub)
         else
             f2!(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes,
                              weights, params, steadystate, forward_equations_nbr,
@@ -642,22 +618,18 @@ end
 
 
 function block_mcp!(lb, ub, bmcps, context, block_eqs, block_vars)
-    n = length(block_eqs)
+    block_eqs_ = copy(block_eqs)
+    n = length(block_eqs_)
     resize!(lb, n)
     resize!(ub, n)
     fill!(lb, -Inf)
     fill!(ub, Inf)
     for m in context.models[1].mcps
         (eqn, var, op, expr) = m
-        @show m
-        @show block_vars  .- context.models[1].endogenous_nbr
         bvar = findfirst(var .== block_vars .- context.models[1].endogenous_nbr)
-        @show bvar
-        @show block_eqs
-        beqn = findfirst(eqn .== block_eqs)
-        @show beqn
+        beqn = findfirst(eqn .== block_eqs_)
+        block_eqs_[[bvar, beqn]] .= block_eqs_[[beqn, bvar]]
         push!(bmcps, [beqn, bvar])
-        @show bmcps
         boundary = Dynare.dynare_parse_eval(String(expr), context)
         if op[1] == '<'
             ub[bvar] = boundary
@@ -788,7 +760,6 @@ function copy_submatrix(dest, rowsd, colsd, src, rowss, colss)
     for (j1, j2) in enumerate(colsd)
         k = colss[j1]
         for (i1, i2) in enumerate(rowsd)
-            @show i1, i2, j1, j2, k
             dest[i2, j2] = src[rowss[i1], k]
         end
     end

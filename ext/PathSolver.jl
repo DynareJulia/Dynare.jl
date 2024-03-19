@@ -232,8 +232,35 @@ function Dynare.mcp_perfectforesight_core!(
     Dynare.make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
 
+function Dynare.mcp_sg_core!(::Dynare.PathNLS, grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, 
+                      endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
+                      preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
+                      forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, JJ, lb, ub)
+    function f1!(fx, x)
+        fx .= Dynare.sysOfEqs(x, y, state, gridZero, nPols, nodes, weights,
+                      params, steadystate, forward_equations_nbr, endogenous_nbr,
+                      exogenous_nbr, state_variables, system_variables, bmcps)
+    end
+
+    function JA1!(J, x)
+        Dynare.sysOfEqs_derivatives!(J, x, y, state, gridZero,
+                              nPols, exogenous, nodes, weights, params, steadystate,
+                              forward_equations_nbr, endogenous_nbr, exogenous_nbr,
+                              state_variables, system_variables, bmcps, dynamicws, model, preamble_eqs, 
+                              predetermined_variables, preamble_lagged_variables, forward_system_variables,
+                              forward_expressions_eqs, other_expressions_eqs, ids)                    
+    end
+    
+    for ii1 in 1:aNumAdd
+        @views state = aPoints1[:, ii1]
+        @views pol .= pol_guess[:, ii1]
+        (status, results, info) =     (status, results, info) = solve_path!(f1!, JA1!, JJ, lb, ub, pol)
+        polInt[:, ii1] .= results
+    end
+end
+
 # Using PATHSolver
-function solve_path!(f!, JA!, JJ, lb, ub, initial_values; kwargs...)
+function solve_path!(f!, JA!, JJ::SparseMatrixCSC, lb, ub, initial_values; kwargs...)
     n = length(initial_values)
     @assert n == length(lb) == length(ub)
 
@@ -274,6 +301,71 @@ function solve_path!(f!, JA!, JJ, lb, ub, initial_values; kwargs...)
     F_name = Vector{String}(undef, 0)
 
     nnz = SparseArrays.nnz(JJ)
+
+    F_val = zeros(n)
+    # Solve the MCP using PATHSolver
+    status, z, info = PATHSolver.solve_mcp(
+        function_callback,
+        jacobian_callback,
+        lb,
+        ub,
+        initial_values;
+        nnz = nnz,
+        variable_names = var_name,
+        constraint_names = F_name,
+        kwargs...,
+    )
+
+    return Int(status), z, info
+end
+
+function solve_path!(f!, JA!, JJ::Matrix, lb, ub, initial_values; kwargs...)
+    n = length(initial_values)
+    @assert n == length(lb) == length(ub)
+
+    function function_callback(n::Cint, z::Vector{Cdouble}, F_val::Vector{Cdouble})
+        @assert n == length(z) == length(F_val)
+        f!(F_val, z)
+        return Cint(0)
+    end
+
+    NNZ = 0
+    function jacobian_callback(
+        n::Cint,
+        nnz::Cint,
+        z::Vector{Cdouble},
+        col_start::Vector{Cint},
+        col_len::Vector{Cint},
+        row::Vector{Cint},
+        data::Vector{Cdouble},
+    )
+        @assert n == length(z) == length(col_start) == length(col_len)
+        @assert nnz == length(row) == length(data)
+
+        JA!(JJ, z)  # Matrix
+
+        i = 1
+        for c in 1:n
+            col_start[c] = i
+            col_len[c] = 0
+            for r in 1:n
+                if !iszero(JAC[r, c])
+                    data[i] = JAC[r, c]
+                    row[i] = r
+                    col_len[c] += 1
+                    i += 1
+                end
+            end
+        end
+        NNZ = i - 1
+        return Cint(0)
+    end
+
+    # var_name, F_name in RawIndex
+    var_name = Vector{String}(undef, 0)
+    F_name = Vector{String}(undef, 0)
+
+    nnz = NNZ
 
     F_val = zeros(n)
     # Solve the MCP using PATHSolver
