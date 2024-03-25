@@ -1,3 +1,4 @@
+include("../PathSolver.jl")
 include("blocks.jl")
 
 using AxisArrays: AxisArray
@@ -166,7 +167,7 @@ function sparsegridapproximation(; context::Context=context,
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
         while ((getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
-            grid1 = ti_step(grid1, polGuess1, pol, grid0, nPols, nodes, weights, params, 
+            grid1 = ti_step(grid1, polGuess1, pol, grid0, nPols, nodes, weights, exogenous, params, 
                             steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, 
                             state_variables, system_variables, endogenous, bmcps, dynamicws, model, 
                             preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
@@ -373,7 +374,7 @@ function expectation_equations!(expected_residuals, x, state, params, grid0, nod
     return expected_residuals
 end
 
-function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
+function sysOfEqs(policy, y, exogenous, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
     @views begin
         y[state_variables] .= state
         y[system_variables] .= policy 
@@ -382,7 +383,7 @@ function sysOfEqs(policy, y, state, grid, nPols, nodes, weights, params, steadys
 
     @views begin
         expectation_equations!(res[1:forward_equations_nbr], policy, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
-        other_block(res[forward_equations_nbr + 1:end], y, zeros(exogenous_nbr), params, steadystate)
+        other_block(res[forward_equations_nbr + 1:end], y, exogenous, params, steadystate)
     end
     reorder!(res, bmcps)
     return res
@@ -421,7 +422,7 @@ end
 """
    Time iteration step
 """
-function ti_step(grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, 
+function ti_step(grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
                  endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
                  preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
                  forward_expressions_eqs, other_expressions_eqs, ids, lb, ub; mcp = false)
@@ -440,17 +441,17 @@ function ti_step(grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, 
     let state
         # Time Iteration step
         if mcp
-            mcp_sg_core!(PathNLS(), grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, steadystate, forward_equations_nbr, 
+            mcp_sg_core!(PathNLS(), polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
                       endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
                       preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
                       forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, J, lb, ub)
         else
-            f2!(x) = sysOfEqs(x, y, state, gridZero, nPols, nodes,
+            f2!(x) = sysOfEqs(x, y, exogenous, state, gridZero, nPols, nodes,
                              weights, params, steadystate, forward_equations_nbr,
                              endogenous_nbr, exogenous_nbr, state_variables,
                              system_variables, bmcps)
 #=
-            JA2!(x) = sysOfEqs_derivatives!(J, x, y, state, gridZero, nPols,
+            JA2!(x) = sysOfEqs_derivatives!(J, x, y, exogenous, state, gridZero, nPols,
                                             nodes, weights, params, steadystate,
                                             forward_equations_nbr, endogenous_nbr, exogenous_nbr,
                                             state_variables, system_variables, bmcps, dynamicws,
@@ -462,8 +463,9 @@ function ti_step(grid, pol_guess, pol, gridZero, nPols, nodes, weights, params, 
                 res = Dynare.nlsolve(f2!, pol, method = :robust_trust_region, show_trace = false)
                 polInt[:, ii1] .= res.zero
             end
+        end
     end 
-end
+
     # Add the new function values to grid1
     Tasmanian.loadNeededPoints!(grid, polInt)
 
@@ -485,18 +487,15 @@ function refine(grid, nPols, scaleCorr, surplThreshold, dimRef, typeRefinement)
     # Refine the grid based on the surplus coefficients
     Tasmanian.setSurplusRefinement!(grid, surplThreshold, iOutput=dimRef, sCriteria=typeRefinement, llfScaleCorrection=scaleCorrMat)
     if Tasmanian.getNumNeeded(grid) > 0
-
-	# Get the new points and the number of points
-	nwpts = Matrix(Tasmanian.getNeededPoints(grid))
-	aNumNew = Tasmanian.getNumNeeded(grid)
+	    # Get the new points and the number of points
+	    nwpts = Matrix(Tasmanian.getNeededPoints(grid))
+	    aNumNew = Tasmanian.getNumNeeded(grid)
         
-	# We assign (for now) function values through interpolation#
-	pol_guess = zeros(aNumNew, nPols)
-	pol_guess = Tasmanian.evaluateBatch(grid, nwpts)
+	    # We assign (for now) function values through interpolation#
+	    pol_guess = zeros(aNumNew, nPols)
+	    pol_guess = Tasmanian.evaluateBatch(grid, nwpts)
     else
-        
-	pol_guess = []
-
+	    pol_guess = []
     end
     return grid, pol_guess
 end
@@ -752,7 +751,8 @@ function sysOfEqs_derivatives!(J, x, y, state, grid,
     )
     copy_submatrix(J, forward_equations_nbr .+ (1:length(other_expressions_eqs)), 1:length(system_variables), 
                    jacobian, other_expressions_eqs, system_variables)
-end
+    reorder_rows!(J, bmcps)
+    end
 
 function copy_submatrix(dest, rowsd, colsd, src, rowss, colss)
     @assert length(rowsd) == length(rowss)
@@ -785,6 +785,12 @@ function copy_to_submatrix!(dest, rows, cols, src)
     end
     return dest
 end 
+
+function reorder_rows!(x::AbstractMatrix, permutations)
+    for c in axes(x, 2)
+        @views reorder!(x[:, c], permutations)
+    end
+end
 
 function add_to_submatrix!(dest, rows, cols, src)
     for j in axes(src, 2)
