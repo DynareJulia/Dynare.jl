@@ -98,4 +98,4 @@ end;
 @#endfor
 
 (grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], tol_ti=1e-5);
-//Y = simulate!(context, grid, 100, policy_variables, state_variables, 1000);
+Y = simulate!(context, grid, 1000000, policy_variables, state_variables, 1);

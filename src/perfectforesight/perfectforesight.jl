@@ -260,15 +260,19 @@ function perfect_foresight!(;context::Context = context,
 end
 
 function check_scenario(scenario)
+    @show scenario
     # all infoperiods
-    k = collect(keys(scenario))
+    k = sort(collect(keys(scenario)))
+    @show k
     # for each infoperiod > 1 
     for (i, k1) in enumerate(sort(k))
         if k1 == 1
             continue
         end
-        # period shocked for that infoperiod
+
+        @show k1       # period shocked for that infoperiod
         sk1 = keys(scenario[k1])
+        @show sk1
         # for all shock periods in the current infoperiod
         for p1 in sk1
             # check that future relevant infoperiods contain a comparable shock
@@ -278,6 +282,7 @@ function check_scenario(scenario)
                     break
                 end
                 p2 = collect(keys(scenario[k2]))
+                @show p1, p2
                 if !(p1 in p2)
                     error("A shock must be explicitly confirmed or modified in all relevant subsequent infoperiods")
                 else
@@ -330,7 +335,7 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
     )
     if options.mcp
         if isnothing(Base.get_extension(Dynare, :PathSolver))
-            error("You must load PATH with 'using PATHSolver'")
+#            error("You must load PATH with 'using PATHSolver'")
         end
         if isempty(context.work.scenario)
             mcp_perfectforesight_core!(
@@ -1054,7 +1059,7 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
     )
     if options.mcp
         if isnothing(Base.get_extension(Dynare, :PathSolver))
-            error("You must load PATH with 'using PATHSolver'")
+#            error("You must load PATH with 'using PATHSolver'")
         end
         if isempty(context.work.scenario)
             mcp_perfectforesight_core!(
