@@ -1,8 +1,3 @@
-# traits used for PathSolver extension
-abstract type NonLinearSolver end
-struct PathNLS <: NonLinearSolver end
-struct DefaultNLS <: NonLinearSolver end
-
 # Dummy definition for PathSolver extension
 
 # perfectforesight
