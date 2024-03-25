@@ -86,22 +86,11 @@ maximum likelihood estimation. If unset, defaults to the prior mean.
 
 - `LOWER_BOUND`
 
-Specifies a lower bound for the parameter value in maximum likelihood
-estimation. In a Bayesian estimation context, sets a lower bound only
-effective while maximizing the posterior kernel. This lower bound does
-not modify the shape of the prior density, and is only aimed at helping
-the optimizer in identifying the posterior mode (no consequences for the
-MCMC). For some prior densities (namely inverse gamma, gamma, uniform,
-beta or Weibull) it is possible to shift the support of the prior
-distributions to the left or the right using
-`prior_3rd_parameter <PRIOR_3RD_PARAMETER>`. In this case the prior density is effectively modified
-(note that the truncated Gaussian density is not implemented in Dynare).
-If unset, defaults to minus infinity (ML) or the natural lower bound of
-the prior (Bayesian estimation).
+Currently not supported
 
 - `UPPER_BOUND`
 
-Same as `lower_bound`, but specifying an upper bound instead.
+Currently not supported
 
 - `PRIOR_SHAPE`
 
@@ -120,14 +109,11 @@ The standard error of the prior distribution.
 
 - `PRIOR_3RD_PARAMETER`
 
-A third parameter of the prior used for generalized beta distribution,
-generalized gamma, generalized Weibull and for the uniform distribution.
-Default: `0`.
+Currently not supported except for the Uniform
 
 - `PRIOR_4TH_PARAMETER`
 
-A fourth parameter of the prior used for generalized beta distribution
-and for the uniform distribution. Default: `1`.
+Currently not supported
 
 - `SCALE_PARAMETER`
 
@@ -154,30 +140,6 @@ options must be filled: for example, if you want to specify
 SCALE_PARAMETER, you must specify `PRIOR_3RD_PARAMETER` and
 `PRIOR_4TH_PARAMETER`. Use empty values, if these parameters don't
 apply.
-
-##### Example
-
-```
-     corr eps_1, eps_2, 0.5,  ,  , beta_pdf, 0, 0.3, -1, 1;
-```
-
-Sets a generalized beta prior for the correlation between `eps_1` and
-`eps_2` with mean `0` and variance `0.3`. By setting
-`PRIOR_3RD_PARAMETER` to `-1` and `PRIOR_4TH_PARAMETER` to `1` the
-standard beta distribution with support `[0,1]` is changed to a
-generalized beta with support `[-1,1]`. Note that LOWER_BOUND and
-UPPER_BOUND are left empty and thus default to `-1` and `1`,
-respectively. The initial value is set to `0.5`.
-
-##### Example
-
-```
-     corr eps_1, eps_2, 0.5,  -0.5,  1, beta_pdf, 0, 0.3, -1, 1;
-```
-
-Sets the same generalized beta distribution as before, but now
-truncates this distribution to `[-0.5,1]` through the use of
-LOWER_BOUND and UPPER_BOUND.
 
 #### Parameter transformation
 
