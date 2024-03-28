@@ -1,16 +1,8 @@
-// one auxiliary variable
-// Generalized Schur algorithm
+// test case for reporting
 using CSV
 
 var y, c, k, a, h, b;
 varexo e, u;
-
-verbatim;
-% I want these comments included in
-% example1.m 1999q1 1999y
-%
-var = 1;
-end;
 
 parameters beta, rho, alpha, delta, theta, psi, tau;
 
@@ -45,25 +37,23 @@ steady_state_model;
   a = 0;
   b = 0;
 end;
-  
+
+steady;
+
 shocks;
 var e; stderr 0.009;
 var u; stderr 0.009;
-//var e, u = phi*0.009*0.009;
 var e, u = 0.1*0.009*0.009;
 end;
-
-check;
 
 stoch_simul(order=1, periods=100);
 
 CSV.write("data.csv", simulation(1))
 
 varobs y;
-calib_smoother(datafile='data.csv', diffuse_filter, filtered_vars);
+calib_smoother(datafile='data.csv');
 
 // Reporting
-
 report = Report("Report example", subtitle="Example3report.mod")
 
 page1 = Page()
@@ -72,9 +62,9 @@ page3 = Page()
 
 res = context.results.model_results[1]
 res1 = Matrix{Any}(permutedims(res.linearrationalexpectations.g1[1:6,1:6], [2, 1]))
-table = Table(res1, "Reduced form", ["y" "c" "k" "a" "h" "b"], ["\$ \\phi(c)\$", "\$ \\phi(k)\$", "\$ \\phi(a)\$", "\$ \\phi(b)\$", "e", "u"], "Note: \$ \\phi(x) = x_{t-1} - steady\\_state(x)\$")
-
-add_model!(page1, context, lastline = 58)
+table = Table(res1, "Reduced form", ["y" "c" "k" "a" "h" "b"], LatexCell.(["\$ \\phi(c) \$", "\$ \\phi(k) \$", "\$ \\phi(a)\$", "\$ \\phi(b) \$", "e", "u"]), "Note: \$ \\phi(x) = x_{t-1} - steady\\_state(x)\$")
+ 
+add_model!(page1, lastline = 52)
 
 add_table!(page2, table)
 
