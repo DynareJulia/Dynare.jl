@@ -58,8 +58,6 @@ function dynare_table_latex(
     if length(title) > 0
         write(io, "$title\n")
     end
-    @show data
-    @show note
     pretty_table(
         io,
         data,

@@ -225,7 +225,6 @@ function MyAxisArrayTable(filename)
     for (icol, name) in enumerate(cols)
         if uppercase(String(name)) in ["DATE", "DATES", "PERIOD", "PERIODS", "TIME", "COLUMN1"]
             periodtype = typeof(periodparse(data[1, icol]))
-            @show periodtype
             rows = []
             foreach(x -> push!(rows, periodtype(x)), data[:, icol])
             k = union(1:icol-1, icol+1:size(data,2))
@@ -234,7 +233,6 @@ function MyAxisArrayTable(filename)
         end
     end
     rows = Undated(1):Undated(size(data,1))
-    @show rows
     aat = AxisArrayTable(data, rows, cols)
     return aat
 end
