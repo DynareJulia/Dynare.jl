@@ -1,3 +1,7 @@
+0.9.6
+====
+- improve reporting
+
 0.9.5
 =====
 - fix compat for MUMPS
