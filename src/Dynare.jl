@@ -40,6 +40,7 @@ export steadystate!
 include("dynare_table.jl")
 export round
 include("reporting/report.jl")
+export Report, add_graph!, add_model!, add_page!, add_paragraph!, add_table! 
 include("graphics.jl")
 export plot_forecast, plot_recursive_forecast
 include("filters/kalman/kalman.jl")
