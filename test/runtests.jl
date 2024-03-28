@@ -31,7 +31,7 @@ irfs_e_y = irf(:e, :y)
 @dynare "models/example3ss/example3ss.mod"
 @dynare "models/example3ss/example3ss_analytical.mod"
 @dynare "models/example3ss/example3ss_partial.mod"
-#@dynare "models/example3report/example3report.mod"
+@dynare "models/example3report/example3report.mod"
 @dynare "models/cgg/cgg_ramsey.mod"
 #@dynare "models/stochastic_trend_drift/trend1.mod"
 
