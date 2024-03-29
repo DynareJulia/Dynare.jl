@@ -1,4 +1,3 @@
-include("../PathSolver.jl")
 include("blocks.jl")
 
 using AxisArrays: AxisArray

@@ -355,7 +355,7 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
     )
     if options.mcp
         if isnothing(Base.get_extension(Dynare, :PathSolver))
-#            error("You must load PATH with 'using PATHSolver'")
+            error("You must load PATH with 'using PATHSolver'")
         end
         if isempty(context.work.scenario)
             mcp_perfectforesight_core!(
