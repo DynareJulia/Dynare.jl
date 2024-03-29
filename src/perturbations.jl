@@ -401,8 +401,8 @@ function stoch_simul!(context::Context, field::Dict{String,Any})
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr = m.dynamic_tmp_nbr
-    ws = StochSimulWs(context, order=options.order)
-    stoch_simul_core!(context, ws, options)
+    ws = StochSimulWs(context, options.order)
+    stoch_simul_core!(context, ws.dynamicws, options)
 end
 
 """
@@ -438,7 +438,6 @@ function localapproximation!(; context::Context = context,
     options = StochSimulOptions(display, dr_algo, first_period, irf, LRE_options, nar, 
         nonstationary, order, periods)
     ws = StochSimulWs(context, order=options.order)
-    @show options.order
     stoch_simul_core!(context, ws, options)
 end
 
@@ -651,7 +650,7 @@ function compute_first_order_solution!(
     results = context.results.model_results[1]
     LRE_results = results.linearrationalexpectations
     jacobian = get_dynamic_jacobian!(
-        ws.dynamicws,
+        ws,
         params,
         endogenous,
         exogenous,
