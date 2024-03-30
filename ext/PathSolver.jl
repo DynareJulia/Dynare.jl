@@ -232,7 +232,7 @@ function Dynare.mcp_perfectforesight_core!(
     Dynare.make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
 
-function Dynare.mcp_sg_core!(::Dynare.PathNLS, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
+function Dynare.mcp_sg_core!(::Dynare.PathNLS, polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
                       endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
                       preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
                       forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, JJ, lb, ub)
@@ -255,10 +255,15 @@ function Dynare.mcp_sg_core!(::Dynare.PathNLS, grid, pol_guess, pol, gridZero, n
         for ii1 in 1:aNumAdd
             @views state = aPoints1[:, ii1]
             @views pol .= pol_guess[:, ii1]
-            (status, results, info) =     (status, results, info) = solve_path!(f1!, JA1!, JJ, lb, ub, pol)
+            (status, results, info) = solve_path!(f1!, JA1!, JJ, lb, ub, pol)
             polInt[:, ii1] .= results
         end
     end
+end
+
+function Dynare.mcp_solve!(::Dynare.PathNLS, f!, J!, jacobian, lb, ub, x0; kwargs...)
+    (status, results, info) = solve_path!(f!, J!, jacobian, lb, ub, x0; kwargs...)
+    return (status, results, info)
 end
 
 # Using PATHSolver

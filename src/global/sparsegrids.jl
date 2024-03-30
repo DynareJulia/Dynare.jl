@@ -147,6 +147,7 @@ function sparsegridapproximation(; context::Context=context,
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
 
     polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    
     loadNeededPoints!(grid0, polGuess)
 
     params = context.work.params
@@ -212,7 +213,9 @@ function simulate!(context, grid, periods, policy_variables, state_variables, re
     Sigma_e = model.Sigma_e
     chol_sigma_e_L = cholesky(Sigma_e).L
     x = reshape(perfect_foresight_ws.x, exogenous_nbr, periods)
-    
+
+    ws = DynamicWs(context)
+    T = ws.temporary_values
     Y = Array{Float64}(undef, periods, endogenous_nbr + exogenous_nbr, replications)
     y = Vector{Float64}(undef, 3*endogenous_nbr)
     z = Vector{Float64}(undef, endogenous_nbr)
@@ -227,7 +230,7 @@ function simulate!(context, grid, periods, policy_variables, state_variables, re
         y[1:endogenous_nbr] .= initial_values
         for p in 1:periods
             @views begin
-                preamble_block(y, random_shocks[:, p], params, steadystate)
+                preamble_block!(T, y, random_shocks[:, p], params, steadystate)
                 sv_buffer .= y[state_variables]
                 evaluateBatch!(pv_buffer, grid, sv_buffer)
                 y[policy_variables] .= pv_buffer
@@ -287,15 +290,16 @@ end
 """
     given the state variables, find a solution that is constant in t and t+1 in absence of future shocks
 """
-function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+function make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
     function f(x)
         endogenous[system_variables] .= x
         endogenous[system_variables .+ endogenous_nbr] .= x
-        other_block(res1, endogenous, exogenous, parameters, steadystate)
-        forward_block(res2, endogenous, exogenous, parameters, steadystate)
+        DFunctions.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
+        other_block_(T, res1, endogenous, exogenous, parameters, steadystate)
+        forward_block_(T, res2, endogenous, exogenous, parameters, steadystate)
         residuals[1:other_equations_nbr] .= res1
         residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
@@ -303,15 +307,16 @@ function make_guess_system(x, residuals, state, endogenous, exogenous, parameter
     return f
 end
 
-function make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, permutations)
+function make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, permutations)
     endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
     function f(x)
         endogenous[system_variables] .= x
         endogenous[system_variables .+ endogenous_nbr] .= x
-        other_block(res1, endogenous, exogenous, parameters, steadystate)
-        forward_block(res2, endogenous, exogenous, parameters, steadystate)
+        DFunction.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
+        other_block!(T, res1, endogenous, exogenous, parameters, steadystate)
+        forward_block!(T, res2, endogenous, exogenous, parameters, steadystate)
         residuals[1:other_equations_nbr] .= res1
         residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
@@ -324,9 +329,11 @@ function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, para
     guess_values = zeros(n, aNum)
     @views x = copy(steadystate[system_variables .- endogenous_nbr])
     residuals = similar(x)
+    ws = DynamicWs(context)
+    T = ws.temporary_values
     for i in axes(aPoints, 2)
         @views state = aPoints[:, i]
-        f = make_guess_system(x, residuals, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+        f = make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
         result = Dynare.nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
         @views guess_values[:, i] .= result.zero
     end
@@ -336,7 +343,7 @@ end
 """
     Evaluates residual of forward looking equations for each integration node
 """
-function forward_looking_equation_residuals(x, state, params, grid, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+function forward_looking_equation_residuals(x, T, state, params, grid, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
     numNodes = size(nodes, 1)
     residuals = zeros(numNodes, forward_equations_nbr)
     y = zeros(numNodes, 3*endogenous_nbr)
@@ -344,7 +351,7 @@ function forward_looking_equation_residuals(x, state, params, grid, nodes, stead
     for i in 1:numNodes
         @views y[i, state_variables] .= state
         # 1) Determine t+1  variables using preamble
-        @views preamble_block(y[i, endogenous_nbr + 1: end], nodes[i,:], params, steadystate)
+        @views preamble_block!(T, y[i, endogenous_nbr + 1: end], nodes[i,:], params, steadystate)
         @views y[i, system_variables] .= x
         # 2) Determine next period's state variables
         @views evalPt[:, i] .= y[i, endogenous_nbr .+ state_variables]
@@ -358,22 +365,22 @@ function forward_looking_equation_residuals(x, state, params, grid, nodes, stead
         # setting future variables
         @views y[i, endogenous_nbr .+ system_variables] .= X[:, i]
         push!(YY,)
-        forward_block(resid, y[i, :], zeros(exogenous_nbr), params, steadystate)
+        forward_block!(T, resid, y[i, :], zeros(exogenous_nbr), params, steadystate)
         residuals[i,:] .= resid
     end
     return residuals
 end
 
-function expectation_equations!(expected_residuals, x, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+function expectation_equations!(expected_residuals, x, T, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
     # get numNodes x numForwardEquations
-    Integrand = forward_looking_equation_residuals(x, state, params, grid0, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+    Integrand = forward_looking_equation_residuals(x, T, state, params, grid0, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
     for i in axes(expected_residuals, 1)
         @views expected_residuals[i] = dot(Integrand[:, i], weights)
     end
     return expected_residuals
 end
 
-function sysOfEqs(policy, y, exogenous, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
+function sysOfEqs(policy, T, y, exogenous, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
     @views begin
         y[state_variables] .= state
         y[system_variables] .= policy 
@@ -381,8 +388,8 @@ function sysOfEqs(policy, y, exogenous, state, grid, nPols, nodes, weights, para
     res = zeros(length(policy))
 
     @views begin
-        expectation_equations!(res[1:forward_equations_nbr], policy, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
-        other_block(res[forward_equations_nbr + 1:end], y, exogenous, params, steadystate)
+        expectation_equations!(res[1:forward_equations_nbr], policy, T, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+        other_block!(T, res[forward_equations_nbr + 1:end], y, exogenous, params, steadystate)
     end
     reorder!(res, bmcps)
     return res
@@ -436,16 +443,18 @@ function ti_step(grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenou
     n = length(system_variables)
     # TODO: check the case with non-autocorrelated shocks
     exogenous = zeros(exogenous_nbr)
+    T = dynamicws.temporary_values
     J = zeros(n, n)
     let state
         # Time Iteration step
         if mcp
-            mcp_sg_core!(PathNLS(), polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
+#            mcp_sg_core!(PathNLS(), polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
+            mcp_sg_core!(polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
                       endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
                       preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
                       forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, J, lb, ub)
         else
-            f2!(x) = sysOfEqs(x, y, exogenous, state, gridZero, nPols, nodes,
+            f2!(x) = sysOfEqs(x, T,y, exogenous, state, gridZero, nPols, nodes,
                              weights, params, steadystate, forward_equations_nbr,
                              endogenous_nbr, exogenous_nbr, state_variables,
                              system_variables, bmcps)
@@ -660,9 +669,10 @@ function forward_looking_equation_derivatives!(J, y, x, exogenous, state, params
     iDimensions = getNumDimensions(grid)
     iOutputs = getNumOutputs(grid)
     evalPt = zeros(iDimensions)
+    T = dynamicws.temporary_values
     @views begin
         y[state_variables] .= state
-        preamble_block(y[endogenous_nbr + 1: end], nodes, params, steadystate)
+        preamble_block!(T, y[endogenous_nbr + 1: end], nodes, params, steadystate)
         y[system_variables] .= x
         evalPt .= y[endogenous_nbr .+ state_variables]
     end
@@ -808,7 +818,8 @@ function test_diff(J, x, y, state, grid,
                    predetermined_variables, preamble_lagged_variables, forward_system_variables,
                    forward_expressions_eqs, other_expressions_eqs, ids)
     y = repeat(steadystate, 3)
-
+    T = dynamicws.temporary_values
+    
     @views begin
         y[state_variables] .= state
         y[system_variables] .= x 
@@ -827,7 +838,7 @@ function test_diff(J, x, y, state, grid,
     function f1(x)
         y[system_variables] .= x 
         resid = zeros(forward_equations_nbr)
-        forward_block(resid, y0, zeros(exogenous_nbr), params, steadystate)
+        forward_block(resid, T, y0, zeros(exogenous_nbr), params, steadystate)
         return resid
     end
     fjd = FiniteDiff.finite_difference_jacobian(f1, x)
@@ -836,7 +847,7 @@ function test_diff(J, x, y, state, grid,
 
     function f2(y)
         resid = zeros(forward_equations_nbr)
-        forward_block(resid, y, zeros(exogenous_nbr), params, steadystate)
+        forward_block(resid, T, y, zeros(exogenous_nbr), params, steadystate)
         return resid
     end
     @show y
@@ -884,7 +895,7 @@ function test_diff(J, x, y, state, grid,
     @show "finite difference"
     function f5(x)
         expected_residuals = zeros(forward_equations_nbr)
-        expectation_equations!(expected_residuals, x, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
+        expectation_equations!(expected_residuals, T, x, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
         return expected_residuals
     end
     fjd = FiniteDiff.finite_difference_jacobian(f5, x)
@@ -903,10 +914,42 @@ function test_diff(J, x, y, state, grid,
 
     @show "finite differences"
     function f10(x)
-        return sysOfEqs(x, copy(y), state, grid, getNumDimensions(grid), nodes, weights,
+        return sysOfEqs(x, T, copy(y), state, grid, getNumDimensions(grid), nodes, weights,
                       params, steadystate, forward_equations_nbr, endogenous_nbr,
                       exogenous_nbr, state_variables, system_variables, bmcps)
     end
     fjd = FiniteDiff.finite_difference_jacobian(f10, x)
     display(fjd)
 end
+
+function mcp_sg_core!(polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
+                      endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
+                      preamble_eqs, predetermined_variables, preamble_lagged_variables, forward_system_variables,
+                      forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, JJ, lb, ub)
+    T = dynamicws.temporary_values
+    let state
+        function f1!(fx, x)
+            fx .= Dynare.sysOfEqs(x, T, y, exogenous, state, gridZero, nPols, nodes, weights,
+                                  params, steadystate, forward_equations_nbr, endogenous_nbr,
+                                  exogenous_nbr, state_variables, system_variables, bmcps)
+        end
+        
+        function JA1!(J, x)
+            Dynare.sysOfEqs_derivatives!(J, x, y, state, gridZero,
+                                         nPols, exogenous, nodes, weights, params, steadystate,
+                                         forward_equations_nbr, endogenous_nbr, exogenous_nbr,
+                                         state_variables, system_variables, bmcps, dynamicws, model, preamble_eqs, 
+                                         predetermined_variables, preamble_lagged_variables, forward_system_variables,
+                                         forward_expressions_eqs, other_expressions_eqs, ids)                    
+        end
+
+        fx = zeros(size(JJ, 1))
+        for ii1 in 1:aNumAdd
+            @views state = aPoints1[:, ii1]
+            @views pol .= pol_guess[:, ii1]
+            (status, results, info) = mcp_solve!(PathNLS(), f1!, JA1!, JJ, lb, ub, pol, silent=true)
+            polInt[:, ii1] .= results
+        end
+    end
+end
+

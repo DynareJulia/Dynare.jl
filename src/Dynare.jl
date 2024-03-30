@@ -125,9 +125,8 @@ function get_modname(modfilename::String)
 end
 
 if !isdefined(Base, :get_extension)
-    @show isdefined(Base, :get_extension)
     include("../ext/PardisoSolver.jl")
-  include("../ext/PathSolver.jl")
+    include("../ext/PathSolver.jl")
 end
 
 using PrecompileTools

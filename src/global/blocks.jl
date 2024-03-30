@@ -255,6 +255,7 @@ end
 function make_assignment_function(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
+                  Expr(:(::), Symbol(:T), Vector{Float64}),
                   Expr(:(::), Symbol(:y), Vector{Float64}),
                   Expr(:(::), Symbol(:x), Vector{Float64}),
                   Expr(:(::), Symbol(:params), Vector{Float64}),
@@ -267,6 +268,7 @@ end
 function make_system_function(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
+                  Expr(:(::), Symbol(:T), Vector{Float64}),
                   Expr(:(::), Symbol(:residuals), Vector{Float64}),
                   Expr(:(::), Symbol(:y), Vector{Float64}),
                   Expr(:(::), Symbol(:x), Vector{Float64}),
@@ -280,6 +282,7 @@ end
 function make_system_jacobian(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
+                  Expr(:(::), Symbol(:T), Vector{Float64}),
                   Expr(:(::), Symbol(:g1_v), Vector{Float64}),
                   Expr(:(::), Symbol(:y), Vector{Float64}),
                   Expr(:(::), Symbol(:x), Vector{Float64}),
@@ -334,9 +337,9 @@ function make_block_functions(context)
     forward_equations_nbr = length(forward_expressions)
     other_equations_nbr = length(other_expressions)
     
-    global forward_block = make_system_function(:forward_block, forward_expressions)
-    global preamble_block = make_assignment_function(:preamble_block, preamble_expressions)
-    global other_block = make_system_function(:system_block, other_expressions)
+    global forward_block_ = make_system_function(:forward_block, forward_expressions)
+    global preamble_block_ = make_assignment_function(:preamble_block, preamble_expressions)
+    global other_block_ = make_system_function(:system_block, other_expressions)
 #    global system_jacobian = make_system_jacobian(:system_jacobian, jacobian_expressions)
     
     equation_xref_list, variable_xref_list = xref_lists(context)
@@ -355,6 +358,24 @@ function make_block_functions(context)
     return (states, predetermined_variables, system_variables,
             forward_equations_nbr, other_equations_nbr, preamble_eqs,
             forward_expressions_eqs, system_expressions_eqs)
+end
+
+function forward_block!(T, residuals, y, x, params, steadystate)
+    DFunctions.SparseDynamicResidTT!(T, y, x, params, steadystate)
+    forward_block_(T, residuals, y, x, params, steadystate)
+    return nothing
+end
+
+function preamble_block!(T, y, x, params, steadystate)
+    DFunctions.SparseDynamicResidTT!(T, y, x, params, steadystate)
+    preamble_block_(T, y, x, params, steadystate)
+    return nothing
+end
+
+function other_block!(T, residuals, y, x, params, steadystate)
+    DFunctions.SparseDynamicResidTT!(T, y, x, params, steadystate)
+    other_block_(T, residuals, y, x, params, steadystate)
+    return nothing
 end
 
 """
