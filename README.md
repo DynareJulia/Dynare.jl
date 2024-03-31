@@ -31,14 +31,19 @@ The results are in the ``context`` structure.
 ## Supported Dynare instructions
 
 1. calib_smoother
-1. check
 1. deterministic_trends
 1. endval
+1. estimated\_params
+1. estimated\_params\_init
+1. estimation
 1. histval
+1. homotopy
 1. initval
+1. initval\_file
 1. perfect\_foresight\_setup (only some options)
 1. perfect\_foresight\_solver (only some options, includind lmmcp)
 1. planner_objective
+1. ramsey_constraints
 1. ramsey\_model
 1. shocks
 1. steady (including numerical solution)
