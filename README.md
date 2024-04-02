@@ -19,6 +19,16 @@ If you already have a version of Dynare installed (not in development mode):
 using Pkg
 pkg"update"
 ```
+
+Often, it is necessary to restart Julia to load the new version of Dynare.
+
+Note that the version of the Dynare package is printed immediately after running Dynare:
+```
+julia> context = @dynare "example1";
+Dynare version: 0.9.6
+...
+```
+
 ## Running Dynare
 
 Example (to be run in the directory ``Dynare.jl``):
