@@ -6,6 +6,27 @@ using SparseArrays
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
+struct BlockIndices_1
+    equation_pointers::Vector{Int}
+    variable_pointers::Vector{Int}
+    expressions::Vector{Expr}
+end
+
+BlockIndices = BlockIndices_1
+
+struct Block_1{F1 <: Function, F2 <: Function, F3 <: Function}
+    assignment::Bool
+    forward::Bool
+    jacobian::SparseMatrixCSC{Float64, Int}
+    assigment_fcn::F1
+    jacobian_fcn::F2
+    residual_fnc::F3
+    indices::BlockIndices
+end
+
+Block = Block_1
+
+
 function get_dynamic_incidence_matrix(context)
     #Get Jacobian
     model = context.models[1]
@@ -115,7 +136,10 @@ function add_block_to_preamble!(preamble_expressions, b, eq_offset)
     end
 end
 
-function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, system_expressions, blocks, matching, context)
+function  nothing_fcn()
+end
+
+function analyze_SparseDynamicResid!(blocks, forward_expressions, preamble_expressions, system_expressions, blocks_eqs, matching, context)
     f = DFunctions.SparseDynamicResid!
     endogenous_nbr = context.models[1].endogenous_nbr
 
@@ -128,7 +152,7 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
     system_expressions_eqs = similar(predetermined_variables)
     k1 = k2 = 1
     preamble = true
-    for b in blocks
+    for b in blocks_eqs
         if is_block_normalized(b, matching, endogenous_nbr, eq_offset) &&
             is_block_linear(b, context) && preamble
             add_block_to_preamble!(preamble_expressions, b, eq_offset)
@@ -137,6 +161,25 @@ function analyze_SparseDynamicResid!(forward_expressions, preamble_expressions, 
                 push!(predetermined_variables, matching[eq] + endogenous_nbr)
                 push!(preamble_eqs, eq)
             end
+            assignment = true
+            forward = false
+            jacobian = make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                                 context.models[1].dynamic_g1_sparse_colval,
+                                                 context.models[1].dynamic_g1_sparse_rowval,
+                                                 b)
+                                                 
+            assignment_fcn = make_assignment_function(:preamble_block, preamble_expressions)
+            steadystate = context.results.model_results[1].trends.endogenous_steady_state
+            indices = BlockIndices(b, predetermined_variables .- endogenous_nbr, preamble_expressions)
+            push!(blocks, Block(assignment,
+                                forward,
+                                jacobian[1],
+                                assignment_fcn,
+                                nothing_fcn,
+                                nothing_fcn,
+                                indices))
+            @show blocks
+            error()
         else
             preamble = false
             for eq_no in b
@@ -205,10 +248,10 @@ function make_jacobian_submatrix(colptr::AbstractVector{I},
             deriv_expressions)
 end
 
-function preamble_block_derivatives(colptr::AbstractVector{I},
+function make_assignment_jacobian(colptr::AbstractVector{I},
                                     rowval::AbstractVector{I}, colval::AbstractVector{I},
-                                    rows::AbstractVector{I}, cols::AbstractVector{I}) where I <: Integer
-    scolptr = Vector{Int}(undef, length(cols) + 1)
+                                    rows::AbstractVector{I}) where I <: Integer
+    scolptr = Vector{Int}(undef, length(colptr))
     srowval = Vector{Int}(undef, 0)
     f = Dynare.DFunctions.SparseDynamicG1!
     eq_offset = Dynare.find_inbounds(f)
@@ -220,35 +263,31 @@ function preamble_block_derivatives(colptr::AbstractVector{I},
     kc = 1
     for (i, r) in enumerate(rowval)
         row_small = findfirst(r .== rows)
-        col_small = findfirst(colval[i] .== cols)
         # in assignment block ignore derivative of assigned variable
-        if !isnothing(row_small) && !isnothing(col_small) && r != colval[i]
+        if !isnothing(row_small) && r + endogenous_nbr != kc
             push!(srowval, row_small)
             # renumber output vector elements
             e = feqs.args[2*i]
             e.args[1].args[2] = kr
             push!(deriv_expressions, feqs.args[2*i])
-            if col_small != kc
-                while col_small > kc + 1
-                    kc += 1
-                    scolptr[kc] = oldptr
-                end
-                if col_small == kc + 1
-                    kc += 1
-                    scolptr[kc] = kr
-                    oldptr = kr
-                end 
+            while r == colptr[kc + 1]
+                kc += 1
+                scolptr[kc] = oldptr
             end
+            if r < colptr[kc + 1]
+                scolptr[kc] = kr
+                oldptr = kr
+            end 
             kr += 1
         end
     end
-    while kc <= length(cols)
+    while kc < length(colptr)
         kc += 1
         scolptr[kc] = kr
     end
     snzval = similar(srowval, Float64)
 
-    return (SparseMatrixCSC(length(rows), length(cols), scolptr, srowval, snzval),
+    return (SparseMatrixCSC(length(rows), length(colptr) - 1, scolptr, srowval, snzval),
             deriv_expressions)
 end
 
@@ -325,9 +364,11 @@ function make_block_functions(context)
     forward_expressions = Vector{Expr}(undef, 0)
     preamble_expressions = Vector{Expr}(undef, 0)
     other_expressions = Vector{Expr}(undef, 0)
+    blocks = []
     
     (predetermined_variables, system_equations, preamble_eqs, forward_expressions_eqs, system_expressions_eqs) =
-        analyze_SparseDynamicResid!(forward_expressions,
+        analyze_SparseDynamicResid!(blocks,
+                                    forward_expressions,
                                     preamble_expressions,
                                     other_expressions, 
                                     rb,
