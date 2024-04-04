@@ -218,6 +218,9 @@ function periodparse(period::Union{AbstractString, Number, Date})::ExtendedDates
     end
 end
 
+YearSE(y::Float64) = YearSE(Int(y))
+UndatedSE(y::Float64) = UndatedSE(Int(y))
+
 function MyAxisArrayTable(filename)
     table = CSV.File(filename)
     cols = AxisArrayTables.Tables.columnnames(table)
