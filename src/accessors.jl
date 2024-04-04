@@ -89,8 +89,8 @@ end
 
 ## FORECAST
 function forecast(; context = context,
-    firstperiod = row_labels(context.results.model_results[1].smoother)[1],
-    lastperiod = row_labels(context.results.model_results[1].smoother)[end],
+    firstperiod = row_labels(context.results.model_results[1].forecast[1])[1],
+    lastperiod = row_labels(context.results.model_results[1].forecast[1])[end],
     informationperiod = Undated(typemin(Int))
     )
     forecast_ = context.results.model_results[1].forecast
@@ -108,8 +108,8 @@ end
 
 function forecast(varnames; 
     context = context,
-    firstperiod = row_labels(context.results.model_results[1].smoother)[1],
-    lastperiod = row_labels(context.results.model_results[1].smoother)[end],
+    firstperiod = row_labels(context.results.model_results[1].forecast)[1],
+    lastperiod = row_labels(context.results.model_results[1].forecast)[end],
     informationperiod = Undated(typemin(Int))
     )
     forecast_ = context.results.model_results[1].forecast
