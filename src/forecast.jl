@@ -94,15 +94,15 @@ function forecasting_(; periods,
 end
 
 """
-function recursive_forecasting!(; Np::Integer,
-                                first_period::PeriodsSinceEpoch, 
-                                last_period::PeriodsSinceEpoch, 
-                                context::Context=context,
-                                datafile::String="", 
-                                first_obs::PeriodsSinceEpoch=Undated(1), 
-                                last_obs::PeriodsSinceEpoch=Undated(0), 
-                                order::Integer=1)
-computes an unconditional recursive forecast for one variable by adding one period to the
+    recursive_forecasting!(; Np::Integer,
+                           first_period::PeriodsSinceEpoch=Undated(typemin(Int)), 
+                           last_period::PeriodsSinceEpoch=Undated(typemax(Int)), 
+                           context::Context=context,
+                           datafile::String="", 
+                           first_obs::PeriodsSinceEpoch=Undated(typemin(Int)), 
+                           last_obs::PeriodsSinceEpoch=Undated(typemax(Int)), 
+                           order::Integer=1)
+computes an unconditional recursive forecast by adding one period to the
 sample used for the smoother before forecasting over `Np` periods.
 
 # Keyword arguments
