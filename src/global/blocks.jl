@@ -20,8 +20,18 @@ struct Block_1{F1 <: Function, F2 <: Function, F3 <: Function}
     jacobian::SparseMatrixCSC{Float64, Int}
     assigment_fcn::F1
     jacobian_fcn::F2
-    residual_fnc::F3
+    residual_fcn::F3
     indices::BlockIndices
+end
+
+abstract type Block end
+abstract type PreambleBlock <: Block2 end
+
+struct AssignmentBlock_1 <: PreambleBlock
+    equations::Vector{Int}
+    variables::Vector{Int}
+    expressions::Vector{Expr}
+    jacobian::SparseMatrixCSC{Float64, Int}
 end
 
 Block = Block_1
@@ -161,25 +171,6 @@ function analyze_SparseDynamicResid!(blocks, forward_expressions, preamble_expre
                 push!(predetermined_variables, matching[eq] + endogenous_nbr)
                 push!(preamble_eqs, eq)
             end
-            assignment = true
-            forward = false
-            jacobian = make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
-                                                 context.models[1].dynamic_g1_sparse_colval,
-                                                 context.models[1].dynamic_g1_sparse_rowval,
-                                                 b)
-                                                 
-            assignment_fcn = make_assignment_function(:preamble_block, preamble_expressions)
-            steadystate = context.results.model_results[1].trends.endogenous_steady_state
-            indices = BlockIndices(b, predetermined_variables .- endogenous_nbr, preamble_expressions)
-            push!(blocks, Block(assignment,
-                                forward,
-                                jacobian[1],
-                                assignment_fcn,
-                                nothing_fcn,
-                                nothing_fcn,
-                                indices))
-            @show blocks
-            error()
         else
             preamble = false
             for eq_no in b
@@ -291,6 +282,54 @@ function make_assignment_jacobian(colptr::AbstractVector{I},
             deriv_expressions)
 end
 
+function make_residual_jacobian(colptr::AbstractVector{I},
+                                rowval::AbstractVector{I}, colval::AbstractVector{I},
+                                rows::AbstractVector{I}) where I <: Integer
+    scolptr = Vector{Int}(undef, length(colptr))
+    srowval = Vector{Int}(undef, 0)
+    f = Dynare.DFunctions.SparseDynamicG1!
+    eq_offset = Dynare.find_inbounds(f)
+    feqs = f.body.args[eq_offset].args[3]
+    deriv_expressions = Vector{Expr}(undef, 0)
+    scolptr[1] = 1
+    oldptr = 1
+    kr = 1
+    kc = 1
+    for (i, r) in enumerate(rowval)
+        row_small = findfirst(r .== rows)
+        # in assignment block ignore derivative of assigned variable
+        if !isnothing(row_small)
+            push!(srowval, row_small)
+            # renumber output vector elements
+            e = feqs.args[2*i]
+            e.args[1].args[2] = kr
+            push!(deriv_expressions, feqs.args[2*i])
+            while r == colptr[kc + 1]
+                kc += 1
+                scolptr[kc] = oldptr
+            end
+            if r < colptr[kc + 1]
+                scolptr[kc] = kr
+                oldptr = kr
+            end 
+            kr += 1
+        end
+    end
+    while kc < length(colptr)
+        kc += 1
+        scolptr[kc] = kr
+    end
+    snzval = similar(srowval, Float64)
+
+    @show length(rows), length(colptr)
+    @show scolptr
+    @show length(scolptr)
+    @show srowval
+    @show snzval
+    return (SparseMatrixCSC(length(rows), length(colptr) - 1, scolptr, srowval, snzval),
+            deriv_expressions)
+end
+
 function make_assignment_function(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
@@ -396,6 +435,70 @@ function make_block_functions(context)
     #make_sparse_submatrix(SM, colval, rows , system_variables)
 
 
+    assignment = true
+    forward = false
+    jacobian = make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                        context.models[1].dynamic_g1_sparse_colval,
+                                        context.models[1].dynamic_g1_sparse_rowval,
+                                        preamble_eqs)
+    
+    assignment_fcn = make_assignment_function(:preamble_block, preamble_expressions)
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    indices = BlockIndices(preamble_eqs, predetermined_variables .- endogenous_nbr, preamble_expressions)
+    push!(blocks, Block(assignment,
+                        forward,
+                        jacobian[1],
+                        assignment_fcn,
+                        nothing_fcn,
+                        nothing_fcn,
+                        indices))
+    @show blocks
+    @show indices
+
+    assignment = false
+    forward = true
+    jacobian = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                        context.models[1].dynamic_g1_sparse_colval,
+                                        context.models[1].dynamic_g1_sparse_rowval,
+                                        forward_expressions_eqs)
+    
+    assignment_fcn = nothing_fcn
+    jacobian_fnc = nothing_fcn
+    residual_fcn = make_system_function(:forward_block, forward_expressions)
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    indices = BlockIndices(forward_expressions_eqs, [], forward_expressions)
+    push!(blocks, Block(assignment,
+                        forward,
+                        jacobian[1],
+                        assignment_fcn,
+                        nothing_fcn,
+                        nothing_fcn,
+                        indices))
+    @show blocks
+    @show indices
+
+    assignment = false
+    forward = false
+    jacobian = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                        context.models[1].dynamic_g1_sparse_colval,
+                                        context.models[1].dynamic_g1_sparse_rowval,
+                                        system_expressions_eqs)
+    
+    assignment_fcn = nothing_fcn
+    jacobian_fnc = nothing_fcn
+    residual_fcn = make_system_function(:other_block, other_expressions)
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    indices = BlockIndices(system_expressions_eqs, [], other_expressions)
+    push!(blocks, Block(assignment,
+                        forward,
+                        jacobian[1],
+                        assignment_fcn,
+                        nothing_fcn,
+                        nothing_fcn,
+                        indices))
+    @show blocks
+    @show indices
+error()
     return (states, predetermined_variables, system_variables,
             forward_equations_nbr, other_equations_nbr, preamble_eqs,
             forward_expressions_eqs, system_expressions_eqs)
