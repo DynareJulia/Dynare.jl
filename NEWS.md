@@ -1,3 +1,7 @@
+0.9.7
+=====
+- fix parsing of year and undated periods
+
 0.9.6
 ====
 - improve reporting
