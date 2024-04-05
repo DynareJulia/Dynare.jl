@@ -218,9 +218,6 @@ function periodparse(period::Union{AbstractString, Number, Date})::ExtendedDates
     end
 end
 
-YearSE(y::Float64) = YearSE(Int(y))
-UndatedSE(y::Float64) = UndatedSE(Int(y))
-
 function MyAxisArrayTable(filename)
     table = CSV.File(filename)
     cols = AxisArrayTables.Tables.columnnames(table)
@@ -229,7 +226,11 @@ function MyAxisArrayTable(filename)
         if uppercase(String(name)) in ["DATE", "DATES", "PERIOD", "PERIODS", "TIME", "COLUMN1"]
             periodtype = typeof(periodparse(data[1, icol]))
             rows = []
-            foreach(x -> push!(rows, periodtype(x)), data[:, icol])
+            if periodtype == YearSE
+                foreach(x -> push!(rows, periodtype(Int(x))), data[:, icol])
+            else
+                foreach(x -> push!(rows, periodtype(x)), data[:, icol])
+            end 
             k = union(1:icol-1, icol+1:size(data,2))
             aat = AxisArrayTable(Matrix{Union{Float64, Missing}}(data[:, k]), rows, cols[k])
             return aat
