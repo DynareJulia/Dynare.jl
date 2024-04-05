@@ -1,3 +1,7 @@
+0.9.8
+=====
+- fix bug parsing of year and undated periods introduced in previous release
+
 0.9.7
 =====
 - fix parsing of year and undated periods
