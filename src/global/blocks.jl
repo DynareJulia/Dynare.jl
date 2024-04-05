@@ -24,17 +24,41 @@ struct Block_1{F1 <: Function, F2 <: Function, F3 <: Function}
     indices::BlockIndices
 end
 
-abstract type Block end
-abstract type PreambleBlock <: Block2 end
+abstract type AbstractBlock end
+abstract type AbstractPreambleBlock <: AbstractBlock end
 
-struct AssignmentBlock_1 <: PreambleBlock
+struct AssignmentBlock_1 <: AbstractPreambleBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
     jacobian::SparseMatrixCSC{Float64, Int}
 end
 
-Block = Block_1
+struct PreambleBlock_1 <: AbstractPreambleBlock
+    equations::Vector{Int}
+    variables::Vector{Int}
+    expressions::Vector{Expr}
+    jacobian::SparseMatrixCSC{Float64, Int}
+end
+
+struct ForwardBlock_1 <: AbstractBlock
+    equations::Vector{Int}
+    variables::Vector{Int}
+    expressions::Vector{Expr}
+    jacobian::SparseMatrixCSC{Float64, Int}
+end
+
+struct BackwardBlock_1 <: AbstractBlock    
+    equations::Vector{Int}
+    variables::Vector{Int}
+    expressions::Vector{Expr}
+    jacobian::SparseMatrixCSC{Float64, Int}
+end
+
+AssignmentBlock = AssignmentBlock_1
+PreambleBlock = PreambleBlock_1
+ForwardBlock = ForwardBlock_1
+BackwardBlock = BackwardBlock_1
 
 
 function get_dynamic_incidence_matrix(context)
