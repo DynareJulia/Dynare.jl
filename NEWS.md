@@ -1,3 +1,8 @@
+0.9.9
+=====
+- don't compute IRFs for auxiliary variables
+- make sure steadystate, linear and quadratic trends are correctly initialized
+
 0.9.8
 =====
 - fix bug parsing of year and undated periods introduced in previous release
