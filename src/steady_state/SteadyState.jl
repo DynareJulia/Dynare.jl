@@ -164,6 +164,9 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
     trends = context.results.model_results[1].trends
     work = context.work
     endogenous_nbr = context.models[1].endogenous_nbr
+    exogenous_nbr = context.models[1].exogenous_nbr
+    isempty(trends.endogenous_steady_state) && (trends.endogenous_steady_state = Vector{Float64}(undef, endogenous_nbr))
+    isempty(trends.exogenous_steady_state) && (trends.exogenous_steady_state = Vector{Float64}(undef, exogenous_nbr))
     if (
         modfileinfo.has_steadystate_file &&
         length(work.analytical_steadystate_variables) ==

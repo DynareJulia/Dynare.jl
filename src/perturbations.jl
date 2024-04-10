@@ -666,6 +666,7 @@ function irfs!(context, periods)
     A = zeros(model.endogenous_nbr, model.endogenous_nbr)
     B = zeros(model.endogenous_nbr, model.exogenous_nbr)
     make_A_B!(A, B, model, results)
+    oen = model.original_endogenous_nbr
     for i = 1:model.exogenous_nbr
         fill!(x, 0)
         x[i] = robustsqrt(model.Sigma_e[i, i])
@@ -674,6 +675,8 @@ function irfs!(context, periods)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
+        irfs = view(yy, 1:oen, :)
+        names = view(endogenous_names, 1:oen)
         tdf = AxisArrayTable(transpose(yy), Undated(1):Undated(periods), endogenous_names) 
         results.irfs[exogenous_names[i]] = tdf
     end

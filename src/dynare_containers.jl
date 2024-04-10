@@ -721,18 +721,18 @@ mutable struct Trends
     exogenous_det_linear_trend::Vector{Float64}
     exogenous_det_quadratic_trend::Vector{Float64}
     function Trends(ny::Int, nx::Int, nxd::Int)
-        endogenous_steady_state = Vector{Float64}(undef, ny)
+        endogenous_steady_state = Vector{Float64}(undef, 0)
         endogenous_terminal_steady_state = Vector{Float64}(undef, 0)
-        endogenous_linear_trend = zeros(ny)
-        endogenous_quadratic_trend = Vector{Float64}(undef, ny)
-        exogenous_steady_state = Vector{Float64}(undef, nx)
+        endogenous_linear_trend = Vector{Float64}(undef, 0)
+        endogenous_quadratic_trend = Vector{Float64}(undef, 0)
+        exogenous_steady_state = zeros(nx)
         exogenous_terminal_steady_state = Vector{Float64}(undef, 0)
-        exogenous_linear_trend = Vector{Float64}(undef, nx)
-        exogenous_quadratic_trend = Vector{Float64}(undef, nx)
-        exogenous_det_steady_state = Vector{Float64}(undef, nxd)
+        exogenous_linear_trend = Vector{Float64}(undef, 0)
+        exogenous_quadratic_trend = Vector{Float64}(undef, 0)
+        exogenous_det_steady_state = Vector{Float64}(undef, 0)
         exogenous_det_terminal_steady_state = Vector{Float64}(undef, 0)
-        exogenous_det_linear_trend = Vector{Float64}(undef, nxd)
-        exogenous_det_quadratic_trend = Vector{Float64}(undef, nxd)
+        exogenous_det_linear_trend = Vector{Float64}(undef, 0)
+        exogenous_det_quadratic_trend = Vector{Float64}(undef, 0)
         new(
             endogenous_steady_state,
             endogenous_terminal_steady_state,

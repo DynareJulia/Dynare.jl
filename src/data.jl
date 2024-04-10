@@ -98,18 +98,27 @@ function get_detrended_data(context::Context,
 
     endogenous_names = get_endogenous(context.symboltable)
     trends = context.results.model_results[1].trends
-    steady_state = Vector(AxisArrays.AxisArray(trends.endogenous_steady_state, endogenous_names)[variables])
-    linear_trend = Vector(AxisArrays.AxisArray(trends.endogenous_linear_trend, endogenous_names)[variables])
-    quadratic_trend = Vector(AxisArrays.AxisArray(trends.endogenous_quadratic_trend, endogenous_names)[variables])
-
+    steady_state = []
+    linear_trend = []
+    quadratic_trend = []
+    if !isempty(trends.endogenous_steady_state)
+        steady_state = Vector(AxisArrays.AxisArray(trends.endogenous_steady_state, endogenous_names)[variables])
+    end
+    if !isempty(trends.endogenous_linear_trend)
+        linear_trend = Vector(AxisArrays.AxisArray(trends.endogenous_linear_trend, endogenous_names)[variables])
+    end
+    if !isempty(trends.endogenous_quadratic_trend)
+        quadratic_trend = Vector(AxisArrays.AxisArray(trends.endogenous_quadratic_trend, endogenous_names)[variables])
+    end
+    
     get_data!(context,
-    datafile,
-    data,
-    variables,
-    first_obs,
-    last_obs,
-    nobs
-    )
+              datafile,
+              data,
+              variables,
+              first_obs,
+              last_obs,
+              nobs
+              )
     aat = copy(context.work.data)
     if context.modfileinfo.has_trends
         if !isempty(quadratic_trend)
@@ -127,6 +136,7 @@ function get_detrended_data(context::Context,
     else
         aat .-= adjoint(steady_state)
     end
+
     return aat
 end 
 
