@@ -117,7 +117,8 @@ end
 
 function plot_irfs(irfs, model, symboltable, filepath)
     x = axes(first(irfs)[2])[1]
-    endogenous_names = get_endogenous_longname(symboltable)
+
+    endogenous_names = get_endogenous_longname(symboltable)[1:size(first(irfs)[2], 2)]
     exogenous_names = get_exogenous_longname(symboltable)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
