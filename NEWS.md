@@ -1,3 +1,8 @@
+0.9.10
+======
+- fix computation and plots of irfs
+- don't compute and plot irfs of auxiliary variables
+
 0.9.9
 =====
 - don't compute IRFs for auxiliary variables
