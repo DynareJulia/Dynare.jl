@@ -468,7 +468,6 @@ function stoch_simul_core!(context::Context, ws::DynamicWs, options::StochSimulO
         path = "$(context.modfileinfo.modfilepath)/graphs/"
         mkpath(path)
         filename = "$(path)/irfs"
-        @show context.results
         plot_irfs(
             context.results.model_results[1].irfs,
             model,
@@ -676,7 +675,7 @@ function irfs!(context, periods)
         for j = 2:periods
             mul!(view(yy, :, j), A, view(yy, :, j - 1))
         end
-        irfs = view(yy, 1:oen, :)
+        irfs = copy(transpose(yy[1:oen, :])
         names = endogenous_names[1:oen]
         tdf = AxisArrayTable(transpose(irfs), Undated(1):Undated(periods), names)
         results.irfs[exogenous_names[i]] = tdf
