@@ -81,18 +81,21 @@ function calibsmoother!(; context=context,
         Y .-= steadystate[varobs_ids]
     end
     =#
-    Y = get_detrended_data(context, datafile, data, varobs, first_obs, last_obs, nobs)
-    periods = row_labels(Y)
+    data = get_detrended_data(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    periods = row_labels(data)
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)
     np = model.exogenous_nbr
-    nobs, ny = size(Y)
+    nobs, ny = size(data)
     c = zeros(ny)
     k1 = findall(in(varobs_ids), kalman_statevar_ids)
     k2 = findall(in(statevar_ids), kalman_statevar_ids)
     Z = zeros(ny, ns)
+    Y = zeros(Union{Missing, Float64}, nobs, ny)
+    endo_names = get_endogenous(context.symboltable)
     for i = 1:ny
+        Y[:, i] .= Matrix(data[Symbol(varobs[i])])
         Z[i, varobs_ids[i]] = 1.0
     end
     H = zeros(ny, ny)
