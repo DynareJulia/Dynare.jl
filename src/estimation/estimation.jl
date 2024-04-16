@@ -1345,7 +1345,7 @@ end
 
 generates a prior for a symbol of a parameter, the standard deviation (`stdev`) or the variance (`variance`) of an exogenous variable or an endogenous variable (measurement error) or the correlation (`corr`) between 2 endogenous or exogenous variables
 
-# Keywor arguments
+# Keyword arguments
 - `shape <: Distributions`: the shape of the prior distribution (`Beta`, `InvertedGamma`, `InvertedGamma1`, `Gamma`, `Normal`, `Uniform`, `Weibull`) [required]
 - `context::Context=context`: context in which the prior is declared
 - `domain::Vector{<:Real}=Float64[]`: domain for a uniform distribution
