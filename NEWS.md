@@ -1,3 +1,9 @@
+0.9.11
+======
+- fix observed variables order in Kalman smoother
+- check that all endogenous variables are present in
+  `steady_state_model` when `nocheck` option is used
+
 0.9.10
 ======
 - fix computation and plots of irfs
