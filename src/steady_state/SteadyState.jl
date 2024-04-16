@@ -158,6 +158,27 @@ function steady_!(context, field::Dict{String, Any})
     return nothing
 end
 
+function check_steadystate_model(context::Context, nocheck)
+    if context.modfileinfo.has_steadystate_file
+        if (length(context.work.analytical_steadystate_variables) ==
+            context.models[1].endogenous_nbr)
+            return true
+        else
+            if nocheck
+                oem = context.models[1].original_endogenous_nbr
+                endogenous_names = get_endogenous(context.symboltable)
+                missing_indices = setdiff(1:oem, context.work.analytical_steadystate_variables)
+                missing_variables = endogenous_names[missing_indices]
+                error("Option nocheck is used but variables are missing in steady_state_model block: "*
+                       join(missing_variables, ", "))
+            end
+            return false
+        end
+    else
+        return false
+    end 
+end 
+
 function compute_steady_state!(context::Context; maxit = 50, nocheck = false, tolf = cbrt(eps()))
     model = context.models[1]
     modfileinfo = context.modfileinfo
@@ -167,11 +188,7 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
     exogenous_nbr = context.models[1].exogenous_nbr
     isempty(trends.endogenous_steady_state) && (trends.endogenous_steady_state = Vector{Float64}(undef, endogenous_nbr))
     isempty(trends.exogenous_steady_state) && (trends.exogenous_steady_state = Vector{Float64}(undef, exogenous_nbr))
-    if (
-        modfileinfo.has_steadystate_file &&
-        length(work.analytical_steadystate_variables) ==
-        endogenous_nbr
-    )
+    if check_steadystate_model(context, nocheck)
         evaluate_steady_state!(trends.endogenous_steady_state,
                                trends.exogenous_steady_state,
                                work.params)
