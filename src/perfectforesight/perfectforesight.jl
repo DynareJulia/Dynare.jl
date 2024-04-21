@@ -948,7 +948,7 @@ function make_simulation_results!(context::Context, y, x,terminalvalues, periods
                     transpose(reshape(x, m.exogenous_nbr, periods))
                 ),
                 transpose(vcat(terminalvalues,
-                               repeat([missing], m.exogenous_nbr)))
+                               trends.exogenous_steady_state))
             )
     push!(
         context.results.model_results[1].simulations,
