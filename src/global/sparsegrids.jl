@@ -1,9 +1,12 @@
 include("blocks.jl")
 
 using AxisArrays: AxisArray
+using DualNumbers
 using Distributions
 using FiniteDiff
 using LinearAlgebra
+import NLsolve
+using NonlinearSolve
 using Roots
 using Tasmanian
 
@@ -307,11 +310,28 @@ function make_guess_system(residuals, T, state, endogenous, exogenous, parameter
     return f
 end
 
+function make_guess_system1(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    endogenous[state_variables] .= state
+    res1 = zeros(other_equations_nbr)
+    res2 = zeros(forward_equations_nbr)
+    function f(residuals, x, params)
+        endogenous[system_variables] .= x
+        endogenous[system_variables .+ endogenous_nbr] .= x
+        DFunctions.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
+        other_block_(T, res1, endogenous, exogenous, parameters, steadystate)
+        forward_block_(T, res2, endogenous, exogenous, parameters, steadystate)
+        residuals[1:other_equations_nbr] .= res1
+        residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
+        return residuals
+    end
+    return f
+end
+
 function make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, permutations)
     endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
-    function f(x)
+    function f(x, params)
         endogenous[system_variables] .= x
         endogenous[system_variables .+ endogenous_nbr] .= x
         DFunction.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
@@ -327,15 +347,23 @@ end
 function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
     n =  length(system_variables)
     guess_values = zeros(n, aNum)
-    @views x = copy(steadystate[system_variables .- endogenous_nbr])
+    @views x0 = copy(steadystate[system_variables .- endogenous_nbr])
     residuals = similar(x)
     ws = DynamicWs(context)
-    T = ws.temporary_values
+    T = Vector{Dual{Float64}}(undef, length(ws.temporary_values))
+    f1 = make_guess_system(residuals, T, state, endogenous, exogenous, parameters,
+                          steadystate, state_variables, system_variables,
+                          forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+    problem = NonlinearProblem(f1, x0, params) 
     for i in axes(aPoints, 2)
         @views state = aPoints[:, i]
-        f = make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
+        f = make_guess_system(residuals, T, state, endogenous, exogenous, parameters,
+                              steadystate, state_variables, system_variables,
+                              forward_equations_nbr, other_equations_nbr, endogenous_nbr)
         result = Dynare.nlsolve(f, x; method = :robust_trust_region, show_trace = false, ftol = cbrt(eps()), iterations = 50)
+        solve
         @views guess_values[:, i] .= result.zero
+        solve(prob, NewtonRaphson(linesearch = LineSearchesJL(method = BackTracking())), show_trace=Val(false))
     end
     return guess_values
 end
