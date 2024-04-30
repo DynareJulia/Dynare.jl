@@ -34,7 +34,7 @@ mutable struct PerfectForesightOptions
     display::Bool
     homotopy::Bool
     initialization_algo::InitializationAlgo
-    solve_algo::String
+    solve_algo
     linear_solve_algo::LinearSolveAlgo
     maxit::Int
     mcp::Bool
@@ -51,7 +51,7 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
     display = true
     homotopy = false
     initialization_algo = steadystate
-    solve_algo = "NonlinearSolve"
+    solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))
     linear_solve_algo = ilu
     maxit = 50
     mcp = false
@@ -237,7 +237,7 @@ end
  - `periods::Int`: number of periods in the simulation [required]
  - `context::Context=context`: context in which the simulation is computed
  - `display::Bool=true`: whether to display the results
- - `solve_algo = one of "NLsolve", "NonlinearSolve", "PATHSolver"
+ - `solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))`: nonlinear solver algorithm
  - `linear_solve_algo::LinearSolveAlgo=ilu`: algorithm used for the solution of the linear
    problem. Either `ilu` or `pardiso`. `ilu` is the sparse linear solver used by default in Julia.
    To use the Pardiso solver, write `using Pardiso` before running Dynare.
@@ -255,7 +255,7 @@ function perfect_foresight!(;context::Context = context,
                             display::Bool = true,
                             homotopy::Bool = false,
                             initialization_algo::InitializationAlgo = steadystate,
-                            solve_algo = "NonlinearSolve",
+                            solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking())),
                             linear_solve_algo::LinearSolveAlgo = ilu,
                             maxit::Int = 50,
                             mcp::Bool = false,
@@ -269,6 +269,7 @@ function perfect_foresight!(;context::Context = context,
                                       homotopy, initialization_algo,
                                       solve_algo, linear_solve_algo, maxit,
                                       mcp, method, periods, show_trace, tolf, tolx)
+
     scenario = context.work.scenario
     check_scenario(scenario)
     if isempty(scenario) || length(scenario) == 1
@@ -414,6 +415,8 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             guess_values,
             initial_values,
             terminal_values,
+            options.solve_algo,
+            options.linear_solve_algo,
             dynamic_ws,
             linear_solve_algo = options.linear_solve_algo,
             maxit = options.maxit,
@@ -574,6 +577,8 @@ function perfectforesight_core!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
+    solve_algo,
+    linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs;
     maxit = 50,
     nonlinear_solve_algo = "NonlinearSolve",
