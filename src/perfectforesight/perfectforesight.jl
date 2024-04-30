@@ -32,12 +32,13 @@ abstract type NonLinearSolver end
 struct PathNLS <: NonLinearSolver end
 struct DefaultNLS <: NonLinearSolver end
 
-struct PerfectForesightOptions
+mutable struct PerfectForesightOptions
     algo::PerfectForesightAlgo
     datafile::String
     display::Bool
     homotopy::Bool
     initialization_algo::InitializationAlgo
+    solve_algo
     linear_solve_algo::LinearSolveAlgo
     maxit::Int
     mcp::Bool
@@ -52,6 +53,7 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
     display = true
     homotopy = false
     initialization_algo = steadystate
+    solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))
     linear_solve_algo = ilu
     maxit = 50
     mcp = false
@@ -83,8 +85,10 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
             end
         end
     end 
-    return PerfectForesightOptions(algo, datafile, display,
-            homotopy, initialization_algo, linear_solve_algo, maxit, mcp, periods, tolf, tolx)
+    return PerfectForesightOptions(algo, datafile, display, homotopy,
+                                   initialization_algo, solve_algo,
+                                   linear_solve_algo, maxit, mcp,
+                                   periods, tolf, tolx)
 end
 
 struct FlipInformation
@@ -268,6 +272,7 @@ end
  - `periods::Int`: number of periods in the simulation [required]
  - `context::Context=context`: context in which the simulation is computed
  - `display::Bool=true`: whether to display the results
+ - `solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))`: nonlinear solver algorithm
  - `linear_solve_algo::LinearSolveAlgo=ilu`: algorithm used for the solution of the linear
    problem. Either `ilu` or `pardiso`. `ilu` is the sparse linear solver used by default in Julia.
    To use the Pardiso solver, write `using Pardiso` before running Dynare.
@@ -283,6 +288,7 @@ function perfect_foresight!(;context::Context = context,
                             display::Bool = true,
                             homotopy::Bool = false,
                             initialization_algo::InitializationAlgo = steadystate,
+                            solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking())),
                             linear_solve_algo::LinearSolveAlgo = ilu,
                             maxit::Int = 50,
                             mcp::Bool = false,
@@ -292,6 +298,7 @@ function perfect_foresight!(;context::Context = context,
 
     options = PerfectForesightOptions(algo, datafile, display,
                                       homotopy, initialization_algo,
+                                      solve_algo,
                                       linear_solve_algo, maxit,
                                       mcp, periods, tolf, tolx)
 
@@ -432,6 +439,7 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             guess_values,
             initial_values,
             terminal_values,
+            options.solve_algo,
             options.linear_solve_algo,
             dynamic_ws,
             maxit = options.maxit,
@@ -580,6 +588,8 @@ function simul_first_order!(
             view(simulresults, :, periods))
 end
 
+using LinearSolve
+
 function perfectforesight_core!(
     perfect_foresight_ws::PerfectForesightWs,
     context::Context,
@@ -587,6 +597,7 @@ function perfectforesight_core!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
+    solve_algo,
     linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs;
     maxit = 50,
@@ -629,7 +640,7 @@ function perfectforesight_core!(
             perfect_foresight_ws.permutationsR,
     )
 
-    J! = make_pf_jacobian(
+    j! = make_pf_jacobian(
             DFunctions.dynamic_derivatives!,
             initialvalues,
             terminalvalues,
@@ -645,11 +656,39 @@ function perfectforesight_core!(
             m.exogenous_nbr,
             perfect_foresight_ws.permutationsJ,
             nzval1
-        )
-
-    df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
+    )
+    function jj!(JJ, y, p)
+        JJt = copy(transpose(JJ))
+        j!(JJt, y, p)
+        JJ .= transpose(JJt)
+    end
+                   
+    f!(residuals, y0, params)
+    j!(JJ, y0, params)
+    serialize("test.jls", JJ)
+    JJt = copy(transpose(JJ))
+    jj!(JJt, y0, params)
+    lp = LinearProblem(JJ, residuals)
+    lp3 = LinearProblem(JJt, residuals)
+    dy0 = JJ\residuals
+    @show residuals[1:20]
+    @show lp
+    dy1 = LinearSolve.solve(lp)
+    @show lp
+    @show residuals[1:20]
+    dy2 = LinearSolve.solve(lp, PardisoJL())
+    @show lp
+    @show residuals[1:20]
+    dy3 = LinearSolve.solve(lp3, PardisoJL())
+    @show norm(dy1-dy2)
+    @show norm(dy1-dy3)
+    @show norm(dy1-dy0)
+    
+    #    df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
+    fj = NonlinearFunction(f!, jac = j!, jac_prototype = JJ)
+    
+    prob = NonlinearProblem(fj, y0, params)
     @debug "$(now()): start nlsolve"
-
     show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
     if linear_solve_algo == pardiso
         @show "Pardiso"
@@ -670,12 +709,15 @@ function perfectforesight_core!(
         res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls!)
         =#
     else
-        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
+#        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
+        #        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
+        # res = NonlinearSolve.solve(prob, solve_algo, show_trace=Val(false), abstol = tolf)
     end
+    @show solve_algo
+    res = NonlinearSolve.solve(prob, solve_algo, show_trace = Val(show_trace), abstol = tolf)
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
-    make_simulation_results!(context::Context, res.zero, exogenous, terminalvalues, periods)
+    make_simulation_results!(context::Context, res.u, exogenous, terminalvalues, periods)
 end
 
 function make_pf_residuals(
@@ -690,7 +732,7 @@ function make_pf_residuals(
             temp_vec::AbstractVector{T},
             permutations::Vector{Tuple{Int64,Int64}},
         ) where T <: Real
-    function f!(residuals::AbstractVector{T}, y::AbstractVector{T})
+    function f!(residuals::AbstractVector{T}, y::AbstractVector{T}, params)
         get_residuals!(
             residuals,
             vec(y),
@@ -730,6 +772,7 @@ function make_pf_jacobian(
     function J!(
         A::SparseArrays.SparseMatrixCSC{Float64,Int64},
         y::AbstractVector{Float64},
+        params
     )
         updateJacobian!(
             A,
@@ -857,7 +900,7 @@ function get_residuals_1!(
     params::AbstractVector{Float64},
     temp_vec::AbstractVector{Float64};
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
-)
+    )
     n = length(steadystate)
     copyto!(dynamic_variables, initialvalues)
     copyto!(dynamic_variables, n + 1, endogenous, 1, 2*n)
@@ -927,13 +970,13 @@ end
 
 function print_nlsolver_results(r)
     @info @sprintf "Results of Nonlinear Solver Algorithm"
-    @info @sprintf " * Algorithm: %s" r.method
-    @info @sprintf " * Inf-norm of residuals: %f" r.residual_norm
-    @info @sprintf " * Iterations: %d" r.iterations
-    @info @sprintf " * Convergence: %s" converged(r)
-    @info @sprintf "   * |x - x'| < %.1e: %s" r.xtol r.x_converged
-    @info @sprintf "   * |f(x)| < %.1e: %s" r.ftol r.f_converged
-    @info @sprintf " * Function Calls (f): %d" r.f_calls
+    @info @sprintf " * Algorithm: %s" r.alg
+    @info @sprintf " * Inf-norm of residuals: %f" norm(r.resid)
+#    @info @sprintf " * Iterations: %d" r.iterations
+    @info @sprintf " * Convergence: %s" r.retcode
+#    @info @sprintf "   * |x - x'| < %.1e: %s" r.xtol r.x_converged
+#    @info @sprintf "   * |f(x)| < %.1e: %s" r.ftol r.f_converged
+    @info @sprintf " * Function Calls (f): %d" r.stats.nf
     return
 end
 

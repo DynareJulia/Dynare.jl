@@ -106,6 +106,7 @@ function steadystate!(; context::Context=context,
                       homotopy_steps = 0,
                       maxit = 50,
                       nocheck = false,
+                      nonlinear_solve_algo = TrustRegion(),
                       tolf = cbrt(eps()),
                       tolx = 0.0
                       )
@@ -129,9 +130,9 @@ function steadystate!(; context::Context=context,
                      model.exogenous_nbr)
     end
     if homotopy_steps == 0
-        compute_steady_state!(context, maxit = maxit, nocheck = nocheck, tolf = tolf)
+        compute_steady_state!(context, maxit = maxit, nocheck = nocheck, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
     else
-        homotopy_steady!(context, homotopy_mode, homotopy_steps, maxit = maxit, tolf = tolf)
+        homotopy_steady!(context, homotopy_mode, homotopy_steps, maxit = maxit, nonlinear_solve_algo, tolf = tolf)
     end
     if display
         if isempty(trends.endogenous_terminal_steady_state)
@@ -146,15 +147,14 @@ end
 function steady_!(context, field::Dict{String, Any})
     options = SteadyOptions(get(field, "options", field))
     steadystate!(context = context,
-            display = options.display,
-            homotopy_mode = options.homotopy_mode,
-            homotopy_steps = options.homotopy_steps,
-            maxit = options.maxit,
-            nocheck = options.nocheck,
-#            solve_algo = options.solve_algo,
-            tolf = options.tolf,
-            tolx = options.tolx
-    )
+                 display = options.display,
+                 homotopy_mode = options.homotopy_mode,
+                 homotopy_steps = options.homotopy_steps,
+                 maxit = options.maxit,
+                 nocheck = options.nocheck,
+                 tolf = options.tolf,
+                 tolx = options.tolx
+                 )
     return nothing
 end
 
@@ -179,7 +179,7 @@ function check_steadystate_model(context::Context, nocheck)
     end 
 end 
 
-function compute_steady_state!(context::Context; maxit = 50, nocheck = false, tolf = cbrt(eps()))
+function compute_steady_state!(context::Context; maxit = 50, nocheck = false, nonlinear_solve_algo = TrustRegion(), tolf = cbrt(eps()))
     model = context.models[1]
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
@@ -220,7 +220,7 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
             (x0 .= Float64.(trends.endogenous_steady_state))
         if !nocheck
             trends.endogenous_steady_state .=
-                solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf)
+                solve_steady_state!(context, x0, exogenous, maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
         end
         # terminal steady state
         if modfileinfo.has_endval
@@ -230,7 +230,7 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, to
             !isempty(trends.endogenous_terminal_steady_state) &&
                 (x0 .= Float64.(trends.endogenous_terminal_steady_state))
             !nocheck && (trends.endogenous_terminal_steady_state .=
-                solve_steady_state!(context, x0, exogenous, maxit = maxit, tolf = tolf))
+                solve_steady_state!(context, x0, exogenous, maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf))
         end
     end
 end
@@ -294,16 +294,18 @@ function solve_steady_state!(context::Context,
                              x0::AbstractVector{<:Real},
                              exogenous::AbstractVector{<:Real};
                              maxit = 50,
+                             nonlinear_solve_algo = TrustRegion(),
                              tolf = cbrt(eps()))
-        try
-            return solve_steady_state_!(context, x0, exogenous; maxit = maxit, tolf = tolf)
+    @show "OK1"
+    try
+            return solve_steady_state_!(context, x0, exogenous; maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
         catch e
             if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
                 i = 1
                 while i <= maxit
                     x00 = rand(0.95:0.01:1.05, length(x0)).*x0
                     try
-                        return solve_steady_state_!(context, x00, exogenous, maxit = maxit, tolf = tolf)
+                        return solve_steady_state_!(context, x00, exogenous, maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
                     catch
                     end
                     i += 1
@@ -316,7 +318,7 @@ function solve_steady_state!(context::Context,
             end
         end        
 end
-
+using LinearSolve
 """
     solve_steady_state_!(context::Context;
                          x0::Vector{Float64},
@@ -330,7 +332,9 @@ function solve_steady_state_!(context::Context,
                               x0::AbstractVector{<:Real},
                               exogenous::AbstractVector{<:Real};
                               maxit = 50,
+                              nonlinear_solve_algo = TrustRegion(),
                               tolf = cbrt(eps()))
+    @show "OK2"
     ws = StaticWs(context)
     model = context.models[1]
     work = context.work
@@ -343,17 +347,31 @@ function solve_steady_state_!(context::Context,
                                exogenous,
                                work.params)
     
-    J! = make_static_jacobian(ws.temporary_values,
+    j! = make_static_jacobian(ws.temporary_values,
                               exogenous,
                               work.params)
 
     results = context.results.model_results[1]
+    j!(A, x0, params)
+    display(Matrix(A))
+    lp = LinearProblem(A, residuals)
+    dy1 = LinearSolve.solve(lp)
+    dy2 = LinearSolve.solve(lp, PardisoJL())
+    @show norm(dy1-dy2)
 
-    of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
-    result = nlsolve(of, x0; method = :robust_trust_region, show_trace = false, ftol = tolf, iterations = maxit)
+    # of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
+    # result = nlsolve(of, x0; method = :robust_trust_region, show_trace = false, ftol = tolf, iterations = maxit)
+    fj = NonlinearFunction(f!, jac = j!, jac_prototype = A)
+    @show x0
+    prob = NonlinearProblem(fj, x0, params)
+    
+    result = NonlinearSolve.solve(prob, nonlinear_solve_algo, show_trace=Val(true), abstol = tolf)
+#    result = NonlinearSolve.solve(prob, show_trace=Val(true), abstol = tolf)
+
     @debug result
-    if converged(result)
-        return result.zero
+    @show result.retcode
+    if result.retcode == ReturnCode.Success
+        return result.u
     else
         @debug "Steady state computation failed with\n $result"
         throw(DynareSteadyStateComputationFailed())
@@ -444,18 +462,25 @@ end
 function make_static_residuals(temp_val::AbstractVector{T},
                                exogenous::AbstractVector{T},
                                params::AbstractVector{T}) where T <: Real
-    f!(residuals, x) = DFunctions.static!(temp_val,
-                                          residuals,
-                                          x,
-                                          exogenous,
-                                          params)
+    function f!(residuals, x, params)
+        try
+            DFunctions.static!(temp_val,
+                               residuals,
+                               x,
+                               exogenous,
+                               params)
+        catch
+            return Inf*ones(length(residuals))
+        end
+    end
+    
     return f!
 end
 
 function make_static_jacobian(temp_val::AbstractVector{T},
                               exogenous::AbstractVector{T},
                               params::AbstractVector{T}) where T <: Real
-    f!(A, x) = DFunctions.static_derivatives!(temp_val,
+    f!(A, x, params) = DFunctions.static_derivatives!(temp_val,
                                               A,
                                               x,
                                               exogenous,

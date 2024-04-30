@@ -4,6 +4,8 @@ using Reexport
 @reexport using ExtendedDates
 
 using LoggingExtras
+using NLsolve
+using NonlinearSolve
 using Printf
 
 Base.@kwdef struct CommandLineOptions
@@ -52,8 +54,6 @@ export perfect_foresight!, scenario!
 include("estimation/priorprediction.jl")
 export priorprediction
 include("simulations.jl")
-include("nonlinear/NLsolve.jl")
-using .NLsolve
 include("estimation/estimation.jl")
 export covariance, mode_compute!, output_MCMCChains, plot_MCMCChains, plot_priors 
 export plot_prior_posterior, prior!, rwmh_compute!, sms_compute!
