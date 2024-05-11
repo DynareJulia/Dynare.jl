@@ -245,9 +245,6 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "check"
             check!(context, field)
             modfileinfo.has_check = true
-        elseif statementname == "corr_prior"
-            # undocumented Dynare command
-            parse_prior!(context, field)
         elseif statementname == "deterministic_trends"
             deterministic_trends!(context, field)
             modfileinfo.has_trends = true
@@ -303,9 +300,6 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "planner_objective"
             planner_objective!(context, field)
             modfileinfo.has_planner_objective = true
-        elseif statementname == "prior"
-            # undocumented Dynare command
-            parse_prior!(context, field)
         elseif statementname == "ramsey_constraints"
             ramsey_constraints!(context, field)
         elseif statementname == "ramsey_model"
@@ -315,10 +309,6 @@ function parse_statements!(context::Context, statements::Vector{Any})
         elseif statementname == "shocks"
             shocks!(context, field)
             modfileinfo.has_shocks = true
-        elseif statementname == "std_prior"
-            # undocumented Dynare command
-            field["name2"] = field["name1"] = field["name"]
-            parse_prior!(context, field)
         elseif statementname == "steady"
             @debug "$(now()): start steady"
             steady_!(context, field)
