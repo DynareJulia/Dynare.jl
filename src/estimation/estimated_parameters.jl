@@ -1,4 +1,4 @@
-import Base: rand, findfirst
+import Base: findfirst
 using Distributions
 import Distributions: pdf, logpdf, cdf
 
@@ -61,14 +61,28 @@ function parse_estimated_parameters!(context::Context, fields::Dict{String,Any})
             push!(parameters.parametertype, EstParameter)
         elseif "var" in keys(p)
             push!(parameters.name, p["var"])
-            push!(parameters.index, symboltable[p["var"]].orderintype)
-            is_endogenous(p["var"], symboltable) && push!(parameters.parametertype, EstSDMeasurement) 
-            is_exogenous(p["var"], symboltable) && push!(parameters.parametertype, EstSDShock)
+            if is_endogenous(p["var"], symboltable)
+                k = findfirst(p["var"] .== context.work.observed_variables)
+                push!(parameters.index, k)
+                push!(parameters.parametertype, EstSDMeasurement)
+            elseif is_exogenous(p["var"], symboltable)
+                push!(parameters.index, symboltable[p["var"]].orderintype)
+                push!(parameters.parametertype, EstSDShock)
+            else
+                error("unknown variable type: $(p["var"])")
+            end
         elseif "var1" in keys(p)
             push!(parameters.name, (p["var1"] => p["var2"]))
-            push!(parameters.index, (symboltable[p["var1"]].orderintype => symbol_table[p["var2"]].orderintype))
-            is_endogenous(p["var"], symboltable) && push!(parameters.parametertype, EstCorrMeasurement) 
-            is_exogenous(p["var"], symboltable) && push!(parameters.parametertype, EstCorrShock)
+            if is_endogenous(p["var1"], symboltable)
+                k = findfirst(p["var1"] .== context.work.observed_variables)
+                push!(parameters.index, k)
+                push!(parameters.parametertype, EstCorrMeasurement)
+            elseif is_exogenous(p["var1"], symboltable)
+                push!(parameters.index, symboltable[p["var1"]].orderintype)
+                push!(parameters.parametertype, EstSDShock)
+            else
+                error("unknown variable type: $(p["var1"])")
+            end
         else
             error("Unrecognized parameter name")
         end
