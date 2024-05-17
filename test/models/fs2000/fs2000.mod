@@ -24,8 +24,8 @@ P*c = m;
 m-1+d = l;
 e = exp(e_a);
 y = k(-1)^alp*n^(1-alp)*exp(-alp*(gam+e_a));
-gy_obs = dA*y/y(-1);
-gp_obs = (P/P(-1))*m(-1)/dA;
+gy_obs = dA*y/y(-1) - 1;
+gp_obs = (P/P(-1))*m(-1)/dA - 1;
 end;
 
 steady_state_model;
@@ -50,8 +50,8 @@ steady_state_model;
 
   e = 1;
   
-  gp_obs = m/dA;
-  gy_obs = dA;
+  gp_obs = m/dA - 1;
+  gy_obs = dA - 1;
 end;
 
 
@@ -62,35 +62,20 @@ end;
 
 steady;
 
-check;
-
-//estimated_params;
-//alp, beta_pdf, 0.356, 0.02;
-//bet, beta_pdf, 0.993, 0.002;
-//gam, normal_pdf, 0.0085, 0.003;
-//mst, normal_pdf, 1.0002, 0.007;
-//rho, beta_pdf, 0.129, 0.223;
-//psi, beta_pdf, 0.65, 0.05;
-//del, beta_pdf, 0.01, 0.005;
-//stderr e_a, inv_gamma_pdf, 0.035449, inf;
-//stderr e_m, inv_gamma_pdf, 0.008862, inf;
-//end;
-
-alp.prior(shape=beta, mean=0.356, stdev=0.02);
-bet.prior(shape=beta, mean=0.993, stdev=0.002);
-gam.prior(shape=normal, mean=0.0085, stdev=0.003);
-mst.prior(shape=normal, mean=1.0002, stdev=0.007);
-rho.prior(shape=beta, mean=0.129, stdev=0.223);
-psi.prior(shape=beta, mean=0.65, stdev=0.05);
-del.prior(shape=beta, mean=0.01, stdev=0.005);
-std(e_a).prior(shape=inv_gamma, mean=0.035449, stdev=1000);
-std(e_m).prior(shape=inv_gamma, mean=0.008862, stdev=1000);
+estimated_params;
+alp, beta_pdf, 0.356, 0.02;
+bet, beta_pdf, 0.993, 0.002;
+gam, normal_pdf, 0.0085, 0.003;
+mst, normal_pdf, 1.0002, 0.007;
+rho, beta_pdf, 0.129, 0.223;
+psi, beta_pdf, 0.65, 0.05;
+del, beta_pdf, 0.01, 0.005;
+stderr e_a, inv_gamma_pdf, 0.035449, inf;
+stderr e_m, inv_gamma_pdf, 0.008862, inf;
+end;
 
 
 varobs gp_obs gy_obs;
 
-//options_.solve_tolf = 1e-12;
+estimation(datafile='fs2000.csv', nobs=192, mh_replic=10000, mh_nblocks=1, mh_jscale=2.5);
 
-//estimation(order=1,datafile=fsdat_simul,nobs=192,loglinear,mh_replic=3000,mh_nblocks=1,mh_jscale=0.8) y m;
-
-stoch_simul(order=1, irf=0);
