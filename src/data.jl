@@ -3,12 +3,34 @@ using AxisArrayTables
 using ExtendedDates
 
 function data!(datafile::AbstractString;
-    context::Context = context,
-    variables::Vector{<:Union{String,Symbol}} = [],
-    start::PeriodsSinceEpoch = Undated(typemin(Int)),
-    last::PeriodsSinceEpoch = Undated(typemin(Int)),
-    nobs::Integer = 0,
-)
+               context::Context = context,
+               variables::Vector{<:Union{String,Symbol}} = [],
+               start::PeriodsSinceEpoch = Undated(typemin(Int)),
+               last::PeriodsSinceEpoch = Undated(typemin(Int)),
+               nobs::Integer = 0,
+               )
+    aat, startperiod, lastperiod = data_(datafile,
+                                         context,
+                                         variables,
+                                         start,
+                                         last,
+                                         nobs
+                                         )
+    if length(variables) == 0
+        context.work.data = copy(aat[startperiod:lastperiod, :])
+    else
+        context.work.data = copy(aat[startperiod:lastperiod, Symbol.(variables)])
+    end
+    return context.work.data
+end
+
+function data_(datafile::AbstractString,
+               context::Context,
+               variables::Vector{<:Union{String,Symbol}},
+               start::PeriodsSinceEpoch,
+               last::PeriodsSinceEpoch,
+               nobs::Integer               
+               )
     aat = MyAxisArrayTable(datafile)
     Ta = typeof(row_labels(aat)[1])
     if Ta <: Dates.UTInstant
@@ -47,17 +69,12 @@ function data!(datafile::AbstractString;
         # neither start option nor last option are used
         startperiod = row_labels(aat)[1]
         if nobs > 0
-            lastperiod = start + T(nobs) - T(1)
+            lastperiod = startperiod + T(nobs) - T(1)
         else
             lastperiod = row_labels(aat)[end]
         end
     end
-    if length(variables) == 0
-        context.work.data = copy(aat[startperiod:lastperiod, :])
-    else
-        context.work.data = copy(aat[startperiod:lastperiod, Symbol.(variables)])
-    end 
-    return context.work.data
+    return (aat, startperiod, lastperiod)
 end
 
 function get_data!(context::Context,
@@ -84,7 +101,34 @@ function get_data!(context::Context,
     else
         error("needs datafile or data argument")
     end
-    return context.work.data
+    return Matrix(context.work.data)
+end 
+
+function get_transposed_data!(context::Context,
+                   datafile::String,
+                   data::AxisArrayTable,
+                   variables::Vector{<:Union{String, Symbol}},
+                   first_obs::PeriodsSinceEpoch,
+                   last_obs::PeriodsSinceEpoch,
+                   nobs::Int
+                   )
+    @assert isempty(datafile) || isempty(data) "datafile and data can't be used at the same time"
+    
+    if !isempty(datafile)
+        data!(datafile, 
+              context = context,
+              variables = variables,
+              start = first_obs,
+              last = last_obs,
+              nobs = nobs)
+    elseif !isempty(data)
+        first_obs == Undated(typemin(Int)) && (first_obs = row_labels(data)[1])
+        last_obs == Undated(typemin(Int)) && (last_obs = row_labels(data)[end])
+        context.work.data = copy(data[first_obs:last_obs, Symbol.(variables)])
+    else
+        error("needs datafile or data argument")
+    end
+    return transpose(Matrix(context.work.data))
 end 
 
 function get_detrended_data(context::Context,
@@ -95,6 +139,29 @@ function get_detrended_data(context::Context,
     last_obs::PeriodsSinceEpoch,
     nobs::Int
     )
+
+    get_data!(context,
+              datafile,
+              data,
+              variables,
+              first_obs,
+              last_obs,
+              nobs
+              )
+    aat = detrend_data(context, variables)
+    return aat
+end 
+
+function detrend_data(context::Context, variables::Vector{<:Union{String, Symbol}}; dim = 2)
+    aat = copy(context.work.data)
+    detrend_data!(aat, context, variables, dim)
+    return aat
+end
+
+function detrend_data!(dtdata, context::Context,
+                       variables::Vector{<:Union{String, Symbol}};
+                       dim = 2
+                       )
 
     endogenous_names = get_endogenous(context.symboltable)
     trends = context.results.model_results[1].trends
@@ -110,34 +177,26 @@ function get_detrended_data(context::Context,
     if !isempty(trends.endogenous_quadratic_trend)
         quadratic_trend = Vector(AxisArrays.AxisArray(trends.endogenous_quadratic_trend, endogenous_names)[variables])
     end
-    
-    get_data!(context,
-              datafile,
-              data,
-              variables,
-              first_obs,
-              last_obs,
-              nobs
-              )
-    aat = copy(context.work.data)
     if context.modfileinfo.has_trends
         if !isempty(quadratic_trend)
-            remove_quadratic_trend!(aat, 
-            adjoint(steady_state), 
-            adjoint(linear_trend), 
-            adjoint(quadratic_trend)
-            )
+            remove_quadratic_trend!(dtdata, 
+                                    steady_state, 
+                                    linear_trend, 
+                                    quadratic_trend,
+                                    dim
+                                    )
         else
-            remove_linear_trend!(aat, 
-            adjoint(steady_state), 
-            adjoint(linear_trend), 
-            )
+            remove_linear_trend!(dtdata, 
+                                 steady_state, 
+                                 linear_trend,
+                                 dim
+                                 )
         end
     else
-        aat .-= adjoint(steady_state)
+        remove_steady_state!(dtdata, steady_state, dim)
     end
 
-    return aat
+    return dtdata
 end 
 
 function find_letter_in_period(period::AbstractString)

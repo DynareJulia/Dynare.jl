@@ -11,97 +11,238 @@ function deterministic_trends!(context::Context, field::Dict{String,Any})
     end
 end
 
+function add_steady_state!(dataout::Any,
+                           datain::Any,
+                           steady_state::AbstractVector{Float64},
+                           dim;
+                           start::Int64 = 0,
+                           )
+    @inbounds for i in axes(datain, 2)
+        if dim == 1
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j] + steady_state[j]
+            end
+        else
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[i] + steady_state[i]
+            end
+        end
+    end
+    return dataout
+end
+
+function remove_steady_state!(dataout::Any,
+                              datain::Any,
+                              steady_state::AbstractVector{Float64},
+                              dim;
+                              start::Int64 = 0,
+                              )
+    @inbounds for i in axes(datain, 2)
+        trend = start
+        if dim == 1
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] - steady_state[j]
+            end
+        else
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] - steady_state[i]
+            end
+        end
+    end
+    return dataout
+end
+
 function add_linear_trend!(
-    data_out::Any,
-    data_in::Any,
+    dataout::Any,
+    datain::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    start::Int64 = 0
+    linear_trend_coeffs::AbstractVector{Float64},
+    dim;
+    start::Int64 = 0,
 )
     linear_trend = start
-    @inbounds for i in axes(data_out, 2)
-        for j in axes(data_out, 1)
-            data_out[j, i] = data_in[j, i] + steady_state[j] + linear_trend_coeffs[j] * linear_trend
+    @inbounds for i in axes(datain, 2)
+        if dim == 1
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] + steady_state[j] + linear_trend_coeffs[j] * linear_trend 
+            end
+            linear_trend += 1
+        else
+            linear_trend = start
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] + steady_state[i] + linear_trend_coeffs[i] * linear_trend 
+                linear_trend += 1
+            end
         end
-        linear_trend += 1
     end
+    return dataout
 end
 
 function remove_linear_trend!(
-    data_out::Any,
-    data_in::Any,
+    dataout::Any,
+    datain::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    start::Int64 = 0
+    linear_trend_coeffs::AbstractVector{Float64},
+    dim;
+    start::Int64 = 0, 
 )
     linear_trend = start
-    @inbounds for i in axes(data_out, 2)
-         for j in axes(data_out, 1)
-            data_out[j, i] = data_in[j, i] - steady_state[j] - linear_trend_coeffs[j] * linear_trend
+    @inbounds for i in axes(datain, 2)
+        if dim == 1
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] - (steady_state[j] + linear_trend_coeffs[j] * linear_trend)
+            end
+            linear_trend += 1
+        else
+            linear_trend = start
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] - (steady_state[i] + linear_trend_coeffs[i] * linear_trend)
+                linear_trend += 1
+            end
         end
-        linear_trend += 1
     end
+    return dataout
 end
 
 function add_quadratic_trend!(
-    data_out::Any,
-    data_in::Any,
+    dataout::Any,
+    datain::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    start::Int64 = 0
+    linear_trend_coeffs::AbstractVector{Float64},
+    quadratic_trend_coeffs::AbstractVector{Float64},
+    dim;
+    start::Int64 = 0,
 )
     trend = start
-    @inbounds for i in axes(data_out, 2)
-        for j in axes(data_out, 1)
-            data_out[j, i] = data_in[j, i] + steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
+    @inbounds for i in axes(datain, 2)
+        if dim == 1
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] + steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
+            end
+            trend += 1
+        else
+            trend = start
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] + steady_state[i] + linear_trend_coeffs[i] * trend + quadratic_trend_coeffs[i] * trend^2
+                trend += 1
+            end
         end
-        linear_trend += 1
     end
 end
 
 function remove_quadratic_trend!(
-    data_out::Any,
-    data_in::Any,
+    dataout::Any,
+    datain::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    start::Int64 = 0
+    linear_trend_coeffs::AbstractVector{Float64},
+    quadratic_trend_coeffs::AbstractVector{Float64},
+    dim;
+    start = 0,
 )
     trend = start
-    @inbounds for i in axes(data_out, 2)
-        for j in axes(data_out, 1)
-            data_out[j, i] = data_in[j, i] - steady_state[j] - linear_trend_coeffs[j] * trend - quadratic_trend_coeffs[j] * trend^2
+    @inbounds for i in axes(datain, 2)
+        if dim == 1
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] - (steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2)
+            end
+            trend += 1
+        else
+            trend = start
+            for j in axes(datain, 1)
+                dataout[j, i] = datain[j, i] - (steady_state[i] + linear_trend_coeffs[i] * trend + quadratic_trend_coeffs[i] * trend^2)
+                trend += 1
+            end
         end
-        linear_trend += 1
     end
+    return dataout
+end
+
+function add_steady_state!(data::Any,
+                           steady_state::AbstractVector{Float64},
+                           dim;
+                           start::Int64 = 0,
+                           )
+    @inbounds for i in axes(data, 2)
+        if dim == 1
+            for j in axes(data, 1)
+                data[j, i] += steady_state[j]
+            end
+        else
+            for j in axes(data, 1)
+                data[j, i] += steady_state[i]
+            end
+        end
+    end
+    return data
+end
+
+function remove_steady_state!(data::Any,
+                              steady_state::AbstractVector{Float64},
+                              dim;
+                              start::Int64 = 0,
+                              )
+    @inbounds for i in axes(data, 2)
+        trend = start
+        if dim == 1
+            for j in axes(data, 1)
+                data[j, i] -= steady_state[j]
+                trend += 1
+            end
+        else
+            for j in axes(data, 1)
+                data[j, i] -= steady_state[i]
+                trend += 1
+            end
+        end
+    end
+    return data
 end
 
 function add_linear_trend!(
     data::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    start::Int64 = 0
+    linear_trend_coeffs::AbstractVector{Float64},
+    dim;
+    start::Int64 = 0,
 )
     linear_trend = start
     @inbounds for i in axes(data, 2)
-        for j in axes(data, 1)
-            data[j, i] += steady_state[j] + linear_trend_coeffs[j] * linear_trend 
+        if dim == 1
+            for j in axes(data, 1)
+                data[j, i] += steady_state[j] + linear_trend_coeffs[j] * linear_trend 
+            end
+            linear_trend += 1
+        else
+            linear_trend = start
+            for j in axes(data, 1)
+                data[j, i] += steady_state[i] + linear_trend_coeffs[i] * linear_trend 
+                linear_trend += 1
+            end
         end
-        linear_trend += 1
     end
 end
 
 function remove_linear_trend!(
     data::Any,
     steady_state::AbstractVector{Float64},
-    linear_trend_coeffs::AbstractVector{Float64};
-    start::Int64 = 0
+    linear_trend_coeffs::AbstractVector{Float64},
+    dim;
+    start::Int64 = 0,
 )
     linear_trend = start
     @inbounds for i in axes(data, 2)
-        for j in axes(data, 1)
-            data[j, i] -= steady_state[j] + linear_trend_coeffs[j] * linear_trend
+        if dim == 1
+            for j in axes(data, 1)
+                data[j, i] -= steady_state[j] + linear_trend_coeffs[j] * linear_trend
+            end
+            linear_trend += 1
+        else
+            linear_trend = start
+            for j in axes(data, 1)
+                data[j, i] -= steady_state[i] + linear_trend_coeffs[i] * linear_trend
+                linear_trend += 1
+            end
         end
-        linear_trend += 1
     end
 end
 
@@ -109,15 +250,24 @@ function add_quadratic_trend!(
     data::Any,
     steady_state::AbstractVector{Float64},
     linear_trend_coeffs::AbstractVector{Float64},
-    quadratic_trend_coeffs::AbstractVector{Float64};
+    quadratic_trend_coeffs::AbstractVector{Float64},
+    dim;
     start::Int64 = 0,
 )
     trend = start
     @inbounds for i in axes(data, 2)
-        for j in axes(data, 1)
-            data[j, i] += steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
+        if dim == 1
+            for j in axes(data, 1)
+                data[j, i] += steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
+            end
+            trend += 1
+        else
+            trend = start
+            for j in axes(data, 1)
+                data[j, i] += steady_state[i] + linear_trend_coeffs[i] * trend + quadratic_trend_coeffs[i] * trend^2
+                trend += 1
+            end
         end
-        trend += 1
     end
 end
 
@@ -125,76 +275,23 @@ function remove_quadratic_trend!(
     data::Any,
     steady_state::AbstractVector{Float64},
     linear_trend_coeffs::AbstractVector{Float64},
-    quadratic_trend_coeffs::AbstractVector{Float64};
+    quadratic_trend_coeffs::AbstractVector{Float64},
+    dim;
     start = 0,
 )
     trend = start
     @inbounds for i in axes(data, 2)
-        for j in axes(data, 1)
-            data[j, i] -= steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
-        end
-        trend += 1
-    end
-end
-
-function add_linear_trend!(
-    data::Any,
-    steady_state::Adjoint{Float64, <:AbstractVector{Float64}},
-    linear_trend_coeffs::Adjoint{Float64, <:AbstractVector{Float64}};
-    start::Int64 = 0
-)
-    @inbounds for i in axes(data, 2)
-        linear_trend = start
-        for j in axes(data, 1)
-            data[j, i] += steady_state[i] + linear_trend_coeffs[i] * linear_trend 
-            linear_trend += 1
-        end
-    end
-end
-
-function remove_linear_trend!(
-    data::Any,
-    steady_state::Adjoint{Float64, <:AbstractVector{Float64}},
-    linear_trend_coeffs::Adjoint{Float64, <:AbstractVector{Float64}};
-    start::Int64 = 0
-)
-    @inbounds for i in axes(data, 2)
-        linear_trend = start
-        for j in axes(data, 1)
-            data[j, i] -= steady_state[i] + linear_trend_coeffs[i] * linear_trend
-            linear_trend += 1
-        end
-    end
-end
-
-function add_quadratic_trend!(
-    data::Any,
-    steady_state::Adjoint{Float64, <:AbstractVector{Float64}},
-    linear_trend_coeffs::Adjoint{Float64, <:AbstractVector{Float64}},
-    quadratic_trend_coeffs::Adjoint{Float64, <:AbstractVector{Float64}};
-    start::Int64 = 0,
-)
-    @inbounds for i in axes(data, 2)
-        trend = start
-        for j in axes(data, 1)
-            data[j, i] += steady_state[i] + linear_trend_coeffs[i] * trend + quadratic_trend_coeffs[i] * trend^2
+        if dim == 1
+            for j in axes(data, 1)
+                data[j, i] -= steady_state[j] + linear_trend_coeffs[j] * trend + quadratic_trend_coeffs[j] * trend^2
+            end
             trend += 1
-        end
-    end
-end
-
-function remove_quadratic_trend!(
-    data::Any,
-    steady_state::Adjoint{Float64, <:AbstractVector{Float64}},
-    linear_trend_coeffs::Adjoint{Float64, <:AbstractVector{Float64}},
-    quadratic_trend_coeffs::Adjoint{Float64, <:AbstractVector{Float64}};
-    start = 0,
-)
-    @inbounds for i in axes(data, 2)
-        trend = start
-        for j in axes(data, 1)
-            data[j, i] -= steady_state[i] + linear_trend_coeffs[i] * trend + quadratic_trend_coeffs[i] * trend^2
-            trend += 1
+        else
+            trend = start
+            for j in axes(data, 1)
+                data[j, i] -= steady_state[i] + linear_trend_coeffs[i] * trend + quadratic_trend_coeffs[i] * trend^2
+                trend += 1
+            end
         end
     end
 end
