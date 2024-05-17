@@ -503,7 +503,7 @@ function (problem::DSGELogPosteriorDensity)(θ)
     context = problem.context
     try
       lpd = logpriordensity(θ, context.work.estimated_parameters)
-        lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
+      lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
     catch e
         @debug e
         lpd = -Inf
@@ -634,6 +634,7 @@ function loglikelihood(
         context.work.observed_variables,
         dim = 1
     )
+    ssws.Y
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
