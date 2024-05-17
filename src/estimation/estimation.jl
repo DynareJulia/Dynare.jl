@@ -24,7 +24,7 @@ using TransformedLogDensities
 import LogDensityProblems: dimension, logdensity, logdensity_and_gradient, capabilities
 
 include("data.jl")
-include("estimated_parameters.jl")
+include("priors.jl")
 
 Base.@kwdef struct EstimationOptions
     config_sig::Float64 = 0.8
@@ -81,7 +81,8 @@ function estimation!(context, field::Dict{String, Any})
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    observations, obsvarnames  = get_observations(context, options.datafile, options.data, options.first_obs, options.last_obs, options.nobs)
+    varobs = context.work.observed_variables
+    observations  = get_transposed_data!(context, options.datafile, options.data, varobs, options.first_obs, options.last_obs, options.nobs)
     nobs = size(observations, 2)
     estimated_parameters = context.work.estimated_parameters
     initial_parameter_values = get_initial_value_or_mean()
@@ -90,7 +91,7 @@ function estimation!(context, field::Dict{String, Any})
         plot_priors()
     end 
     if options.mode_compute
-        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, obsvarnames, transformed_parameters = true)
+        (res, mode, tstdh, mode_covariance) = posterior_mode!(context,  initial_parameter_values, observations, varobs, transformed_parameters = true)
         options.display && log_result(res)
         estimation_result_table(
             get_parameter_names(estimated_parameters),
@@ -98,18 +99,18 @@ function estimation!(context, field::Dict{String, Any})
             tstdh,
             "Posterior mode"
         )
-        end
+    end
 
     if !isempty(options.mode_file)
         mode, mode_covariance = get_mode_file(options.mode_file)
     end
 
     if options.mcmc_replic > 0
-        chain, back_transformed_chain = mh_estimation(context, observations, obsvarnames, mode, 
+        chain = mh_estimation(context, observations, varobs, mode, 
                               covariance = options.mcmc_jscale*mode_covariance,
                               mcmc_replic = options.mcmc_replic)
         output_MCMCChains(context, chain, options.display, options.display)
-        options.display && plot_prior_posterior(back_transformed_chain)
+        options.display && plot_prior_posterior(chain)
     end 
        
     return nothing
@@ -166,10 +167,19 @@ function mode_compute!(; algorithm = BFGS,
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    
-    observations, obsvarnames = get_observations(context, datafile, data, first_obs, last_obs, nobs)
-    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, obsvarnames, algorithm = algorithm, transformed_parameters = transformed_parameters)
-    display && log_result(res)
+
+    varobs = context.work.observed_variables
+    observations = get_transposed_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, varobs, algorithm = algorithm, transformed_parameters = transformed_parameters)
+    if display
+        log_result(res)
+        estimation_result_table(
+            get_parameter_names(context.work.estimated_parameters),
+            mode,
+            tstdh,
+            "Posterior mode"
+        )
+    end
 end
 
 """
@@ -207,7 +217,7 @@ runs random walk Monte Carlo simulations of the posterior
 - `datafile::String`:  data filename
 - `first_obs::PeriodsSinceEpoch`: first observation (default: first observation in the dataset)
 - `initial_values`: initival parameter values for optimization algorithm (default: `estimated_params_init` block if present or prior mean)
-- `last_obs::PeriodsSinceEpoch`: last period (default: last dataseet in the dataset)
+- `last_obs::PeriodsSinceEpoch`: last period (default: last observation in the dataset)
 - `mcmc_chains::Int` number of MCMC chains (default: 1)
 - `mcmc_jscale::Float64`: scale factor of proposal
 - `mcmc_replic::Int`: =  0,
@@ -247,10 +257,11 @@ function rwmh_compute!(;context::Context=context,
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
     estimation_results = results.estimation
-    observations, obsvarnames = get_observations(context, datafile, data, first_obs, last_obs, nobs)
-    (chain, back_transformed_chain) = mh_estimation(context, 
+    varobs = context.work.observed_variables
+    observations = get_transposed_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    chain = mh_estimation(context, 
         observations,
-        obsvarnames, 
+        varobs, 
         initial_values, 
         covariance = mcmc_jscale*covariance, 
         transformed_covariance = mcmc_jscale*transformed_covariance,
@@ -262,7 +273,7 @@ function rwmh_compute!(;context::Context=context,
         transformed_parameters=transformed_parameters
     )
     output_MCMCChains(context, chain, display, plot_chain)
-    plot_posterior_density && plot_prior_posterior(context, back_transformed_chain)
+    plot_posterior_density && plot_prior_posterior(context, chain)
     return chain
 end
 
@@ -299,7 +310,7 @@ function smc_compute!(;context=context,
     ep = context.work.estimated_parameters
     np = length(ep.prior)
     observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
-    ssws = SSWs(context, size(observations, 2), context.work.observed_variables)    
+    ssws = SSWs(context, size(observations, 1), context.work.observed_variables)    
     
     pdraw!(θ) = prior_draw!(θ, ep)
     logprior(θ) = logpriordensity(θ, ep)
@@ -338,9 +349,9 @@ computes the covariance matrix of MCMC `chain`
 """
 function covariance(chain::Chains)
     c = copy(chain.value.data[:,1:end-1,1])
-    m = mean(c)
+    m = mean(c, dims=1)
     c .-= m
-    return Symmetric(c'*c/length(c))
+    return Symmetric(c'*c/size(c,1))
 end
 
 struct SSWs{D<:AbstractFloat,I<:Integer}
@@ -360,7 +371,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
     Y::Matrix{Union{D,Missing}}
     Z::Matrix{D}
     kalman_ws::KalmanLikelihoodWs{D, I}
-    function SSWs(context, nobs, varobs)
+    function SSWs(context, observations, varobs)
         model = context.models[1]
         D = eltype(context.work.params)
         symboltable = context.symboltable
@@ -377,7 +388,8 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         np = model.exogenous_nbr
         ns = length(state_ids)
         ny = length(varobs)
-        Y = Matrix{Union{D,Missing}}(undef, ny, nobs)
+        nobs = size(observations, 2)
+        Y = observations
         Z = zeros(D, (ny, ns))
         H = zeros(D, (ny, ny))
         T = zeros(D, (ns, ns))
@@ -422,7 +434,7 @@ struct DSGENegativeLogLikelihood{F<:Function, UT}
     function DSGENegativeLogLikelihood(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
         observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
-        ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
+        ssws = SSWs(context, observations, context.work.observed_variables)
         f = make_negativeloglikelihood(context, observations, first_obs, last_obs, ssws)
         new{typeof(f),eltype(observations)}(f, n, context, observations, ssws)
     end
@@ -436,7 +448,7 @@ struct DSGELogPosteriorDensity{F <: Function, UT}
     ssws::SSWs
     function DSGELogPosteriorDensity(context, observations, obsvarnames)
         n = length(context.work.estimated_parameters)
-        ssws = SSWs(context, size(observations, 2), obsvarnames)
+        ssws = SSWs(context, observations, obsvarnames)
         f = make_logposteriordensity(context, observations, ssws)
         new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
     end
@@ -451,7 +463,7 @@ struct DSGENegativeLogPosteriorDensity{F <:Function, UT}
     function DSGENegativeLogPosteriorDensity(context, datafile, first_obs, last_obs)
         n = length(context.work.estimated_parameters)
         observations = get_observations(context, datafile, data, first_obs, last_obs, nobs)
-        ssws = SSWs(context, size(observations, 2), context.work.observed_variables)
+        ssws = SSWs(context, observations, context.work.observed_variables)
         f = make_negativelogposteriordensity(context, observations, first_obs, last_obs, ssws)
         new{typeof(f), eltype(observations)}(f, n, context, observations, ssws)
     end
@@ -503,7 +515,6 @@ function make_negativeloglikelihood(context, observations, first_obs, last_obs, 
             model = context.models[1]
             backward_nbr = model.n_bkwrd + model.n_both
             #            lll = previous_value + penalty(e, eigenvalues, backward_nbr)
-            @show e
             lll = Inf
         end
         return -lll
@@ -525,9 +536,29 @@ function make_logposteriordensity(context, observations, ssws)
         end
         return lpd
     end
+
     return logposteriordensity
 end
 
+function make_negativelogposteriordensity(context, observations, ssws)
+    function logposteriordensity(x)::Float64
+        lpd = logpriordensity(x, context.work.estimated_parameters)
+        if abs(lpd) == Inf
+            return -lpd
+        end
+        try
+            lpd += loglikelihood(x, context, observations, ssws)
+        catch e
+            @debug e
+            lpd = -Inf
+        end
+        return -lpd
+    end
+
+    return logposteriordensity
+end
+
+#=
 ## methods necessary for the interface, 
 dimension(ld::DSGELogPosteriorDensity) = ld.dimension
 logdensity(ld::DSGELogPosteriorDensity, x) = ld.f(x)
@@ -542,14 +573,15 @@ end
 
 capabilities(ld::DSGELogPosteriorDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
 capabilities(ld::TransformedLogDensity) = LogDensityProblems.LogDensityOrder{1}() ## we provide only first order derivative
+=#
 
 function (problem::DSGELogPosteriorDensity)(θ)
     @debug θ
     lpd = -Inf
     context = problem.context
     try
-        lpd = logpriordensity(θ, context.work.estimated_parameters)
-        lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
+      lpd = logpriordensity(θ, context.work.estimated_parameters)
+      lpd += loglikelihood(θ, context, problem.observations, problem.ssws)
     catch e
         @debug e
         lpd = -Inf
@@ -566,31 +598,31 @@ end
 
 function set_estimated_parameters!(
     context::Context,
-    index::Integer,
+    index::N,
     value::T,
     ::Val{EstParameter},
-) where {T<:Real}
-    context.work.params[index[1]] = value
+) where {T<:Real, N<:Integer}
+    context.work.params[index] = value
     return nothing
 end
 
 function set_estimated_parameters!(
     context::Context,
-    index::N,
+    index::Pair{N,N},
     value::T,
     ::Val{EstSDMeasurement},
-) where {T<:Real,N<:Integer}
-    context.work.Sigma_m[index, index] = value*value
+) where {T<:Real, N<:Integer}
+    context.work.Sigma_m[index[1], index[2]] = value*value
     return nothing
 end
 
 function set_estimated_parameters!(
     context::Context,
-    index::N,
+    index::Pair{N,N},
     value::T,
     ::Val{EstSDShock},
-) where {T<:Real,N<:Integer}
-    context.models[1].Sigma_e[index, index] = value*value
+) where {T<:Real, N<:Integer}
+    context.models[1].Sigma_e[index[1], index[2]] = value*value
     return nothing
 end
 
@@ -599,7 +631,7 @@ function set_estimated_parameters!(
     index::Pair{N,N},
     value::T,
     ::Val{EstVarMeasurement},
-) where {T<:Real,N<:Integer}
+) where {T<:Real, N<:Integer}
     context.work.Sigma_m[index[1], index[2]] = value
     return nothing
 end
@@ -609,7 +641,7 @@ function set_estimated_parameters!(
     index::Pair{N,N},
     value::T,
     ::Val{EstVarShock},
-) where {T<:Real,N<:Integer}
+) where {T<:Real, N<:Integer}
     context.models[1].Sigma_e[index[1], index[2]] = value
     return nothing
 end
@@ -620,12 +652,13 @@ function set_covariance!(corr, covariance, index1, index2)
     covariance[index1, index2] = corr*sqrt(V1*V2)
     covariance[index2, index1] = corr*sqrt(V1*V2)
 end
+
 function set_estimated_parameters!(
     context::Context,
     index::Pair{N,N},
     value::T,
     ::Val{EstCorrMeasurement},
-) where {T<:Real,N<:Integer}
+) where {T<:Real, N<:Integer}
     set_covariance!(value, context.work.Sigma_m,
     index[1], index[2])
     return nothing
@@ -636,7 +669,7 @@ function set_estimated_parameters!(
     index::Pair{N,N},
     value::T,
     ::Val{EstCorrShock},
-) where {T<:Real,N<:Integer}
+) where {T<:Real, N<:Integer}
     set_covariance!(value, context.models[1].Sigma_e,
     index[1], index[2])
     return nothing
@@ -648,6 +681,7 @@ function loglikelihood(
     observations::AbstractMatrix{D},
     ssws::SSWs{T,I},
 )::T where {T<:Real,D<:Union{Missing,<:Real},I<:Integer}
+    @debug θ
     parameters = collect(θ)
     model = context.models[1]
     results = context.results.model_results[1]
@@ -670,15 +704,14 @@ function loglikelihood(
     LRE_results = results.linearrationalexpectations
     compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context))
     # build state space representation
-    steady_state = results.trends.endogenous_steady_state[ssws.obs_idx]
-    n = size(ssws.Y, 2)
-    row = 1
-    remove_linear_trend!(
+    ssws.Y .= observations
+    detrend_data!(
         ssws.Y,
-        observations,
-        results.trends.endogenous_steady_state[ssws.obs_idx],
-        results.trends.endogenous_linear_trend[ssws.obs_idx],
+        context,
+        context.work.observed_variables,
+        dim = 1
     )
+    ssws.Y
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
@@ -933,7 +966,6 @@ function posterior_mode!(
             algorithm,
             optimoptions = (show_trace = show_trace, f_tol = 1e-5, iterations = iterations),
         )
-        @show res
         hess = finite_difference_hessian(objective1, minimizer)
         if !isposdef((hess + hess')/2)
             @show minimizer
@@ -976,8 +1008,9 @@ function mh_estimation(
         transformation = DSGETransformation(context.work.estimated_parameters)
         transformed_density(θ) = problem.f(collect(TransformVariables.transform(transformation, θ)))
         transformed_problem = TransformedLogDensity(transformation, problem)
-        transformed_density_gradient!(g, θ) = (g = finite_difference_gradient(transformed_density, θ))
-        initial_values = Vector(collect(TransformVariables.inverse(transformation, tuple(initial_values...))))
+        if back_transformation
+            initial_values = Vector(collect(TransformVariables.inverse(transformation, tuple(initial_values...))))
+        end
         posterior_density(θ) = transformed_density(θ)
         let proposal_covariance
             if !isempty(transformed_covariance)
@@ -988,37 +1021,23 @@ function mh_estimation(
             chain = run_mcmc(transformed_problem, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)
         end 
         if back_transformation
-            transform_chains(chain, transformation, problem.f)
-            # Recompute posterior density
-            nparams = length(ep.prior)
-            n1 = nparams + 1
-            back_transformed_chain = MCMCChains.sample(chain, 1000)
-            y = back_transformed_chain.value.data
-            for k in axes(y, 1)
-                @views begin
-                θ1 = y[k, 1:nparams, 1]
-                y[k, n1, 1] = posterior_density(θ1)
-                end
-            end 
+            transform_chains!(chain, transformation, problem.f)
         end 
     else
         chain = run_mcmc(problem, initial_values, Matrix(covariance), param_names, mcmc_replic, mcmc_chains)
-        back_transformed_chain  = chain
     end 
-    #imode1 = argmax(chain.value.data[:,end,1])
-    #mode1 = chain.value.data[imode1, 1:end-1, 1]
-    return chain, back_transformed_chain
+    return chain
 end 
 
 function run_mcmc(posterior_density, initial_values, proposal_covariance, param_names, mcmc_replic, mcmc_chains)    
     model = DensityModel(posterior_density)
-    @debug posterior_density(initial_values)
     proposal_covariance = (proposal_covariance + proposal_covariance')/2
     spl = RWMH(MvNormal(zeros(length(initial_values)), proposal_covariance))
     if mcmc_chains == 1
+        AbstractMCMC.setprogress!(false, silent=true)
         chain = MCMCChains.sample(posterior_density, spl, mcmc_replic,
                    initial_params = Float64.(initial_values),
-                   param_names = context.work.estimated_parameters.name,
+                   param_names = get_parameter_names(context.work.estimated_parameters),
                    chain_type = Chains)
     else    
         old_blas_threads = BLAS.get_num_threads()
@@ -1029,7 +1048,7 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
         chain = MCMCChains.sample(posterior_density, spl, MCMCThreads(), mcmc_replic,
                    mcmc_chains,
                    initial_params = initial_values_,
-                   param_names = context.work.estimated_parameters.name,
+                   param_names = get_parameter_names(context.work.estimated_parameters),
                    chain_type = Chains)
         BLAS.set_num_threads(old_blas_threads)
     end 
@@ -1051,8 +1070,8 @@ function hmc_estimation(
     transformation = DSGETransformation(context.work.estimated_parameters)
     transformed_problem = TransformedLogDensity(transformation, problem.f)
     transformed_logdensity(θ) = TransformVariables.transform_logdensity(transformed_problem.transformation,
-    transformed_problem.log_density_function,
-    θ)
+                                                                        transformed_problem.log_density_function,
+                                                                        θ)
     function logdensity_and_gradient(ℓ, x)
         return(transformed_logdensity(x),
                FiniteDiff.finite_difference_gradient(transformed_logdensity, x))
@@ -1070,7 +1089,6 @@ function hmc_estimation(
         warmup_stages = default_warmup_stages(),
 #        reporter = ProgressMeterReport(),
     )
-    @show results
     parameter_names = get_parameter_names(context.work.estimated_parameters)
     estimation_result_table(
         parameter_names,
@@ -1171,11 +1189,20 @@ function get_mode_file(modfilepath)
 end
 
 function get_parameter_names(estimated_parameters::EstimatedParameters)
-    return [get_parameter_name(n) for n in estimated_parameters.name]
+    parametertype = estimated_parameters.parametertype
+    name = estimated_parameters.name
+    return [get_parameter_name(Val(t), n) for (t, n) in zip(parametertype, name)]
 end
 
-get_parameter_name(name::String) = name
-get_parameter_name(name::Pair{String, String}) = name[1]
+get_parameter_name(::Val{EstParameter}, name) = name
+get_parameter_name(::Val{EstSDShock}, name) = "Std($(name))"
+get_parameter_name(::Val{EstSDMeasurement}, name) = "Std($(name))"
+get_parameter_name(::Val{EstVarShock}, name) = "Var($(name))"
+get_parameter_name(::Val{EstVarMeasurement}, name) = "Var($(name))"
+get_parameter_name(::Val{EstCorrShock}, name) = "Corr($(name[1]), $(name[2]))"
+get_parameter_name(::Val{EstCorrMeasurement}, name) = "Corr($(name[1]), $(name[2]))"
+
+
 
 function get_observations(context, datafile, data, first_obs, last_obs, nobs)
     results = context.results.model_results[1]
@@ -1190,9 +1217,6 @@ function get_observations(context, datafile, data, first_obs, last_obs, nobs)
 end
 
 # Pretty printing name of estimated parameters
-print_parameter_name(::Val{Parameter}, name) = name
-print_parameter_name(::Val{Endogenous}, name) = "Std($(name[1]))"
-print_parameter_name(::Val{Exogenous}, name) = "Std($(name[1]))"
 
 # transformation of standard errors using delta approach
 function transform_std(T::TransformVariables.TransformTuple, x, std)
@@ -1294,314 +1318,20 @@ function mcmc_diagnostics(chains, context, names)
     f
 end
 
-function transform_chains(chains, t, posterior_density)
+function transform_chains!(chains, t, posterior_density)
     y = chains.value.data
     nparams = size(y, 2) - 1
     tmp = Vector{Float64}(undef, size(y, 1))
     for i in axes(y, 3)
-        for j in 1:nparams
-            vy = view(y, :, j, i)   
-            tmp .= map(TransformVariables.transform(t.transformations[j]),
-                     vy)
-            vy .= tmp
+        for j in axes(y, 1)
+            @views vj1 = y[j, 1:nparams, i]  
+            @views vj2 = y[j, nparams + 1, i]  
+            tparam, dp = TransformVariables.transform_and_logjac(t, vj1)
+            @views vj1 .= tparam
+            y[j, nparams + 1, i] -= dp
         end          
     end
 end 
-
-# alias for InverseGamma distribution
-InverseGamma2 = InverseGamma
-
-struct corr
-    s1::Symbol
-    s2::Symbol
-    function corr(s1_arg, s2_arg)
-        s1 = s1_arg
-        s2 = s2_arg
-        new(s1, s2)
-    end 
-end 
-
-struct stdev
-    s::Symbol
-    function stdev(s_arg::Symbol)
-        s = s_arg
-        new(s)
-    end
-end
-
-struct variance
-    s::Symbol
-    function stdev(s_arg::Symbol)
-        s = s_arg
-        new(s)
-    end
-end
-
-"""
-     prior!(s::Symbol; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-     prior!(s::stdev; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-     prior!(s::variance; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-     prior!(s::corr; shape::{<:Distributions}, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-
-generates a prior for a symbol of a parameter, the standard deviation (`stdev`) or the variance (`variance`) of an exogenous variable or an endogenous variable (measurement error) or the correlation (`corr`) between 2 endogenous or exogenous variables
-
-# Keyword arguments
-- `shape <: Distributions`: the shape of the prior distribution (`Beta`, `InvertedGamma`, `InvertedGamma1`, `Gamma`, `Normal`, `Uniform`, `Weibull`) [required]
-- `context::Context=context`: context in which the prior is declared
-- `domain::Vector{<:Real}=Float64[]`: domain for a uniform distribution
-- `initialvalue::Union{Real,Missing}=missing`: initialvalue for mode finding or MCMC iterations
-- `mean::Union{Real,Missing}=missing`: mean of the prior distribution
-- `stdev::Union{Real,Missing}=missing`: stdev of the prior distribution
-- `variance::Union{Real,Missing}=missing`: variance of the prior distribution
-"""
-     prior!(s; 
-        shape, 
-        initialvalue::Union{Real,Missing}=missing, 
-        mean::Union{Real,Missing}=missing, 
-        stdev::Union{Real,Missing}=missing, 
-        domain=[], variance ::Union{Real,Missing}=missing, 
-        context::Context=context
-        )
-
-function prior!(s::Symbol; 
-    shape, initialvalue::Union{Real,Missing}=missing, 
-    mean::Union{Real,Missing}=missing, 
-    stdev::Union{Real,Missing}=missing, 
-    domain=[], variance ::Union{Real,Missing}=missing, 
-    context::Context=context
-    )
-    ep = context.work.estimated_parameters
-    symboltable = context.symboltable
-    name = string(s)
-    push!(ep.index, symboltable[name].orderintype)
-    push!(ep.name, name)
-    push!(ep.initialvalue, initialvalue)
-    push!(ep.parametertype, EstParameter)
-    prior_(s, shape, mean, stdev, domain, variance, ep)
-end
-    
-function prior!(s::stdev; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-    ep = context.work.estimated_parameters
-    symboltable = context.symboltable
-    name = string(s.s)
-    index = symboltable[name].orderintype
-    push!(ep.index, (index => index))
-    push!(ep.name, name)
-    push!(ep.initialvalue, initialvalue)
-    if symboltable[name].symboltype == Exogenous
-        push!(ep.parametertype, EstSDShock)
-    elseif symboltable[name].symboltype == Endogenous
-        push!(ep.parametertype, EstSDMeasurement)
-    else
-        error("Wrong symboltype")
-    end 
-    prior_(s, shape, mean, stdev, domain, variance, ep)
-end
-
-function prior!(s::variance; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-    ep = context.work.estimated_parameters
-    symboltable = context.symboltable
-    name = string(s.s)
-    index = symboltable[name].orderintype
-    push!(ep.index, (index => index))
-    push!(ep.name, name)
-    push!(ep.initialvalue, initialvalue)
-    if symboltable[name].symboltype == Exogenous
-        push!(ep.parametertype, EstVarShock)
-    elseif symboltable[name].symboltype == Endogenous
-        push!(ep.parametertype, EstVarMeasurement)
-    else
-        error("Wrong symboltype")
-    end 
-    prior_(s, shape, mean, stdev, domain, variance, ep)
-end
-
-function prior!(s::corr; shape, initialvalue::Union{Real,Missing}=missing, mean::Union{Real,Missing}=missing, stdev::Union{Real,Missing}=missing, domain=[], variance ::Union{Real,Missing}=missing, context::Context=context)
-    ep = context.work.estimated_parameters
-    symboltable = context.symboltable
-    name1 = string(s.s1)
-    name2 = string(s.s2)
-    index1 = symboltable[name1].orderintype
-    index2 = symboltable[name2].orderintype
-    push!(ep.index, (index1 =>index2))
-    push!(ep.name, (name1 => name2))
-    push!(ep.initialvalue, initialvalue)
-    if symboltable[name1].symboltype == Exogenous
-        push!(ep.parametertype, EstCorrShock)
-    elseif symboltable[name1].symboltype == Endogenous
-        push!(ep.parametertype, EstCorrMeasurement)
-    else
-        error("Wrong symboltype")
-    end 
-    prior_(s, shape, mean, stdev, domain, variance, ep)
-end
-
-function prior_(s, shape, mean, stdev, domain, variance, ep)
-    if ismissing(variance) && !ismissing(stdev)
-        variance = stdev*stdev
-    end 
-    if shape == Beta
-        α, β = beta_specification(mean, variance)
-        push!(ep.prior, Beta(α, β))
-    elseif shape == Gamma
-        α, β = gamma_specification(mean, variance) 
-        push!(ep.prior, Gamma(α, β))
-    elseif shape == InverseGamma1
-        α, β = inverse_gamma_1_specification(mean, variance) 
-        push!(ep.prior, InverseGamma1(α, β))
-    elseif shape == InverseGamma2
-        α, β = inverse_gamma_2_specification(mean, variance)
-        push!(ep.prior, InverseGamma(α, β))
-    elseif shape == Normal
-        push!(ep.prior, Normal(mean, stdev))
-    elseif shape == Uniform
-        if isempty(domain)
-            a, b = uniform_specification(mean, variance)
-        else
-            a, b = domain
-        end 
-        push!(ep.prior, Uniform(a, b))
-    elseif shape == Weibull
-        α, β = weibull_specification(mean, stdev)
-        push!(ep.prior, Weibull(α, β))
-    else
-        error("Unknown prior shape")
-    end 
-end         
-
-function get_index_name(s::Symbol, symboltable::SymbolTable)
-    name = String(s)
-    index = symboltable[name].orderintype
-    return (index, name)
-end 
-
-"""
-    plot_priors(; context::Context = context, n_points::Int = 100)
-
-plots prior density
-
-# Keyword arguments
- - `context::Context = context`: context in which to take the date to be ploted
- - `n_points::Int = 100`: number of points used for a curve
-"""
-function plot_priors(; context::Context = context, n_points = 100)
-    ep = context.work.estimated_parameters
-    @assert length(ep.prior) > 0 "There is no defined prior"
-
-    path = "$(context.modfileinfo.modfilepath)/graphs/"
-    mkpath(path)
-    filename = "$(path)/Priors"
-    nprior = length(ep.prior)
-    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
-    ivars = collect(1:nr*nc)
-    for p = 1:nbplt
-        filename1 = "$(filename)_$(p).png"
-        p == nbplt && (ivars = ivars[1:nstar])
-        plot_panel_priors(
-            ep.prior,
-            ep.name,
-            ivars,
-            nr,
-            nc,
-            filename1
-        )
-        ivars .+= nr * nc
-    end
-end
-
-function plot_panel_priors(
-    prior,
-    ylabels,
-    ivars,
-    nr,
-    nc,
-    filename;
-    kwargs...
-    )
-    sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
-    for (i, j) in enumerate(ivars)
-        sp[i] = Plots.plot(prior[j], title = ylabels[j], labels = "Prior", kwargs...)
-    end
-    
-    pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Prior distributions")
-    graph_display(pl)
-    savefig(filename)
-end
-
-"""
-    plot_prior_posterior(chains; context::Context=context)
-
-plots priors posterios and mode if computed on the same plots
-
-# Keyword arguments
-- `context::Context=context`: context used to get the estimation results
-
-# Output
-- the plots are saved in `./<modfilename>/Graphs/PriorPosterior_<x>.png`
-"""
-function plot_prior_posterior(chains; context::Context=context)
-    ep = context.work.estimated_parameters
-    mode = context.results.model_results[1].estimation.posterior_mode
-    @assert length(ep.prior) > 0 "There is no defined prior"
-    @assert length(chains) > 0 "There is no MCMC chain"
-
-    path = "$(context.modfileinfo.modfilepath)/graphs/"
-    mkpath(path)
-    filename = "$(path)/PriorPosterior"
-    nprior = length(ep.prior)
-    (nbplt, nr, nc, lr, lc, nstar) = pltorg(nprior)
-    ivars = collect(1:nr*nc)
-    for p = 1:nbplt-1
-        filename1 = "$(filename)_$(p).png"
-        plot_panel_prior_posterior(
-            ep.prior,
-            chains,
-            mode,
-            ep.name,
-            ivars,
-            nr,
-            nc,
-            filename1
-        )
-        ivars .+= nr * nc
-    end
-    ivars = ivars[1:nstar]
-    filename = "$(filename)_$(nbplt).png"
-    plot_panel_prior_posterior(
-        ep.prior,
-        chains,
-        mode,
-        ep.name,
-        ivars,
-        lr,
-        lc,
-        filename
-    )
-end
-
-function plot_panel_prior_posterior(
-    prior,
-    chains,
-    mode,
-    ylabels,
-    ivars,
-    nr,
-    nc,
-    filename;
-    kwargs...
-)
-sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:nr*nc]
-for (i, j) in enumerate(ivars)
-    posterior_density = kde(vec(get(chains, Symbol(ylabels[j]))[1].data))
-    
-    sp[i] = Plots.plot(prior[j], title = ylabels[j], labels = "Prior", kwargs...)
-    plot!(posterior_density, labels = "Posterior")
-end
-
-pl = Plots.plot(sp..., layout = (nr, nc), size = (900, 900), plot_title = "Prior and posterior distributions")
-graph_display(pl)
-savefig(filename)
-end
 
 function log_result(result)
     io = IOBuffer()
