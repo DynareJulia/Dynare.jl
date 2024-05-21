@@ -90,7 +90,7 @@ function make_f_J(context, scenario, periods, infoperiod)
     return f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1
 end
 
-context = @dynare "models/example1pf/example1pf_conditional"
+context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
 
 @testset verbose = true "Scenario" begin
     @testset "shocks!" begin
@@ -303,7 +303,7 @@ context = @dynare "models/example1pf/example1pf_conditional"
     end
 
     @testset "example1pf_conditional" begin
-        context = @dynare "models/example1pf/example1pf_conditional"
+        context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         
         e = AxisArrayTables.data(simulation(:e))
         u = AxisArrayTables.data(simulation(:u))
