@@ -66,36 +66,30 @@ function calibsmoother!(; context=context,
     model = context.models[1]
     results = context.results.model_results[1]
     lre_results = results.linearrationalexpectations
-    #=
-    Yorig = get_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
-    periods = row_labels(Yorig)
-    Y = transpose(Yorig)
-    steadystate = results.trends.endogenous_steady_state
-    if has_trends
-        remove_linear_trend!(
-            Y,
-            steadystate[varobs_ids],
-            results.trends.endogenous_linear_trend[varobs_ids],
-        )
-    else
-        Y .-= steadystate[varobs_ids]
-    end
-    =#
-    data = get_detrended_data(context, datafile, data, varobs, first_obs, last_obs, nobs)
-    periods = row_labels(data)
+    observations  = get_transposed_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
+    Y = deepcopy(observations)
+    detrend_data!(
+        Y,
+        context,
+        context.work.observed_variables,
+        dim = 1
+    )
+
+    periods = row_labels(context.work.data)
     statevar_ids = model.i_bkwrd_b
     kalman_statevar_ids = collect(1:model.endogenous_nbr)
     ns = length(kalman_statevar_ids)
     np = model.exogenous_nbr
-    nobs, ny = size(data)
+    ny, nobs = size(Y)
     c = zeros(ny)
     k1 = findall(in(varobs_ids), kalman_statevar_ids)
     k2 = findall(in(statevar_ids), kalman_statevar_ids)
+   
     Z = zeros(ny, ns)
-    Y = zeros(Union{Missing, Float64}, nobs, ny)
+#    Y = zeros(Union{Missing, Float64}, nobs, ny)
     endo_names = get_endogenous(context.symboltable)
     for i = 1:ny
-        Y[:, i] .= Matrix(data[Symbol(varobs[i])])
+        #        Y[:, i] .= Matrix(data[Symbol(varobs[i])])
         Z[i, varobs_ids[i]] = 1.0
     end
     H = zeros(ny, ny)
@@ -135,15 +129,13 @@ function calibsmoother!(; context=context,
     last = nobs
     presample = 0
     data_pattern = Vector{Vector{Int64}}(undef, 0)
-    Yt = copy(adjoint(Y))
     for i = 1:nobs
-        push!(data_pattern, findall(.!ismissing.(Yt[:, i])))
+        push!(data_pattern, findall(.!ismissing.(Y[:, i])))
     end
-
     if count(lre_results.stationary_variables) == model.endogenous_nbr
         kws = KalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         kalman_smoother!(
-            Yt,
+            Y,
             c,
             Z,
             H,
@@ -174,7 +166,8 @@ function calibsmoother!(; context=context,
                 schur_ws,
                 'V',
                 T,
-                select = (wr, wi) -> wr * wr + wi * wi > 1 - 1e-6,
+                select = FastLapackInterface.ed,
+                criterium = 1 - 1e-6,
             )...,
         )
         td = transpose(F.Z) * d
@@ -201,7 +194,7 @@ function calibsmoother!(; context=context,
         Pinftt = zeros(ns, ns, nobs + 1)
         kws = DiffuseKalmanSmootherWs{Float64,Int64}(ny, ns, model.exogenous_nbr, nobs)
         diffuse_kalman_smoother!(
-            Yt,
+            Y,
             c,
             tZ,
             H,
