@@ -39,9 +39,9 @@ irfs_e_y = irf(:e, :y)
 context = @dynare "models/example1pf/example1pf" "stoponerror"
 sim = Dynare.simulation()
 @test length(sim) == 1
-@test size(sim[1].data) == (1002, 8)
+@test size(sim[1].data) == (102, 8)
 @test Dynare.AxisArrayTables.AxisArrays.axes(getfield(sim[1].data, :data), 1).val ==
-      range(Dynare.Undated(0), stop = Dynare.Undated(1001), step = Dynare.Undated(1))
+      range(Dynare.Undated(0), stop = Dynare.Undated(101), step = Dynare.Undated(1))
 sim_a = Dynare.simulation(:a)
 @test sim_a ==
       context.results.model_results[1].simulations[1].data.a[2:end-1]
@@ -49,7 +49,7 @@ sim_a = Dynare.simulation("a")
 @test sim_a ==
       context.results.model_results[1].simulations[1].data.a[2:end-1]
 trends = context.results.model_results[1].trends
-@test Dynare.simulation(1)[1000, :] ≈ transpose(vcat(trends.endogenous_steady_state, trends.exogenous_steady_state))
+@test Dynare.simulation(1, lastperiod=101)[101, :] ≈ transpose(vcat(trends.endogenous_steady_state, trends.exogenous_steady_state))
 
 context = @dynare "models/example1pf/example1pf_endval" "stoponerror"
 @test Dynare.simulation(1)[300, 1:6] ≈ transpose(context.results.model_results[1].trends.endogenous_terminal_steady_state)
