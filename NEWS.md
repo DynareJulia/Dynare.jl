@@ -1,3 +1,7 @@
+0.9.12
+======
+- fix estimation code
+
 0.9.11
 ======
 - fix observed variables order in Kalman smoother
