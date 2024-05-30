@@ -205,8 +205,8 @@ function modelprintout(
     linenumber = 1
     model_mode = false
     symbols = keys(symboltable)
-    open(modname * ".mod") do io
-        for token in tokenize(io)
+    for line in readlines(modname * ".mod")
+        for token in tokenize(line)
             stringtoken = Tokens.untokenize(token)
             kind = Tokens.kind(token)
             if kind == Tokens.IDENTIFIER
@@ -255,7 +255,7 @@ function modelprintout(
                 push!(elements, stringtoken)
             end
         end
-        print(out, "\\end{lstlisting}\n")
-        return String(take!(out))
     end
+    print(out, "\\end{lstlisting}\n")
+    return String(take!(out))
 end
