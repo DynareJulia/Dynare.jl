@@ -96,4 +96,4 @@ end;
 
 varobs YGR INFL INT;
 
-estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.15);
+estimation(datafile='dsge1_data.csv', mh_replic=100000, mh_jscale=0.15, mh_nblocks=2);

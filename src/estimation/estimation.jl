@@ -108,7 +108,8 @@ function estimation!(context, field::Dict{String, Any})
     if options.mcmc_replic > 0
         chain = mh_estimation(context, observations, varobs, mode, 
                               covariance = options.mcmc_jscale*mode_covariance,
-                              mcmc_replic = options.mcmc_replic)
+                              mcmc_replic = options.mcmc_replic,
+                              mcmc_chains = options.mcmc_chains)
         output_MCMCChains(context, chain, options.display, options.display)
         options.display && plot_prior_posterior(chain)
     end 
