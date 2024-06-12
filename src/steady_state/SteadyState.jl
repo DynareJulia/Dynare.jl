@@ -259,6 +259,7 @@ function steadystate_display(steady_state::AbstractVector{<:Real},
     else
         title = "$title_complement steady state"
     end
+    println(" ")
     dynare_table(data, title, columnheader = false)
 end
 
@@ -296,7 +297,6 @@ function solve_steady_state!(context::Context,
                              maxit = 50,
                              nonlinear_solve_algo = TrustRegion(),
                              tolf = cbrt(eps()))
-    @show "OK1"
     try
             return solve_steady_state_!(context, x0, exogenous; maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
         catch e
@@ -324,6 +324,8 @@ using LinearSolve
                          x0::Vector{Float64},
                          exogenous::AbstractVector{<:Real};
                          maxit = 50,
+                         nonlinear_solve_algo = TrustRegion(),
+                         show_trace = false,
                          tolf = cbrt(eps()))
 
 Solve the static model to obtain the steady state
@@ -333,8 +335,8 @@ function solve_steady_state_!(context::Context,
                               exogenous::AbstractVector{<:Real};
                               maxit = 50,
                               nonlinear_solve_algo = TrustRegion(),
+                              show_trace = false,
                               tolf = cbrt(eps()))
-    @show "OK2"
     ws = StaticWs(context)
     model = context.models[1]
     work = context.work
@@ -353,23 +355,17 @@ function solve_steady_state_!(context::Context,
 
     results = context.results.model_results[1]
     j!(A, x0, params)
-    display(Matrix(A))
     lp = LinearProblem(A, residuals)
     dy1 = LinearSolve.solve(lp)
     dy2 = LinearSolve.solve(lp, PardisoJL())
-    @show norm(dy1-dy2)
 
     # of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
     # result = nlsolve(of, x0; method = :robust_trust_region, show_trace = false, ftol = tolf, iterations = maxit)
     fj = NonlinearFunction(f!, jac = j!, jac_prototype = A)
-    @show x0
     prob = NonlinearProblem(fj, x0, params)
     
-    result = NonlinearSolve.solve(prob, nonlinear_solve_algo, show_trace=Val(true), abstol = tolf)
-#    result = NonlinearSolve.solve(prob, show_trace=Val(true), abstol = tolf)
-
+    result = NonlinearSolve.solve(prob, nonlinear_solve_algo, show_trace=Val(show_trace), abstol = tolf)
     @debug result
-    @show result.retcode
     if result.retcode == ReturnCode.Success
         return result.u
     else
