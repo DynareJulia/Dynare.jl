@@ -108,12 +108,7 @@ function steadystate!(; context::Context=context,
                       linear_solve_algo = nothing,
                       method = TrustRegion(),
                       nocheck = false,
-<<<<<<< HEAD
-                      nonlinear_solve_algo = "NonlinearSolve",
-                      show_trace = false,
-=======
                       nonlinear_solve_algo = TrustRegion(),
->>>>>>> e4c256f (replace Dynare version of NLsovle with NonlinearSolve)
                       tolf = cbrt(eps()),
                       tolx = cbrt(eps())
                       )
@@ -137,11 +132,7 @@ function steadystate!(; context::Context=context,
                      model.exogenous_nbr)
     end
     if homotopy_steps == 0
-<<<<<<< HEAD
         compute_steady_state!(context, maxit = maxit, nocheck = nocheck, linear_solve_algo = linear_solve_algo, method = method, nonlinear_solve_algo = nonlinear_solve_algo, show_trace = show_trace, tolf = tolf, tolx = tolx)
-=======
-        compute_steady_state!(context, maxit = maxit, nocheck = nocheck, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
->>>>>>> e4c256f (replace Dynare version of NLsovle with NonlinearSolve)
     else
         homotopy_steady!(context, homotopy_mode, homotopy_steps, maxit = maxit, nonlinear_solve_algo, tolf = tolf)
     end
