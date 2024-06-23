@@ -128,7 +128,15 @@ function get_transposed_data!(context::Context,
     else
         error("needs datafile or data argument")
     end
-    return transpose(Matrix(context.work.data))
+    m, n = size(context.work.data)
+    transposeddatamatrix = Matrix{Union{Float64, Missing}}(undef, n, m)
+    for i = 1:n
+        c = findfirst(x -> x == Symbol(variables[i]), column_labels(context.work.data))
+        for j = 1:m
+            transposeddatamatrix[i, j] = context.work.data[j, c]
+        end
+    end
+    return transposeddatamatrix
 end 
 
 function get_detrended_data(context::Context,
@@ -169,13 +177,13 @@ function detrend_data!(dtdata, context::Context,
     linear_trend = []
     quadratic_trend = []
     if !isempty(trends.endogenous_steady_state)
-        steady_state = Vector(AxisArrays.AxisArray(trends.endogenous_steady_state, endogenous_names)[variables])
+        steady_state = AxisArrays.AxisArray(trends.endogenous_steady_state, endogenous_names)[variables]
     end
     if !isempty(trends.endogenous_linear_trend)
-        linear_trend = Vector(AxisArrays.AxisArray(trends.endogenous_linear_trend, endogenous_names)[variables])
+        linear_trend = AxisArrays.AxisArray(trends.endogenous_linear_trend, endogenous_names)[variables]
     end
     if !isempty(trends.endogenous_quadratic_trend)
-        quadratic_trend = Vector(AxisArrays.AxisArray(trends.endogenous_quadratic_trend, endogenous_names)[variables])
+        quadratic_trend = AxisArrays.AxisArray(trends.endogenous_quadratic_trend, endogenous_names)[variables]
     end
     if context.modfileinfo.has_trends
         if !isempty(quadratic_trend)
@@ -183,17 +191,17 @@ function detrend_data!(dtdata, context::Context,
                                     steady_state, 
                                     linear_trend, 
                                     quadratic_trend,
-                                    dim
+                                    variables
                                     )
         else
             remove_linear_trend!(dtdata, 
                                  steady_state, 
                                  linear_trend,
-                                 dim
+                                 variables
                                  )
         end
     else
-        remove_steady_state!(dtdata, steady_state, dim)
+        remove_steadystate!(dtdata, steady_state, variables)
     end
 
     return dtdata
@@ -319,4 +327,37 @@ function is_continuous(periods::Vector{ExtendedDates.DatePeriod})
             i += 1
         end
     end
+end
+
+function remove_quadratic_trend!(data::Matrix, steadystate::AxisArrays.AxisArray, linear_trend::AxisArrays.AxisArray, quadratic_trend::AxisArrays.AxisArray, variables)
+    for (c, v) in enumerate(variables)
+        ss = steadystate[v]
+        lt = linear_trend[v]
+        sqt = quadratic_trend[v]
+        for t in axes(data, 2)
+            data[c, t] -= ss + lt*t + qt*t^2
+        end
+    end
+    return data
+end
+
+function remove_linear_trend!(data::Matrix, steadystate::AxisArrays.AxisArray, linear_trend::AxisArrays.AxisArray, variables)
+    for (c, v) in enumerate(variables)
+        ss = steadystate[v]
+        lt = linear_trend[v]
+        for t = 1:axes(data, 2)
+            data[c, t] -= ss + lt*t
+        end
+    end
+    return data
+end
+
+function remove_steadystate!(data::Matrix, steadystate::AxisArrays.AxisArray, variables)
+    for (c, v) in enumerate(variables)
+        ss = steadystate[v]
+        for t in axes(data, 2)
+            data[c, t] -= ss
+        end
+    end
+    return data
 end
