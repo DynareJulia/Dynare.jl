@@ -390,7 +390,7 @@ struct SSWs{D<:AbstractFloat,I<:Integer}
         ns = length(state_ids)
         ny = length(varobs)
         nobs = size(observations, 2)
-        Y = observations
+        Y = similar(observations)
         Z = zeros(D, (ny, ns))
         H = zeros(D, (ny, ny))
         T = zeros(D, (ns, ns))
@@ -630,7 +630,6 @@ function loglikelihood(
         context.work.observed_variables,
         dim = 1
     )
-    ssws.Y
     ns = length(ssws.state_ids)
     np = model.exogenous_nbr
     ny, nobs = size(ssws.Y)
