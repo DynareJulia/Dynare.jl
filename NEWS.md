@@ -1,3 +1,9 @@
+0.9.13
+======
+- fix bug when varobs aren't in same order as var
+- observations must be kept constant: use new matrix instead of alias
+- weaker MUMPS compat
+
 0.9.12
 ======
 - fix estimation code
