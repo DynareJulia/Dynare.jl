@@ -485,7 +485,6 @@ function get_state_variables(predetermined_variables,
 end
 
 function make_block_functions(context)
-    @show "OK"
     model = context.models[1]
     endogenous_nbr = model.endogenous_nbr
     U = get_incidence_bitmatrix_current_forward(context)
@@ -548,12 +547,18 @@ function make_block_functions(context)
     forward_jacobian, forward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
                                       forward_expressions_eqs)
-    forward_block = ForwardBlock(forward_expressions_eqs, predetermined_variables .- endogenous_nbr, forward_expressions, forward_jacobian)
+    forward_block = ForwardBlock(forward_expressions_eqs,
+                                 predetermined_variables .- endogenous_nbr,
+                                 forward_expressions,
+                                 forward_jacobian)
                                       
     backward_jacobian, backward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
                                       backward_expressions_eqs)
-    backward_block = BackwardBlock(preamble_eqs, predetermined_variables .- endogenous_nbr, backward_expressions, backward_jacobian)
+    backward_block = BackwardBlock(preamble_eqs,
+                                   predetermined_variables .- endogenous_nbr,
+                                   backward_expressions,
+                                   backward_jacobian)
     
     ws = DynamicWs(context)
     T = ws.temporary_values
@@ -569,7 +574,6 @@ function make_block_functions(context)
     
     backward_evaluate_jacobian = make_evaluate_block_jacobian(backward_jacobian_expressions, T, x, params, steady_state)
     backward_evaluate_jacobian(backward_jacobian, repeat(steady_state, 3))
-    @show "OK1"
     return (states, predetermined_variables, system_variables,
             forward_equations_nbr, backward_equations_nbr,
             forward_expressions_eqs, backward_expressions_eqs, preamble_block)

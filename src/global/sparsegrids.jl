@@ -96,7 +96,6 @@ function sparsegridapproximation(; context::Context=context,
     (state_variables, predetermined_variables, system_variables,
      forward_equations_nbr, other_equations_nbr,
      forward_expressions_eqs, other_expressions_eqs, preamble_block) = make_block_functions(context)
-    @show "OK2"
     lb = Vector{Float64}(undef, 0)
     ub = Vector{Float64}(undef, 0)
     bmcps = Vector{Vector{Int}}(undef, 0)
@@ -448,8 +447,6 @@ end
 function sysOfEqs(policy, T, y, exogenous, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps, preamble_block)
     @views begin
         y[state_variables] .= state
-        @show size(policy)
-        @show length(system_variables)
         y[system_variables] .= policy 
     end 
     res = zeros(length(policy))
@@ -537,10 +534,6 @@ function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, para
     function JA2!(J, x, p)
         JA1!(J, x)
     end
-    @show X0[:,1]
-    @show f(X0[:, 1])
-    JA1!(J, X0[:, 1])
-    @show J
     
     if isnothing(solver)
         solver = mcp ? NLsolver : NonlinearSolver 
@@ -585,7 +578,7 @@ function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, para
 =#
 
     # Add the new function values to grid1
-    Tasmanian.loadNeededPoints!(grid, polInt)
+    Tasmanian.loadNeededPoints!(grid, Y)
 
     return grid
 end
@@ -988,15 +981,11 @@ end
 function NonLinearSolver_solve!(Y, f, JA, J, X0, states, state, x0, params, method, ftol, show_trace )
     nlf = NonlinearFunction(f, jac = JA, jac_prototype=J)
 
-    @show axes(states, 2)
-    @show size(x0)
     for i in axes(states, 2)
-        @show i
         @views begin 
             state .= states[:, i]
             x0 .= X0[:, i]
         end
-        @show size(x0)
         nlp = NonlinearProblem(nlf, x0, params)
         res = NonlinearSolve.solve(nlp, method, show_trace = Val(show_trace))
         @views Y[:, i] .= res.u
