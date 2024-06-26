@@ -231,7 +231,6 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         periods = 100
         m = context.models[1]
         FI = Dynare.FlipInformation(context, periods, 1)
-        @show context.work.scenario[1]
         f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1 = make_f_J(context, context.work.scenario, periods, 1)
 
         Dynare.set_future_information!(guess_values, exogenous, context, periods, 1)
