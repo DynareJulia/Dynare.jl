@@ -1,3 +1,7 @@
+0.9.14
+======
+- remove dependency on MUMPS to fix installation problem on Windows
+
 0.9.13
 ======
 - fix bug when varobs aren't in same order as var
