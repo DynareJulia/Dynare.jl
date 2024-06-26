@@ -1,12 +1,13 @@
 include("makeA.jl")
 
 @enum PerfectForesightAlgo trustregionA
-@enum LinearSolveAlgo ilu pardiso mumps
+#@enum LinearSolveAlgo ilu pardiso mumps
+@enum LinearSolveAlgo ilu pardiso
 @enum InitializationAlgo initvalfile steadystate firstorder linearinterpolation
 
 abstract type LinearSolver end
 struct IluLS <: LinearSolver end
-struct MumpsLS <: LinearSolver end
+#struct MumpsLS <: LinearSolver end
 struct PardisoLS <: LinearSolver end
     
 function linear_solver!(::IluLS,
@@ -16,6 +17,7 @@ function linear_solver!(::IluLS,
     x .= A\b
 end
 
+#=
 using MUMPS, MPI
 function linear_solver!(::MumpsLS,
                         x::AbstractVector{Float64},
@@ -24,6 +26,7 @@ function linear_solver!(::MumpsLS,
     x = MUMPS.solve(A, b)
     return x
 end
+=#
 
 abstract type NonLinearSolver end
 struct PathNLS <: NonLinearSolver end
@@ -307,7 +310,6 @@ function check_scenario(scenario)
                     error("A shock must be explicitly confirmed or modified in all relevant subsequent infoperiods")
                 else
                     for v in p1
-                        @show collect(keys(scenario[k2][p1]))
                         if !(v in keys(scenario[k2][p1]))
                             error("A shock must be explicitly confirmed or modified in all relevant subsequent infoperiods")
 
@@ -638,15 +640,17 @@ function perfectforesight_core!(
         end
         ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
         res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
-    elseif linear_solve_algo == mumps
+        #=
+        elseif linear_solve_algo == mumps
         @show "MUMPS"
         #=
         if isnothing(Base.get_extension(Dynare, :PardisoSolver))
-            error("You must load Pardiso with 'using MKL, Pardiso'")
+        error("You must load Pardiso with 'using MKL, Pardiso'")
         en=#
         MPI.Init()
         ls!(x, A, b) = linear_solver!(MumpsLS(), x, A, b)
         res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls!)
+        =#
     else
         ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
         res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
@@ -995,7 +999,6 @@ function recursive_perfect_foresight!(context::Context, options::PerfectForesigh
                 simulation = data
             end
         end
-        @show size(simulation)
         push!(
             context.results.model_results[1].simulations,
             Simulation(
