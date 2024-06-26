@@ -26,8 +26,17 @@ end
 
 abstract type AbstractBlock end
 abstract type AbstractPreambleBlock <: AbstractBlock end
+abstract type AbstractAssignmentBlock <: AbstractPreambleBlock end
 
-struct AssignmentBlock_1 <: AbstractPreambleBlock
+struct LinearAssignmentBlock_1 <: AbstractAssignmentBlock
+    equations::Vector{Int}
+    variables::Vector{Int}
+    expressions::Vector{Expr}
+    jacobian::SparseMatrixCSC{Float64, Int}
+    set_endogenous_variables!::Function
+end
+
+struct NonlinearAssignmentBlock_1 <: AbstractAssignmentBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
@@ -55,7 +64,8 @@ struct BackwardBlock_1 <: AbstractBlock
     jacobian::SparseMatrixCSC{Float64, Int}
 end
 
-AssignmentBlock = AssignmentBlock_1
+LinearAssignmentBlock = LinearAssignmentBlock_1
+NonlinearAssignmentBlock = NonlinearAssignmentBlock_1
 PreambleBlock = PreambleBlock_1
 ForwardBlock = ForwardBlock_1
 BackwardBlock = BackwardBlock_1
@@ -131,13 +141,20 @@ function find_inbounds(f::F) where F <: Function
     return nothing
 end
 
+"""
+    is_block_normalized(b, matching, endogenous_nbr, eq_offset)
+
+test whether for all block equations there is a single endogenous variables
+on the LHS corresponding to the matching
+and that variables doesn't appear on the RHS
+"""
 function is_block_normalized(b, matching, endogenous_nbr, eq_offset)
     f = DFunctions.SparseDynamicResid!
     for eq_no in b
         eq = f.body.args[eq_offset].args[3].args[2*eq_no]
         k = endogenous_nbr + matching[eq_no]
-        e = Expr(:ref, :y, k) 
-        is_normalized =  eq.args[2].args[2].args[2] == k && !contains(eq.args[2].args[3], e)
+        e = Expr(:ref, :y, k)
+        is_normalized =  eq.args[2].args[2] == e && !contains(eq.args[2].args[3], e)
         !is_normalized && return false
     end
     return true
@@ -152,8 +169,13 @@ function is_block_forward_looking(b, equation_xref_table, endogenous_nbr)
     return true
 end
 
+"""
+    is_block_linear(b, context)
+checks that block b doesn't have nonzero second order derivatives
+"""
 function is_block_linear(b, context)
     index = context.models[1].dynamic_g2_sparse_indices
+    # maximum equation number in block b
     imax = maximum(b)
     for i in index
         i[1] in b && return false
@@ -337,7 +359,7 @@ function make_residual_jacobian(colptr::AbstractVector{I},
     kc = 1
     for (i, r) in enumerate(rowval)
         row_small = findfirst(r .== rows)
-        # in assignment block ignore derivative of assigned variable
+        # in block ignore derivative of assigned variable
         while i == colptr[kc + 1]
             kc += 1
             scolptr[kc] = oldptr
@@ -463,11 +485,11 @@ function get_state_variables(predetermined_variables,
 end
 
 function make_block_functions(context)
+    @show "OK"
     model = context.models[1]
     endogenous_nbr = model.endogenous_nbr
     U = get_incidence_bitmatrix_current_forward(context)
     matching = get_maximum_cardinality_matching(context, U)
-    
     rb = get_recursive_blocks(context, matching, U)
     
     f = DFunctions.SparseDynamicResid!
@@ -508,8 +530,21 @@ function make_block_functions(context)
                                         endogenous_nbr)
     
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
-    preamble_block = AssignmentBlock_1(preamble_eqs, predetermined_variables .- endogenous_nbr, preamble_expressions, preamble_jacobian)
 
+    if is_block_linear(preamble_eqs, context)
+        preamble_block = LinearAssignmentBlock_1(preamble_eqs,
+                                                 predetermined_variables .- endogenous_nbr,
+                                                 preamble_expressions,
+                                                 preamble_jacobian,
+                                                 make_assignment_function(:set_endogenous_variables!, preamble_expressions),
+                                                 )
+    else
+        preamble_block = NonlinearAssignmentBlock_1(preamble_eqs,
+                                                    predetermined_variables .- endogenous_nbr,
+                                                    preamble_expressions,
+                                                    preamble_jacobian)
+    end
+    
     forward_jacobian, forward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
                                       forward_expressions_eqs)
@@ -534,11 +569,10 @@ function make_block_functions(context)
     
     backward_evaluate_jacobian = make_evaluate_block_jacobian(backward_jacobian_expressions, T, x, params, steady_state)
     backward_evaluate_jacobian(backward_jacobian, repeat(steady_state, 3))
-    
- #   error()
+    @show "OK1"
     return (states, predetermined_variables, system_variables,
-            forward_equations_nbr, backward_equations_nbr, preamble_eqs,
-            forward_expressions_eqs, backward_expressions_eqs)
+            forward_equations_nbr, backward_equations_nbr,
+            forward_expressions_eqs, backward_expressions_eqs, preamble_block)
 end
 
 function forward_block!(T, residuals, y, x, params, steadystate)
@@ -600,7 +634,8 @@ function xref_lists(context)
     return(equation_xref_list, variable_xref_list)
 end
 
-
+set_endogenous_variables!(block::AbstractAssignmentBlock, y, x, params, steadystate) = make_assignment_function(:get_solution, block.expressions)
+get_jacobian(block::LinearAssignmentBlock, y, x, params, steadystate) = block.jacobian    
     
     
 #end #module Blocks
