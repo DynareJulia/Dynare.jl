@@ -36,39 +36,47 @@ struct LinearAssignmentBlock_1 <: AbstractAssignmentBlock
     set_endogenous_variables!::Function
 end
 
-struct NonlinearAssignmentBlock_1 <: AbstractAssignmentBlock
+struct NonlinearAssignmentBlock_2 <: AbstractAssignmentBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
     jacobian::SparseMatrixCSC{Float64, Int}
+    set_endogenous_variables!::Function
+    update_jacobian::Function
 end
 
-struct PreambleBlock_1 <: AbstractPreambleBlock
+struct PreambleBlock_2 <: AbstractPreambleBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
     jacobian::SparseMatrixCSC{Float64, Int}
+    get_residuals!::Function
+    update_jacobian!::Function
 end
 
-struct ForwardBlock_1 <: AbstractBlock
+struct ForwardBlock_2 <: AbstractBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
     jacobian::SparseMatrixCSC{Float64, Int}
+    get_residuals!::Function
+    update_jacobian!::Function
 end
 
-struct BackwardBlock_1 <: AbstractBlock    
+struct BackwardBlock_2 <: AbstractBlock    
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
     jacobian::SparseMatrixCSC{Float64, Int}
+    get_residuals!::Function
+    update_jacobian!::Function
 end
 
 LinearAssignmentBlock = LinearAssignmentBlock_1
-NonlinearAssignmentBlock = NonlinearAssignmentBlock_1
-PreambleBlock = PreambleBlock_1
-ForwardBlock = ForwardBlock_1
-BackwardBlock = BackwardBlock_1
+NonlinearAssignmentBlock = NonlinearAssignmentBlock_2
+PreambleBlock = PreambleBlock_2
+ForwardBlock = ForwardBlock_2
+BackwardBlock = BackwardBlock_2
 
 
 function get_dynamic_incidence_matrix(context)
@@ -410,6 +418,20 @@ function make_system_function(fname, expressions)
     return @RuntimeGeneratedFunction(Expr(:function, f_call, f_body))
 end
 
+function make_residuals_function(fname, expressions)
+    f_call = Expr(:call,
+                  Symbol(fname),
+                  Expr(:(::), Symbol(:T), Vector{Float64}),
+                  Expr(:(::), Symbol(:residuals), Vector{Float64}),
+                  Expr(:(::), Symbol(:y), Vector{Float64}),
+                  Expr(:(::), Symbol(:x), Vector{Float64}),
+                  Expr(:(::), Symbol(:params), Vector{Float64}),
+                  Expr(:(::), Symbol(:steadystate), Vector{Float64})
+                  )
+    f_body = Expr(:block, expressions...)
+    return @RuntimeGeneratedFunction(Expr(:function, f_call, f_body))
+end
+
 function make_system_jacobian(fname, expressions)
     f_call = Expr(:call,
                   Symbol(fname),
@@ -541,7 +563,8 @@ function make_block_functions(context)
         preamble_block = NonlinearAssignmentBlock_1(preamble_eqs,
                                                     predetermined_variables .- endogenous_nbr,
                                                     preamble_expressions,
-                                                    preamble_jacobian)
+                                                    preamble_jacobian,
+                                                    )
     end
     
     forward_jacobian, forward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
@@ -550,7 +573,10 @@ function make_block_functions(context)
     forward_block = ForwardBlock(forward_expressions_eqs,
                                  predetermined_variables .- endogenous_nbr,
                                  forward_expressions,
-                                 forward_jacobian)
+                                 forward_jacobian,
+                                 make_residuals_function(:get_residuals!, forward_expressions),
+                                 make_evaluate_block_jacobian_(:update_jacobian!, forward_jacobian_expressions)
+                                 )
                                       
     backward_jacobian, backward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
@@ -558,7 +584,10 @@ function make_block_functions(context)
     backward_block = BackwardBlock(preamble_eqs,
                                    predetermined_variables .- endogenous_nbr,
                                    backward_expressions,
-                                   backward_jacobian)
+                                   backward_jacobian,
+                                   make_residuals_function(:get_residuals!, backward_expressions),
+                                   make_evaluate_block_jacobian_(:update_jacobian!, backward_jacobian_expressions)
+                                   )
     
     ws = DynamicWs(context)
     T = ws.temporary_values
@@ -576,7 +605,8 @@ function make_block_functions(context)
     backward_evaluate_jacobian(backward_jacobian, repeat(steady_state, 3))
     return (states, predetermined_variables, system_variables,
             forward_equations_nbr, backward_equations_nbr,
-            forward_expressions_eqs, backward_expressions_eqs, preamble_block)
+            forward_expressions_eqs, backward_expressions_eqs,
+            backward_block, forward_block, preamble_block)
 end
 
 function forward_block!(T, residuals, y, x, params, steadystate)

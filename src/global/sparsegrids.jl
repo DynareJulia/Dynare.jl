@@ -14,6 +14,15 @@ export sparsegridapproximation, simulate!
 
 @enum SGSolver NLsolver NonlinearSolver PATHSolver
 
+struct SGModel
+    dyn_endogenous::Vector{Float64} # dynamic endogenous variables in period t-1, t, t+1 
+    exogenous::Vector{Float64}      # exogenous variables in period t
+    endogenous_nbr::Int             # number of endogenous variables in period t
+    exogenous_nbr::Int              # number of exogenous variables
+    parameters::Vector{Float64}     # model parameters    
+    steadystate::Vector{Float64}    # steady state of the model
+end
+
 struct SGIndices
     forward_in_system::Vector{Int} # indices of forward looking variables in system variables
     state_in_system::Vector{Int}  # indices of variables that belong both to state and system variables
@@ -92,10 +101,12 @@ function sparsegridapproximation(; context::Context=context,
     endogenous_variables = Dynare.get_endogenous(context.symboltable)
     model = context.models[1]
     endogenous_nbr = model.endogenous_nbr
+    exogenous_nbr = model.exogenous_nbr
     work = context.work
     (state_variables, predetermined_variables, system_variables,
      forward_equations_nbr, other_equations_nbr,
-     forward_expressions_eqs, other_expressions_eqs, preamble_block) = make_block_functions(context)
+     forward_expressions_eqs, other_expressions_eqs,
+     backward_block, forward_block, preamble_block) = make_block_functions(context)
     lb = Vector{Float64}(undef, 0)
     ub = Vector{Float64}(undef, 0)
     bmcps = Vector{Vector{Int}}(undef, 0)
@@ -105,7 +116,16 @@ function sparsegridapproximation(; context::Context=context,
     block_mcp!(lb, ub, bmcps, context, block_eqs, system_variables)
     equation_xref_list, variable_xref_list = xref_lists(context)
     params = context.work.params
+    steadystate = context.results.model_results[1].trends.endogenous_steady_state
     nstates = length(state_variables)
+
+    sgmodel = SGModel(repeat(steadystate, 3),
+                      zeros(exogenous_nbr),
+                      endogenous_nbr,
+                      exogenous_nbr,
+                      params,
+                      steadystate
+                      )
 
     ids = SGIndices(
         endogenous_nbr,
@@ -144,18 +164,20 @@ function sparsegridapproximation(; context::Context=context,
     #                        Adaptivity parameters                                 #
     ################################################################################
 
+    #=
     endogenous = zeros(3*endogenous_nbr)
     exogenous_nbr = model.exogenous_nbr
     exogenous = zeros(exogenous_nbr)
     parameters = work.params
 
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
-
-    polGuess = guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, lb, ub)
+    =#
+    
+    polGuess = guess_policy(context, aNum, nPols, aPoints, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, lb, ub, sgmodel)
     
     loadNeededPoints!(grid0, polGuess)
 
-    params = context.work.params
+    # params = context.work.params
 
     (nodes, weights) = monomial_power(exogenous_nbr)
 
@@ -172,12 +194,12 @@ function sparsegridapproximation(; context::Context=context,
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
         while ((getNumNeeded(grid1) > 0) && (ilev <=  maxRefLevel))
-            grid1 = ti_step(grid1, polGuess1, pol, grid0, nPols, nodes, weights, exogenous, params, 
-                            steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, 
-                            state_variables, system_variables, endogenous, bmcps, dynamicws, model, 
+            grid1 = ti_step(grid1, polGuess1, pol, grid0, nPols, nodes, weights,
+                            forward_equations_nbr, state_variables, system_variables, bmcps, dynamicws, model, 
                             predetermined_variables, forward_system_variables,
-                            forward_expressions_eqs, other_expressions_eqs, ids, lb, ub, preamble_block,
-                            mcp, method, solver, ftol, show_trace)
+                            forward_expressions_eqs, other_expressions_eqs, ids, lb, ub,
+                            backward_block, forward_block, preamble_block,
+                            mcp, method, solver, ftol, show_trace, sgmodel)
             # We start the refinement process after a given number of iterations
             if (iter0 - 1 > iterRefStart)
                 grid1, polGuess1 = refine(grid1, gridOut, scaleCorr, surplThreshold, dimRef, typeRefinement)
@@ -295,16 +317,17 @@ end
 """
     given the state variables, find a solution that is constant in t and t+1 in absence of future shocks
 """
-function make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    endogenous[state_variables] .= state
+function make_guess_system(residuals, T, state, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
+    fill!(exogenous, 0.0)
+    dyn_endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
     function f(x)
-        endogenous[system_variables] .= x
-        endogenous[system_variables .+ endogenous_nbr] .= x
-        DFunctions.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
-        other_block_(T, res1, endogenous, exogenous, parameters, steadystate)
-        forward_block_(T, res2, endogenous, exogenous, parameters, steadystate)
+        dyn_endogenous[system_variables] .= x
+        dyn_endogenous[system_variables .+ endogenous_nbr] .= x
+        other_block_([], res1, dyn_endogenous, exogenous, parameters, steadystate)
+        forward_block_([], res2, dyn_endogenous, exogenous, parameters, steadystate)
         residuals[1:other_equations_nbr] .= res1
         residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
@@ -312,16 +335,17 @@ function make_guess_system(residuals, T, state, endogenous, exogenous, parameter
     return f
 end
 
-function make_guess_system1(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    endogenous[state_variables] .= state
+function make_guess_system1(residuals, T, state, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
+    dyn_endogenous[state_variables] .= state
     res1 = zeros(other_equations_nbr)
     res2 = zeros(forward_equations_nbr)
     function f(residuals, x, params)
-        endogenous[system_variables] .= x
-        endogenous[system_variables .+ endogenous_nbr] .= x
-        DFunctions.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
-        other_block_(T, res1, endogenous, exogenous, parameters, steadystate)
-        forward_block_(T, res2, endogenous, exogenous, parameters, steadystate)
+        dyn_endogenous[system_variables] .= x
+        dyn_endogenous[system_variables .+ endogenous_nbr] .= x
+        DFunctions.SparseDynamicResidTT!(T, dyn_endogenous, exogenous, parameters, steadystate)
+        other_block_(T, res1, dyn_endogenous, exogenous, parameters, steadystate)
+        forward_block_(T, res2, dyn_endogenous, exogenous, parameters, steadystate)
         residuals[1:other_equations_nbr] .= res1
         residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
         return residuals
@@ -329,70 +353,19 @@ function make_guess_system1(residuals, T, state, endogenous, exogenous, paramete
     return f
 end
 
-function make_guess_system2(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-    endogenous[state_variables] .= state
-    res1 = zeros(other_equations_nbr)
-    res2 = zeros(forward_equations_nbr)
-    function f(residuals, x)
-        endogenous[system_variables] .= x
-        endogenous[system_variables .+ endogenous_nbr] .= x
-        DFunctions.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
-        other_block_(T, res1, endogenous, exogenous, parameters, steadystate)
-        forward_block_(T, res2, endogenous, exogenous, parameters, steadystate)
-        residuals[1:other_equations_nbr] .= res1
-        residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
-        return residuals
-    end
-    function ff(residuals, x)
-        try
-            f(residuals, x)
-        catch
-            residuals = Inf*ones(length(residuals))
-        end
-    end 
-    return f
-end
-
-function make_guess_system(residuals, T, state, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, permutations)
-    endogenous[state_variables] .= state
-    res1 = zeros(other_equations_nbr)
-    res2 = zeros(forward_equations_nbr)
-    function f(x, params)
-        endogenous[system_variables] .= x
-        endogenous[system_variables .+ endogenous_nbr] .= x
-        DFunction.SparseDynamicResidTT!(T, endogenous, exogenous, parameters, steadystate)
-        other_block!(T, res1, endogenous, exogenous, parameters, steadystate)
-        forward_block!(T, res2, endogenous, exogenous, parameters, steadystate)
-        residuals[1:other_equations_nbr] .= res1
-        residuals[other_equations_nbr .+ (1:forward_equations_nbr)] .= res2
-        return residuals
-    end
-    return f
-end
-
-function guess_policy(context, aNum, nPols, aPoints, endogenous, exogenous, parameters, steadystate, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, endogenous_nbr, lb, ub)
+function guess_policy(context, aNum, nPols, aPoints, state_variables, system_variables, forward_equations_nbr, other_equations_nbr, lb, ub, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
     n =  length(system_variables)
     guess_values = zeros(n, aNum)
-    @views x0 = copy(steadystate[system_variables .- endogenous_nbr])
+    @views x0 = copy(sgmodel.steadystate[system_variables .- endogenous_nbr])
     residuals = similar(x0)
     ws = DynamicWs(context)
-    T = Vector{Dual{Float64}}(undef, length(ws.temporary_values))
-#    f1 = make_guess_system2(residuals, T, aPoints[:, 1], endogenous, exogenous, parameters,
-#                          steadystate, state_variables, system_variables,
-#                          forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-#    problem = NonlinearProblem(f1, x0, params)
+    T = []
     for i in axes(aPoints, 2)
         @views state = aPoints[:, i]
-        f1 = make_guess_system1(residuals, T, state, endogenous, exogenous, parameters,
-                              steadystate, state_variables, system_variables,
-                              forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-        f2 = make_guess_system2(residuals, T, state, endogenous, exogenous, parameters,
-                              steadystate, state_variables, system_variables,
-                              forward_equations_nbr, other_equations_nbr, endogenous_nbr)
-#        res = NLsolve.mcpsolve(f, lb, ub, x0, show_trace=true, autodiff=:central)
-#        !res.f_converged && throw(Error("sparsegrids: couldn't find the initial policy"))
-        #        @views guess_values[:, i] .= res.zero
-        problem = NonlinearProblem(f1, x0, params)
+        f1 = make_guess_system1(residuals, T, state, state_variables, system_variables,
+                              forward_equations_nbr, other_equations_nbr, sgmodel)
+        problem = NonlinearProblem(f1, x0, parameters)
         result = NonlinearSolve.solve(problem, NewtonRaphson(autodiff=AutoFiniteDiff()))
         if result.retcode == ReturnCode.Success
             @views guess_values[:, i] .= result.u
@@ -406,69 +379,71 @@ end
 """
     Evaluates residual of forward looking equations for each integration node
 """
-function forward_looking_equation_residuals(x, T, state, params, grid, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables, preamble_block)
+function forward_looking_equation_residuals(x, T, state, grid, nodes, state_variables, system_variables, backward_block, forward_block, preamble_block, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
     numNodes = size(nodes, 1)
-    residuals = zeros(numNodes, forward_equations_nbr)
-    y = zeros(numNodes, 3*endogenous_nbr)
+    residuals = zeros(length(forward_block.variables), numNodes)
+    y = zeros(length(dyn_endogenous), numNodes)
     evalPt = zeros(getNumDimensions(grid), numNodes)
     for i in 1:numNodes
-        @views y[i, state_variables] .= state
+        @views y[state_variables, i] .= state
         # 1) Determine t+1  variables using preamble
-        @views preamble_block.set_endogenous_variables!([], y[i, endogenous_nbr + 1: end], nodes[i,:], params, steadystate)
-        @views y[i, system_variables] .= x
+        @views preamble_block.set_endogenous_variables!([], y[endogenous_nbr + 1: end, i], nodes[i,:], parameters, steadystate)
+        @views y[system_variables, i] .= x
         # 2) Extract next period's state variables
-        @views evalPt[:, i] .= y[i, endogenous_nbr .+ state_variables]
+        @views evalPt[:, i] .= y[endogenous_nbr .+ state_variables, i]
     end
     # 3) Determine relevant variables within the expectations operator
     X = evaluateBatch(grid, evalPt)
-    
-    resid = zeros(forward_equations_nbr)
-    YY = []
+
+    fill!(exogenous, 0.0)
     for i in 1:numNodes
         # setting future variables
         @views begin
-            y[i, endogenous_nbr .+ system_variables] .= X[:, i]
-            forward_block!(T, resid, y[i, :], zeros(exogenous_nbr), params, steadystate)
-            residuals[i,:] .= resid
+            y[endogenous_nbr .+ system_variables, i] .= X[:, i]
+            forward_block.get_residuals!([], residuals[:, i], y[:, i], exogenous, parameters, steadystate)
         end
     end
     return residuals
 end
 
-function expectation_equations!(expected_residuals, x, T, state, params, grid0, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables, preamble_block)
+function expectation_equations!(expected_residuals, x, T, state, grid, nodes, weights, state_variables, system_variables, backward_block, forward_block, preamble_block, sgmodel)
     # get numNodes x numForwardEquations
-    Integrand = forward_looking_equation_residuals(x, T, state, params, grid0, nodes, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables, preamble_block)
+    Integrand = forward_looking_equation_residuals(x, T, state, grid, nodes, state_variables, system_variables, backward_block, forward_block, preamble_block, sgmodel)
     for i in axes(expected_residuals, 1)
-        @views expected_residuals[i] = dot(Integrand[:, i], weights)
+        @views expected_residuals[i] = dot(Integrand[i, :], weights)
     end
     return expected_residuals
 end
 
-function sysOfEqs(policy, T, y, exogenous, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps, preamble_block)
+function sysOfEqs(policy, T, state, grid, nPols, nodes, weights, state_variables, system_variables, bmcps, backward_block, forward_block, preamble_block, sgmodel)
+    @unpack dyn_endogenous, exogenous, parameters, steadystate = sgmodel
     @views begin
-        y[state_variables] .= state
-        y[system_variables] .= policy 
-    end 
+        dyn_endogenous[state_variables] .= state
+        dyn_endogenous[system_variables] .= policy 
+    end
+    nfwrd = length(forward_block.variables)
     res = zeros(length(policy))
-
     @views begin
-        expectation_equations!(res[1:forward_equations_nbr], policy, T, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables, preamble_block)
-        other_block!(T, res[forward_equations_nbr + 1:end], y, exogenous, params, steadystate)
+        expectation_equations!(res[1:nfwrd], policy, T, state, grid, nodes, weights, state_variables, system_variables, backward_block, forward_block, preamble_block, sgmodel)
+        backward_block.get_residuals!([], res[nfwrd + 1:end], dyn_endogenous, exogenous, parameters, steadystate)
     end
     reorder!(res, bmcps)
     return res
 end
 
 function sysOfEqs_derivatives_update!(J, Jexpected, Jother, policy, y, state, grid, nPols, nodes, weights, params, steadystate, forward_equations_nbr, endogenous_nbr, exogenous_nbr, state_variables, system_variables, bmcps)
+    @unpack dyn_endogenous, exogenous, parameters, steadystate = sgmodel
     @views begin
-        y[state_variables] .= state
-        y[system_variables] .= policy 
+        dyn_endogenous[state_variables] .= state
+        dyn_endogenous[system_variables] .= policy 
     end 
     res = zeros(length(policy))
 
+    fill!(exogenous, 0.0)
     @views begin
-        expectation_equations_derivatives!(Jexpected, policy, state, params, grid, nodes, weights, steadystate, forward_equations_nbr, state_variables, endogenous_nbr, exogenous_nbr, system_variables)
-        other_block_derivatives(Jother, y, zeros(exogenous_nbr), params, steadystate)
+        expectation_equations_derivatives!(Jexpected, policy, state, grid, nodes, weights, forward_equations_nbr, state_variables, system_variables)
+        other_block_derivatives(Jother, dyn_endogenous, exogenous, parameters, steadystate)
     end
     reorder!(res, bmcps)
     return res
@@ -492,11 +467,14 @@ end
 """
    Time iteration step
 """
-function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
-                 endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
+function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, forward_equations_nbr, 
+                 state_variables, system_variables, bmcps, dynamicws, model,
                  predetermined_variables, forward_system_variables,
-                 forward_expressions_eqs, other_expressions_eqs, ids, lb, ub, preamble_block, mcp, method, solver, ftol, show_trace)
+                 forward_expressions_eqs, other_expressions_eqs, ids, lb, ub,
+                 backward_block, forward_block, preamble_block,
+                 mcp, method, solver, ftol, show_trace, sgmodel)
 
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
     # Get the points that require function values
     states = Tasmanian.getNeededPoints(grid)
     # Get the number of points that require function values
@@ -505,7 +483,7 @@ function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, para
     n = length(system_variables)
     Y = zeros(n, nstates)
     # TODO: check the case with non-autocorrelated shocks
-    exogenous = zeros(exogenous_nbr)
+    fill!(exogenous, 0.0)
     T = dynamicws.temporary_values
     J = zeros(n, n)
     fx = zeros(n)
@@ -513,15 +491,14 @@ function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, para
     state = Vector{Float64}(undef, size(states, 1))
     x0 =  Vector{Float64}(undef, n)
     
-    f(x) = sysOfEqs(x, T, y, exogenous, state, gridZero, nPols, nodes, weights,
-                    params, steadystate, forward_equations_nbr, endogenous_nbr,
-                    exogenous_nbr, state_variables, system_variables, bmcps, preamble_block)
-    JA1!(J, x) = sysOfEqs_derivatives!(J, x, y, state, gridZero,
-                                  nPols, exogenous, nodes, weights, params, steadystate,
-                                  forward_equations_nbr, endogenous_nbr, exogenous_nbr,
-                                  state_variables, system_variables, bmcps, dynamicws, model, 
-                                  predetermined_variables, forward_system_variables,
-                                  forward_expressions_eqs, other_expressions_eqs, ids, preamble_block)                   
+    f(x) = sysOfEqs(x, T, state, gridZero, nPols, nodes, weights,
+                    state_variables, system_variables, bmcps,
+                    backward_block, forward_block, preamble_block, sgmodel)
+    JA1!(J, x) = sysOfEqs_derivatives!(J, x, state, gridZero, nPols, nodes, weights, forward_equations_nbr,
+                                       state_variables, system_variables, bmcps, dynamicws, model, 
+                                       predetermined_variables, forward_system_variables,
+                                       forward_expressions_eqs, other_expressions_eqs, ids, preamble_block,
+                                       sgmodel)                   
     
     function f1!(fx, x)
         fx .= f(x)
@@ -541,7 +518,7 @@ function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, para
     
     # Time Iteration step
     if solver == NonlinearSolver
-        NonLinearSolver_solve!(Y, f2!, JA2!, J, X0, states, state, x0, params, method, ftol, show_trace )
+        NonLinearSolver_solve!(Y, f2!, JA2!, J, X0, states, state, x0, parameters, method, ftol, show_trace )
     elseif solver == NLsolver
         df = OnceDifferentiable(f1!, JA1!, X0, fx, J)
         NLsolve_solve!(Y, df, X0, lb, ub, states, X0, ftol, show_trace)
@@ -550,32 +527,6 @@ function ti_step(grid, X0, pol, gridZero, nPols, nodes, weights, exogenous, para
     else
         error("Sparsegrids: unknown solver")
     end
-    #=            
-#            mcp_sg_core!(PathNLS(), polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
-            mcp_sg_core!(polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
-                      endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
-                      predetermined_variables, forward_system_variables,
-                      forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, J, lb, ub, preamble_block)
-        else
-            f2!(x) = sysOfEqs(x, T,y, exogenous, state, gridZero, nPols, nodes,
-                             weights, params, steadystate, forward_equations_nbr,
-                             endogenous_nbr, exogenous_nbr, state_variables,
-                             system_variables, bmcps, preamble_block)
-#=
-            JA2!(x) = sysOfEqs_derivatives!(J, x, y, exogenous, state, gridZero, nPols,
-                                            nodes, weights, params, steadystate,
-                                            forward_equations_nbr, endogenous_nbr, exogenous_nbr,
-                                            state_variables, system_variables, bmcps, dynamicws,
-                                            predetermined_variables, forward_expressions_eqs, other_expressions_eqs)
-=#        
-            for ii1 in 1:aNumAdd
-                @views state = aPoints1[:, ii1]
-                @views pol = pol_guess[:, ii1]
-                res = Dynare.nlsolve(f2!, pol, method = :trust_region, show_trace = false)
-                polInt[:, ii1] .= res.zero
-            end
-        end
-=#
 
     # Add the new function values to grid1
     Tasmanian.loadNeededPoints!(grid, Y)
@@ -751,19 +702,20 @@ function block_mcp!(lb, ub, bmcps, context, block_eqs, block_vars)
     end
 end
 
-function forward_looking_equation_derivatives!(J, y, x, exogenous, state, params, dynamicws, grid, nodes, weight, steadystate, 
-                                               model, forward_equations_nbr, state_variables, endogenous_nbr, 
-                                               exogenous_nbr, system_variables, forward_system_variables, forward_expressions_eqs,
-                                               predetermined_variables, ids, preamble_block)
+function forward_looking_equation_derivatives!(J, x, state, dynamicws, grid, nodes, weight,
+                                               model, forward_equations_nbr, state_variables,
+                                               system_variables, forward_system_variables, forward_expressions_eqs,
+                                               predetermined_variables, ids, preamble_block, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
     iDimensions = getNumDimensions(grid)
     iOutputs = getNumOutputs(grid)
     evalPt = zeros(iDimensions)
     T = dynamicws.temporary_values
     @views begin
-        y[state_variables] .= state
-        preamble_block.set_endogenous_variables!(T, y[endogenous_nbr + 1: end], nodes, params, steadystate)
-        y[system_variables] .= x
-        evalPt .= y[endogenous_nbr .+ state_variables]
+        dyn_endogenous[state_variables] .= state
+        preamble_block.set_endogenous_variables!(T, dyn_endogenous[endogenous_nbr + 1: end], nodes, parameters, steadystate)
+        dyn_endogenous[system_variables] .= x
+        evalPt .= dyn_endogenous[endogenous_nbr .+ state_variables]
     end
 
     # policy function Jacobian
@@ -780,8 +732,8 @@ function forward_looking_equation_derivatives!(J, y, x, exogenous, state, params
     X = evaluateBatch(grid, evalPt)
     jacobian = Matrix(get_dynamic_jacobian!(
         dynamicws,
-        params,
-        y,
+        parameters,
+        dyn_endogenous,
         exogenous,
         steadystate,
         model,
@@ -798,15 +750,15 @@ function forward_looking_equation_derivatives!(J, y, x, exogenous, state, params
     return J
 end
 
-function forward_equations_derivatives(x, y, nodes, weights, dynamicws, params, exogenous, 
-                                       steadystate, model, 
-                                       forward_equations_nbr, state, grid, state_variables, endogenous_nbr, 
-                                       exogenous_nbr, system_variables, forward_system_variables, forward_expressions_eqs, 
-                                       predetermined_variables, ids, preamble_block)
+function forward_equations_derivatives(x, nodes, weights, dynamicws, model, 
+                                       forward_equations_nbr, state, grid, state_variables,
+                                       system_variables, forward_system_variables, forward_expressions_eqs, 
+                                       predetermined_variables, ids, preamble_block, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
     jacobian = get_dynamic_jacobian!(
         dynamicws,
-        params,
-        y,
+        parameters,
+        dyn_endogenous,
         nodes[1, :],
         steadystate,
         model,
@@ -815,36 +767,35 @@ function forward_equations_derivatives(x, y, nodes, weights, dynamicws, params, 
     
     J = zeros(forward_equations_nbr, length(system_variables))
     for i in axes(nodes, 1)
-        forward_looking_equation_derivatives!(J, y, x, exogenous, state, params, dynamicws, grid, nodes[i, :], weights[i], steadystate, 
-                                              model, forward_equations_nbr, state_variables, endogenous_nbr, 
-                                              exogenous_nbr, system_variables, forward_system_variables, forward_expressions_eqs,
-                                              predetermined_variables, ids, preamble_block)
+        forward_looking_equation_derivatives!(J, x, state, dynamicws, grid, nodes[i, :], weights[i],
+                                              model, forward_equations_nbr, state_variables,
+                                              system_variables, forward_system_variables, forward_expressions_eqs,
+                                              predetermined_variables, ids, preamble_block, sgmodel)
     end
     return J
 end 
     
-function sysOfEqs_derivatives!(J, x, y, state, grid,
-                               nPols, exogenous, nodes, weights, params, steadystate,
-                               forward_equations_nbr, endogenous_nbr, exogenous_nbr,
+function sysOfEqs_derivatives!(J, x, state, grid,
+                               nPols, nodes, weights, forward_equations_nbr,
                                state_variables, system_variables, bmcps, dynamicws, model, 
                                predetermined_variables, forward_system_variables,
-                               forward_expressions_eqs, other_expressions_eqs, ids, preamble_block)
+                               forward_expressions_eqs, other_expressions_eqs, ids, preamble_block, sgmodel)
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
     @views begin
-        y[state_variables] .= state
-        y[system_variables] .= x 
+        dyn_endogenous[state_variables] .= state
+        dyn_endogenous[system_variables] .= x 
     end 
     
-    Jfwrd = forward_equations_derivatives(x, y, nodes, weights, dynamicws, params, exogenous, 
-                                  steadystate, model, 
-                                  forward_equations_nbr, state, grid, state_variables, endogenous_nbr, 
-                                  exogenous_nbr, system_variables, forward_system_variables, forward_expressions_eqs, 
-                                  predetermined_variables, ids, preamble_block)
+    Jfwrd = forward_equations_derivatives(x, nodes, weights, dynamicws, model, 
+                                  forward_equations_nbr, state, grid, state_variables,
+                                  system_variables, forward_system_variables, forward_expressions_eqs, 
+                                  predetermined_variables, ids, preamble_block, sgmodel)
     copy_to_submatrix!(J, 1:forward_equations_nbr, 1:length(system_variables), Jfwrd)
 
     jacobian = get_dynamic_jacobian!(
         dynamicws,
-        params,     
-        y,
+        parameters,     
+        dyn_endogenous,
         exogenous,
         steadystate,
         model,
@@ -853,7 +804,7 @@ function sysOfEqs_derivatives!(J, x, y, state, grid,
     copy_submatrix(J, forward_equations_nbr .+ (1:length(other_expressions_eqs)), 1:length(system_variables), 
                    jacobian, other_expressions_eqs, system_variables)
     reorder_rows!(J, bmcps)
-    end
+end
 
 function copy_submatrix(dest, rowsd, colsd, src, rowss, colss)
     @assert length(rowsd) == length(rowss)
@@ -903,50 +854,6 @@ function add_to_submatrix!(dest, rows, cols, src)
     return dest
 end 
 
-#=
-function mcp_sg_core!(polInt, grid, pol_guess, pol, gridZero, nPols, nodes, weights, exogenous, params, steadystate, forward_equations_nbr, 
-                      endogenous_nbr, exogenous_nbr, state_variables, system_variables, y, bmcps, dynamicws, model,
-                      predetermined_variables, forward_system_variables,
-                      forward_expressions_eqs, other_expressions_eqs, ids, aNumAdd, aPoints1, JJ, lb, ub, preamble_block)
-    T = dynamicws.temporary_values
-    let state
-        function f1!(fx, x)
-            fx .= Dynare.sysOfEqs(x, T, y, exogenous, state, gridZero, nPols, nodes, weights,
-                                  params, steadystate, forward_equations_nbr, endogenous_nbr,
-                                  exogenous_nbr, state_variables, system_variables, bmcps, preamble_block)
-        end
-        
-        function JA1!(J, x)
-            Dynare.sysOfEqs_derivatives!(J, x, y, state, gridZero,
-                                         nPols, exogenous, nodes, weights, params, steadystate,
-                                         forward_equations_nbr, endogenous_nbr, exogenous_nbr,
-                                         state_variables, system_variables, bmcps, dynamicws, model, 
-                                         predetermined_variables, forward_system_variables,
-                                         forward_expressions_eqs, other_expressions_eqs, ids, preamble_block)                    
-        end
-
-        if solve_algo == PATHsolver
-            for ii1 in 1:aNumAdd
-                @views begin
-                    state = aPoints1[:, ii1]
-                    pol .= pol_guess[:, ii1]
-                end
-                (status, results, info) = mcp_solve!(PathNLS(), f1!, JA1!, JJ, lb, ub, pol, silent=true, convergence_tolerance=1e-4)
-                if status != 1
-                    @show status
-                    @show info
-                    error("PATHSolver failed")
-                end
-                @views polInt[:, ii1] .= results
-            end
-        elseif mcp_solve_algo == 
-            fx = zeros(size(JJ, 1))
-            df = OnceDifferentiable(f1!, JA1!, pol, fx, JJ)
-       
-    end
-end
-=#
-
 function PATHsolver_solve!(Y, f!, JA!, X0, lb, ub, states, x0, ftol, show_trace)
     for i in axes(states, 2)
         @views begin
@@ -978,7 +885,7 @@ function NLsolve_solve!(Y, df, X0, lb, ub, states, x0, ftol, show_trace)
     end
 end
 
-function NonLinearSolver_solve!(Y, f, JA, J, X0, states, state, x0, params, method, ftol, show_trace )
+function NonLinearSolver_solve!(Y, f, JA, J, X0, states, state, x0, parameters, method, ftol, show_trace )
     nlf = NonlinearFunction(f, jac = JA, jac_prototype=J)
 
     for i in axes(states, 2)
@@ -986,7 +893,7 @@ function NonLinearSolver_solve!(Y, f, JA, J, X0, states, state, x0, params, meth
             state .= states[:, i]
             x0 .= X0[:, i]
         end
-        nlp = NonlinearProblem(nlf, x0, params)
+        nlp = NonlinearProblem(nlf, x0, parameters)
         res = NonlinearSolve.solve(nlp, method, show_trace = Val(show_trace))
         @views Y[:, i] .= res.u
     end
