@@ -581,14 +581,14 @@ function make_block_functions(context)
     backward_jacobian, backward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
                                       backward_expressions_eqs)
-    backward_block = BackwardBlock(preamble_eqs,
+    backward_block = BackwardBlock(backward_expressions_eqs,
                                    predetermined_variables .- endogenous_nbr,
                                    backward_expressions,
                                    backward_jacobian,
                                    make_residuals_function(:get_residuals!, backward_expressions),
                                    make_evaluate_block_jacobian_(:update_jacobian!, backward_jacobian_expressions)
                                    )
-    
+                                       
     ws = DynamicWs(context)
     T = ws.temporary_values
     x = context.results.model_results[1].trends.exogenous_steady_state
@@ -604,8 +604,6 @@ function make_block_functions(context)
     backward_evaluate_jacobian = make_evaluate_block_jacobian(backward_jacobian_expressions, T, x, params, steady_state)
     backward_evaluate_jacobian(backward_jacobian, repeat(steady_state, 3))
     return (states, predetermined_variables, system_variables,
-            forward_equations_nbr, backward_equations_nbr,
-            forward_expressions_eqs, backward_expressions_eqs,
             backward_block, forward_block, preamble_block)
 end
 
