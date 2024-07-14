@@ -475,7 +475,7 @@ function display_graphs(filepath::String)
         for (i, f) in enumerate(readdir(graphs))
             i > 30 && break
             filename = joinpath(graphs, f)
-            run(`start $filename`, wait = false)
+            run(`cmd /k start $filename`, wait = false)
         end
     elseif Sys.isapple()
         for (i, f) in enumerate(readdir(graphs))
