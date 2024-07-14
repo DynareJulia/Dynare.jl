@@ -27,6 +27,7 @@ function perfectforesight_core_conditional!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
+    solve_algo,
     linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs,
     flipinfo::FlipInformation,
@@ -110,6 +111,39 @@ function perfectforesight_core_conditional!(
         ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
         res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
     end
+    fj = NonlinearFunction(f!, jac = j!, jac_prototype = JJ)
+    
+    prob = NonlinearProblem(fj, y0, params)
+    @debug "$(now()): start nlsolve"
+    show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
+    #=
+    if linear_solve_algo == pardiso
+        @show "Pardiso"
+        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
+            error("You must load Pardiso with 'using MKL, Pardiso'")
+        end
+        ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
+        #=
+        elseif linear_solve_algo == mumps
+        @show "MUMPS"
+        #=
+        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
+        error("You must load Pardiso with 'using MKL, Pardiso'")
+        en=#
+        MPI.Init()
+        ls!(x, A, b) = linear_solver!(MumpsLS(), x, A, b)
+        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls!)
+        =#
+    else
+#        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
+        #        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
+        # res = NonlinearSolve.solve(prob, solve_algo, show_trace=Val(false), abstol = tolf)
+    end
+    =#
+    @show solve_algo
+    res = NonlinearSolve.solve(prob, solve_algo, show_trace = Val(show_trace), abstol = tolf)
+
     print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
     flip!(res.zero, exogenous, flipinfo.ix_stack)
