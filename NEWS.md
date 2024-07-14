@@ -1,3 +1,7 @@
+0.9.15
+======
+- use cmd shell to display graphs in Windows
+
 0.9.14
 ======
 - remove dependency on MUMPS to fix installation problem on Windows
