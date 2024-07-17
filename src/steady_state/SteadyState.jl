@@ -406,7 +406,6 @@ function solve_steady_state_!(context::Context,
                                         tolx = tolx)
     catch e
         @debug "Steady state computation failed"
-        throw(DynareSteadyStateComputationFailed())
     end
 end
 
