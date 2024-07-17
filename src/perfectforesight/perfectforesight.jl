@@ -615,27 +615,6 @@ function perfectforesight_core!(
         JJ .= transpose(JJt)
     end
                    
-    f!(residuals, y0, params)
-    j!(JJ, y0, params)
-    serialize("test.jls", JJ)
-    JJt = copy(transpose(JJ))
-    jj!(JJt, y0, params)
-    lp = LinearProblem(JJ, residuals)
-    lp3 = LinearProblem(JJt, residuals)
-    dy0 = JJ\residuals
-    @show residuals[1:20]
-    @show lp
-    dy1 = LinearSolve.solve(lp)
-    @show lp
-    @show residuals[1:20]
-    dy2 = LinearSolve.solve(lp, PardisoJL())
-    @show lp
-    @show residuals[1:20]
-    dy3 = LinearSolve.solve(lp3, PardisoJL())
-    @show norm(dy1-dy2)
-    @show norm(dy1-dy3)
-    @show norm(dy1-dy0)
-    
     #    df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
     fj = NonlinearFunction(f!, jac = j!, jac_prototype = JJ)
     
