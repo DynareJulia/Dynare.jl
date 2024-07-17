@@ -354,11 +354,7 @@ function solve_steady_state_!(context::Context,
                               work.params)
 
     results = context.results.model_results[1]
-    j!(A, x0, params)
-    lp = LinearProblem(A, residuals)
-    dy1 = LinearSolve.solve(lp)
-    dy2 = LinearSolve.solve(lp, PardisoJL())
-
+    
     # of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
     # result = nlsolve(of, x0; method = :robust_trust_region, show_trace = false, ftol = tolf, iterations = maxit)
     fj = NonlinearFunction(f!, jac = j!, jac_prototype = A)
