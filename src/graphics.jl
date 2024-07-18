@@ -127,7 +127,7 @@ function plot_irfs(irfs, model, symboltable, filepath)
         p = 1
         j = 1
         nbp = 1
-        while p < length(endogenous_names)
+        while p <= length(endogenous_names)
             if j > nr*nc
                 title = "Orthogonal shock to $(exogenous_name)" 
                 filename = "$(filepath)_$(exogenous_name)_$(nbp).png"
