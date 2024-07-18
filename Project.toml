@@ -1,7 +1,7 @@
 name = "Dynare"
 uuid = "5203de40-99df-439e-afbc-014de65cb9ef"
 authors = ["michel "]
-version = "0.9.15"
+version = "0.9.16"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
