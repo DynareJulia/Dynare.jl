@@ -542,7 +542,7 @@ function make_block_functions(context)
                                  equation_xref_list,
                                  variable_xref_list,
                                  endogenous_nbr)
-    system_variables = [matching[e] + endogenous_nbr for e in system_equations]
+    system_variables = [matching[e] for e in system_equations]
     sort!(system_variables)
 
     preamble_jacobian, preamble_jacobian_expressions = make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
