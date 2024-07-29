@@ -12,6 +12,7 @@ using Printf
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
     stoponerror::Bool = false
+    usetmpterms::Bool = false
 end
 
 using LinearRationalExpectations
@@ -86,6 +87,7 @@ function dynare(modfile_arg::String, args...)
     compilemodule = true
     preprocessing = true
     stoponerror = false
+    usetmpterms = false
     for (i, a) in enumerate(args)
         if a == "nocompile"
             compilemodule = false
@@ -93,9 +95,14 @@ function dynare(modfile_arg::String, args...)
             preprocessing = false
         elseif a == "stoponerror"
             stoponerror = true
+        elseif a == "usetmpterms"
+            usetmpterms = true
         else
             push!(arglist, a)
         end
+    end
+    if !usetmpterms
+        push!(arglist, "notmpterms")
     end
     if preprocessing
         modfilename = modname * ".mod"
@@ -110,7 +117,7 @@ function dynare(modfile_arg::String, args...)
     # onlymodel option performs only preprocessing
     "onlymodel" in arglist && return nothing
     
-    options = CommandLineOptions(compilemodule, stoponerror)
+    options = CommandLineOptions(compilemodule, stoponerror, usetmpterms)
     context = parser(modname, options)
     return context
 end
