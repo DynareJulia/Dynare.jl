@@ -402,8 +402,6 @@ function ti_step!(newgrid, oldgrid, X, sgws)
 
     function f1!(fx, x)
         fx .= f(x)
-        @show x
-        @show fx
     end 
 
     function f2!(fx, x, state)
@@ -420,7 +418,7 @@ function ti_step!(newgrid, oldgrid, X, sgws)
     elseif solver == NLsolver
         NLsolve_solve!(X, lb, ub, f2!, JA2!, fx, J, states, ftol, show_trace)
     elseif solver == PATHSolver
-        PATHsolver_solve!(X, f1!, JA1!, lb, ub, states, ftol, show_trace)
+        PATHsolver_solve!(X, f1!, JA1!, lb, ub, states, J, ftol, show_trace)
     else
         error("Sparsegrids: unknown solver")
     end
@@ -594,6 +592,7 @@ function sysOfEqs_derivatives_update!(J, policy, state, grid, sgws)
         backward_block.update_jacobian!([], backward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
         J[forward_equations_nbr .+ (1:length(backward_block.equations)), :] .= Matrix(backward_block.jacobian[:, system_variables .+ endogenous_nbr])
     end
+    reorder_rows!(J, bmcps)
     return J
 end
 
@@ -753,18 +752,19 @@ function add_to_submatrix!(dest, rows, cols, src)
     return dest
 end 
 
-function PATHsolver_solve!(X, f!, JA!, lb, ub, states, ftol, show_trace)
+function PATHsolver_solve!(X, f!, JA!, lb, ub, states, JJ, ftol, show_trace)
     for i in axes(states, 2)
         @views begin
             state = states[:, i]
-            x = X[:, i]
+            x = Vector(X[:, i])
         end
         (status, results, info) = mcp_solve!(PathNLS(), f!, JA!, JJ, lb, ub, x, silent=true, convergence_tolerance=1e-4)
         if status != 1
             @show status
-            @show res.info
             error("sparsegrids: solution update failed")
         end
+        @show x
+        @show results
         @views x .= results
     end
 end
