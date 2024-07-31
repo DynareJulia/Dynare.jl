@@ -1,6 +1,8 @@
 # The Dynare Julia Reference Manual
 # Introduction 
 
+!!! note This documentation is also available in PDF format: [Dynare.pdf](Dynare.pdf).
+
 DynareJulia is a rewriting of Dynare (https://www.dynare.org) that was initially written in
 Gauss in 1994 and rewritten in Matlab around 2000.
 
