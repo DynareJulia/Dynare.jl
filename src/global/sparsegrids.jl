@@ -248,9 +248,9 @@ function sparsegridapproximation(; context::Context=context,
             # We start the refinement process after a given number of iterations
             if iter >= iterRefStart
                 polGuess1 = refine!(newgrid, polGuess1, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
+                # Track the grid level
+                ilev += 1
             end
-            # Track the grid level
-            ilev += 1
         end
         # Calculate (approximate) errors on tomorrow's policy grid
         metric, polGuess, grid = policy_update(grid, newgrid, polGuess, polGuess1, length(system_variables))
@@ -437,20 +437,10 @@ function ti_step!(newgrid, oldgrid, X, sgws)
 
     state = view(states, :, 1)
 
-<<<<<<< Updated upstream
-    function f1!(fx, x)
-        fx .= f(x)
-    end 
-
-    function f2!(fx, x, state)
-        fx .= f(x, state)
-    end
-=======
     f1!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
     JA1!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)                   
     f2!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
     JA2!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
->>>>>>> Stashed changes
 
     if isnothing(solver)
         solver = mcp ? NLsolver : NonlinearSolver 
@@ -462,7 +452,7 @@ function ti_step!(newgrid, oldgrid, X, sgws)
     elseif solver == NLsolver
         NLsolve_solve!(X, lb, ub, f2!, JA2!, fx, J, states, ftol, show_trace)
     elseif solver == PATHSolver
-        PATHsolver_solve!(X, f1!, JA1!, lb, ub, states, J, ftol, show_trace)
+        PATHsolver_solve!(X, f2!, JA2!, lb, ub, states, fx, J, ftol, show_trace)
     else
         error("Sparsegrids: unknown solver")
     end
@@ -642,11 +632,7 @@ function sysOfEqs_derivatives_update!(J, policy, state, grid, sgws)
         J[nfwrd .+ (1:length(backward_block.equations)), :] .= Matrix(backward_block.jacobian[:, system_variables .+ endogenous_nbr])
     end
     reorder_rows!(J, bmcps)
-<<<<<<< Updated upstream
-    return J
-=======
     return nothing
->>>>>>> Stashed changes
 end
 
 function sysOfEqs_with_jacobian!(residuals, J, policy, state, grid, sgws)
@@ -834,20 +820,20 @@ function add_to_submatrix!(dest, rows, cols, src)
     return dest
 end 
 
-function PATHsolver_solve!(X, f!, JA!, lb, ub, states, JJ, ftol, show_trace)
+function PATHsolver_solve!(X, f!, JA!, lb, ub, states, x, JJ, ftol, show_trace)
     for i in axes(states, 2)
         @views begin
             state = states[:, i]
-            x = Vector(X[:, i])
+            x .= X[:, i]
         end
-        (status, results, info) = mcp_solve!(PathNLS(), f!, JA!, JJ, lb, ub, x, silent=true, convergence_tolerance=1e-4)
+        _f!(y, z) = f!(y, z, state)
+        _J!(y, z) = JA!(y, z, state)
+        (status, results, info) = mcp_solve!(PathNLS(), _f!, _J!, JJ, lb, ub, x, silent=true, convergence_tolerance=1e-4)
         if status != 1
             @show status
             error("sparsegrids: solution update failed")
         end
-        @show x
-        @show results
-        @views x .= results
+        @views X[:, i] .= results
     end
 end
 
