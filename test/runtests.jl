@@ -8,7 +8,7 @@ using Test
 include("test_steadystate.jl")
 include("test_scenario.jl")
 include("test_deterministic_trends.jl")
-
+include("test_sparsegrids.jl")
 context = @dynare "models/example1/example1.mod" "stoponerror"
 irfs = irf()
 @test length(irfs) == 2
