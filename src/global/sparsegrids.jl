@@ -16,12 +16,14 @@ export sparsegridapproximation, simulate!
 @enum SGSolver NLsolver NonlinearSolver PATHSolver
 
 struct SGModel
-    dyn_endogenous::Vector{Float64} # dynamic endogenous variables in period t-1, t, t+1 
-    exogenous::Vector{Float64}      # exogenous variables in period t
-    endogenous_nbr::Int             # number of endogenous variables in period t
-    exogenous_nbr::Int              # number of exogenous variables
-    parameters::Vector{Float64}     # model parameters    
-    steadystate::Vector{Float64}    # steady state of the model
+    dyn_endogenous::Vector{Float64}       # dynamic endogenous variables in period t-1, t, t+1 
+    shift_dyn_endogenous::Vector{Float64} # dynamic endogenous variables in period t, t+1 
+    exogenous::Vector{Float64}            # exogenous variables in period t
+    endogenous_nbr::Int                   # number of endogenous variables in period t
+    exogenous_nbr::Int                    # number of exogenous variables
+    parameters::Vector{Float64}           # model parameters    
+    steadystate::Vector{Float64}          # steady state of the model
+    tempterms::Vector{Float64}            # temporary terms
 end
 
 struct SGIndices
@@ -65,20 +67,24 @@ struct SGWS
     ids::SGIndices
     lb::Vector{Float64}
     ub::Vector{Float64}
-    backward_block::BackwardBlock 
+    backward_block::BackwardBlock
+    backward_variable_jacobian::Matrix{Float64}
     forward_block::ForwardBlock 
     preamble_block::AssignmentBlock 
     residuals::Vector{Float64}
     forward_jacobian::Matrix{Float64}
     forward_points::Matrix{Float64} 
     forward_residuals::Matrix{Float64}    
+    forward_variable_jacobian::Matrix{Float64}
     J::Matrix{Float64}
     fx::Vector{Float64}
     policy_jacobian::Matrix{Float64} 
     evalPt::Vector{Float64} 
     future_policy_jacobian::Matrix{Float64} 
-    dyn_endogenous_matrix::Matrix{Float64} 
+    dyn_endogenous_vector::Vector{Vector{Float64}} 
     M1::Matrix{Float64} 
+    policyguess::Matrix{Float64}
+    tmp_state_variables::Vector{Float64}
     sev::Sev
     sgmodel::SGModel
     sgoptions::SGOptions
@@ -165,11 +171,13 @@ function sparsegridapproximation(; context::Context=context,
     nstates = length(dynamic_state_variables)
 
     sgmodel = SGModel(repeat(steadystate, 3),
+                      zeros(2*endogenous_nbr),
                       zeros(exogenous_nbr),
                       endogenous_nbr,
                       exogenous_nbr,
                       params,
-                      steadystate
+                      steadystate,
+                      []
                       )
 
     ids = SGIndices(
@@ -206,40 +214,47 @@ function sparsegridapproximation(; context::Context=context,
     loadNeededPoints!(grid, polGuess)
 
     monomial = MonomialPowerIntegration(exogenous_nbr)
-
+    nodesnbr = length(monomial.nodes)
+ 
     # Scale correction in the refinement process:
     @views scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables])
 
     n = length(system_variables)
+    backward_variable_jacobian = Matrix{Float64}(undef, length(backward_block.equations), length(system_variables)) 
     forward_equations_nbr = length(forward_block.equations)
     sgoptions = SGOptions(mcp, method, solver, ftol, show_trace)
     residuals = Vector{Float64}(undef, n)
     forward_jacobian = Matrix{Float64}(undef, forward_equations_nbr, n)
-    forward_points = Matrix{Float64}(undef, getNumDimensions(grid), size(monomial.nodes, 1))
-    forward_residuals = Matrix{Float64}(undef, length(forward_block.equations), size(monomial.nodes, 1))
+    forward_points = Matrix{Float64}(undef, getNumDimensions(grid), nodesnbr)
+    forward_residuals = Matrix{Float64}(undef, length(forward_block.equations), nodesnbr)
+    forward_variable_jacobian = Matrix{Float64}(undef, length(forward_block.equations), length(ids.forward_in_system))
     J = zeros(n, n)
     fx = zeros(n)
     evalPt = Vector{Float64}(undef, nstates)
     future_policy_jacobian = zeros(length(ids.state_in_system), length(ids.forward_in_system))
     policy_jacobian = Matrix{Float64}(undef, gridDim, n)
-    dyn_endogenous_matrix = zeros(3*endogenous_nbr, size(monomial.nodes, 1))
+    dyn_endogenous_vector = [zeros(3*endogenous_nbr) for i in 1:nodesnbr]
+    shift_dyn_endogenous_vector = zeros(2*endogenous_nbr, nodesnbr)
     forward_equations_nbr = length(forward_block.equations)
     M1 = Matrix{Float64}(undef, forward_equations_nbr, length(ids.state_in_system))
+    policyguess = zeros(gridOut, nodesnbr)
+    tmp_state_variables = Vector{Float64}(undef, length(dynamic_state_variables))
     sev = Sev(zeros(3*endogenous_nbr), zeros(nstates))
     sgws = SGWS(monomial, dynamic_state_variables, system_variables, 
-            bmcps, ids, lb, ub, backward_block, 
-            forward_block, preamble_block,
-            residuals, forward_jacobian, forward_points, 
-            forward_residuals, J, fx,
-            policy_jacobian, evalPt, 
-            future_policy_jacobian, 
-            dyn_endogenous_matrix, M1, sev, sgmodel, sgoptions)
+                bmcps, ids, lb, ub, backward_block, backward_variable_jacobian, 
+                forward_block, preamble_block,
+                residuals, forward_jacobian, forward_points, 
+                forward_residuals, forward_variable_jacobian, J, fx,
+                policy_jacobian, evalPt, 
+                future_policy_jacobian, 
+                dyn_endogenous_vector, M1, polGuess, tmp_state_variables,
+                sev, sgmodel, sgoptions)
     scaleCorrMat = repeat(Float64.(scaleCorr), 1, Tasmanian.getNumLoaded(grid))
             
     for iter in 1:maxiter
         # new policy guess to be computed
         polGuess1 = copy(polGuess)
-        newgrid = copyGrid(grid0) 
+        newgrid = copyGrid(grid0)
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
         while (getNumNeeded(newgrid) > 0) && (ilev <=  maxRefLevel)
@@ -247,7 +262,7 @@ function sparsegridapproximation(; context::Context=context,
             ti_step!(newgrid, grid, polGuess1, sgws)
             # We start the refinement process after a given number of iterations
             if iter >= iterRefStart
-                polGuess1 = refine!(newgrid, polGuess1, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
+                polGuess1 = refine!(newgrid, polGuess1, scaleCorr, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
                 # Track the grid level
                 ilev += 1
             end
@@ -320,9 +335,6 @@ function plot_policy_function(vstate, grid, state_variables; N=50, context=conte
     k = findfirst(in(state_variables), context.symboltable[vstate].orderintype)
     gridDomain = getDomainTransform(grid)
     x = range(gridDomain[k,1], gridDomain[k, 2], N)
-    @show size(x)
-    @show x
-    @show size(sv_buffer)
     @views sv_buffer[k, :] .= x
     Y = evaluateBatch(grid, sv_buffer)
     display(Y)
@@ -417,18 +429,21 @@ function guess_policy(context, aNum, nPols, aPoints, dynamic_state_variables, sy
 end
 
 """
-    ti_step!(X, grid, gridZero, nPols, sgws)
+    ti_step!(newgrid, oldgrid, X, sgws)
 updates grid points    
 """
 function ti_step!(newgrid, oldgrid, X, sgws)
+    
     @unpack system_variables, lb, ub, residuals,
             backward_block, forward_block, preamble_block, sgoptions, J, fx,
             sgmodel = sgws
     @unpack mcp, method, solver, ftol, show_trace = sgoptions
     @unpack exogenous, parameters = sgmodel
+    
     # Get the points that require function values
-    states = Tasmanian.getNeededPoints(newgrid)
+    states = getNeededPoints(newgrid)
     nstates = size(states, 2)
+    
     # Get the number of points that require function values
     # Array for intermediate update step
     n = length(system_variables)
@@ -437,36 +452,29 @@ function ti_step!(newgrid, oldgrid, X, sgws)
 
     state = view(states, :, 1)
 
-    f1!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
-    JA1!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)                   
-    f2!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
-    JA2!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
-
     if isnothing(solver)
         solver = mcp ? NLsolver : NonlinearSolver 
     end
 
     # Time Iteration step
     if solver == NonlinearSolver
-        NonLinearSolver_solve!(X, f2!, JA2!, J, states, parameters, method, ftol, show_trace )
+        NonLinearSolver_solve!(X, J, states, parameters, oldgrid, sgws, method, ftol, show_trace )
     elseif solver == NLsolver
-        NLsolve_solve!(X, lb, ub, f2!, JA2!, fx, J, states, ftol, show_trace)
+        NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace)
     elseif solver == PATHSolver
-        PATHsolver_solve!(X, f2!, JA2!, lb, ub, states, fx, J, ftol, show_trace)
+        PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws, ftol, show_trace)
     else
         error("Sparsegrids: unknown solver")
     end
 
     # Add the new function values to newgrid
     loadNeededPoints!(newgrid, view(X, :, 1:nstates))
-
-    return newgrid
 end
 
 """ 
     Grid refinement
 """
-function refine!(grid, polguess, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
+function refine!(grid, polguess, scaleCorr, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
 
     # Refine the grid based on the surplus coefficients
 
@@ -579,17 +587,17 @@ end
 
 function sysOfEqs!(residuals, policy, state, grid, sgws)
     @unpack dynamic_state_variables, system_variables, bmcps, backward_block, forward_block,
-            sgmodel = sgws
-    @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate = sgmodel
+            dyn_endogenous_vector, sgmodel = sgws
+    @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate, tempterms = sgmodel
     @views begin
         dyn_endogenous[dynamic_state_variables] .= state
         dyn_endogenous[system_variables .+ endogenous_nbr] .= policy 
     end
     nfwrd = length(forward_block.variables)
-    set_dyn_endogenous_matrix!(policy, state, grid, sgws)
+#    set_dyn_endogenous_vector!(dyn_endogenous_vector, policy, state, grid, sgws)
     @views begin
         expectation_equations!(residuals[1:nfwrd], policy, state, grid, sgws)
-        backward_block.get_residuals!([], residuals[nfwrd  + 1:end], dyn_endogenous, exogenous, parameters, steadystate)
+        backward_block.get_residuals!(tempterms, residuals[nfwrd  + 1:end], dyn_endogenous, exogenous, parameters, steadystate)
     end
     reorder!(residuals, bmcps)
     return nothing
@@ -598,26 +606,26 @@ end
 function sysOfEqs_derivatives!(J, policy, state, grid, sgws)
     @unpack dynamic_state_variables, system_variables, bmcps,
     backward_block, forward_block, sgmodel = sgws
-    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
+    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate, tempterms = sgmodel
     forward_equations_nbr = length(forward_block.equations)
     @views begin
-    dyn_endogenous[dynamic_state_variables] .= state
-    dyn_endogenous[system_variables .+ endogenous_nbr] .= policy 
+        dyn_endogenous[dynamic_state_variables] .= state
+        dyn_endogenous[system_variables .+ endogenous_nbr] .= policy 
     end 
 
-    Jfwrd = forward_equations_derivatives(policy, state, grid, sgws)
+    Jfwrd = forward_looking_equation_derivatives!(policy, state, grid, sgws)
     copy_to_submatrix!(J, 1:forward_equations_nbr, 1:length(system_variables), Jfwrd)
 
-    backward_block.update_jacobian!([], forward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
+    backward_block.update_jacobian!(tempterms, forward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
     @views J[length(forward_equations_nbr) .+ (1:length(backward_block.equations)), :] .=
-    backward_block.jacobian[:, system_variables .+ endogenous_nbr]
+        backward_block.jacobian[:, system_variables .+ endogenous_nbr]
     reorder_rows!(J, bmcps)
 end
 
 function sysOfEqs_derivatives_update!(J, policy, state, grid, sgws)
     @unpack dynamic_state_variables, system_variables, bmcps,
         backward_block, forward_block, sgmodel = sgws
-    @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate = sgmodel
+    @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate, tempterms = sgmodel
     @views begin
         dyn_endogenous[dynamic_state_variables] .= state
         dyn_endogenous[system_variables .+ endogenous_nbr] .= policy 
@@ -625,11 +633,11 @@ function sysOfEqs_derivatives_update!(J, policy, state, grid, sgws)
 
     fill!(exogenous, 0.0)
     nfwrd = length(forward_block.equations)
-    set_dyn_endogenous_matrix!(policy, state, grid, sgws)
+    set_dyn_endogenous_vector!(sgws.dyn_endogenous_vector, policy, state, grid, sgws)
     @views begin
-        J[1:nfwrd, :] .= expectation_equations_derivatives(policy, state, grid, sgws)
-        backward_block.update_jacobian!([], backward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
-        J[nfwrd .+ (1:length(backward_block.equations)), :] .= Matrix(backward_block.jacobian[:, system_variables .+ endogenous_nbr])
+        expectation_equations_derivatives(J[1:nfwrd, :], policy, state, grid, sgws)
+        backward_block.update_jacobian!(tempterms, backward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
+        J[nfwrd .+ (1:length(backward_block.equations)), :] .= backward_block.jacobian[:, system_variables .+ endogenous_nbr]
     end
     reorder_rows!(J, bmcps)
     return nothing
@@ -638,122 +646,134 @@ end
 function sysOfEqs_with_jacobian!(residuals, J, policy, state, grid, sgws)
     @unpack dynamic_state_variables, system_variables, bmcps, backward_block, forward_block,
             sgmodel = sgws
-    @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate = sgmodel
-    @views begin
-        dyn_endogenous[dynamic_state_variables] .= state
-        dyn_endogenous[system_variables .+ endogenous_nbr] .= policy 
-    end
+    @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate, tempterms = sgmodel
     nfwrd = length(forward_block.variables)
+    for (i, k) in dynamic_state_variables
+        dyn_endogenous[k] = state[i]
+    end
+    for (i, k) in system_variables
+        dyn_endogenous[k + endogenous_nbr] = policy[i]
+    end
+    
     @views begin
         expectation_equations!(residuals[1:nfwrd], policy, state, grid, sgws)
-        backward_block.get_residuals!([], residuals[nfwrd  + 1:end], dyn_endogenous, exogenous, parameters, steadystate)
+        backward_block.get_residuals!(tempterms, residuals[nfwrd  + 1:end], dyn_endogenous, exogenous, parameters, steadystate)
     end
     reorder!(residuals, bmcps)
 
     fill!(exogenous, 0.0)
-    set_dyn_endogenous_matrix!(policy, state, grid, sgws)
+    set_dyn_endogenous_vector!(policy, state, grid, sgws)
     @views begin
         J[1:nfwrd, :] .= expectation_equations_derivatives(policy, state, grid, sgws)
-        backward_block.update_jacobian!([], backward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
+        backward_block.update_jacobian!(tempterms, backward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
         J[nfwrd .+ (1:length(backward_block.equations)), :] .= Matrix(backward_block.jacobian[:, system_variables .+ endogenous_nbr])
     end
     reorder_rows!(J, bmcps)
 end
 
 function expectation_equations!(expected_residuals, policy, state, grid, sgws)
-    @unpack monomial = sgws
-    # get numNodes x numForwardEquations
-    Integrand = forward_looking_equation_residuals!(policy, state, grid, sgws)
-    for i in axes(expected_residuals, 1)
-        @views expected_residuals[i] = monomial(Integrand[i, :])
-    end
+    @unpack monomial, forward_residuals = sgws
+    forward_looking_equation_residuals!(forward_residuals, policy, state, grid, sgws)
+    mul!(expected_residuals, forward_residuals, monomial.weights)
     return expected_residuals
 end
 
-function expectation_equations_derivatives(policy, state, grid, sgws)
-    @unpack monomial, dynamic_state_variables, system_variables, ids, dyn_endogenous_matrix,
-        backward_block, forward_block, forward_jacobian, preamble_block, sgmodel = sgws
+function expectation_equations_derivatives(forward_jacobian, policy, state, grid, sgws)
+    @unpack monomial, dynamic_state_variables, system_variables, ids, dyn_endogenous_vector,
+        backward_block, forward_block, preamble_block, sgmodel = sgws
     @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
 
     fill!(forward_jacobian, 0.0)
-    for i in axes(monomial.nodes, 1)
-        @views forward_looking_equation_derivatives!(forward_jacobian,
-                                                     grid, dyn_endogenous_matrix[:, i],
-                                                     monomial.weights[i],
-                                                     sgws)
+    for i in 1:length(monomial.nodes)
+        forward_looking_equation_derivatives!(forward_jacobian,
+                                              grid, dyn_endogenous_vector[i],
+                                              monomial.weights[i],
+                                              sgws)
     end
-    return forward_jacobian
+    nothing
 end 
     
 """
     Evaluates residual of forward looking equations for each integration node
 """
-function set_dyn_endogenous_matrix!(policy, state, grid, sgws)
+function set_dyn_endogenous_vector!(dyn_endogenous_vector, policy, state, grid, sgws)
     @unpack monomial, dynamic_state_variables, system_variables, forward_block, 
-            preamble_block, sgmodel, forward_points, forward_residuals, dyn_endogenous_matrix, sgmodel = sgws
-    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
+            preamble_block, sgmodel, forward_points, forward_residuals, policyguess, sgmodel = sgws
+    @unpack shift_dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate, tempterms = sgmodel
     nodes = monomial.nodes
-    numNodes = size(nodes, 1)
-    fill!(dyn_endogenous_matrix, 0.0)
-    for i in 1:numNodes
-        @views begin
-            dyn_endogenous_matrix[dynamic_state_variables, i] .= state
-            # 1) Determine t+1  variables using preamble
-            set_endogenous_variables!([], dyn_endogenous_matrix[endogenous_nbr + 1: end, i], 
-                                               nodes[i,:], parameters, steadystate)
-            dyn_endogenous_matrix[system_variables .+ endogenous_nbr, i] .= policy
+    nodesnbr = length(nodes)
+    
+    for i in 1:nodesnbr
+        dyn_endogenous_vector_i = dyn_endogenous_vector[i]
+        fill!(dyn_endogenous_vector_i, 0.0)
+        for (j, k)  in enumerate(dynamic_state_variables)
+            dyn_endogenous_vector_i[k] = state[j]
+        end
+        copyto!(shift_dyn_endogenous, 1, dyn_endogenous_vector_i, endogenous_nbr + 1, 2*endogenous_nbr)
+        # 1) Determine t+1  variables using preamble
+        set_endogenous_variables!(tempterms, shift_dyn_endogenous, nodes[i], parameters, steadystate)
+        copyto!(dyn_endogenous_vector_i, endogenous_nbr + 1, shift_dyn_endogenous, 1, 2*endogenous_nbr)
+        for (j, sv)  in enumerate(system_variables)
+            dyn_endogenous_vector_i[sv + endogenous_nbr] = policy[j]
+        end
+        for (j, dsv) in enumerate(dynamic_state_variables)
             # 2) Extract next period's state variables
-            forward_points[:, i] .= dyn_endogenous_matrix[endogenous_nbr .+ dynamic_state_variables, i]
-        end            
+            forward_points[j, i] = dyn_endogenous_vector_i[dsv + endogenous_nbr]
+        end
     end
     # 3) Determine relevant variables within the expectations operator
-    X = evaluateBatch(grid, forward_points)
-    @views dyn_endogenous_matrix[2*endogenous_nbr .+ system_variables, :] .= X
-    return dyn_endogenous_matrix
+    evaluateBatch!(policyguess, grid, forward_points)
+    for (i, k) in enumerate(system_variables), j in 1:nodesnbr
+        dyn_endogenous_vector[j][2*endogenous_nbr + k] = policyguess[i, k]
+    end
+    nothing
 end
 
-function set_endogenous_variables_1!(dyn_endogenous_matrix, nodes, parameters, steadystate, inode, sgws)
-    n = size(nodes, 1)
-    copyto!(sev.state, 1, nodes, (inode - 1)*n + 1, n)
-    set_endogenous_variables!([], sev.dyn_endogenous_variable, sev.state, parameters, steadystate )
-    copyto!(dyn_endogenous_matrix, 3*endogenous_nbr*(inode - 1) + 1, sev.dyn, 1, endogenous_nbr)
-end
-
-function forward_looking_equation_residuals!(policy, state, grid, sgws)
-    set_dyn_endogenous_matrix!(policy, state, grid, sgws)
+function forward_looking_equation_residuals!(forward_residuals, policy, state, grid, sgws)
+    set_dyn_endogenous_vector!(sgws.dyn_endogenous_vector, policy, state, grid, sgws)
     
-    @unpack monomial, system_variables, forward_block, forward_residuals, dyn_endogenous_matrix, sgmodel = sgws
-    @unpack dyn_endogenous, exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
+    @unpack monomial, system_variables, forward_block, dyn_endogenous_vector, sgmodel = sgws
+    @unpack dyn_endogenous, exogenous, parameters, steadystate, tempterms = sgmodel
     
     fill!(exogenous, 0.0)
     fill!(forward_residuals, 0.0)
-    nodes = monomial.nodes
-    numNodes = size(nodes, 1)
-    for i in 1:numNodes
+    n = length(monomial.nodes)
+    for i in 1:n
         # setting future variables
-        @views begin
-            forward_block.get_residuals!([], forward_residuals[:, i], dyn_endogenous_matrix[:, i], exogenous, parameters, steadystate)
-        end
+        @views forward_block.get_residuals!(tempterms, forward_residuals[:, i], dyn_endogenous_vector[i], exogenous, parameters, steadystate)
     end
-    return forward_residuals
+    nothing
 end
 
 function forward_looking_equation_derivatives!(J, grid, dyn_endogenous, weight, sgws)
-    @unpack dynamic_state_variables, system_variables, ids,
-        backward_block, forward_block, preamble_block, sgmodel, policy_jacobian, future_policy_jacobian, evalPt, M1 = sgws
-    @unpack exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate = sgmodel
-    
+    @unpack dynamic_state_variables, tmp_state_variables, system_variables, ids,
+      backward_block, forward_block, forward_variable_jacobian, preamble_block, sgmodel,
+      policy_jacobian, future_policy_jacobian, evalPt, M1 = sgws
+    @unpack exogenous, endogenous_nbr, exogenous_nbr, parameters, steadystate, tempterms = sgmodel
+
     # policy function Jacobian
-    Tasmanian.differentiate!(policy_jacobian, grid, dyn_endogenous[endogenous_nbr .+ dynamic_state_variables])
+    for (i, k) in enumerate(dynamic_state_variables)
+        tmp_state_variables[i] = dyn_endogenous[k + endogenous_nbr]
+    end
+    differentiate!(policy_jacobian, grid, tmp_state_variables)
     # future policy Jacobian = policy Jacobian x derivatives of predetermined variables w.r. state
     copy_from_submatrix!(future_policy_jacobian, policy_jacobian, ids.state_in_system, ids.forward_in_system)
-    forward_block.update_jacobian!([], forward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
-    @views forward_j = Matrix(forward_block.jacobian[:, 2*endogenous_nbr .+ system_variables[ids.forward_in_system]])
-    mul!(M1, forward_j, transpose(future_policy_jacobian))
-    @views jacobian = Matrix(forward_block.jacobian[:, system_variables .+ endogenous_nbr])
-    jacobian[:, ids.system_in_state] .+= M1
-    lmul!(weight, jacobian)
-    J .+= jacobian
+    forward_block.update_jacobian!(tempterms, forward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
+    for (j, k) in enumerate(ids.forward_in_system)
+        k1 = 2*endogenous_nbr .+ system_variables[k]
+        for i in 1:length(forward_block.equations)
+            forward_variable_jacobian[i, j] = forward_block.jacobian[i, k1]
+        end
+    end
+    mul!(M1, forward_variable_jacobian, transpose(future_policy_jacobian))
+    for i in axes(J, 1)
+        for (j, k) in enumerate(system_variables)
+            J[i, j] += weight*forward_block.jacobian[i, k + endogenous_nbr]
+        end
+        for (j, k) in enumerate(ids.system_in_state)
+            J[i, k] += weight*M1[i, j]
+        end
+    end
     return J
 end
 
@@ -820,15 +840,15 @@ function add_to_submatrix!(dest, rows, cols, src)
     return dest
 end 
 
-function PATHsolver_solve!(X, f!, JA!, lb, ub, states, x, JJ, ftol, show_trace)
+function PATHsolver_solve!(X, lb, ub, states, x, J, oldgrid, sgws, ftol, show_trace)
     for i in axes(states, 2)
         @views begin
             state = states[:, i]
             x .= X[:, i]
         end
-        _f!(y, z) = f!(y, z, state)
-        _J!(y, z) = JA!(y, z, state)
-        (status, results, info) = mcp_solve!(PathNLS(), _f!, _J!, JJ, lb, ub, x, silent=true, convergence_tolerance=1e-4)
+        f!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
+        JA!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
+        (status, results, info) = mcp_solve!(PathNLS(), f!, JA!, J, lb, ub, x, silent=true, convergence_tolerance=1e-4)
         if status != 1
             @show status
             error("sparsegrids: solution update failed")
@@ -837,15 +857,15 @@ function PATHsolver_solve!(X, f!, JA!, lb, ub, states, x, JJ, ftol, show_trace)
     end
 end
 
-function NLsolve_solve!(X, lb, ub, f!, JA!, fx, J, states, ftol, show_trace)
+function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace)
     for i in axes(states, 2)
         @views begin
             state = states[:, i]
             x = X[:, i]
         end
-        _f!(y, z) = f!(y, z, state)
-        _J!(y, z) = JA!(y, z, state)
-        df = OnceDifferentiable(_f!, _J!, x, fx, J)
+        f!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
+        JA!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
+        df = OnceDifferentiable(f!, JA!, x, fx, J)
         res = NLsolve.mcpsolve(df, lb, ub, x, ftol = ftol, show_trace = show_trace)
         if !res.f_converged
             @show res.f_converged
@@ -855,8 +875,10 @@ function NLsolve_solve!(X, lb, ub, f!, JA!, fx, J, states, ftol, show_trace)
     end
 end
 
-function NonLinearSolver_solve!(X, f, JA, J, states, parameters, method, ftol, show_trace )
-    nlf = NonlinearFunction(f, jac = JA, jac_prototype=J)
+function NonLinearSolver_solve!(X, J, states, parameters, oldgrid, sgws, method, ftol, show_trace )
+    f!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
+    JA!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
+    nlf = NonlinearFunction(f!, jac = JA!, jac_prototype=J)
     for i in axes(states, 2)
         @views begin 
             state = states[:, i]
