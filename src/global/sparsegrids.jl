@@ -259,6 +259,7 @@ function sparsegridapproximation(; context::Context=context,
     scaleCorrMat = repeat(Float64.(scaleCorr), 1, Tasmanian.getNumLoaded(grid))
             
     for iter in 1:maxiter
+        tin = now()
         # new policy guess to be computed
         polGuess1 = copy(polGuess)
         newgrid = copyGrid(grid0)
@@ -276,7 +277,7 @@ function sparsegridapproximation(; context::Context=context,
         end
         # Calculate (approximate) errors on tomorrow's policy grid
         metric, polGuess, grid = policy_update(grid, newgrid, polGuess, polGuess1, length(system_variables))
-        println("Iteration: $iter, Grid pts: $(getNumPoints(grid)), Level: $ilev, Metric: $metric")
+        println("Iteration: $iter, Grid pts: $(getNumPoints(grid)), Level: $ilev, Metric: $metric, Computing time: $(now() -tin)")
         if (mod(iter + 1, savefreq) == 0)
             #            save_grid(grid0,iter0)
         end
@@ -854,7 +855,6 @@ function SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver
         end
     else
         chunks = collect(Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1))
-        @show ns, length(chunks)
         if solver == NonlinearSolver
             tasks = map(enumerate(chunks)) do (i, chunk)
                 Threads.@spawn NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws[i], show_trace, chunk)
