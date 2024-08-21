@@ -240,7 +240,7 @@ function sparsegridapproximation(; context::Context=context,
     policyguess = zeros(gridOut, nodesnbr)
     tmp_state_variables = Vector{Float64}(undef, length(dynamic_state_variables))
     sev = Sev(zeros(3*endogenous_nbr), zeros(nstates))
-    sgws = SGWS(monomial, dynamic_state_variables, system_variables, 
+    sgws_ = SGWS(monomial, dynamic_state_variables, system_variables, 
                 bmcps, ids, lb, ub, backward_block, backward_variable_jacobian, 
                 forward_block, preamble_block,
                 residuals, forward_jacobian, forward_points, 
@@ -249,6 +249,13 @@ function sparsegridapproximation(; context::Context=context,
                 future_policy_jacobian, 
                 dyn_endogenous_vector, M1, polGuess, tmp_state_variables,
                 sev, sgmodel, sgoptions)
+    if Threads.nthreads() > 1
+        BLAS.set_num_threads(1)
+        sgws = [deepcopy(sgws_) for i in 1:Threads.nthreads()]
+    else
+        sgws = [sgws_]
+    end
+    
     scaleCorrMat = repeat(Float64.(scaleCorr), 1, Tasmanian.getNumLoaded(grid))
             
     for iter in 1:maxiter
@@ -258,7 +265,7 @@ function sparsegridapproximation(; context::Context=context,
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
         while (getNumNeeded(newgrid) > 0) && (ilev <=  maxRefLevel)
-            fill!(sgws.J, 0.0)
+            map(s -> fill!(s.J, 0.0), sgws)
             ti_step!(newgrid, grid, polGuess1, sgws)
             # We start the refinement process after a given number of iterations
             if iter >= iterRefStart
@@ -433,10 +440,8 @@ end
 updates grid points    
 """
 function ti_step!(newgrid, oldgrid, X, sgws)
-    
-    @unpack system_variables, lb, ub, residuals,
-            backward_block, forward_block, preamble_block, sgoptions, J, fx,
-            sgmodel = sgws
+    @unpack system_variables, lb, ub, sgoptions, J, fx,
+            sgmodel = sgws[1]
     @unpack mcp, method, solver, ftol, show_trace = sgoptions
     @unpack exogenous, parameters = sgmodel
     
@@ -452,21 +457,14 @@ function ti_step!(newgrid, oldgrid, X, sgws)
 
     state = view(states, :, 1)
 
+    # Default solver
     if isnothing(solver)
         solver = mcp ? NLsolver : NonlinearSolver 
     end
 
-    # Time Iteration step
-    if solver == NonlinearSolver
-        NonLinearSolver_solve!(X, J, states, parameters, oldgrid, sgws, method, ftol, show_trace )
-    elseif solver == NLsolver
-        NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace)
-    elseif solver == PATHSolver
-        PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws, ftol, show_trace)
-    else
-        error("Sparsegrids: unknown solver")
-    end
-
+    # Solving nonlinear problem
+    SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver, method, ftol, show_trace )
+    
     # Add the new function values to newgrid
     loadNeededPoints!(newgrid, view(X, :, 1:nstates))
 end
@@ -644,14 +642,14 @@ function sysOfEqs_derivatives_update!(J, policy, state, grid, sgws)
 end
 
 function sysOfEqs_with_jacobian!(residuals, J, policy, state, grid, sgws)
-    @unpack dynamic_state_variables, system_variables, bmcps, backward_block, forward_block,
+    @unpack dynamic_state_variables, dyn_endogenous_vector, system_variables, bmcps, backward_block, forward_block,
             sgmodel = sgws
     @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate, tempterms = sgmodel
     nfwrd = length(forward_block.variables)
-    for (i, k) in dynamic_state_variables
+    for (i, k) in enumerate(dynamic_state_variables)
         dyn_endogenous[k] = state[i]
     end
-    for (i, k) in system_variables
+    for (i, k) in enumerate(system_variables)
         dyn_endogenous[k + endogenous_nbr] = policy[i]
     end
     
@@ -662,9 +660,9 @@ function sysOfEqs_with_jacobian!(residuals, J, policy, state, grid, sgws)
     reorder!(residuals, bmcps)
 
     fill!(exogenous, 0.0)
-    set_dyn_endogenous_vector!(policy, state, grid, sgws)
+    set_dyn_endogenous_vector!(dyn_endogenous_vector, policy, state, grid, sgws)
     @views begin
-        J[1:nfwrd, :] .= expectation_equations_derivatives(policy, state, grid, sgws)
+        expectation_equations_derivatives(J[1:nfwrd, :], policy, state, grid, sgws)
         backward_block.update_jacobian!(tempterms, backward_block.jacobian.nzval, dyn_endogenous, exogenous, parameters, steadystate)
         J[nfwrd .+ (1:length(backward_block.equations)), :] .= Matrix(backward_block.jacobian[:, system_variables .+ endogenous_nbr])
     end
@@ -724,7 +722,7 @@ function set_dyn_endogenous_vector!(dyn_endogenous_vector, policy, state, grid, 
     # 3) Determine relevant variables within the expectations operator
     evaluateBatch!(policyguess, grid, forward_points)
     for (i, k) in enumerate(system_variables), j in 1:nodesnbr
-        dyn_endogenous_vector[j][2*endogenous_nbr + k] = policyguess[i, k]
+        dyn_endogenous_vector[j][2*endogenous_nbr + k] = policyguess[i, j]
     end
     nothing
 end
@@ -840,32 +838,66 @@ function add_to_submatrix!(dest, rows, cols, src)
     return dest
 end 
 
-function PATHsolver_solve!(X, lb, ub, states, x, J, oldgrid, sgws, ftol, show_trace)
-    for i in axes(states, 2)
-        @views begin
-            state = states[:, i]
-            x .= X[:, i]
+function SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver, method, ftol, show_trace)
+    ns = size(states, 2)
+    nx = size(X, 2)
+    if solver == PATHSolver
+        # PATHsolver is not thread-safe
+        PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws[1], show_trace, 1:ns)
+    elseif Threads.nthreads() == 1
+        if solver == NonlinearSolver
+            NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws[1], show_trace, 1:ns)
+        elseif solver == NLsolver
+            NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws[1], ftol, show_trace, 1:ns)
+        else
+            error("Sparsegrids: unknown solver")
         end
-        f!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
-        JA!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
-        (status, results, info) = mcp_solve!(PathNLS(), f!, JA!, J, lb, ub, x, silent=true, convergence_tolerance=1e-4)
+    else
+        chunks = collect(Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1))
+        @show ns, length(chunks)
+        if solver == NonlinearSolver
+            tasks = map(enumerate(chunks)) do (i, chunk)
+                Threads.@spawn NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws[i], show_trace, chunk)
+            end
+        elseif solver == NLsolver
+            tasks = map(enumerate(chunks)) do (i, chunk)
+                Threads.@spawn NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws[i], ftol, show_trace, chunk)
+            end
+        else
+            error("Sparsegrids: unknown solver")
+        end
+        fetch.(tasks)
+    end
+    return X
+end
+
+function PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws, show_trace, chunk)
+    for i in chunk
+        @views begin 
+            state = states[:, i]
+            fx .= X[:, i]
+        end
+        f1!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
+        JA1!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
+        (status, results, info) = mcp_solve!(PathNLS(), f1!, JA1!, J, lb, ub, fx, silent=true, convergence_tolerance=1e-4)
         if status != 1
             @show status
             error("sparsegrids: solution update failed")
         end
         @views X[:, i] .= results
     end
+    nothing
 end
 
-function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace)
-    for i in axes(states, 2)
-        @views begin
+function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace, chunk)
+    for i in chunk
+        @views begin 
             state = states[:, i]
             x = X[:, i]
         end
-        f!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
-        JA!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
-        df = OnceDifferentiable(f!, JA!, x, fx, J)
+        f2!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
+        JA2!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
+        df = OnceDifferentiable(f2!, JA2!, x, fx, J)
         res = NLsolve.mcpsolve(df, lb, ub, x, ftol = ftol, show_trace = show_trace)
         if !res.f_converged
             @show res.f_converged
@@ -873,13 +905,14 @@ function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trac
         end
         x .= res.zero
     end
+    nothing
 end
 
-function NonLinearSolver_solve!(X, J, states, parameters, oldgrid, sgws, method, ftol, show_trace )
-    f!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
-    JA!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
-    nlf = NonlinearFunction(f!, jac = JA!, jac_prototype=J)
-    for i in axes(states, 2)
+function NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws, show_trace, chunk)
+    f3!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
+    JA3!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
+    nlf = NonlinearFunction(f3!, jac = JA3!, jac_prototype = J)
+    for i in chunk
         @views begin 
             state = states[:, i]
             x = X[:, i]
@@ -888,4 +921,5 @@ function NonLinearSolver_solve!(X, J, states, parameters, oldgrid, sgws, method,
         res = NonlinearSolve.solve(nlp, method, show_trace = Val(show_trace))
         @views x .= res.u
     end
+    nothing
 end
