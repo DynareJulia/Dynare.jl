@@ -269,7 +269,7 @@ function sparsegridapproximation(; context::Context=context,
             map(s -> fill!(s.J, 0.0), sgws)
             ti_step!(newgrid, grid, polGuess1, sgws)
             # We start the refinement process after a given number of iterations
-            if iter >= iterRefStart
+            if iter >= iterRefStart && ilev < maxRefLevel
                 polGuess1 = refine!(newgrid, polGuess1, scaleCorr, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
                 # Track the grid level
                 ilev += 1
