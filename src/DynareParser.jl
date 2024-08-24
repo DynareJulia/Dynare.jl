@@ -162,7 +162,7 @@ function make_containers(
         Vector{Matrix{Float64}}(undef, 0)
     )
     results = Results([modelresults])
-    return Context(symboltable, [model], modelfileinfo, results, work, Dict())
+    return Context(symboltable, [model], modelfileinfo, results, Dict(), work, Dict())
 end
 
 function make_context(modeljson, modfilename, commandlineoptions)
