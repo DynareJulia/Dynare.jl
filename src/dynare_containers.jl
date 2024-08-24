@@ -951,6 +951,7 @@ struct Context
     models::Vector{Model}
     modfileinfo::ModFileInfo
     results::Results
+    timings::Dict
     work::Work
     workspaces::Dict
 end
