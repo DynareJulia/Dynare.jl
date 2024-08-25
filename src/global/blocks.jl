@@ -6,15 +6,15 @@ using SparseArrays
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
-struct BlockIndices_1
+struct BlockIndices
     equation_pointers::Vector{Int}
     variable_pointers::Vector{Int}
     expressions::Vector{Expr}
 end
 
-BlockIndices = BlockIndices_1
+BlockIndices = BlockIndices
 
-struct Block_1{F1 <: Function, F2 <: Function, F3 <: Function}
+struct Block{F1 <: Function, F2 <: Function, F3 <: Function}
     assignment::Bool
     forward::Bool
     jacobian::SparseMatrixCSC{Float64, Int}
@@ -27,7 +27,7 @@ end
 abstract type AbstractBlock end
 abstract type AbstractPreambleBlock <: AbstractBlock end
 
-struct AssignmentBlock_5 <: AbstractPreambleBlock
+struct AssignmentBlock <: AbstractPreambleBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
@@ -35,7 +35,7 @@ struct AssignmentBlock_5 <: AbstractPreambleBlock
     is_linear::Bool
 end
 
-struct PreambleBlock_1 <: AbstractPreambleBlock
+struct PreambleBlock <: AbstractPreambleBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
@@ -44,7 +44,7 @@ struct PreambleBlock_1 <: AbstractPreambleBlock
     update_jacobian!::Function
 end
 
-struct ForwardBlock_1 <: AbstractBlock
+struct ForwardBlock <: AbstractBlock
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
@@ -53,7 +53,7 @@ struct ForwardBlock_1 <: AbstractBlock
     update_jacobian!::Function
 end
 
-struct BackwardBlock_1 <: AbstractBlock    
+struct BackwardBlock <: AbstractBlock    
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
@@ -62,11 +62,12 @@ struct BackwardBlock_1 <: AbstractBlock
     update_jacobian!::Function
 end
 
+#=
 AssignmentBlock = AssignmentBlock_5
 PreambleBlock = PreambleBlock_1
 ForwardBlock = ForwardBlock_1
 BackwardBlock = BackwardBlock_1
-
+=#
 
 function get_dynamic_incidence_matrix(context)
     #Get Jacobian
