@@ -257,8 +257,12 @@ function sparsegridapproximation(; context::Context=context,
     end
     
     scaleCorrMat = repeat(Float64.(scaleCorr), 1, Tasmanian.getNumLoaded(grid))
-            
-    for iter in 1:maxiter
+
+    total_time = 0
+    context.timings["sparsegrids"] = Vector{Millisecond}(undef, 0)
+    timings = context.timings["sparsegrids"]
+    iter = 1
+    while iter <= maxiter
         tin = now()
         # new policy guess to be computed
         polGuess1 = copy(polGuess)
@@ -277,6 +281,9 @@ function sparsegridapproximation(; context::Context=context,
         end
         # Calculate (approximate) errors on tomorrow's policy grid
         metric, polGuess, grid = policy_update(grid, newgrid, polGuess, polGuess1, length(system_variables))
+        iteration_walltime = now() - tin
+        iter > 0 && (total_time += iteration_walltime.value)
+        push!(timings, iteration_walltime)
         println("Iteration: $iter, Grid pts: $(getNumPoints(grid)), Level: $ilev, Metric: $metric, Computing time: $(now() -tin)")
         if (mod(iter + 1, savefreq) == 0)
             #            save_grid(grid0,iter0)
@@ -285,7 +292,11 @@ function sparsegridapproximation(; context::Context=context,
         if (metric < tol_ti)
             break
         end
+        iter += 1
     end
+    average_time = total_time/(iter - 2)
+    println("Last grid points: $(getNumPoints(grid))")
+    println("Average iteration time (except first one): $average_time")
     return (grid, dynamic_state_variables, system_variables)
 end
 
@@ -854,6 +865,8 @@ function SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver
             error("Sparsegrids: unknown solver")
         end
     else
+        previousblasnumthreads = BLAS.get_num_threads()
+        BLAS.set_num_threads(1)
         chunks = collect(Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1))
         if solver == NonlinearSolver
             tasks = map(enumerate(chunks)) do (i, chunk)
@@ -867,6 +880,7 @@ function SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver
             error("Sparsegrids: unknown solver")
         end
         fetch.(tasks)
+        BLAS.set_num_threads(previousblasnumthreads)
     end
     return X
 end
