@@ -282,7 +282,7 @@ function sparsegridapproximation(; context::Context=context,
         # Calculate (approximate) errors on tomorrow's policy grid
         metric, polGuess, grid = policy_update(grid, newgrid, polGuess, polGuess1, length(system_variables))
         iteration_walltime = now() - tin
-        iter > 0 && (total_time += iteration_walltime.value)
+        iter > 1 && (total_time += iteration_walltime.value)
         push!(timings, iteration_walltime)
         println("Iteration: $iter, Grid pts: $(getNumPoints(grid)), Level: $ilev, Metric: $metric, Computing time: $(now() -tin)")
         if (mod(iter + 1, savefreq) == 0)
@@ -294,7 +294,7 @@ function sparsegridapproximation(; context::Context=context,
         end
         iter += 1
     end
-    average_time = total_time/(iter - 2)
+    average_time = total_time/(iter - 1)
     println("Last grid points: $(getNumPoints(grid))")
     println("Average iteration time (except first one): $average_time")
     return (grid, dynamic_state_variables, system_variables)
