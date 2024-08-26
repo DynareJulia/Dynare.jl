@@ -1,12 +1,13 @@
 using CpuId
 using Dynare
 using Statistics
+using Tasmanian
 
 function bench1(ncountries, depth)
     context = dynare("irbc1", "-DN=$ncountries");
     (grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], gridDepth = depth, maxRef = 0, tol_ti=0.001);
     # skipping JIT compilation time of first iteration
-    return mean([t.value for (i, t) in enumerate(context.timings["sparsegrids"]) if i > 1])
+    return mean([t.value for (i, t) in enumerate(context.timings["sparsegrids"]) if i > 1]), grid
 end
 
 function bench()
@@ -24,8 +25,8 @@ function bench()
         end
 
         for N in [2, 3 ] #4, 8, 12, 20]
-            m = bench1(N, depth)
-            println(buffer, "$N countries: mean iteration time: $m milliseconds")
+            m, grid = bench1(N, depth)
+            println(buffer, "$N countries, depth $depth, $(getNumPoints(grid)) grid points, mean iteration time: $m milliseconds")
         end
         write(outfile, String(take!(buffer)))
     end
