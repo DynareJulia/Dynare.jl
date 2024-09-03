@@ -389,7 +389,7 @@ function guess_policy(context, aNum, nPols, aPoints, sgws, M, N, P)
     
     steadystate = results.trends.endogenous_steady_state
     ssy = steadystate[system_variables]
-    ssi = steadystate[dynamic_state_variables[ids.system_in_state]]
+    ssi = steadystate[filter(x -> x <= model.endogenous_nbr, dynamic_state_variables)]
     sst = steadystate[state_variables]
 
     nsv = length(system_variables)
@@ -403,9 +403,22 @@ function guess_policy(context, aNum, nPols, aPoints, sgws, M, N, P)
         y0[iy] .= c[ilagendo] .- ssi
         polGuess[:, i] .= ssy .+ M*y0 .+ N*x
     end
+    set_boundaries!(polGuess, lb, ub)
     return polGuess
 end
-# TODO insure that guess is in variable domain
+
+function set_boundaries!(y, lb, ub)
+    for c in eachcol(y)
+        for (i, x) in enumerate(c)
+            if x <= lb[i]
+                x = lb[i] + eps()
+            elseif x >= ub[i]
+                x = ub[i] - eps()
+            end
+        end
+    end
+end
+            
 
 
 """
