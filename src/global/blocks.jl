@@ -542,7 +542,6 @@ function make_block_functions(context)
                                         endogenous_nbr)
     
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
-
     preamble_block = AssignmentBlock(preamble_eqs,
                                         predetermined_variables .- endogenous_nbr,
                                         preamble_expressions,
@@ -579,6 +578,8 @@ function make_block_functions(context)
     steady_state = context.results.model_results[1].trends.endogenous_steady_state
     preamble_evaluate_jacobian = make_evaluate_block_jacobian(preamble_jacobian_expressions, T, x, params, steady_state)
     preamble_evaluate_jacobian(preamble_jacobian, repeat(steady_state, 3))
+    # preamble is an assignment block
+    lmul!(-1, preamble_jacobian)
 
     forward_evaluate_jacobian = make_evaluate_block_jacobian(forward_jacobian_expressions, T, x, params, steady_state)
     

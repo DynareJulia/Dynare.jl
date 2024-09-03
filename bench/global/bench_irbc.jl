@@ -5,13 +5,13 @@ using Tasmanian
 
 function bench1(ncountries, depth)
     context = dynare("irbc1", "-DN=$ncountries");
-    (grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], gridDepth = depth, maxRef = 0, tol_ti=0.001);
+    (grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], gridDepth = depth, maxRef = 0, tol_ti=0.0001);
     # skipping JIT compilation time of first iteration
     return mean([t.value for (i, t) in enumerate(context.timings["sparsegrids"]) if i > 1]), grid
 end
 
 function bench()
-    depth = 4
+    depth = 3
     open("bench_irbc.md", "w+") do outfile
         buffer = IOBuffer()
         println(buffer, "# Dynare sparsegrid benchmark")

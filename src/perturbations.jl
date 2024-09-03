@@ -660,7 +660,8 @@ function compute_first_order_solution!(
     )
     set_compressed_jacobian!(css_ws.compressed_jacobian, jacobian, context)
 
-    LRE.first_order_solver!(LRE_results, css_ws.compressed_jacobian, options.LRE_options,                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
+    LRE.first_order_solver!(LRE_results, css_ws.compressed_jacobian, options.LRE_options,
+                            workspace(LRE.LinearRationalExpectationsWs, context, algo=options.dr_algo))
     if variance_decomposition
         compute_variance!(LRE_results, model.Sigma_e, workspace(LRE.VarianceWs, context, algo=options.dr_algo))
     end

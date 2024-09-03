@@ -1,4 +1,5 @@
 include("blocks.jl")
+include("block_firstorder.jl")
 include("monomial.jl")
 
 using AxisArrays: AxisArray
@@ -210,8 +211,6 @@ function sparsegridapproximation(; context::Context=context,
     ################################################################################
 
     grid = copyGrid(grid0)
-    polGuess = guess_policy(context, aNum, nPols, aPoints, dynamic_state_variables, system_variables, lb, ub, backward_block, forward_block, sgmodel)
-    loadNeededPoints!(grid, polGuess)
 
     monomial = MonomialPowerIntegration(exogenous_nbr)
     nodesnbr = length(monomial.nodes)
@@ -247,7 +246,7 @@ function sparsegridapproximation(; context::Context=context,
                 forward_residuals, forward_variable_jacobian, J, fx,
                 policy_jacobian, evalPt, 
                 future_policy_jacobian, 
-                dyn_endogenous_vector, M1, polGuess, tmp_state_variables,
+                dyn_endogenous_vector, M1, policyguess, tmp_state_variables,
                 sev, sgmodel, sgoptions)
     if Threads.nthreads() > 1
         BLAS.set_num_threads(1)
@@ -256,6 +255,11 @@ function sparsegridapproximation(; context::Context=context,
         sgws = [sgws_]
     end
     
+    M, N, P = block_first_order_approximation(context, sgws[1])
+    polGuess = guess_policy(context, aNum, nPols, aPoints, sgws[1], M, N, P)
+#    polGuess = guess_policy(context, aNum, nPols, aPoints, dynamic_state_variables, system_variables, lb, ub, backward_block, forward_block, sgmodel)
+    loadNeededPoints!(grid, polGuess)
+
     scaleCorrMat = repeat(Float64.(scaleCorr), 1, Tasmanian.getNumLoaded(grid))
 
     total_time = 0
@@ -376,29 +380,33 @@ function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, grid
     return grid, aPoints, aNum, gridDim, gridDepth, gridDomain
 end
 
-#=
-# waiting for the linear approximation of a single block
-function policy_guess(context, aNum, nPols, aPoints, i_polv, i_state)
+function guess_policy(context, aNum, nPols, aPoints, sgws, M, N, P)
+    @unpack ids, dynamic_state_variables, system_variables, preamble_block, lb, ub, backward_block, forward_block, sgmodel = sgws
+    state_variables = preamble_block.variables
+
     results = context.results.model_results[1]
     model = context.models[1]
     
     steadystate = results.trends.endogenous_steady_state
-    y0 = zeros(model.endogenous_nbr)
-    simulresults = Matrix{Float64}(undef, 2, model.endogenous_nbr)
-    x = zeros(2, model.exogenous_nbr)
-    A = zeros(model.endogenous_nbr, model.endogenous_nbr)
-    B = zeros(model.endogenous_nbr, model.exogenous_nbr)
-    Dynare.make_A_B!(A, B, model, results)
-    polGuess = zeros(aNum, nPols)
-    for (i,r) in enumerate(eachrow(aPoints))
-        view(y0, i_state) .= r
-        Dynare.simul_first_order!(simulresults, y0, x, steadystate, A, B, 1)
-        @views polGuess[i, :] .= simulresults[2, i_polv]
+    ssy = steadystate[system_variables]
+    ssi = steadystate[dynamic_state_variables[ids.system_in_state]]
+    sst = steadystate[state_variables]
+
+    nsv = length(system_variables)
+    y0 = zeros(nsv)
+    polGuess = zeros(nsv, aNum)
+    istate = findall(dynamic_state_variables .> sgmodel.endogenous_nbr)
+    ilagendo = findall(dynamic_state_variables .<= sgmodel.endogenous_nbr)
+    iy = findall(in(dynamic_state_variables[ilagendo]), system_variables) 
+    @views for (i, c) in enumerate(eachcol(aPoints))
+        x = c[istate] .- sst
+        y0[iy] .= c[ilagendo] .- ssi
+        polGuess[:, i] .= ssy .+ M*y0 .+ N*x
     end
     return polGuess
 end
 # TODO insure that guess is in variable domain
-=#
+
 
 """
     given the state variables, find a solution that is constant in t and t+1 in absence of future shocks
