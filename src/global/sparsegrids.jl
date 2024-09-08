@@ -60,7 +60,7 @@ struct Sev
     node::Vector{Float64}
 end
 
-struct SGWS
+struct SparsegridsWs
     monomial::MonomialPowerIntegration
     dynamic_state_variables::Vector{Int}
     system_variables::Vector{Int} 
@@ -72,6 +72,7 @@ struct SGWS
     backward_variable_jacobian::Matrix{Float64}
     forward_block::ForwardBlock 
     preamble_block::AssignmentBlock 
+    system_block::SimultaneousBlock
     residuals::Vector{Float64}
     forward_jacobian::Matrix{Float64}
     forward_points::Matrix{Float64} 
@@ -158,7 +159,7 @@ function sparsegridapproximation(; context::Context=context,
     exogenous_nbr = model.exogenous_nbr
     work = context.work
     (dynamic_state_variables, predetermined_variables, system_variables,
-     backward_block, forward_block, preamble_block) = make_block_functions(context)
+     backward_block, forward_block, preamble_block, system_block) = make_block_functions(context)
     lb = Vector{Float64}(undef, 0)
     ub = Vector{Float64}(undef, 0)
     bmcps = Vector{Vector{Int}}(undef, 0)
@@ -239,15 +240,15 @@ function sparsegridapproximation(; context::Context=context,
     policyguess = zeros(gridOut, nodesnbr)
     tmp_state_variables = Vector{Float64}(undef, length(dynamic_state_variables))
     sev = Sev(zeros(3*endogenous_nbr), zeros(nstates))
-    sgws_ = SGWS(monomial, dynamic_state_variables, system_variables, 
-                bmcps, ids, lb, ub, backward_block, backward_variable_jacobian, 
-                forward_block, preamble_block,
-                residuals, forward_jacobian, forward_points, 
-                forward_residuals, forward_variable_jacobian, J, fx,
-                policy_jacobian, evalPt, 
-                future_policy_jacobian, 
-                dyn_endogenous_vector, M1, policyguess, tmp_state_variables,
-                sev, sgmodel, sgoptions)
+    sgws_ = SparsegridsWs(monomial, dynamic_state_variables, system_variables, 
+                         bmcps, ids, lb, ub, backward_block, backward_variable_jacobian, 
+                         forward_block, preamble_block, system_block,
+                         residuals, forward_jacobian, forward_points, 
+                         forward_residuals, forward_variable_jacobian, J, fx,
+                         policy_jacobian, evalPt, 
+                         future_policy_jacobian, 
+                         dyn_endogenous_vector, M1, policyguess, tmp_state_variables,
+                         sev, sgmodel, sgoptions)
     if Threads.nthreads() > 1
         BLAS.set_num_threads(1)
         sgws = [deepcopy(sgws_) for i in 1:Threads.nthreads()]
@@ -301,21 +302,20 @@ function sparsegridapproximation(; context::Context=context,
     average_time = total_time/(iter - 1)
     println("Last grid points: $(getNumPoints(grid))")
     println("Average iteration time (except first one): $average_time")
-    return (grid, dynamic_state_variables, system_variables)
+    return (grid, sgws[1])
 end
 
-function simulate!(context, grid, periods, policy_variables, dynamic_state_variables, replications=1)
+function simulate!(; context = context, grid = grid, periods = 1000, replications=1, sgws = sgws)
     model = context.models[1]
+    @unpack endogenous_nbr, exogenous_nbr, Sigma_e = model
+    @unpack dynamic_state_variables, preamble_block, system_variables = sgws
+    @unpack steadystate = sgws.sgmodel
     params = context.work.params
     results = context.results.model_results[1]
     trends = results.trends
     perfect_foresight_ws = PerfectForesightWs(context, periods)
     shocks = perfect_foresight_ws.shocks
     initial_values = get_dynamic_initialvalues(context)
-    endogenous_nbr = model.endogenous_nbr
-    exogenous_nbr = model.exogenous_nbr
-    steadystate = trends.endogenous_steady_state
-    Sigma_e = model.Sigma_e
     chol_sigma_e_L = cholesky(Sigma_e).L
     x = reshape(perfect_foresight_ws.x, exogenous_nbr, periods)
 
@@ -326,7 +326,7 @@ function simulate!(context, grid, periods, policy_variables, dynamic_state_varia
     z = Vector{Float64}(undef, endogenous_nbr)
     random_shocks = Matrix{Float64}(undef, exogenous_nbr, periods)
     sv_buffer = Vector{Float64}(undef, length(dynamic_state_variables))
-    pv_buffer = Vector{Float64}(undef, length(policy_variables))
+    pv_buffer = Vector{Float64}(undef, length(system_variables))
     @inbounds for r in 1:replications
         mul!(random_shocks, chol_sigma_e_L, randn(exogenous_nbr, periods))
         if !isempty(shocks)
@@ -335,15 +335,14 @@ function simulate!(context, grid, periods, policy_variables, dynamic_state_varia
         y[1:endogenous_nbr] .= initial_values
         for p in 1:periods
             @views begin
-                preamble_block!(T, y, random_shocks[:, p], params, steadystate)
+                preamble_block.set_endogenous_variables!(T, y, random_shocks[:, p], params, steadystate)
                 sv_buffer .= y[dynamic_state_variables]
                 evaluateBatch!(pv_buffer, grid, sv_buffer)
-                y[policy_variables] .= pv_buffer
-                Y[p, 1:endogenous_nbr, r] .= y[endogenous_nbr .+ (1:endogenous_nbr)]
+                circshift!(y, -endogenous_nbr)
+                y[system_variables] .= pv_buffer
+                Y[p, 1:endogenous_nbr, r] .= y[1:endogenous_nbr]
                 Y[p, endogenous_nbr .+ (1:exogenous_nbr), r] .= random_shocks[:, p]
-
-            end  
-            circshift!(y, -endogenous_nbr)
+            end
         end
     end
     symboltable = context.symboltable
@@ -351,6 +350,47 @@ function simulate!(context, grid, periods, policy_variables, dynamic_state_varia
                     Symbol.(get_exogenous(symboltable)))
     return AxisArray(Y, Undated(1):Undated(periods), varnames, 1:replications) 
 end
+
+function simulation_approximation_error(; context = context, grid = grid, periods = 1000, sgws = sgws)
+    @unpack dynamic_state_variables, system_block, system_variables = sgws
+    @unpack endogenous_nbr = sgws.sgmodel
+
+    # the first simulation period is used for initialization
+    Y = simulate!(context = context, grid = grid, periods = periods + 1, replications = 1, sgws = sgws)
+    errors = zeros(length(system_variables), periods)
+    ir1 = filter(x -> x .< endogenous_nbr, dynamic_state_variables)
+    n = length(dynamic_state_variables)
+    n1 = length(ir1)
+    ir2 = filter(x -> x .> endogenous_nbr, dynamic_state_variables)
+    x = zeros(length(dynamic_state_variables))
+    @views begin
+        for i in 1:size(Y, 1) 
+            # initial values
+            i == 1 && continue
+            x[1:n1] .= Y[i-1, ir1]
+            x[n1 .+ 1:n] .= Y[i, ir2 .- endogenous_nbr]
+            y = Y[i, system_variables]
+            sysOfEqs!(errors[:, i - 1], y, x, grid, sgws)
+        end
+    end
+    equations = system_block.equations
+    println("\nMaximum approximation error by equation:\n")
+    @views begin
+        for i in axes(errors, 1)
+            println("Equation $(equations[i]): maximum absolute error: $(maximum(abs.(errors[i, :])))")
+        end
+    end
+    println("\nMean approximation error by equation:\n")
+    @views begin
+        for i in axes(errors, 1)
+            println("Equation $(equations[i]): mean absolute error: $(mean(abs.(errors[i, :])))")
+        end
+    end
+    println("\nOverall maximum absolute error: $(maximum(abs.(errors)))" ) 
+    println("Overall mean absolute error: $(mean(abs.(errors)))\n" ) 
+    return errors
+end
+
 
 function plot_policy_function(vstate, grid, state_variables; N=50, context=context)
     steadystate = context.results.model_results[1].trends.endogenous_steady_state;
@@ -742,7 +782,7 @@ function set_dyn_endogenous_vector!(dyn_endogenous_vector, policy, state, grid, 
         end
         copyto!(shift_dyn_endogenous, 1, dyn_endogenous_vector_i, endogenous_nbr + 1, 2*endogenous_nbr)
         # 1) Determine t+1  variables using preamble
-        set_endogenous_variables!(tempterms, shift_dyn_endogenous, nodes[i], parameters, steadystate)
+        preamble_block.set_endogenous_variables!(tempterms, shift_dyn_endogenous, nodes[i], parameters, steadystate)
         copyto!(dyn_endogenous_vector_i, endogenous_nbr + 1, shift_dyn_endogenous, 1, 2*endogenous_nbr)
         for (j, sv)  in enumerate(system_variables)
             dyn_endogenous_vector_i[sv + endogenous_nbr] = policy[j]

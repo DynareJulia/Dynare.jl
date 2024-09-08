@@ -92,14 +92,11 @@ end;
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
 
-shocks;
-  var e_1;
-  periods 1:10;
-  values 1;
-end;
+(grid, sgws) = sparsegridapproximation(scaleCorrExclude=["lambda"]);
+Y = simulate!();
+errors = simulation_approximation_error();
 
-(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"]);
-Y = simulate!(context, grid, 100, policy_variables, state_variables, 10000);
-M = mean(Y, dims=3);
-display(Plots.plot(M[:, [1,3]], label=["k_1" "k_2"], title="10-period shock on e_1"));
+// Y = simulate!(context, grid, 100, policy_variables, state_variables, 10000);
+// M = mean(Y, dims=3);
+// display(Plots.plot(M[:, [1,3]], label=["k_1" "k_2"], title="10-period shock on e_1"));
 
