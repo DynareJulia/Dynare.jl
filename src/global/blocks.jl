@@ -32,6 +32,7 @@ struct AssignmentBlock <: AbstractPreambleBlock
     variables::Vector{Int}
     expressions::Vector{Expr}
     jacobian::SparseMatrixCSC{Float64, Int}
+    set_endogenous_variables!::Function
     is_linear::Bool
 end
 
@@ -54,6 +55,15 @@ struct ForwardBlock <: AbstractBlock
 end
 
 struct BackwardBlock <: AbstractBlock    
+    equations::Vector{Int}
+    variables::Vector{Int}
+    expressions::Vector{Expr}
+    jacobian::SparseMatrixCSC{Float64, Int}
+    get_residuals!::Function
+    update_jacobian!::Function
+end
+
+struct SimultaneousBlock <: AbstractBlock    
     equations::Vector{Int}
     variables::Vector{Int}
     expressions::Vector{Expr}
@@ -211,7 +221,6 @@ function analyze_SparseDynamicResid!(blocks, preamble_expressions, forward_expre
 
     predetermined_variables = Vector{Int}(undef, 0)
     preamble_eqs = similar(predetermined_variables)
-    system_equations = similar(predetermined_variables)
     forward_expressions_eqs = similar(predetermined_variables)
     backward_expressions_eqs = similar(predetermined_variables)
 
@@ -228,7 +237,6 @@ function analyze_SparseDynamicResid!(blocks, preamble_expressions, forward_expre
         else
             preamble = false
             for eq_no in b
-                push!(system_equations, eq_no)
                 eq = f.body.args[eq_offset].args[3].args[2*eq_no]
                 if contains_forwardvariable(eq.args[2], 2*endogenous_nbr)
                     push!(forward_expressions_eqs, eq_no)
@@ -239,14 +247,13 @@ function analyze_SparseDynamicResid!(blocks, preamble_expressions, forward_expre
         end
     end
     sort!(predetermined_variables)
-    sort!(system_equations)
     sort!(preamble_eqs)
     sort!(forward_expressions_eqs)
     sort!(backward_expressions_eqs)
     add_block_to_preamble!(preamble_expressions, preamble_eqs)
     add_expression_to_block!(forward_expressions, forward_expressions_eqs) 
     add_expression_to_block!(backward_expressions, backward_expressions_eqs)
-    return (predetermined_variables, system_equations, preamble_eqs, forward_expressions_eqs, backward_expressions_eqs)
+    return (predetermined_variables, preamble_eqs, forward_expressions_eqs, backward_expressions_eqs)
 end
 
 function make_jacobian_submatrix(colptr::AbstractVector{I},
@@ -510,7 +517,7 @@ function make_block_functions(context)
     preamble_expressions = Vector{Expr}(undef, 0)
     blocks = []
     
-    (predetermined_variables, system_equations, preamble_eqs, forward_expressions_eqs, backward_expressions_eqs) =
+    (predetermined_variables, preamble_eqs, forward_expressions_eqs, backward_expressions_eqs) =
         analyze_SparseDynamicResid!(blocks,
                                     preamble_expressions,
                                     forward_expressions,
@@ -518,35 +525,34 @@ function make_block_functions(context)
                                     rb,
                                     matching,
                                     context)
-                                                            
+    system_expressions = vcat(forward_expressions, backward_expressions)
+    system_expressions_eqs = vcat(forward_expressions_eqs, backward_expressions_eqs)
     forward_equations_nbr = length(forward_expressions)
     backward_equations_nbr = length(backward_expressions)
-    
-    global forward_block_ = make_system_function(:forward_block, forward_expressions)
-    global preamble_block_ = make_assignment_function(:preamble_block, preamble_expressions)
-    global other_block_ = make_system_function(:system_block, backward_expressions)
-    global set_endogenous_variables! = make_assignment_function(:preamble_block, preamble_expressions)
+    system_equations_nbr = forward_equations_nbr + backward_equations_nbr
 
     equation_xref_list, variable_xref_list = xref_lists(context)
     states = get_state_variables(predetermined_variables,
-                                 system_equations,
+                                 system_expressions_eqs,
                                  equation_xref_list,
                                  variable_xref_list,
                                  endogenous_nbr)
-    system_variables = [matching[e] for e in system_equations]
+    system_variables = [matching[e] for e in system_expressions_eqs]
     sort!(system_variables)
 
-    preamble_jacobian, preamble_jacobian_expressions = make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
-                                        context.models[1].dynamic_g1_sparse_rowval,
-                                        preamble_eqs,
-                                        endogenous_nbr)
+    preamble_jacobian, preamble_jacobian_expressions =
+        make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                 context.models[1].dynamic_g1_sparse_rowval,
+                                 preamble_eqs,
+                                 endogenous_nbr)
     
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
     preamble_block = AssignmentBlock(preamble_eqs,
-                                        predetermined_variables .- endogenous_nbr,
-                                        preamble_expressions,
-                                        preamble_jacobian,
-                                        is_block_linear(preamble_eqs, context),
+                                     predetermined_variables .- endogenous_nbr,
+                                     preamble_expressions,
+                                     preamble_jacobian,
+                                     make_assignment_function(:preamble_block, preamble_expressions),
+                                     is_block_linear(preamble_eqs, context),
                                     )
 
     forward_jacobian, forward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
@@ -571,6 +577,18 @@ function make_block_functions(context)
                                    make_evaluate_block_jacobian_(:update_jacobian!, backward_jacobian_expressions)
                                    )
                                        
+    system_jacobian, system_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                                                          context.models[1].dynamic_g1_sparse_rowval,
+                                                                          system_expressions_eqs)
+    
+    system_block = SimultaneousBlock(system_expressions_eqs,
+                                   predetermined_variables .- endogenous_nbr,
+                                   system_expressions,
+                                   system_jacobian,
+                                   make_residuals_function(:get_residuals!, system_expressions),
+                                   make_evaluate_block_jacobian_(:update_jacobian!, system_jacobian_expressions)
+                                   )
+                                       
     ws = DynamicWs(context)
     T = ws.temporary_values
     x = context.results.model_results[1].trends.exogenous_steady_state
@@ -588,9 +606,10 @@ function make_block_functions(context)
     backward_evaluate_jacobian = make_evaluate_block_jacobian(backward_jacobian_expressions, T, x, params, steady_state)
     backward_evaluate_jacobian(backward_jacobian, repeat(steady_state, 3))
     return (states, predetermined_variables, system_variables,
-            backward_block, forward_block, preamble_block)
+            backward_block, forward_block, preamble_block, system_block)
 end
 
+#=
 function forward_block!(T, residuals, y, x, params, steadystate)
     DFunctions.SparseDynamicResidTT!(T, y, x, params, steadystate)
     forward_block_(T, residuals, y, x, params, steadystate)
@@ -608,6 +627,7 @@ function other_block!(T, residuals, y, x, params, steadystate)
     other_block_(T, residuals, y, x, params, steadystate)
     return nothing
 end
+=#
 
 """
     xref_lists(context::Context) -> (equation_xref_list, variable_xref_list)
