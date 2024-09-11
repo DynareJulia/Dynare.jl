@@ -375,9 +375,11 @@ function simulation_approximation_error(; context = context, grid = grid, period
     end
     equations = system_block.equations
     println("\nMaximum approximation error by equation:\n")
+    qq = zeros(length(equations))
     @views begin
         for i in axes(errors, 1)
-            println("Equation $(equations[i]): maximum absolute error: $(maximum(abs.(errors[i, :])))")
+            qq[i] = quantile(abs.(errors[i, :]), 0.999)
+            println("Equation $(equations[i]): absolute error 99.9% quantile: $(quantile(abs.(errors[i, :]), 0.999))")
         end
     end
     println("\nMean approximation error by equation:\n")
@@ -386,7 +388,7 @@ function simulation_approximation_error(; context = context, grid = grid, period
             println("Equation $(equations[i]): mean absolute error: $(mean(abs.(errors[i, :])))")
         end
     end
-    println("\nOverall maximum absolute error: $(maximum(abs.(errors)))" ) 
+    println("\nOverall absolute error 99% quantile: $(quantile(vec(errors), 0.999))" ) 
     println("Overall mean absolute error: $(mean(abs.(errors)))\n" ) 
     return errors
 end
