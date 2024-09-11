@@ -13,6 +13,8 @@
 using Pkg
 pkg"add Dynare"
 ```
+It is strongly recommended to install Dynare in a fresh Julia environment in order to avoid conflicts with other packages
+
 ## Update
 If you already have a version of Dynare installed (not in development mode):
 ```
