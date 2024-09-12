@@ -354,8 +354,6 @@ function dynare_eval(s::Symbol, context::Context, xs, xw)::Union{Symbol,Float64}
     symboltable = context.symboltable
     work = context.work
     params = work.params
-    results = context.results.model_results[1]
-    trends = results.trends
     ss = string(s)
     let v::Union{Symbol,Float64}
         try
@@ -363,8 +361,6 @@ function dynare_eval(s::Symbol, context::Context, xs, xw)::Union{Symbol,Float64}
             k = st.orderintype
             if st.symboltype == Parameter
                 v = params[k]
-            elseif st.symboltype == Exogenous
-                v = results.exogenous_steady_state[k]
             else
                 for (xss, xww) in zip(xs, xw)
                     if st.symboltype == xss
