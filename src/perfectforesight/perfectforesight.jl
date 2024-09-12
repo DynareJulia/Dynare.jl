@@ -146,6 +146,7 @@ struct PerfectForesightWs
         modfileinfo = context.modfileinfo
         trends = context.results.model_results[1].trends
         y = Vector{Float64}(undef, m.endogenous_nbr)
+        x = Vector{Float64}(undef, 0)
         if m.exogenous_nbr > 0
             if modfileinfo.has_endval
                 exogenous_steady_state = trends.exogenous_terminal_steady_state
@@ -153,13 +154,16 @@ struct PerfectForesightWs
                 exogenous_steady_state = trends.exogenous_steady_state
             end
             x = repeat(exogenous_steady_state, periods)
-        else
-            x = Vector{Float64}(undef, 0, 0)
         end
         if length(context.work.shocks) > 0
             shocks = context.work.shocks
             pmax = Int64(length(shocks) / m.exogenous_nbr)
             # adding shocks to exogenous variables
+            @show x
+            @show shocks
+            @show m.exogenous_nbr
+            @show pmax
+            @show periods
             view(x, 1:pmax*m.exogenous_nbr) .= shocks
         else
             shocks = Vector{Float64}(undef, 0)
