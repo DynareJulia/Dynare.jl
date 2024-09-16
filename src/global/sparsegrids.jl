@@ -14,84 +14,6 @@ using Tasmanian
 
 export sparsegridapproximation, simulate!
 
-@enum SGSolver NLsolver NonlinearSolver PATHSolver
-
-struct SGModel
-    dyn_endogenous::Vector{Float64}       # dynamic endogenous variables in period t-1, t, t+1 
-    shift_dyn_endogenous::Vector{Float64} # dynamic endogenous variables in period t, t+1 
-    exogenous::Vector{Float64}            # exogenous variables in period t
-    endogenous_nbr::Int                   # number of endogenous variables in period t
-    exogenous_nbr::Int                    # number of exogenous variables
-    parameters::Vector{Float64}           # model parameters    
-    steadystate::Vector{Float64}          # steady state of the model
-    tempterms::Vector{Float64}            # temporary terms
-end
-
-struct SGIndices
-    forward_in_system::Vector{Int} # indices of forward looking variables in system variables
-    state_in_system::Vector{Int}   # indices of system variables that belong to state
-    state_variables::Vector{Int} 
-    system_in_state::Vector{Int}   # indices of state variables that belong to system
- end 
-
-function SGIndices(endogenous_nbr::Int, forward_variables, dynamic_state_variables, system_variables)
-    forward_in_system = findall(in(forward_variables), system_variables)
-    state_in_system = findall(in(system_variables), dynamic_state_variables)
-    state_variables = [s > endogenous_nbr ? s - endogenous_nbr : s for s in dynamic_state_variables] 
-    system_in_state = findall(in(state_variables), system_variables)
-    return SGIndices(
-        forward_in_system,
-        state_in_system,
-        state_variables,
-        system_in_state
-    )
-end 
-
-struct SGOptions
-    mcp::Bool
-    method
-    solver
-    ftol::Float64
-    show_trace::Bool
-end
-
-struct Sev
-    dyn_endogenous_variable::Vector{Float64}
-    node::Vector{Float64}
-end
-
-struct SparsegridsWs
-    monomial::MonomialPowerIntegration
-    dynamic_state_variables::Vector{Int}
-    system_variables::Vector{Int} 
-    bmcps::Vector{Vector{Int}}
-    ids::SGIndices
-    lb::Vector{Float64}
-    ub::Vector{Float64}
-    backward_block::BackwardBlock
-    backward_variable_jacobian::Matrix{Float64}
-    forward_block::ForwardBlock 
-    preamble_block::AssignmentBlock 
-    system_block::SimultaneousBlock
-    residuals::Vector{Float64}
-    forward_jacobian::Matrix{Float64}
-    forward_points::Matrix{Float64} 
-    forward_residuals::Matrix{Float64}    
-    forward_variable_jacobian::Matrix{Float64}
-    J::Matrix{Float64}
-    fx::Vector{Float64}
-    policy_jacobian::Matrix{Float64} 
-    evalPt::Vector{Float64} 
-    future_policy_jacobian::Matrix{Float64} 
-    dyn_endogenous_vector::Vector{Vector{Float64}} 
-    M1::Matrix{Float64} 
-    policyguess::Matrix{Float64}
-    tmp_state_variables::Vector{Float64}
-    sev::Sev
-    sgmodel::SGModel
-    sgoptions::SGOptions
-end
-
 """
     # Number of dimensions (capital stock and tfp for each country)
     gridDim = nstates
@@ -122,7 +44,7 @@ end
     # Convergence criterion in time iteration
     tol_ti = 1e-4
     # Number of random draws for the error computation
-    TT = 10000
+    drawsnbr = 10000
     # Number of burn-in periods for SIMULATION
     burnin = 1000
     # Frequency of saving grid
@@ -147,10 +69,10 @@ function sparsegridapproximation(; context::Context=context,
                                  scaleCorrInclude = [],
                                  scaleCorrExclude = [],
                                  show_trace = false,
-                                 solver = nothing,
+                                 solver = mcp ? NLsolver : NonlinearSolver,
                                  surplThreshold= 1e-3,
                                  tol_ti = 1e-4,
-                                 TT = 10000,
+                                 drawsnbr = 10000,
                                  typeRefinement = "classic",
                                  )
     endogenous_variables = Dynare.get_endogenous(context.symboltable)
@@ -166,7 +88,8 @@ function sparsegridapproximation(; context::Context=context,
     # must be consistent with SysOfEqs()
     block_eqs = union(forward_block.equations, backward_block.equations)
     # computes lb, ub, bmcps
-    block_mcp!(lb, ub, bmcps, context, block_eqs, system_variables .+ endogenous_nbr)
+    limits = context.work.limits
+    block_mcp!(lb, ub, bmcps, context, block_eqs, system_variables, limits)
     equation_xref_list, variable_xref_list = xref_lists(context)
     params = context.work.params
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
@@ -193,7 +116,6 @@ function sparsegridapproximation(; context::Context=context,
 
     gridDim = nstates
     gridOut = length(system_variables)
-    limits = context.work.limits
     nl = length(limits)
     gridDomain = zeros(gridDim, 2)
     for l in limits
@@ -302,10 +224,26 @@ function sparsegridapproximation(; context::Context=context,
     average_time = total_time/(iter - 1)
     println("Last grid points: $(getNumPoints(grid))")
     println("Average iteration time (except first one): $average_time")
+
+    results = context.results.model_results[1].sparsegrids
+    results.average_iteration_time = average_time
+    results.drawsnbr = drawsnbr
+    results.ftol = ftol
+    results.grid = grid
+    results.gridDepth = gridDepth
+    results.gridOrder = gridOrder
+    results.gridRule = gridRule
+    results.iterRefStart = iterRefStart
+    results.maxRef = maxRef
+    results.mcp = mcp
+    results.method = method
+    results.solver = solver
+    results.surplThreshold = surplThreshold
+
     return (grid, sgws[1])
 end
 
-function simulate!(; context = context, grid = grid, periods = 1000, replications=1, sgws = sgws)
+function simulate!(; context = context, grid::TasmanianSG = grid, periods = 1000, replications=1, sgws = sgws)
     model = context.models[1]
     @unpack endogenous_nbr, exogenous_nbr, Sigma_e = model
     @unpack dynamic_state_variables, preamble_block, system_variables = sgws
@@ -351,13 +289,13 @@ function simulate!(; context = context, grid = grid, periods = 1000, replication
     return AxisArray(Y, Undated(1):Undated(periods), varnames, 1:replications) 
 end
 
-function simulation_approximation_error(; context = context, grid = grid, periods = 1000, sgws = sgws)
+function simulation_approximation_error(; context = context, grid::TasmanianSG = grid, drawsnbr = 10000, quantile_probability = 0.999, sgws = sgws)
     @unpack dynamic_state_variables, system_block, system_variables = sgws
     @unpack endogenous_nbr = sgws.sgmodel
 
     # the first simulation period is used for initialization
-    Y = simulate!(context = context, grid = grid, periods = periods + 1, replications = 1, sgws = sgws)
-    errors = zeros(length(system_variables), periods)
+    Y = simulate!(context = context, grid = grid, periods = drawsnbr + 1, replications = 1, sgws = sgws)
+    errors = zeros(length(system_variables), drawsnbr)
     ir1 = filter(x -> x .< endogenous_nbr, dynamic_state_variables)
     n = length(dynamic_state_variables)
     n1 = length(ir1)
@@ -375,35 +313,45 @@ function simulation_approximation_error(; context = context, grid = grid, period
     end
     equations = system_block.equations
     println("\nMaximum approximation error by equation:\n")
-    qq = zeros(length(equations))
+    equation_quantile_errors = zeros(length(equations))
+    equation_average_errors = zeros(length(equations))
     @views begin
         for i in axes(errors, 1)
-            qq[i] = quantile(abs.(errors[i, :]), 0.999)
-            println("Equation $(equations[i]): absolute error 99.9% quantile: $(quantile(abs.(errors[i, :]), 0.999))")
+            equation_quantile_errors[i] = quantile(abs.(errors[i, :]), quantile_probability)
+            println("Equation $(equations[i]): absolute error $(100*quantile_probability) quantile: $(quantile(abs.(errors[i, :]), quantile_probability))")
         end
     end
     println("\nMean approximation error by equation:\n")
     @views begin
         for i in axes(errors, 1)
-            println("Equation $(equations[i]): mean absolute error: $(mean(abs.(errors[i, :])))")
+            equation_average_errors[i] = mean(abs.(errors[i, :]))
+            println("Equation $(equations[i]): mean absolute error: $(equation_average_errors[i])")
         end
     end
-    println("\nOverall absolute error 99% quantile: $(quantile(vec(errors), 0.999))" ) 
-    println("Overall mean absolute error: $(mean(abs.(errors)))\n" ) 
+    average_error = mean(abs.(errors))
+    quantile_error = quantile(abs.(vec(errors)), quantile_probability)
+    println("\nOverall absolute error $(100*quantile_probability)% quantile: $(quantile_error)" ) 
+    println("Overall mean absolute error: $(average_error)\n" ) 
+    results = context.results.model_results[1].sparsegrids
+    results.average_error = average_error
+    results.drawsnbr = drawsnbr
+    results.equation_average_errors = equation_average_errors
+    results.equation_quantile_errors = equation_quantile_errors
+    results.quantile_probability = quantile_probability
+    results.quantile_error = quantile_error
     return errors
 end
 
 
-function plot_policy_function(vstate, grid, state_variables; N=50, context=context)
-    steadystate = context.results.model_results[1].trends.endogenous_steady_state;
-    sv_buffer = repeat(steadystate[state_variables], 1, N)
-    k = findfirst(in(state_variables), context.symboltable[vstate].orderintype)
+function plot_policy_function(plot_variables, vstate, state, grid, state_variables, system_variables; N=50, context=context)
+    sv_buffer = repeat(state, 1, N)
+    k = findfirst(state_variables .== context.symboltable[vstate].orderintype)
+    kp = [findfirst(context.symboltable[v].orderintype .== system_variables) for v in plot_variables]
     gridDomain = getDomainTransform(grid)
     x = range(gridDomain[k,1], gridDomain[k, 2], N)
-    @views sv_buffer[k, :] .= x
+    sv_buffer[k, :] .= x
     Y = evaluateBatch(grid, sv_buffer)
-    display(Y)
-    return Y
+    return x, Y
 end
     
 """
@@ -634,7 +582,7 @@ function save_grid(grid, iter)
     return
 end
 
-function block_mcp!(lb, ub, bmcps, context, block_eqs, block_vars)
+function block_mcp!(lb, ub, bmcps, context, block_eqs, block_vars, limits)
     block_eqs_ = copy(block_eqs)
     n = length(block_eqs_)
     resize!(lb, n)
@@ -643,7 +591,7 @@ function block_mcp!(lb, ub, bmcps, context, block_eqs, block_vars)
     fill!(ub, Inf)
     for m in context.models[1].mcps
         (eqn, var, op, expr) = m
-        bvar = findfirst(var .== block_vars .- context.models[1].endogenous_nbr)
+        bvar = findfirst(var .== block_vars)
         beqn = findfirst(eqn .== block_eqs_)
         block_eqs_[[bvar, beqn]] .= block_eqs_[[beqn, bvar]]
         push!(bmcps, [beqn, bvar])
@@ -975,12 +923,24 @@ function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trac
         f2!(r, x) = sysOfEqs!(r, x, state, oldgrid, sgws)
         JA2!(Jx, x) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
         df = OnceDifferentiable(f2!, JA2!, x, fx, J)
-        res = NLsolve.mcpsolve(df, lb, ub, x, ftol = ftol, show_trace = show_trace)
-        if !res.f_converged
-            @show res.f_converged
-            error("sparsegrids: solution update failed")
+        let res
+            try
+                res = NLsolve.mcpsolve(df, lb, ub, x, ftol = ftol, show_trace = show_trace)
+            catch e
+                @show lb
+                @show ub
+                @show e
+                @show x
+                x .= evaluate(oldgrid, state)
+                continue
+            else
+                if !res.f_converged
+                    @show res.f_converged
+                    error("sparsegrids: solution update failed")
+                end
+                x .= res.zero
+            end 
         end
-        x .= res.zero
     end
     nothing
 end

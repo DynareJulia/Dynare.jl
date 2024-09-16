@@ -774,7 +774,7 @@ mutable struct EstimationResults
         new(posterior_mode, transformed_posterior_mode, posterior_mode_std, transformed_posterior_mode_std,
         posterior_mode_covariance, transformed_posterior_mode_covariance, posterior_mcmc_chains_nbr)
     end 
-end 
+end
 
 mutable struct ModelResults
     irfs::Dict{Symbol, AxisArrayTable}
@@ -788,6 +788,7 @@ mutable struct ModelResults
     simulations::Vector{Simulation}
     smoother::AxisArrayTable
     solution_derivatives::Vector{Matrix{Float64}}
+    sparsegrids::SparsegridsResults
 end
 
 Base.show(io::IO, r::ModelResults) = show_field_value(r)

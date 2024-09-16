@@ -68,6 +68,7 @@ model;
   ;
 end;
 
+pseudo_state([:kappa, :beta]);
 
 //steady_state_model;
 initval;
@@ -91,6 +92,8 @@ end;
   limits!("k_@{j}", min = 0.8, max = 1.2);
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
+limits!("kappa", min = 0.3, max = 0.4);
+limits!("beta", min =0.9, max = 0.99);
 
 (grid, sgws) = sparsegridapproximation(scaleCorrExclude=["lambda"]);
 Y = simulate!();
