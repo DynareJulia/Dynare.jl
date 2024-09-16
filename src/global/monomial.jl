@@ -1,11 +1,6 @@
 """
     monomial nodes and weights
 """
-struct MonomialPowerIntegration
-    nodes::Vector{Vector{Float64}}
-    weights::Vector{Float64}
-end
-
 function MonomialPowerIntegration(nShocks::Int)
     # Number of integration nodes
     numNodes = 2*nShocks^2 + 1

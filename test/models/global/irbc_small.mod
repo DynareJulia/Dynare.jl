@@ -88,14 +88,10 @@ shocks;
   @#endfor
 end;
 
-//check;
-
-//stoch_simul(order=1, irf=0);
-
 @#for j in 1:N
   limits!("k_@{j}", min = 0.8, max = 1.2);
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
 
-(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], tol_ti=1e-5);
-Y = simulate!(context, grid, 1000000, policy_variables, state_variables, 1);
+(grid, sgws) = sparsegridapproximation(scaleCorrExclude=["lambda"], tol_ti=1e-5);
+Y = simulate!(periods=10000);

@@ -159,7 +159,8 @@ function make_containers(
         LinearRationalExpectationsResults(endo_nbr, exo_nbr, model.n_states),
         Vector{Simulation}(undef, 0),
         AxisArrayTable(Matrix{Float64}(undef, 0, 0), [], Symbol[]),
-        Vector{Matrix{Float64}}(undef, 0)
+        Vector{Matrix{Float64}}(undef, 0),
+        SparsegridsResults()
     )
     results = Results([modelresults])
     return Context(symboltable, [model], modelfileinfo, results, Dict(), work, Dict())

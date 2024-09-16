@@ -8,6 +8,8 @@ using NLsolve
 using NonlinearSolve
 using Parameters
 using Printf
+using SparseArrays
+using Tasmanian
 
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
@@ -24,6 +26,7 @@ using KOrderPerturbations
 include("logging.jl")
 include("utils.jl")
 include("dynare_functions.jl")
+include("global/types.jl")
 include("dynare_containers.jl")
 include("accessors.jl")
 export forecast, irf, simulation, smoother 
