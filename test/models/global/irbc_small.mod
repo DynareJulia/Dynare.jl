@@ -93,5 +93,5 @@ end;
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
 
-(grid, sgws) = sparsegridapproximation(scaleCorrExclude=["lambda"], tol_ti=1e-5);
+(grid, sgws) = sparsegridapproximation(scaleCorrExclude=["lambda"], surplThreshold= 1e-4, tol_ti=1e-5, maxRef=2);
 Y = simulate!(periods=10000);

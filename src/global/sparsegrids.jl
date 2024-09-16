@@ -196,15 +196,19 @@ function sparsegridapproximation(; context::Context=context,
         newgrid = copyGrid(grid0)
         # Index of current grid level to control the number of refinements
         ilev = gridDepth
-        while (getNumNeeded(newgrid) > 0) && (ilev <=  maxRefLevel)
-            map(s -> fill!(s.J, 0.0), sgws)
-            ti_step!(newgrid, grid, polGuess1, sgws)
-            # We start the refinement process after a given number of iterations
-            if iter >= iterRefStart && ilev < maxRefLevel
-                polGuess1 = refine!(newgrid, polGuess1, scaleCorr, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
-                # Track the grid level
-                ilev += 1
+        while (getNumNeeded(newgrid) > 0)
+            if (ilev <=  maxRefLevel)
+                map(s -> fill!(s.J, 0.0), sgws)
+                ti_step!(newgrid, grid, polGuess1, sgws)
+                # We start the refinement process after a given number of iterations
+                if iter >= iterRefStart && ilev < maxRefLevel
+                    polGuess1 = refine!(newgrid, polGuess1, scaleCorr, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
+                end
+            else
+                loadNeededPoints!(newgrid, polGuess1)
             end
+            # Track the grid level
+            ilev += 1
         end
         # Calculate (approximate) errors on tomorrow's policy grid
         metric, polGuess, grid = policy_update(grid, newgrid, polGuess, polGuess1, length(system_variables))
@@ -503,20 +507,19 @@ function refine!(grid, polguess, scaleCorr, scaleCorrMat, surplThreshold, dimRef
         scaleCorrMat = repeat(Float64.(scaleCorr), 1, getNumLoaded(grid))
     end
     setSurplusRefinement!(grid, surplThreshold, output=dimRef, refinement_type=typeRefinement, scale_correction=scaleCorrMat')
-
+    
     if getNumNeeded(grid) > 0
-	    # Get the new points and the number of points
-	    nwpts = getNeededPoints(grid)
-	    aNumNew = getNumNeeded(grid)
-
-	    # We assign (for now) function values through interpolation#
-	    #polguess = zeros(aNumNew, gridOut)
+	# Get the new points and the number of points
+	nwpts = getNeededPoints(grid)
+	aNumNew = getNumNeeded(grid)
+        
+	# We assign (for now) function values through interpolation#
+	#polguess = zeros(aNumNew, gridOut)
         if size(polguess, 1) == aNumNew
             evaluateBatch!(polguess, grid, nwpts)
         else           
             polguess = evaluateBatch(grid, nwpts)
         end
-        loadNeededPoints!(grid, polguess)
     end
     return polguess
 end
