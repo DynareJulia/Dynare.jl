@@ -1,3 +1,8 @@
+0.9.17
+=====
+- bump Plots required version to eliminate BinaryProvider
+- pefectforesight: fix initialization of exogenous variables
+
 0.9.16
 ======
 - fixing missing IRF plot
