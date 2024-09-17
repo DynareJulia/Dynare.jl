@@ -159,11 +159,6 @@ struct PerfectForesightWs
             shocks = context.work.shocks
             pmax = Int64(length(shocks) / m.exogenous_nbr)
             # adding shocks to exogenous variables
-            @show x
-            @show shocks
-            @show m.exogenous_nbr
-            @show pmax
-            @show periods
             view(x, 1:pmax*m.exogenous_nbr) .= shocks
         else
             shocks = Vector{Float64}(undef, 0)
