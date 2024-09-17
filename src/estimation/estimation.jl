@@ -148,20 +148,21 @@ computes the posterior mode.
 Either `data` or `datafile` must be specified.
 """
 function mode_compute!(; algorithm = BFGS,
-                 context=context,
-                 data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
-                 datafile = "",
-                 diffuse_filter::Bool = false,
-                 display::Bool = false,
-                 fast_kalman_filter::Bool = true,
-                 first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
-                 initial_values = get_initial_value_or_mean(),
-                 last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
-                 mode_check::Bool = false,
-                 nobs::Int = 0,
-                 order::Int = 1,
-                 presample::Int = 0,
-                 transformed_parameters = true
+                       context=context,
+                       data = AxisArrayTable(AxisArrayTables.AxisArray(Matrix(undef, 0, 0))),
+                       datafile = "",
+                       diffuse_filter::Bool = false,
+                       display::Bool = false,
+                       fast_kalman_filter::Bool = true,
+                       first_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                       initial_values = get_initial_value_or_mean(),
+                       last_obs::PeriodsSinceEpoch = Undated(typemin(Int)),
+                       mode_check::Bool = false,
+                       nobs::Int = 0,
+                       order::Int = 1,
+                       presample::Int = 0,
+                       show_trace = false,
+                       transformed_parameters = true
 )
     symboltable = context.symboltable
     results = context.results.model_results[1]
@@ -170,7 +171,7 @@ function mode_compute!(; algorithm = BFGS,
 
     varobs = context.work.observed_variables
     observations = get_transposed_data!(context, datafile, data, varobs, first_obs, last_obs, nobs)
-    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, varobs, algorithm = algorithm, transformed_parameters = transformed_parameters)
+    (res, mode, tstdh, mode_covariance) = posterior_mode!(context, initial_values, observations, varobs, algorithm = algorithm, show_trace = show_trace, transformed_parameters = transformed_parameters)
     if display
         log_result(res)
         estimation_result_table(
@@ -879,7 +880,12 @@ function posterior_mode!(
         hess = finite_difference_hessian(objective2, results.posterior_mode)
         hsd = sqrt.(diag(hess))
         invhess = inv(hess ./ (hsd * hsd')) ./ (hsd * hsd')
-        results.posterior_mode_std = copy(sqrt.(diag(invhess)))
+        d = diag(invhess)
+        if any(d .< 0)
+            k = findall(d .< 0)
+            d[k] .= NaN
+        end
+        results.posterior_mode_std = copy(sqrt.(d))
         results.posterior_mode_covariance = copy(invhess)
     else
         objective1(θ) = -problem(θ)
