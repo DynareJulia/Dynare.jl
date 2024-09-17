@@ -145,15 +145,33 @@ struct PerfectForesightWs
         m = context.models[1]
         modfileinfo = context.modfileinfo
         trends = context.results.model_results[1].trends
+        w = context.work
         y = Vector{Float64}(undef, m.endogenous_nbr)
-        x = Vector{Float64}(undef, 0)
         if m.exogenous_nbr > 0
             if modfileinfo.has_endval
-                exogenous_steady_state = trends.exogenous_terminal_steady_state
+                if isempty(trends.exogenous_terminal_steady_state)
+                    if !isempty(w.endval_exogenous)
+                        exogenous_steady_state = zeros(m.exogenous_nbr)
+                    else
+                        exogenous_steady_state = w.endval_exogenous
+                    end
+                else
+                    exogenous_steady_state = trends.exogenous_terminal_steady_state
+                end
             else
-                exogenous_steady_state = trends.exogenous_steady_state
+                if isempty(trends.exogenous_steady_state)
+                    if isempty(w.initval_exogenous)
+                        exogenous = zeros(m.exogenous_nbr)
+                    else
+                        exogenous_steady_state = w.initval_exogenous
+                    end
+                else
+                    exogenous_steady_state = trends.exogenous_steady_state
+                end
             end
             x = repeat(exogenous_steady_state, periods)
+        else
+            x = Vector{Float64}(undef, 0)
         end
         if length(context.work.shocks) > 0
             shocks = context.work.shocks
@@ -441,9 +459,10 @@ function get_dynamic_initialvalues(context::Context)
     else
         trends = context.results.model_results[1].trends
         if isempty(trends.endogenous_steady_state)
-            compute_steady_state!(context)
+            return work.initval_endogenous
+        else
+            return trends.endogenous_steady_state
         end
-        return trends.endogenous_steady_state
     end
 end
 
@@ -459,7 +478,7 @@ function get_dynamic_terminalvalues(context::Context, periods::Int)
     else
         trends = context.results.model_results[1].trends
         if isempty(trends.endogenous_steady_state)
-            compute_steady_state!(context)
+            return work.endval_endogenous
         end
         if modfileinfo.has_endval
             return trends.endogenous_terminal_steady_state

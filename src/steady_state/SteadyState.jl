@@ -300,7 +300,7 @@ function solve_steady_state!(context::Context,
         catch e
             if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
                 i = 1
-                while i <= 0
+                while i <= maxit
                     x00 = rand(0.95:0.01:1.05, length(x0)).*x0
                     try
                         return solve_steady_state_!(context, x00, exogenous, maxit = maxit, tolf = tolf)
