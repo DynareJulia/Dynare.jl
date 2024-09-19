@@ -56,7 +56,7 @@ function run_simulations(context, draws)
     model_parameters = work.params
     D = eltype(context.work.params)
     dynamicws = Dynare.DynamicWs(context)
-
+    css_ws = ComputeStochSimulWs(context)
     parameter_nbr = length(estimated_parameters.prior)
     results = PriorPredictionResults(iterations, model)
     failure = zeros(iterations)
@@ -69,6 +69,7 @@ function run_simulations(context, draws)
             compute_stoch_simul!(
                 context,
                 dynamicws,
+                css_ws,
                 model_parameters,
                 StochSimulOptions(Dict{String, Any}());
                 variance_decomposition = true,
