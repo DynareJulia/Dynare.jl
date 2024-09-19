@@ -364,7 +364,7 @@ end
 function set_initial_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain)
     # Generate the grid structure
     grid = Tasmanian.TasmanianSG(gridDim, gridOut, gridDepth)
-    makeLocalPolynomialGrid!(grid, order = gridOrder, sRule = gridRule)
+    makeLocalPolynomialGrid!(grid, order = gridOrder, rule = gridRule)
     # Transform the domain
     setDomainTransform!(grid, gridDomain)
     # Get the points that require function values
@@ -930,11 +930,13 @@ function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trac
             try
                 res = NLsolve.mcpsolve(df, lb, ub, x, ftol = ftol, show_trace = show_trace)
             catch e
+                @show state
                 @show lb
                 @show ub
                 @show e
                 @show x
                 x .= evaluate(oldgrid, state)
+                error()
                 continue
             else
                 if !res.f_converged
