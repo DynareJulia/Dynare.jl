@@ -419,7 +419,7 @@ function get_dynamic_initialvalues(context::Context)
     else
         trends = context.results.model_results[1].trends
         if isempty(trends.endogenous_steady_state)
-            compute_steady_state!(context, Dict{String,Any}())
+            compute_steady_state!(context)
         end
         return trends.endogenous_steady_state
     end
@@ -437,7 +437,7 @@ function get_dynamic_terminalvalues(context::Context, periods::Int)
     else
         trends = context.results.model_results[1].trends
         if isempty(trends.endogenous_steady_state)
-            compute_steady_state!(context, Dict{String,Any}())
+            compute_steady_state!(context)
         end
         if modfileinfo.has_endval
             return trends.endogenous_terminal_steady_state
@@ -466,7 +466,7 @@ function perfect_foresight_initialization!(
     elseif algo == linearinterpolation
     elseif algo == steadystate 
         if isempty(trends.endogenous_steady_state)
-            compute_steady_state!(context, Dict{String,Any}())
+            compute_steady_state!(context)
         end
         if modfileinfo.has_endval
             x = trends.endogenous_terminal_steady_state
@@ -476,7 +476,7 @@ function perfect_foresight_initialization!(
         guess_values = repeat(x, periods)
     elseif algo == firstorder
         if isempty(trends.endogenous_steady_state)
-            compute_steady_state!(context, Dict{String,Any}())
+            compute_steady_state!(context)
         end
         y = simul_first_order!(context, periods, perfect_foresight_ws.x, dynamic_ws)
         guess_values = vec(y[1])
