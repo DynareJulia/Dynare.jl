@@ -293,14 +293,10 @@ function plot_priorprediction_irfs(irfs, model, symboltable, filepath)
     for i = 1:model.exogenous_nbr
         exogenous_name = exogenous_names[i]
         (nbplt, nr, nc, lr, lc, nstar) = pltorg(model.original_endogenous_nbr)
-        @show model.original_endogenous_nbr
-        @show nstar
-        @show nbplt
         k = 1
         p = 1
         filename = "$(filepath)_$(exogenous_name)_$(p).png"
         sp = [Plots.plot(showaxis = false, ticks = false, grid = false) for i = 1:(nc*nr)]
-        @show size(sp)
         while p <= endogenous_nbr
             pl = plot_panel_priorprediction_irfs(
                 x,
