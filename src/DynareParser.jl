@@ -515,6 +515,14 @@ function last_steps(context::Context)
     return context
 end
 
+function mcp_parse(s)
+    for op in ["<=", ">=","<", ">"]
+        k = split(s, op)
+        length(k) == 2 && return (strip(k[1]), op, strip(k[2]))
+    end
+end
+
+
 function get_mcps!(mcps::Vector{Tuple{Int,Int,String,String}},
                    model::Vector{Any})
     for (i, eq) in enumerate(model)
@@ -522,7 +530,7 @@ function get_mcps!(mcps::Vector{Tuple{Int,Int,String,String}},
         if !isempty(tags)
             tag = get(eq["tags"], "mcp", "")
             if !isempty(tag)
-                p1, p2, p3 = split(tag, limit = 3)
+                p1, p2, p3 = mcp_parse(tag)
                 iv = context.symboltable[p1].orderintype
                 push!(mcps, (i, iv, p2, p3))
             end
