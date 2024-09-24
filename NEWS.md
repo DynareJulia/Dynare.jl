@@ -1,3 +1,7 @@
+0.9.18
+======
+- fix MCP parsing
+
 0.9.17
 =====
 - bump Plots required version to eliminate BinaryProvider
