@@ -3,7 +3,6 @@ include("smc.jl")
 using AdvancedMH
 using AbstractMCMC
 using Distributions
-using DynamicHMC
 using FillArrays
 using FiniteDiff: finite_difference_gradient, finite_difference_hessian
 using .Iterators
@@ -982,49 +981,6 @@ function run_mcmc(posterior_density, initial_values, proposal_covariance, param_
     return chain
 end 
 
-function hmc_estimation(
-    context;
-    datafile = "",
-    first_obs = 1,
-    last_obs = 0,
-    iterations = 1000,
-    initial_parameter_values = get_initial_value_or_mean(),
-    initial_energy = get_initial_variance(),
-    kwargs...,
-)
-    problem = DSGELogPosteriorDensity(context, datafile)
-    transformation = DSGETransformation(context.work.estimated_parameters)
-    transformed_problem = TransformedLogDensity(transformation, problem)
-    transformed_logdensity(θ) = TransformVariables.transform_logdensity(transformed_problem.transformation,
-                                                                        transformed_problem.log_density_function,
-                                                                        θ)
-    function logdensity_and_gradient(ℓ, x)
-        return(transformed_logdensity(x),
-               FiniteDiff.finite_difference_gradient(transformed_logdensity, x))
-    end
-
-    p0 = initial_parameter_values
-    v0 = initial_energy
-    
-    results = DynamicHMC.mcmc_keep_warmup(
-        Random.GLOBAL_RNG,
-        #        transformed_problem,
-        transformed_problem,
-        30;
-        initialization = (q = p0, κ = GaussianKineticEnergy(diagm(0 => Vector{Float64}(v0)))),
-        warmup_stages = default_warmup_stages(),
-#        reporter = ProgressMeterReport(),
-    )
-    parameter_names = get_parameter_names(context.work.estimated_parameters)
-    estimation_result_table(
-        parameter_names,
-        mean(results.inference.chain),
-        sqrt.(diag(results.κ.M⁻¹)),
-        "Results from Bayesian estimation",
-    )
-    return results
-end
-
 ## Results
 function estimation_result_table(param_names, estimated_value, stdh, title)
     table = Matrix{Any}(undef, length(param_names) + 1, 4)
@@ -1054,12 +1010,6 @@ function maximum_likelihood_result_table(symboltable, param_indices, estimated_p
         table[i+1, 4] = estimated_params[i] ± (1.28 * stdh[i])
     end
     dynare_table(table, "Results from maximum likelihood estimation")
-end
-
-function hmcmc_result_table(parameter_names)
-    mean(results.chain)
-    sqrt.(diag(results.κ.M⁻¹))
-    "Results from Bayesian estimation"
 end
 
 function display_acceptance_rate(chains)
