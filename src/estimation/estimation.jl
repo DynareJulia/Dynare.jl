@@ -1017,12 +1017,6 @@ function maximum_likelihood_result_table(symboltable, param_indices, estimated_p
     dynare_table(table, "Results from maximum likelihood estimation")
 end
 
-function hmcmc_result_table(parameter_names)
-    mean(results.chain)
-    sqrt.(diag(results.κ.M⁻¹))
-    "Results from Bayesian estimation"
-end
-
 function display_acceptance_rate(chains)
     ar = acceptance_rate(chains)
     println("")
