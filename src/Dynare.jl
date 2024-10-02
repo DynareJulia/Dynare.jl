@@ -36,6 +36,7 @@ include("DynareParser.jl")
 export parser
 include("DynarePreprocessor.jl")
 export dynare_preprocess
+include("dynare_nonlinear_solvers.jl")
 include("steady_state/SteadyState.jl")
 export steadystate!
 include("dynare_table.jl")

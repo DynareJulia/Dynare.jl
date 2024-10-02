@@ -1,7 +1,7 @@
 using AxisArrayTables
 using Dynare
 using ExtendedDates
-using JLD2
+#using JLD2
 using LinearAlgebra
 using Serialization
 using Test
@@ -142,7 +142,7 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         periods = 4
         f!, J!, guess_values, initial_values, terminal_values, dynamic_variables, residuals, JJ, exogenous, temp_vec, nzval, nzval1 = make_f_J(context, context.work.scenario, periods, 1)
 
-        f!(residuals, guess_values)
+        f!(residuals, guess_values, context.work.params)
         
         @test guess_values[1] == context.results.model_results[1].trends.endogenous_steady_state[1]
         @test exogenous[2] == 0
@@ -150,8 +150,7 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         @test exogenous[6] == 0
         @test guess_values[14] == context.results.model_results[1].trends.endogenous_steady_state[2]
 
-        J!(JJ, guess_values)
-        
+        J!(JJ, guess_values, context.work.params)
         J1target = zeros(24)
         J1target[6] = -1
         @test JJ[:, 1] == J1target
@@ -169,7 +168,7 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         guess_values[1] = 0
         exogenous[1] = 1.0
 
-        f!(residuals, guess_values)
+        f!(residuals, guess_values, context.work.params)
         
         y, c, k, a, h, b = context.results.model_results[1].trends.endogenous_steady_state
         beta, rho, alpha, delta, theta, psi, tau = context.work.params
@@ -181,7 +180,7 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         @test residuals[4] ≈ k - (exp(b)*(y_star - c) + (1 - delta)*k)
         @test all(abs.(residuals[5:24]) .< 2*eps())
 
-        J!(JJ, guess_values)
+        J!(JJ, guess_values, context.work.params)
 
         Dy =  -JJ\residuals
     end
@@ -200,7 +199,7 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         @test guess_values[1] == 0
         @test exogenous[1] == 1.1
 
-        f!(residuals, guess_values)
+        f!(residuals, guess_values, context.work.params)
         
         y, c, k, a, h, b = context.results.model_results[1].trends.endogenous_steady_state
         beta, rho, alpha, delta, theta, psi, tau = context.work.params
@@ -212,7 +211,7 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         @test residuals[4] ≈ k - (exp(b)*(y_star - c) + (1 - delta)*k)
         @test all(abs.(residuals[5:600]) .< 2*eps())
 
-        J!(JJ, guess_values)
+        J!(JJ, guess_values, context.work.params)
 
         Dy =  -JJ\residuals
 
@@ -220,8 +219,8 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
 
         for i=1:4
             y += Dy
-            f!(residuals, y)
-            J!(JJ, y)
+            f!(residuals, y, context.work.params)
+            J!(JJ, y, context.work.params)
             Dy = -JJ\residuals
         end
     end
@@ -236,17 +235,17 @@ context = @dynare "models/example1pf/example1pf_conditional" "stoponerror"
         Dynare.set_future_information!(guess_values, exogenous, context, periods, 1)
         Dynare.flip!(guess_values, exogenous, FI.ix_stack)
 
-        f!(residuals, guess_values)
+        f!(residuals, guess_values, context.work.params)
         
-        J!(JJ, guess_values)
+        J!(JJ, guess_values, context.work.params)
 
         Dy =  -JJ\residuals
 
         y = copy(guess_values)
         for i=1:4
             y += Dy
-            f!(residuals, y)
-            J!(JJ, y)
+            f!(residuals, y, context.work.params)
+            J!(JJ, y, context.work.params)
             Dy = -JJ\residuals
         end
 
