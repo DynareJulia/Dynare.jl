@@ -24,21 +24,17 @@ function linear_solver!(::IluLS,
     x .= A\b
 end
 
-abstract type NonLinearSolver end
-struct PathNLS <: NonLinearSolver end
-struct DefaultNLS <: NonLinearSolver end
-
 mutable struct PerfectForesightOptions
     algo::PerfectForesightAlgo
     datafile::String
     display::Bool
     homotopy::Bool
     initialization_algo::InitializationAlgo
-    solve_algo
-    linear_solve_algo::LinearSolveAlgo
+    solve_algo::String
+    linear_solve_algo
     maxit::Int
     mcp::Bool
-    method
+    method 
     periods::Int
     show_trace::Bool
     tolf::Float64
@@ -51,8 +47,8 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
     display = true
     homotopy = false
     initialization_algo = steadystate
-    solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))
-    linear_solve_algo = ilu
+    solve_algo = "NonlinearSolve"
+    linear_solve_algo = ""
     maxit = 50
     mcp = false
     method = TrustRegion(radius_update_scheme=RadiusUpdateSchemes.NLsolve)
@@ -237,7 +233,7 @@ end
  - `periods::Int`: number of periods in the simulation [required]
  - `context::Context=context`: context in which the simulation is computed
  - `display::Bool=true`: whether to display the results
- - `solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))`: nonlinear solver algorithm
+ - `solve_algo = "NonlinearSolve"
  - `linear_solve_algo::LinearSolveAlgo=ilu`: algorithm used for the solution of the linear
    problem. Either `ilu` or `pardiso`. `ilu` is the sparse linear solver used by default in Julia.
    To use the Pardiso solver, write `using Pardiso` before running Dynare.
@@ -255,8 +251,8 @@ function perfect_foresight!(;context::Context = context,
                             display::Bool = true,
                             homotopy::Bool = false,
                             initialization_algo::InitializationAlgo = steadystate,
-                            solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking())),
-                            linear_solve_algo::LinearSolveAlgo = ilu,
+                            solve_algo = "NonlinearSolve",
+                            linear_solve_algo = nothing,
                             maxit::Int = 50,
                             mcp::Bool = false,
                             method = TrustRegion(radius_update_scheme=RadiusUpdateSchemes.NLsolve),
@@ -280,19 +276,16 @@ function perfect_foresight!(;context::Context = context,
 end
 
 function check_scenario(scenario)
-    @show scenario
     # all infoperiods
     k = sort(collect(keys(scenario)))
-    @show k
     # for each infoperiod > 1 
     for (i, k1) in enumerate(sort(k))
         if k1 == 1
             continue
         end
 
-        @show k1       # period shocked for that infoperiod
+        # period shocked for that infoperiod
         sk1 = keys(scenario[k1])
-        @show sk1
         # for all shock periods in the current infoperiod
         for p1 in sk1
             # check that future relevant infoperiods contain a comparable shock
@@ -302,7 +295,6 @@ function check_scenario(scenario)
                     break
                 end
                 p2 = collect(keys(scenario[k2]))
-                @show p1, p2
                 if !(p1 in p2)
                     error("A shock must be explicitly confirmed or modified in all relevant subsequent infoperiods")
                 else
@@ -415,14 +407,12 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             guess_values,
             initial_values,
             terminal_values,
-            options.solve_algo,
-            options.linear_solve_algo,
             dynamic_ws,
             linear_solve_algo = options.linear_solve_algo,
             maxit = options.maxit,
             method = options.method,
-            nonlinear_solve_algo = "NonlinearSolve",
-            show_trace = false,
+            nonlinear_solve_algo = options.solve_algo,
+            show_trace = options.show_trace,
             tolf = options.tolf,
             tolx = options.tolx
         )
@@ -577,14 +567,12 @@ function perfectforesight_core!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
-    solve_algo,
-    linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs;
     maxit = 50,
     nonlinear_solve_algo = "NonlinearSolve",
     linear_solve_algo = nothing,
     method = TrustRegion(),
-    show_trace = true,
+    show_trace = false,
     tolf = 1e-5,
     tolx = 1e-5
 )
@@ -646,7 +634,6 @@ function perfectforesight_core!(
         j!(JJt, y, p)
         JJ .= transpose(JJt)
     end
-
     results = dynare_nonlinear_solvers(f!, j!, JJ, [], [], y0, exogenous, work.params,
                                        linear_solve_algo = linear_solve_algo,
                                        maxit = maxit,

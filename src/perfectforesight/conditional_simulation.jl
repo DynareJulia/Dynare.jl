@@ -108,7 +108,7 @@ function perfectforesight_core_conditional!(
                                            maxit = maxit,
                                            method = method,
                                            solve_algo = nonlinear_solve_algo,
-                                           show_trace = show_trace,
+                                           show_trace = false,
                                            tolf = tolf,
                                            tolx = tolx)
         catch e

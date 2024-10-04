@@ -41,7 +41,7 @@ struct SteadyOptions
     maxit::Int64
     tolf::Float64
     tolx::Float64
-    solve_algo::NonLinearSolveAlgos
+    solve_algo::String
     homotopy_mode::HomotopyModes
     homotopy_steps::Int64
     nocheck::Bool
@@ -50,7 +50,7 @@ struct SteadyOptions
         maxit = 50
         tolf = cbrt(eps())
         tolx = 0.0
-        solve_algo = trustregion
+        solve_algo = "NonlinearSolve"
         homotopy_mode = SimultaneousFixedSteps
         homotopy_steps = 0
         nocheck = false
@@ -63,8 +63,6 @@ struct SteadyOptions
                 tolf = v::Float64
             elseif k == "solve_tolx"
                 tolx = v::Float64
-            elseif k == "solve_algo"
-                solve_algo = v::NonLinearSolveAlgos
             elseif k == "homotopy_mode"
                 homotopy_mode = v::HomotopyModes
             elseif k == "homotopy_steps"
@@ -108,7 +106,8 @@ function steadystate!(; context::Context=context,
                       linear_solve_algo = nothing,
                       method = TrustRegion(),
                       nocheck = false,
-                      nonlinear_solve_algo = TrustRegion(),
+                      nonlinear_solve_algo = "NonlinearSolve",
+                      show_trace = false,
                       tolf = cbrt(eps()),
                       tolx = cbrt(eps())
                       )
