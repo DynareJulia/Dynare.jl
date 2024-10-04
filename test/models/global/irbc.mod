@@ -95,5 +95,5 @@ end;
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
 
-(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], method=@{METHOD}, tol_ti=0.0005);
+(grid, ws) = sparsegridapproximation(scaleCorrExclude=["lambda"], method=@{METHOD}, tol_ti=0.0005);
 
