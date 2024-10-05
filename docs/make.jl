@@ -1,4 +1,4 @@
-using Documenter, Dynare
+using Documenter, DocumenterCitations, Dynare
 
 # A flag to check if we are running in a GitHub action.
 const _IS_GITHUB_ACTIONS = get(ENV, "GITHUB_ACTIONS", "false") == "true"
@@ -24,23 +24,29 @@ _PAGES =[
         "Reporting"=> "model-file/reporting.md",
         #            "Optimal policy" => "model-file/optimal-policy.md",
     ],
-    "Macroprocessing language" => "macroprocessor.md"     
+    "Macroprocessing language" => "macroprocessor.md",
+    "References" => "references.md",
 ]
 
 # Needed to make Documenter think that there is a PDF in the right place when
 # link checking. Inn production we replace this by running the LaTeX build.
 write(joinpath(@__DIR__, "src", "Dynare.pdf"), "")
 
+bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 makedocs(
     sitename="Dynare.jl",
-    format=Documenter.HTML(; prettyurls=get(ENV, "CI", nothing) == "true"),
+    format=Documenter.HTML(;
+                           prettyurls = get(ENV, "CI", nothing) == "true",
+                           assets = String["assets/citations.css"]),
     # doctest = false,
     pages = _PAGES,
     pagesonly = true,
+    plugins = [bib],
     
 )
 
 latex_platform = _IS_GITHUB_ACTIONS ? "docker" : "native"
+bib1 = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"))
 makedocs(
     sitename = "Dynare",
     format = Documenter.LaTeX(; platform = latex_platform),
@@ -48,6 +54,7 @@ makedocs(
     pages = _PAGES,
     pagesonly = true,
     debug = true,
+    plugins = [bib1]
     )
     # Hack for deploying: copy the pdf (and only the PDF) into the HTML build
     # directory! We don't want to copy everything in `latex_build` because it
@@ -56,7 +63,8 @@ makedocs(
         joinpath(@__DIR__, "latex_build", "Dynare.pdf"),
         joinpath(@__DIR__, "build", "Dynare.pdf");
         force = true,
-    )
+)
+
 deploydocs(
     repo="github.com/DynareJulia/Dynare.jl.git", push_preview=true
 )
