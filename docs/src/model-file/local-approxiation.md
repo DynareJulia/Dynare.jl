@@ -5,9 +5,8 @@ corresponding to a random draw of the shocks.
 
 The main algorithm for solving stochastic models relies on a Taylor
 approximation, up to second order, of the solution function (see
-*Judd (1996)*, *Collard and Juillard (2001a, 2001b)*, and *Schmitt-Grohé
-and Uríbe (2004)*). The details of the Dynare implementation of the
-first order solution are given in *Villemot (2011)*. Such a solution is
+[judd1996](@cite),   [collardhigherorder2001](@cite), and [schmittgrohesolving2004](@cite)). The details of the Dynare implementation of the
+first order solution are given in [villemot_solving_2011](@cite). Such a solution is
 computed using the `stoch_simul` command.
 
 ### Dynare commands
