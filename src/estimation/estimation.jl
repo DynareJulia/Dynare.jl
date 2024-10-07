@@ -449,6 +449,9 @@ function DSGELogPosteriorDensity(context, observations, obsvarnames)
     DSGELogPosteriorDensity{eltype(observations)}(n, context, observations, ssws)
 end
 
+LogDensityProblems.capabilities(p::DSGELogPosteriorDensity) = LogDensityProblems.LogDensityOrder{0}()
+LogDensityProblems.logdensity(p::DSGELogPosteriorDensity, θ) = p(θ) 
+
 function logpriordensity(x, estimated_parameters)::Float64
     lpd = 0.0
     k = 1
@@ -618,7 +621,6 @@ function loglikelihood(
         context,
         ssws.dynamicws,
         ssws.cssws,
-        ssws.stochsimulws,
         model_parameters,
         ssws.stoch_simul_options;
         variance_decomposition = false,
