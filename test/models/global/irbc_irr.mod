@@ -99,4 +99,5 @@ end;
 @#endfor
 limits!("lambda", min = 0.0, max = Inf);
 
-(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], mcp = true);
+// use high tolerance to speed up test
+(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], mcp = true, tol_ti=0.00025);
