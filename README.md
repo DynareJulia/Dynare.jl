@@ -1,8 +1,8 @@
 # WORK IN PROGRESS
 
 ## Requirements
-- Julia 64bit >= v1.6
-- Recommended version: Julia 64 bit v1.10
+- Julia 64bit >= v1.10
+- Recommended version: Julia 64 bit v1.10.5
 
 ## Documentation
 - https://DynareJulia.github.io/Dynare.jl
