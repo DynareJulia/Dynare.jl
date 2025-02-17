@@ -12,39 +12,26 @@
 //
 ///////
 
+var lambda;
+varexo e;
+parameters kappa beta delta phi rho A sigE a_eis b_eis;
+
+kappa = 0.36;
+beta  = 0.99;  
+delta = 0.01;
+phi   = 0.5;
+rho   = 0.95;
+sigE = 0.01;
+A = (1 - beta*(1 - delta))/(kappa*beta);
+
 @#define N=2
 @#for j in 1:N
 var k_@{j} a_@{j};
   varexo e_@{j};
   parameters gamma_@{j} eta_@{j} t_@{j};
-
-  a_eis = 0.25;
-  b_eis = 1;
   gamma_@{j} = a_eis + (@{j} - 1)*(b_eis - a_eis)/(@{N}-1);
-  eta_@{j} = 0.1;  
-
-@#endfor
-
-var lambda;
-varexo e;
-parameters kappa beta delta phi rho A sigE;
-
-// zeta
-kappa = 0.36;
-// betta
-beta  = 0.99;  
-delta = 0.01;
-// kappa
-phi   = 0.5;
-// rhoz
-rho   = 0.95;
-// sigE
-sigE = 0.01;
-// A_tfp
-A = (1 - beta*(1 - delta))/(kappa*beta);
-@#for j in 1:N
   // pareto
-//  t_@{j} = (A - delta)^(1/gamma_@{j});
+  // t_@{j} = (A - delta)^(1/gamma_@{j});
   t_@{j} = A^(1/gamma_@{j});
 @#endfor
 
@@ -53,7 +40,6 @@ model;
     lambda*(1 + phi*(k_@{j}/k_@{j}(-1) - 1))
       = beta*lambda(+1)*(exp(a_@{j}(+1))*kappa*A*k_@{j}^(kappa - 1)
         + 1 - delta + (phi/2)*(k_@{j}(+1)/k_@{j} - 1)*(k_@{j}(+1)/k_@{j} + 1));
-   [preamble]
       a_@{j} = rho*a_@{j}(-1) + sigE*(e + e_@{j});
   @#endfor
     exp(a_1)*A*k_1(-1)^kappa
