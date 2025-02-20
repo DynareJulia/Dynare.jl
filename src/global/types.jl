@@ -1,5 +1,56 @@
 @enum SGSolver NLsolver NonlinearSolver PATHSolver
 
+@doc raw"""
+    struct MonomialPowerIntegration
+
+Represents a monomial quadrature rule for numerical integration in sparse grid approximation.
+
+# Fields
+- `nodes::Vector{Vector{Float64}}`  
+  A list of integration nodes, where each node is a `d`-dimensional vector representing a point in the state space.
+- `weights::Vector{Float64}`  
+  A vector of corresponding integration weights, used to approximate expected values of functions over the state space.
+
+# Purpose
+The monomial quadrature rule is used to approximate integrals of the form:
+
+\[
+I[f] = \int_{\mathbb{R}^d} f(x) d\mu(x) \approx \sum_{i} w_i f(x_i)
+\]
+
+where:
+- \( f(x) \) is the function being integrated (e.g., future policy function values).
+- \( x_i \) are the quadrature nodes (`nodes`).
+- \( w_i \) are the integration weights (`weights`).
+- \( d\mu(x) \) is the probability measure (e.g., Gaussian distribution for stochastic shocks).
+
+# Use Case
+- In **dynamic stochastic models**, `MonomialPowerIntegration` is used for **expectation operators** when computing forward-looking equations.
+- It replaces traditional Monte Carlo sampling by using **deterministic quadrature points** for efficient approximation.
+
+# Example Usage
+```julia
+# Define quadrature nodes (e.g., 3 integration points in a 2D state space)
+nodes = [[-0.5, 0.0], [0.0, 0.5], [0.5, 0.0]]
+
+# Define corresponding integration weights
+weights = [0.3, 0.4, 0.3]
+
+# Create a MonomialPowerIntegration object
+integration_rule = MonomialPowerIntegration(nodes, weights)
+
+# Compute an expected value approximation
+function compute_expectation(f, integration_rule)
+    return sum(w * f(x) for (x, w) in zip(integration_rule.nodes, integration_rule.weights))
+end
+
+# Define a simple function to integrate
+f(x) = sum(x)^2
+
+# Compute the integral approximation
+expected_value = compute_expectation(f, integration_rule)
+println("Approximate integral: ", expected_value)
+"""
 struct MonomialPowerIntegration
     nodes::Vector{Vector{Float64}}
     weights::Vector{Float64}
@@ -102,19 +153,125 @@ function SGIndices(endogenous_nbr::Int, forward_variables, dynamic_state_variabl
     )
 end 
 
+"""
+    SGOptions(mcp, method, solver, ftol, show_trace)
+
+Stores solver configuration options for sparse grid approximation.
+
+# Fields
+- `mcp::Bool`  
+  Whether to use a **Mixed Complementarity Problem (MCP)** solver (for occasionally binding constraints).
+- `method`  
+  Nonlinear solver method (e.g., `NewtonRaphson()`).
+- `solver`  
+  Solver type (e.g., `NLsolve` or `NonlinearSolve`).
+- `ftol::Float64`  
+  Function tolerance for solver convergence (stopping criterion).
+- `show_trace::Bool`  
+  Whether to print detailed solver logs for debugging.
+
+# Purpose
+Encapsulates solver settings in a structured way, ensuring cleaner function calls and easier debugging.
+"""
 struct SGOptions
-    mcp::Bool
-    method
-    solver
-    ftol::Float64
-    show_trace::Bool
+    mcp::Bool          # Use Mixed Complementarity Problem (MCP) solver?
+    method             # Nonlinear solver method (e.g., Newton-Raphson)
+    solver             # Solver type (e.g., NLsolve or NonlinearSolve)
+    ftol::Float64      # Function tolerance (convergence criterion)
+    show_trace::Bool   # Show detailed solver output?
 end
 
+"""
+    struct Sev
+
+Stores state-dependent variables used in sparse grid evaluations.
+
+# Fields
+- `dyn_endogenous_variable::Vector{Float64}`  
+  A vector storing values of endogenous variables at the current node.
+- `node::Vector{Float64}`  
+  A vector representing the current state node in the sparse grid.
+
+# Purpose
+The `Sev` structure is used to store **state-dependent** and **policy-relevant** values for each grid node during sparse grid interpolation. It provides an efficient way to track **dynamic endogenous variables** as they evolve through the iteration process.
+"""
 struct Sev
     dyn_endogenous_variable::Vector{Float64}
     node::Vector{Float64}
 end
 
+"""
+    struct SparsegridsWs
+
+Workspace structure for sparse grid approximation, storing essential model variables, Jacobians, and solver configurations.
+
+# Fields
+- `monomial::MonomialPowerIntegration`  
+  Monomial quadrature rule used for numerical integration.
+- `dynamic_state_variables::Vector{Int}`  
+  Indices of dynamic state variables in the model.
+- `system_variables::Vector{Int}`  
+  Indices of all system variables used in approximation.
+- `bmcps::Vector{Vector{Int}}`  
+  Mixed Complementarity Problem (MCP) constraints, defining which variables have inequality constraints.
+- `ids::SGIndices`  
+  Struct storing variable indexing and forward-looking system details.
+- `lb::Vector{Float64}`  
+  Lower bounds for policy variables.
+- `ub::Vector{Float64}`  
+  Upper bounds for policy variables.
+- `backward_block::BackwardBlock`  
+  Block of equations defining backward-looking dynamics.
+- `backward_variable_jacobian::Matrix{Float64}`  
+  Jacobian matrix for backward equations.
+- `forward_block::ForwardBlock`  
+  Block of equations defining forward-looking dynamics.
+- `preamble_block::AssignmentBlock`  
+  Block storing initialization and parameter assignment equations.
+- `system_block::SimultaneousBlock`  
+  Block containing the system of nonlinear equations.
+- `residuals::Vector{Float64}`  
+  Residual vector for the full system of equations.
+- `forward_jacobian::Matrix{Float64}`  
+  Jacobian matrix for forward equations.
+- `forward_points::Matrix{Float64}`  
+  Integration nodes used in forward-looking expectations.
+- `forward_residuals::Matrix{Float64}`  
+  Residual matrix for forward integration.
+- `forward_variable_jacobian::Matrix{Float64}`  
+  Jacobian matrix for forward-looking variables.
+- `J::Matrix{Float64}`  
+  Global Jacobian matrix used in solver iterations.
+- `fx::Vector{Float64}`  
+  Function evaluation vector.
+- `policy_jacobian::Matrix{Float64}`  
+  Jacobian of policy function values with respect to state variables.
+- `evalPt::Vector{Float64}`  
+  Evaluation points for function approximation.
+- `future_policy_jacobian::Matrix{Float64}`  
+  Jacobian matrix for future policy functions.
+- `dyn_endogenous_vector::Vector{Vector{Float64}}`  
+  Stores dynamic endogenous variables at multiple integration nodes.
+- `M1::Matrix{Float64}`  
+  Temporary storage matrix for forward system computations.
+- `policyguess::Matrix{Float64}`  
+  Initial guess for policy function values.
+- `tmp_state_variables::Vector{Float64}`  
+  Temporary storage vector for state variables.
+- `sev::Sev`  
+  Struct holding the state-dependent values used in evaluations.
+- `sgmodel::SGModel`  
+  Sparse grid model containing parameters and steady-state values.
+- `sgoptions::SGOptions`  
+  Configuration settings for nonlinear solver and sparse grid approximation.
+
+# Purpose
+The `SparsegridsWs` structure acts as a **workspace** for sparse grid-based time iteration, holding:
+1. **Variable indexing** and **constraint handling**.
+2. **Jacobian matrices** and **residual vectors** for nonlinear solving.
+3. **Storage for forward-looking expectations and policy function approximations**.
+4. **Configuration settings for solvers and sparse grids**.
+"""
 struct SparsegridsWs
     monomial::MonomialPowerIntegration
     dynamic_state_variables::Vector{Int}
@@ -149,8 +306,10 @@ end
 
 mutable struct SparsegridsResults
     average_error::Float64
+    max_error::Float64
     average_iteration_time::Float64
     drawsnbr::Int
+    burnin::Int
     equation_average_errors::Vector{Float64}
     equation_quantile_errors::Vector{Float64}
     ftol::Float64
@@ -168,8 +327,10 @@ mutable struct SparsegridsResults
     surplThreshold::Float64
     function SparsegridsResults()
         average_error = 0
+        max_error = 0
         average_iteration_time = 0
         drawsnbr = 0
+        burnin = 0
         equation_average_errors = Vector{Float64}(undef, 0)
         equation_quantile_errors = Vector{Float64}(undef, 0)
         ftol = 0
@@ -185,11 +346,11 @@ mutable struct SparsegridsResults
         quantile_probability = 0
         solver = NonlinearSolver
         surplThreshold = 0
-        new(average_error, average_iteration_time, drawsnbr,
-            equation_average_errors, equation_quantile_errors, ftol,
-            grid, gridDepth, gridOrder, gridRule, iterRefStat, maxRef,
-            mcp, method, quantile_error, quantile_probability, solver,
-            surplThreshold)
+        new(average_error, max_error, average_iteration_time, drawsnbr,
+            burnin, equation_average_errors, equation_quantile_errors, 
+            ftol, grid, gridDepth, gridOrder, gridRule, iterRefStat, 
+            maxRef, mcp, method, quantile_error, quantile_probability, 
+            solver, surplThreshold)
     end
 end    
 

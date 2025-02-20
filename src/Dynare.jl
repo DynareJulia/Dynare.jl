@@ -10,6 +10,7 @@ using Parameters
 using Printf
 using SparseArrays
 using Tasmanian
+using Documenter
 
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true

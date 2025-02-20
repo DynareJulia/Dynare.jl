@@ -487,7 +487,7 @@ function make_block_functions(context)
                                      preamble_expressions,
                                      preamble_jacobian,
                                      make_assignment_function(:preamble_block, preamble_expressions),
-                                     is_block_linear(preamble_eqs, context),
+                                     isempty(preamble_eqs) ? true : is_block_linear(preamble_eqs, context),
                                     )
 
     forward_jacobian, forward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
