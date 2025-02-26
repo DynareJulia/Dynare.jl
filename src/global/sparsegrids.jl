@@ -416,13 +416,12 @@ Computes the first-order perturbation approximation and initializes the policy f
 - `context::Context` : Dynare context storing the model structure.
 - `sgws::SparsegridsWs` : Workspace struct storing grid and solver data.
 - `aNum::Int` : Number of grid points requiring function values.
-- `gridDim::Int` : Number of state variables.
 - `aPoints` : Sparse grid evaluation points.
 
 # Returns
 - `polGuess::Matrix{Float64}` : Initial policy function approximation.
 """
-function initialize_policy_approximation(context, sgws, aNum, gridDim, aPoints)
+function initialize_policy_approximation(context, sgws, aNum, aPoints)
     # First-order approximation
     M, N, _ = block_first_order_approximation(context, sgws)
 
@@ -831,7 +830,7 @@ end
 Solves a nonlinear complementarity problem (NCP) using PATHSolver.
 
 # Arguments
-- `X::Matrix{Float64}` : Solution matrix to update.
+- `polGuess::Matrix{Float64}` : Solution matrix to update.
 - `lb::Vector{Float64}` : Lower bounds.
 - `ub::Vector{Float64}` : Upper bounds.
 - `states::Matrix{Float64}` : State variables for solving.
@@ -845,7 +844,7 @@ Solves a nonlinear complementarity problem (NCP) using PATHSolver.
 # Effect
 - Updates `X` in place with computed solutions.
 """
-function PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws, show_trace, chunk)
+function PATHsolver_solve!(polGuess, lb, ub, states, fx, J, oldgrid, sgws, show_trace, chunk)
     # Define system function and Jacobian
     f!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
     JA!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
@@ -853,7 +852,7 @@ function PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws, show_trace, 
     for i in chunk
         # View to avoid unnecessary copies
         @views state = states[:, i]
-        @views fx .= X[:, i]
+        @views fx .= polGuess[:, i]
 
         # Solve NCP using PATHSolver
         status, results, info = mcp_solve!(
@@ -871,19 +870,19 @@ function PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws, show_trace, 
         end
 
         # Store solution in X
-        @views X[:, i] .= results
+        @views polGuess[:, i] .= results
     end
 
-    return X
+    return nothing
 end
 
 """
-    NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws, show_trace, chunk)
+    NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, show_trace, chunk)
 
 Solves the nonlinear system using `NonlinearSolve.jl` for each state in `chunk`.
 
 # Arguments
-- `X::Matrix{Float64}` : Solution matrix to update.
+- `polGuess::Matrix{Float64}` : Solution matrix to update.
 - `states::Matrix{Float64}` : State variables for solving.
 - `J::Matrix{Float64}` : Jacobian matrix.
 - `oldgrid` : Previous iteration’s grid.
@@ -893,12 +892,12 @@ Solves the nonlinear system using `NonlinearSolve.jl` for each state in `chunk`.
 - `chunk::UnitRange{Int}` : The subset of grid points to process.
 
 # Effect
-- Updates `X` in place with computed solutions.
+- Updates `polGuess` in place with computed solutions.
 
 # Returns
-- `X::Matrix{Float64}` : Updated solution matrix.
+- nothing
 """
-function NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws, show_trace, chunk)
+function NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, show_trace, chunk)
     # Define system function and Jacobian once
     f!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
     JA!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
@@ -911,21 +910,21 @@ function NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws, show_trace,
 
     for i in chunk
         @views state = states[:, i]
-        @views x = X[:, i]
+        @views x = polGuess[:, i]
 
         # Define and solve the nonlinear problem
         nlp = NonlinearProblem(nlf, x, state)
         res = NonlinearSolve.solve(nlp, method, show_trace=show_trace, abstol=1e-6)
 
         # Store the computed solution
-        @views X[:, i] .= res.u
+        @views polGuess[:, i] .= res.u
     end
 
-    return X
+    return nothing
 end
 
 """
-    NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace, chunk)
+    NLsolve_solve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace, chunk)
 
 Solves a nonlinear system with bounds using `NLsolve.jl` for each state in `chunk`.
 
@@ -946,7 +945,7 @@ Solves a nonlinear system with bounds using `NLsolve.jl` for each state in `chun
 - Updates `X` in place with computed solutions.
 
 # Returns
-- `X::Matrix{Float64}` : Updated solution matrix.
+- nothing
 """
 function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trace, chunk)
     # Define system function and Jacobian outside the loop
@@ -955,7 +954,7 @@ function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trac
 
     for i in chunk
         @views state = states[:, i]
-        @views x = X[:, i]
+        @views x = polGuess[:, i]
 
         # Wrap functions in `OnceDifferentiable`
         df = OnceDifferentiable(f!, JA!, x, fx, J)
@@ -976,7 +975,7 @@ function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trac
         end
     end
 
-    return X
+    return nothing
 end
 
 """
@@ -985,7 +984,7 @@ end
 Solves the nonlinear system using the specified solver.
 
 # Arguments
-- `X::Matrix{Float64}` : Solution matrix to update.
+- `polGuess::Matrix{Float64}` : Solution matrix to update.
 - `lb::Vector{Float64}` : Lower bounds.
 - `ub::Vector{Float64}` : Upper bounds.
 - `fx::Vector{Float64}` : Function evaluation vector.
@@ -1000,12 +999,12 @@ Solves the nonlinear system using the specified solver.
 - `show_trace::Bool` : Enables solver debugging output.
 
 # Effect
-- Updates `X` with the computed solution values.
+- Updates `polGuess` with the computed solution values.
 
 # Returns
-- `X::Matrix{Float64}` : Updated solution matrix.
+- `polGuess::Matrix{Float64}` : Updated solution matrix.
 """
-function SG_NLsolve!(X, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
+function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
     ns = size(states, 2)  # Number of state variable instances
 
     # Get BLAS to work on a single thread to avoid conflicts with the non-linear
@@ -1022,11 +1021,11 @@ function SG_NLsolve!(X, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ft
             if solver == PATHSolver
                 # PATHsolver is not thread-safe
                 Threads.nthreads() == 1 || error("PATHSolver is not thread-safe! Run with `JULIA_NUM_THREADS=1`.")
-                PATHsolver_solve!(X, lb, ub, states, fx, J, oldgrid, sgws[1], show_trace, chunk)
+                PATHsolver_solve!(polGuess, lb, ub, states, fx, J, oldgrid, sgws[1], show_trace, chunk)
             elseif solver == NonlinearSolver
-                NonlinearSolver_solve!(X, states, J, oldgrid, method, sgws[i], show_trace, chunk)
+                NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws[i], show_trace, chunk)
             elseif solver == NLsolver
-                NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws[i], ftol, show_trace, chunk)
+                NLsolve_solve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws[i], ftol, show_trace, chunk)
             else
                 error("Unknown non-linear solver! The available options are PATHSolver, NonLinearSolver and NLsolve")
             end
@@ -1038,7 +1037,7 @@ function SG_NLsolve!(X, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ft
     # Get BLAS to use the number of threads before SG_NLsolve! call
     BLAS.set_num_threads(previous_blas_threads)
     
-    return X
+    return polGuess
 end
 
 """
@@ -1049,13 +1048,13 @@ Updates grid points by solving the nonlinear problem at newly needed grid locati
 # Arguments
 - `newgrid` : The sparse grid that needs new function values.
 - `oldgrid` : The previous iteration's grid.
-- `X::Matrix{Float64}` : Matrix to store the computed function values.
+- `polGuess::Matrix{Float64}` : Matrix to store the computed function values.
 - `sgws::Vector{SparsegridsWs}` : The workspace containing all model and solver settings.
 
 # Effect
 - Modifies `newgrid` by loading computed function values into it.
 """
-function ti_step!(newgrid, oldgrid, X, sgws)
+function ti_step!(newgrid, oldgrid, polGuess, sgws)
     # Extract necessary data from sgws
     ws = sgws[1]
     @unpack system_variables, lb, ub, sgoptions, J, fx, sgmodel = ws
@@ -1073,10 +1072,10 @@ function ti_step!(newgrid, oldgrid, X, sgws)
     fill!(exogenous, 0.0)
 
     # Solve the nonlinear problem
-    SG_NLsolve!(X, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
+    SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
 
     # Load new function values into the sparse grid
-    @views loadNeededPoints!(newgrid, X[:, 1:nstates])
+    @views loadNeededPoints!(newgrid, polGuess[:, 1:nstates])
 end
 
 """
@@ -1184,7 +1183,7 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `average_time::Float64` : Average iteration time.
 """
 function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef, 
-                                    typeRefinement, maxiter, maxRefLevel, iterRefStart, tol_ti, savefreq)
+                                    typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, savefreq)
     # Initialize timing variables
     total_time = 0
     context.timings["sparsegrids"] = Vector{Millisecond}()
@@ -1198,9 +1197,9 @@ function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, sur
         newgrid = copyGrid(grid0)
 
         # Refinement loop
-        ilev = 1
+        ilev = 0
         while (getNumNeeded(newgrid) > 0)
-            if (ilev <= maxRefLevel)
+            if (ilev <= maxRef)
                 # Reset Jacobian for each workspace
                 map(s -> fill!(s.J, 0.0), sgws)
 
@@ -1208,16 +1207,15 @@ function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, sur
                 ti_step!(newgrid, grid, polGuess1, sgws)
 
                 # Perform adaptive refinement
-                if iter >= iterRefStart && ilev < maxRefLevel
+                if iter >= iterRefStart && ilev < maxRef
                     polGuess1 = refine!(newgrid, polGuess1, scaleCorr, scaleCorrMat, surplThreshold, dimRef, typeRefinement)
+                    # Track refinement level
+                    ilev += 1
                 end
             else
                 # If refinement is done, load function values
                 loadNeededPoints!(newgrid, polGuess1)
             end
-
-            # Track refinement level
-            ilev += 1
         end
 
         # Compute error and update policy function
@@ -1229,7 +1227,7 @@ function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, sur
         push!(timings, iteration_walltime)
 
         # Logging iteration details
-        println("Iteration: $iter, Grid pts: $(getNumPoints(grid)), Level: $ilev, Metric: $metric, Computing time: $(iteration_walltime)")
+        println("Iteration: $iter, Grid pts: $(getNumPoints(grid)), Refinement level: $(ilev), Metric: $metric, Computing time: $(iteration_walltime)")
 
         # Save grid state periodically
         if (mod(iter + 1, savefreq) == 0)
@@ -1287,9 +1285,12 @@ function refine!(grid, polguess, scaleCorr, scaleCorrMat, surplThreshold, dimRef
     if num_needed > 0
         # Get new required points
         nwpts = getNeededPoints(grid)
-
-        # Update policy function values in place
-        AE_evaluate!(polguess, grid, nwpts)
+        if size(polguess,1) == num_needed
+            # Update policy function values in place
+            AE_evaluate!(polguess, grid, nwpts)
+        else
+            polguess = AE_evaluate(grid, nwpts)
+        end
     end
 
     return polguess
@@ -1399,7 +1400,7 @@ function sparsegridapproximation(; context::Context=context,
     end
     
     # Get a guess for the policy function using first-order perturbation
-    polGuess = initialize_policy_approximation(context, sgws[1], aNum, gridDim, aPoints)
+    polGuess = initialize_policy_approximation(context, sgws[1], aNum, aPoints)
     
     # Load the values of the policy function guess on the grid
     loadNeededPoints!(grid, polGuess)
@@ -1407,7 +1408,7 @@ function sparsegridapproximation(; context::Context=context,
     # Sparse time-iteration
     grid, polGuess, average_time = sparse_grid_time_iteration!(grid, grid0, polGuess, sgws,
                                                                scaleCorr, surplThreshold, dimRef,
-                                                               typeRefinement, maxiter, maxRefLevel,
+                                                               typeRefinement, maxiter, maxRef,
                                                                iterRefStart, tol_ti, savefreq)
 
     # Save the results
