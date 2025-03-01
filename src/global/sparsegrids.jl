@@ -1278,7 +1278,7 @@ function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, sur
     println("Last grid points: $(getNumPoints(grid))")
     println("Average iteration time (except first one): $average_time")
 
-    return grid, polGuess, average_time
+    return grid, polGuess, average_time, iter
 end
 
 """
@@ -1439,13 +1439,14 @@ function sparsegridapproximation(; context::Context=context,
     loadNeededPoints!(grid, polGuess)
 
     # Sparse time-iteration
-    grid, polGuess, average_time = sparse_grid_time_iteration!(grid, grid0, polGuess, sgws,
+    grid, polGuess, average_time, iter = sparse_grid_time_iteration!(grid, grid0, polGuess, sgws,
                                                                scaleCorr, surplThreshold, dimRef,
                                                                typeRefinement, maxiter, maxRef,
                                                                iterRefStart, tol_ti, savefreq)
 
     # Save the results
     results = context.results.model_results[1].sparsegrids
+    results.iteration_number = iter
     results.average_iteration_time = average_time
     results.drawsnbr = drawsnbr
     results.ftol = ftol

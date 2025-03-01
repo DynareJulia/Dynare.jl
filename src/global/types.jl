@@ -345,6 +345,7 @@ end
 mutable struct SparsegridsResults
     average_error::Float64
     max_error::Float64
+    iteration_number::Int
     average_iteration_time::Float64
     drawsnbr::Int
     burnin::Int
@@ -366,6 +367,7 @@ mutable struct SparsegridsResults
     function SparsegridsResults()
         average_error = 0
         max_error = 0
+        iteration_number = 0
         average_iteration_time = 0
         drawsnbr = 0
         burnin = 0
@@ -384,11 +386,11 @@ mutable struct SparsegridsResults
         quantile_probability = 0
         solver = NonlinearSolver
         surplThreshold = 0
-        new(average_error, max_error, average_iteration_time, drawsnbr,
-            burnin, equation_average_errors, equation_quantile_errors, 
-            ftol, grid, gridDepth, gridOrder, gridRule, iterRefStat, 
-            maxRef, mcp, method, quantile_error, quantile_probability, 
-            solver, surplThreshold)
+        new(average_error, iteration_number, max_error, average_iteration_time,
+            drawsnbr, burnin, equation_average_errors,
+            equation_quantile_errors, ftol, grid, gridDepth, gridOrder,
+            gridRule, iterRefStat, maxRef, mcp, method, quantile_error,
+            quantile_probability, solver, surplThreshold)
     end
 end    
 
