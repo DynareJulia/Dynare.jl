@@ -365,11 +365,12 @@ Computes an initial guess for the policy function using first-order perturbation
 - `sgws::SparsegridsWs` : Solver workspace.
 - `M::Matrix{Float64}` : First-order coefficient matrix for predetermined variables.
 - `N::Matrix{Float64}` : First-order coefficient matrix for state variables.
+- `initialPolGuess::UserPolicyGuess` : Dictionnary containing proposals for the policy function, e.g. {"c" => }
 
 # Returns
 - `polGuess::Matrix{Float64}` : Initial policy function guess.
 """
-function guess_policy(context, aNum, aPoints, sgws, M, N)
+function guess_policy(context, aNum, aPoints, sgws, M, N, initialPolGuess)
     # Unpack relevant components from the solver workspace
     @unpack ids, dynamic_state_variables, system_variables, preamble_block, 
             lb, ub, sgmodel = sgws
@@ -394,11 +395,41 @@ function guess_policy(context, aNum, aPoints, sgws, M, N)
     ilagendo = findall(dynamic_state_variables .≤ sgmodel.endogenous_nbr)
     iy = findall(in(dynamic_state_variables[ilagendo]), system_variables) 
 
-    # Compute initial policy function guess
+    # Get the names of the policy variables
+    endogenous_variables = Dynare.get_endogenous(context.symboltable)
+    system_variable_names = endogenous_variables[system_variables]
+
+    # Get the set of policy variables that have a corresponding user-provided
+    # policy guess function. The others will be assigned a guess using
+    # first-order perturbation
+    user_guessed = findall(in(initialPolGuess.outputs), system_variable_names)
+    dynare_guessed = findall(!in(initialPolGuess.outputs), system_variable_names)
+
+    # Compute the initial policy function guess for the variables specified
+    # in initialPolGuess
+    if !isempty(user_guessed)
+        # Get the names of the endogenous state variables and exogenous shocks
+        # (In SGU's terminology). These are the inputs of the policy functions
+        # in the order of `aPoints` rows.  `aPoints` is a matrix with `nsv` rows
+        # and `aNum` points, where `nsv` is the number of policy variables, and
+        # `aNum` is the number of points on the grid. The first rows contain the
+        # coordinates of the endogenous lagged variables (state variables in
+        # SGU's terminology), whose indices are in `iy`. The last rows contain
+        # the coordinates of the exogenous processes (in SGU's terminology),
+        # whose indices in endogenous_variables are `istate`.
+        input_names = endogenous_variables[[iy;istate]]
+        input_order = findfirst.(isequal.(input_names), Ref(initialPolGuess.inputs))
+        user_guessed_order = findfirst.(isequal.(system_variable_names[user_guessed]), Ref(initialPolGuess.outputs))
+        polGuess[user_guessed, :] = reduce(hcat, [initialPolGuess.polFun(col[input_order])[user_guessed_order] for col in eachcol(aPoints)])
+    end
+
+    # Compute the initial policy function guess for the other variables
+    dynare_guess = zeros(nsv)
     @views for (i, c) in enumerate(eachcol(aPoints))
         x = c[istate] .- sst  # Deviation from steady-state for state variables
         y0[iy] .= c[ilagendo] .- ssi  # Deviation for lagged endogenous variables
-        polGuess[:, i] .= ssy .+ M * y0 .+ N * x
+        dynare_guess .= ssy .+ M * y0 .+ N * x
+        polGuess[dynare_guessed, i] = dynare_guess[dynare_guessed]
     end
 
     # Ensure the policy guess stays within bounds
@@ -417,16 +448,17 @@ Computes the first-order perturbation approximation and initializes the policy f
 - `sgws::SparsegridsWs` : Workspace struct storing grid and solver data.
 - `aNum::Int` : Number of grid points requiring function values.
 - `aPoints` : Sparse grid evaluation points.
+- `initialPolGuess::UserPolicyGuess` : User-provided policy guess
 
 # Returns
 - `polGuess::Matrix{Float64}` : Initial policy function approximation.
 """
-function initialize_policy_approximation(context, sgws, aNum, aPoints)
+function initialize_policy_approximation(context, sgws, aNum, aPoints, initialPolGuess)
     # First-order approximation
     M, N, _ = block_first_order_approximation(context, sgws)
 
     # Compute initial policy guess
-    polGuess = guess_policy(context, aNum, aPoints, sgws, M, N)
+    polGuess = guess_policy(context, aNum, aPoints, sgws, M, N, initialPolGuess)
 
     return polGuess
 end
@@ -492,7 +524,7 @@ function set_dyn_endogenous_vector!(dyn_endogenous_vector, policy, state, grid, 
     AE_evaluate!(policyguess, grid, forward_points)
 
     # Update `dyn_endogenous_vector` with computed policies
-    @views for (i, k) in enumerate(system_variables), j in 1:nodesnbr
+    for (i, k) in enumerate(system_variables), j in 1:nodesnbr
         dyn_endogenous_vector[j][2 * endogenous_nbr + k] = policyguess[i, j]
     end
 
@@ -736,7 +768,7 @@ function sysOfEqs!(residuals, policy, state, grid, sgws)
             dyn_endogenous_vector, sgmodel = sgws
     @unpack dyn_endogenous, endogenous_nbr, exogenous, parameters, steadystate, tempterms = sgmodel
 
-    # Set state and policy variables in dyn_endogenous (local copy)
+    # Set state and policy variables in dyn_endogenous
     dyn_endogenous[dynamic_state_variables] .= state
     dyn_endogenous[system_variables .+ endogenous_nbr] .= policy
 
@@ -897,7 +929,7 @@ Solves the nonlinear system using `NonlinearSolve.jl` for each state in `chunk`.
 # Returns
 - nothing
 """
-function NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, show_trace, chunk)
+function NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, ftol, show_trace, chunk)
     # Define system function and Jacobian once
     f!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
     JA!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
@@ -914,7 +946,7 @@ function NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, show
 
         # Define and solve the nonlinear problem
         nlp = NonlinearProblem(nlf, x, state)
-        res = NonlinearSolve.solve(nlp, method, show_trace=show_trace, abstol=1e-6)
+        res = NonlinearSolve.solve(nlp, method, show_trace=show_trace, abstol=ftol)
 
         # Store the computed solution
         @views polGuess[:, i] .= res.u
@@ -1015,7 +1047,6 @@ function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, met
     # Partition workload among available threads
     chunks = Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1) |> collect
     tasks = []
-
     for (i, chunk) in enumerate(chunks)
         push!(tasks, Threads.@spawn begin
             if solver == PATHSolver
@@ -1023,7 +1054,7 @@ function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, met
                 Threads.nthreads() == 1 || error("PATHSolver is not thread-safe! Run with `JULIA_NUM_THREADS=1`.")
                 PATHsolver_solve!(polGuess, lb, ub, states, fx, J, oldgrid, sgws[1], show_trace, chunk)
             elseif solver == NonlinearSolver
-                NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws[i], show_trace, chunk)
+                NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws[i], ftol, show_trace, chunk)
             elseif solver == NLsolver
                 NLsolve_solve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws[i], ftol, show_trace, chunk)
             else
@@ -1326,6 +1357,7 @@ dynamic stochastic models.
 - `tol_ti = 1e-4`: Convergence criterion for time iteration,
 - `drawsnbr = 10000`: Number of random draws for the error computation,
 - `typeRefinement = "classic"`,
+- `initialPolGuess::UserPolicyGuess = `
 """
 function sparsegridapproximation(; context::Context=context,
                                  dimRef = -1,
@@ -1349,6 +1381,7 @@ function sparsegridapproximation(; context::Context=context,
                                  tol_ti = 1e-4,
                                  drawsnbr = 10000,
                                  typeRefinement = "classic",
+                                 initialPolGuess::UserPolicyGuess = UserPolicyGuess(),
                                  )
 
     # Extract model information
@@ -1400,7 +1433,7 @@ function sparsegridapproximation(; context::Context=context,
     end
     
     # Get a guess for the policy function using first-order perturbation
-    polGuess = initialize_policy_approximation(context, sgws[1], aNum, aPoints)
+    polGuess = initialize_policy_approximation(context, sgws[1], aNum, aPoints, initialPolGuess)
     
     # Load the values of the policy function guess on the grid
     loadNeededPoints!(grid, polGuess)

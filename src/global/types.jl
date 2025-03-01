@@ -201,6 +201,44 @@ struct Sev
 end
 
 """
+    struct UserPolicyGuess
+
+Structure for user-provided policy function guesses
+
+# Fields
+- polFun::Function
+  A vector-valued policy function.
+  ```julia
+  function (x)
+    Z = x[1]
+    K = x[2]
+    return [
+      α*β*exp(Z)*K^α*ss_l^(1-α),
+      (1-α*β)*exp(Z)*K^α*ss_l^(1-α),
+      c_pol(K,Z)+k_pol(K,Z),
+      (1-α)*y_pol(K,Z)/K,
+    ]
+  ```
+- `inputs::Vector{String}`
+  Ordered list of the state variables used as inputs in the policy function field `function`, e.g.
+  ```julia
+  ["z","k"]
+  ```
+- `outputs`:: Vector{String}
+  Ordered list of the policy function field `function` output
+  ```julia
+  ["k","c","y","rk"]
+  ```
+"""
+struct UserPolicyGuess
+    polFun::Function
+    inputs::Vector{String}
+    outputs::Vector{String}
+    UserPolicyGuess() = new(x->nothing,Vector{String}(),Vector{String}())
+    UserPolicyGuess(f,i,o) = new(f,i,o)
+end
+
+"""
     struct SparsegridsWs
 
 Workspace structure for sparse grid approximation, storing essential model variables, Jacobians, and solver configurations.

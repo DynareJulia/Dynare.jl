@@ -28,6 +28,7 @@ include("logging.jl")
 include("utils.jl")
 include("dynare_functions.jl")
 include("global/types.jl")
+export UserPolicyGuess
 include("dynare_containers.jl")
 include("accessors.jl")
 export forecast, irf, simulation, smoother 
