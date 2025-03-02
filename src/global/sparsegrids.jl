@@ -1120,6 +1120,7 @@ Checks convergence and updates policy function values.
 - `polGuessOld::Matrix{Float64}` : Previous policy function values.
 - `polGuessNew::Matrix{Float64}` : Updated policy function values.
 - `gridOut::Int` : Number of policy variables.
+- `polUpdateWeight::Float64` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
 
 # Effect
 - Updates `polGuessNew` in place.
@@ -1129,7 +1130,7 @@ Checks convergence and updates policy function values.
 - `polGuessNew::Matrix{Float64}` : Updated policy function values.
 - `gridNew` : Copied grid.
 """
-function policy_update!(gridOld, gridNew, polGuessOld, polGuessNew, gridOut)
+function policy_update!(gridOld, gridNew, polGuessOld, polGuessNew, gridOut, polUpdateWeight)
 
     # Get the points and the number of points from grid1
     # aPoints2 = getPoints(gridNew)
@@ -1147,6 +1148,8 @@ function policy_update!(gridOld, gridNew, polGuessOld, polGuessNew, gridOut)
         #polGuessNew = evaluateBatch(gridNew, Matrix(aPoints2))
         polGuessNew = AE_evaluate(gridNew, Matrix(aPoints2))
     end 
+    # Load the polGuessOld points on gridOld
+    loadNeededPoints!(gridOld, polGuessOld)
     if size(polGuessOld, 2) == aNumTot
         #evaluateBatch!(polGuessOld, gridOld, Matrix(aPoints2))
         AE_evaluate!(polGuessOld, gridOld, Matrix(aPoints2))
@@ -1175,11 +1178,11 @@ function policy_update!(gridOld, gridNew, polGuessOld, polGuessNew, gridOut)
     metricL2 = (metricL2/(aNumTot*gridOut))^0.5
     metric = min(metricL2, metricSup)
 
-    # Now updatine pol_guess and grid
+    # Now updating pol_guess and grid
+    @views @. polGuessNew[1:gridOut, :] = polUpdateWeight * polGuessNew[1:gridOut, :] + (1 - polUpdateWeight) * polGuessOld[1:gridOut, :]
 
-    for iupd in 1:gridOut
-        @views polGuessNew[iupd, :] .= 0.5*(polGuessOld[iupd, :] .+ polGuessNew[iupd, :])
-    end
+    # Load the corresponding points on the grid
+    loadNeededPoints!(gridNew, polGuessNew)
 
     #return metric, polGuessNew, copyGrid(gridNew)
     return metric, polGuessNew, AE_copyGrid(gridNew)
@@ -1205,6 +1208,7 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `maxRefLevel::Int` : Maximum refinement level.
 - `iterRefStart::Int` : Iteration at which refinement starts.
 - `tol_ti::Float64` : Convergence criterion.
+- `polUpdateWeight::Float64` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
 - `savefreq::Int` : Frequency for saving the grid.
 - `timings::Vector{Millisecond}` : Storage for iteration timings.
 
@@ -1213,8 +1217,11 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `polGuess` : Updated policy function.
 - `average_time::Float64` : Average iteration time.
 """
-function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef, 
-                                    typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, savefreq)
+function sparse_grid_time_iteration!(
+    grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef,
+    typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, polUpdateWeight,
+    savefreq
+)
     # Initialize timing variables
     total_time = 0
     context.timings["sparsegrids"] = Vector{Millisecond}()
@@ -1250,7 +1257,7 @@ function sparse_grid_time_iteration!(grid, grid0, polGuess, sgws, scaleCorr, sur
         end
 
         # Compute error and update policy function
-        metric, polGuess, grid = policy_update!(grid, newgrid, polGuess, polGuess1, length(sgws[1].system_variables))
+        metric, polGuess, grid = policy_update!(grid, newgrid, polGuess, polGuess1, length(sgws[1].system_variables), polUpdateWeight)
         iteration_walltime = now() - tin
 
         # Store iteration timing
@@ -1355,6 +1362,7 @@ dynamic stochastic models.
 - `solver = mcp ? NLsolver : NonlinearSolver`: Specifies the nonlinear solver for equilibrium equations, supporting standard (NonlinearSolve) or mixed complementarity (NLsolve) problems,
 - `surplThreshold= 1e-3`: Threshold for grid refinement,
 - `tol_ti = 1e-4`: Convergence criterion for time iteration,
+- `polUpdateWeight = 0.5` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
 - `drawsnbr = 10000`: Number of random draws for the error computation,
 - `typeRefinement = "classic"`,
 - `initialPolGuess::UserPolicyGuess = `
@@ -1379,6 +1387,7 @@ function sparsegridapproximation(; context::Context=context,
                                  solver = mcp ? NLsolver : NonlinearSolver,
                                  surplThreshold= 1e-3,
                                  tol_ti = 1e-4,
+                                 polUpdateWeight = 0.5,
                                  drawsnbr = 10000,
                                  typeRefinement = "classic",
                                  initialPolGuess::UserPolicyGuess = UserPolicyGuess(),
@@ -1439,10 +1448,10 @@ function sparsegridapproximation(; context::Context=context,
     loadNeededPoints!(grid, polGuess)
 
     # Sparse time-iteration
-    grid, polGuess, average_time, iter = sparse_grid_time_iteration!(grid, grid0, polGuess, sgws,
-                                                               scaleCorr, surplThreshold, dimRef,
-                                                               typeRefinement, maxiter, maxRef,
-                                                               iterRefStart, tol_ti, savefreq)
+    grid, polGuess, average_time, iter = sparse_grid_time_iteration!(
+        grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef,
+        typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, polUpdateWeight,savefreq
+    )
 
     # Save the results
     results = context.results.model_results[1].sparsegrids
