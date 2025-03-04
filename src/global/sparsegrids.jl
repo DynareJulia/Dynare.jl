@@ -1207,6 +1207,7 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `maxiter::Int` : Maximum number of iterations.
 - `maxRefLevel::Int` : Maximum refinement level.
 - `iterRefStart::Int` : Iteration at which refinement starts.
+- `maxIterEarlyStopping::Int` : Number of iterations after which TI stops after TI convergence measure starts increasing
 - `tol_ti::Float64` : Convergence criterion.
 - `polUpdateWeight::Float64` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
 - `savefreq::Int` : Frequency for saving the grid.
@@ -1219,17 +1220,19 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 """
 function sparse_grid_time_iteration!(
     grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef,
-    typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, polUpdateWeight,
-    savefreq
+    typeRefinement, maxiter, maxRef, iterRefStart, maxIterEarlyStopping,
+    tol_ti, polUpdateWeight, savefreq
 )
     # Initialize timing variables
     total_time = 0
     context.timings["sparsegrids"] = Vector{Millisecond}()
     timings = context.timings["sparsegrids"]
     iter = 1
+    iterEarlyStopping = 0
+    previousMetric = Inf
     scaleCorrMat = repeat(scaleCorr, 1, Tasmanian.getNumLoaded(grid))
 
-    while iter <= maxiter
+    while iter <= maxiter && iterEarlyStopping <= maxIterEarlyStopping
         tin = now()
         polGuess1 = copy(polGuess)
         newgrid = copyGrid(grid0)
@@ -1259,6 +1262,15 @@ function sparse_grid_time_iteration!(
         # Compute error and update policy function
         metric, polGuess, grid = policy_update!(grid, newgrid, polGuess, polGuess1, length(sgws[1].system_variables), polUpdateWeight)
         iteration_walltime = now() - tin
+
+        # Verify that the metric decreased w.r.t the previous iteration and
+        # adjust early-stopping indicators accordingly
+        if previousMetric > metric
+            iterEarlyStopping = 0
+        else
+            iterEarlyStopping += 1
+        end
+        previousMetric = metric
 
         # Store iteration timing
         iter > 1 && (total_time += iteration_walltime.value)
@@ -1363,6 +1375,7 @@ dynamic stochastic models.
 - `surplThreshold= 1e-3`: Threshold for grid refinement,
 - `tol_ti = 1e-4`: Convergence criterion for time iteration,
 - `polUpdateWeight = 0.5` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
+- `maxIterEarlyStopping = 1` : Number of iterations after which TI stops after TI convergence measure starts increasing
 - `drawsnbr = 10000`: Number of random draws for the error computation,
 - `typeRefinement = "classic"`,
 - `initialPolGuess::UserPolicyGuess = `
@@ -1388,6 +1401,7 @@ function sparsegridapproximation(; context::Context=context,
                                  surplThreshold= 1e-3,
                                  tol_ti = 1e-4,
                                  polUpdateWeight = 0.5,
+                                 maxIterEarlyStopping = 0,
                                  drawsnbr = 10000,
                                  typeRefinement = "classic",
                                  initialPolGuess::UserPolicyGuess = UserPolicyGuess(),
@@ -1450,7 +1464,8 @@ function sparsegridapproximation(; context::Context=context,
     # Sparse time-iteration
     grid, polGuess, average_time, iter = sparse_grid_time_iteration!(
         grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef,
-        typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, polUpdateWeight,savefreq
+        typeRefinement, maxiter, maxRef, iterRefStart, maxIterEarlyStopping,
+        tol_ti, polUpdateWeight,savefreq
     )
 
     # Save the results
