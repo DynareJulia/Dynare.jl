@@ -14,7 +14,7 @@ include("DDSG.jl")
 function AE_evaluate(grid,X)
 
     if hasproperty(grid, :is_ddsg) 
-        return DDSG_evaluate(grid,X=X)
+        return DDSG_evaluate(grid,X)
     else
         if length(X)==getNumDimensions(grid)
             return evaluate(grid,X)
@@ -26,7 +26,7 @@ end
 
 function AE_evaluate!(Y,grid,X)
     if hasproperty(grid, :is_ddsg) 
-        DDSG_evaluate!(grid,Y=Y,X=X)
+        DDSG_evaluate!(Y,grid,X)
     else
         evaluateBatch!(Y,grid,X) 
     end

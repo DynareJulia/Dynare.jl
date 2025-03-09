@@ -12,67 +12,89 @@ using Printf
 
 export DDSG_test1, DDSG_test2
 
-const DDSGInx    = Tuple{Int,Vararg{Int}}
-const DDSGInxMap = Dict{DDSGInx, Int}
+"""
+    mutable struct DDSG
 
-# Define the DDSG struct with updated field names and added attributes X0 and Y0
+A data structure representing a high-dimensional sparse grid, incorporating dimensional decomposition and sparse grid methods.
+
+# Fields
+- `dim::Int` : The number of dimensions in the grid.
+- `dof::Int` : Degrees of freedom for the grid's output.
+- `l_min::Int` : The minimum level of the sparse grid refinement.
+- `l_max::Int` : The maximum level of the sparse grid refinement.
+- `k_max::Int` : The maximum length of combination terms used in the decomposition.
+- `order::Int` : The polynomial order for local basis functions in the sparse grid.
+- `rule::String` : The rule used for constructing the sparse grid.
+- `domain::Matrix{Float64}` : A two-column matrix defining the lower and upper bounds of the domain in each dimension.
+- `centroid::Vector{Float64}` : The central point of the domain, computed as the midpoint of each dimension.
+- `lookup::Vector{DDSGInxMap}` : A vector of dictionaries storing grid structures associated with different decomposition terms.
+- `rlookup::Vector{DDSGInx}` : A vector of tuples representing reverse lookup mappings.
+- `grid::Vector{TasmanianSG}` : A vector storing the sparse grid structures.
+- `coeff::Vector{Float64}` : A vector storing decomposition coefficients associated with the grid.
+- `grid_points::Vector{Int}` : A vector tracking the number of grid points in each component function.
+- `X0::Vector{Float64}` : The anchor point in the domain for function evaluation.
+- `Y0::Vector{Float64}` : The function values at the anchor point.
+- `coeff0::Float64` : The coefficient corresponding to the zeroth-order decomposition component.
+- `is_ddsg::Bool` : A flag indicating whether the grid follows a dimensional decomposition structure (`true`) or is a standard sparse grid (`false`).
+
+# Constructors
+- `DDSG(; kwargs...)` : Creates a `DDSG` object with user-defined parameters. If `domain` is not provided, it defaults to `[0,1]` for each dimension.
+- `DDSG(other::DDSG)` : Creates a copy of another `DDSG` object, ensuring proper handling of mutable fields through shallow or deep copies where necessary.
+"""
 mutable struct DDSG
-    dim::Int                           # Dimension of the grid
-    dof::Int                           # Degrees of freedom for grid output
-    l_min::Int                         # Minimum sparse grid level
-    l_max::Int                         # Maximum sparse grid level
-    k_max::Int                         # Maximum combination length   
-    order::Int                         # Polynomial order for local basis
-    rule::String                       # Rule for constructing the sparse grid
-    domain::Matrix{Float64}            # Domain as a matrix
-    centroid::Vector{Float64}          # Center of the domain as a vector
-    lookup::Vector{DDSGInxMap}         # Vector of dictionaries to hold grid structures
-    rlookup::Vector{DDSGInx}           # Vector of tuples for reverse lookup
-    grid::Vector{Any}                  # Vector to hold grid structures
-    coeff::Vector{Float64}             # Vector to hold grid DD coefficients
-    grid_points::Vector{Int}           # Vector to hold grid points
-    X0::Vector{Float64}                # Anchor point X0
-    Y0::Vector{Float64}                # Values at anchor point
-    coeff0::Float64                    # Coefficient for the zeroth DD order component function
-    is_ddsg::Bool                      # is ddsg grid
+    dim::Int                   # Dimension of the grid
+    dof::Int                   # Degrees of freedom for grid output
+    l_min::Int                 # Minimum sparse grid level
+    l_max::Int                 # Maximum sparse grid level
+    k_max::Int                 # Maximum combination length
+    order::Int                 # Polynomial order for local basis
+    rule::String               # Rule for constructing the sparse grid
+    domain::Matrix{Float64}    # Domain as a 2-column matrix
+    centroid::Vector{Float64}  # Center of the domain as a vector
+    lookup::Dict{Int, Dict{Vector{Int}, Int}} # Vector of dictionaries to hold grid structures
+    grid::Vector{TasmanianSG}  # Vector to hold grid structures
+    coeff::Vector{Float64}     # Vector to hold grid DD coefficients
+    grid_points::Vector{Int}   # Vector to hold grid points
+    X0::Vector{Float64}        # Anchor point X0
+    Y0::Vector{Float64}        # Values at anchor point
+    coeff0::Float64            # Coefficient for the zeroth DD order component function
+    is_ddsg::Bool              # is ddsg grid
 
     # Define constructor for the struct
-    function DDSG(; 
-        dim::Int, 
-        dof::Int, 
-        l_min::Int, 
-        l_max::Int, 
-        k_max::Int, 
-        order::Int = 1,
-        rule::String = "localp",
-        domain::Union{Matrix{Float64},Nothing}=nothing, 
-        lookup::Vector{DDSGInxMap} = Vector{DDSGInxMap}(), 
-        rlookup::Vector{DDSGInx} = Vector{DDSGInx}(),  
-        grid::Vector{Any} = Vector{Any}(), 
-        coeff::Vector{Float64} = Vector{Float64}(), 
-        grid_points::Vector{Int} = Vector{Int}(), 
-        X0::Vector{Float64} = Vector{Float64}(), 
-        Y0::Vector{Float64} = Vector{Float64}(), 
-        coeff0::Float64 = 0.0,
-        is_ddsg::Bool = true
+    function DDSG( 
+        dim,
+        dof,
+        l_min,
+        l_max,
+        k_max;
+        order = 1,
+        rule = "localp",
+        domain = nothing,
+        grid = Vector{TasmanianSG}(),
+        coeff = Vector{Float64}(),
+        grid_points = Vector{Int}(),
+        X0 = Vector{Float64}(),
+        Y0 = Vector{Float64}(),
+        coeff0 = 0.0,
+        is_ddsg = true
     )
-
+        # Set the domain limits for each dimension
         if isnothing(domain)
-            domain = zeros(Float64,dim,2)
+            domain = zeros(dim,2)
             domain[:,2].=1.0
         end
 
         # Set center as the midpoint of each dimension in the domain
-        centroid = vec((domain[:, 1] + domain[:, 2]) / 2.0)
-
-        # Resize lookup to length of k_max
-        resize!(lookup, k_max)
+        centroid = vec(@. 0.5*(domain[:, 1] + domain[:, 2]))
 
         # Initialize empty dictionaries for the resized lookup
-        for i in 1:k_max
-            lookup[i] = DDSGInxMap()
+        lookup = Dict()
+        for k in 1:k_max
+            lookup[k] = Dict{Vector{Int},Int}()
         end
 
+        # If the maximum combination length coincides with the number of
+        # dimensions, we are back to a standard sparse grid framework
         if dim==k_max
             is_ddsg = false
         end
@@ -84,284 +106,396 @@ mutable struct DDSG
             l_max, 
             k_max, 
             order, rule, domain, centroid, 
-            lookup,rlookup, grid, coeff, grid_points, 
-            X0, Y0, coeff0, is_ddsg)
+            lookup, grid, coeff, grid_points,
+            X0, Y0, coeff0, is_ddsg
+        )
     end
 
-    # Function to create a copy of the DDSG instance
+    # Copy constructor
     function DDSG(other::DDSG)
-
-        # Deep copy all attributes
-        dim_copy         = deepcopy(other.dim)
-        dof_copy         = deepcopy(other.dof)
-        l_min_copy       = deepcopy(other.l_min)
-        l_max_copy       = deepcopy(other.l_max)
-        order_copy       = deepcopy(other.order)
-        rule_copy        = deepcopy(other.rule)
-        k_max_copy       = deepcopy(other.k_max)    
-        domain_copy      = deepcopy(other.domain)
-        centroid_copy    = deepcopy(other.centroid)
-        coeff_copy       = deepcopy(other.coeff)
-        grid_points_copy = deepcopy(other.grid_points)
-        lookup_copy      = deepcopy(other.lookup)
-        rlookup_copy     = deepcopy(other.rlookup)
-        X0_copy          = deepcopy(other.X0)
-        Y0_copy          = deepcopy(other.Y0)
-        coeff0_copy      = deepcopy(other.coeff0)
-        is_ddsg_copy     = deepcopy(other.is_ddsg)     
-
-        # Specific deep copy for grid using copyGrid function
-        grid_copy = Vector{Any}(undef, length(other.grid))
-        for i in 1:length(other.grid)
-            grid_copy[i] = copyGrid(other.grid[i])  # Use copyGrid to deep copy each grid
-        end
-
-        # Create a new DDSG instance with the copied values
+        # Immutable-type instances are automatically copied by the compiler. No
+        # need to deepcopy them. This includes fields dim, dof, l_min, l_max,
+        # k_max, order, rule, coeff0 and is_ddsg. For some mutable-type
+        # instances with immutable-type fields, a shallow copy is enough. This
+        # includes domain, centroid, coeff, grid_points, X0 and Y0. lookup and
+        # grid fields need a deepcopy.
         return new(
-            dim_copy,
-            dof_copy, 
-            l_min_copy, 
-            l_max_copy, 
-            k_max_copy,    
-            order_copy, rule_copy, domain_copy, centroid_copy,
-            lookup_copy, rlookup_copy,grid_copy, coeff_copy, grid_points_copy, 
-            X0_copy, Y0_copy, coeff0_copy,is_ddsg_copy)
+            other.dim,
+            other.dof,
+            other.l_min,
+            other.l_max,
+            other.k_max,
+            other.order,
+            other.rule,
+            copy(other.domain),
+            copy(other.centroid),
+            deepcopy(other.lookup),
+            [copyGrid(grid) for grid in other.grid],
+            copy(other.coeff),
+            copy(other.grid_points),
+            copy(other.X0),
+            copy(other.Y0),
+            other.coeff0,
+            other.is_ddsg
+        )
     end
 end
 
-# Constructor method to initialize DDSG and set up grid and center
+"""
+    DDSG_init_u!(self, u, coeff)
+
+Initializes a Tasmanian sparse grid for a given combination of dimensions in the DDSG structure.
+
+# Arguments
+- `self::DDSG` : The DDSG instance being initialized.
+- `u::Vector{Int}` : The subset of dimensions for which the sparse grid is created.
+- `coeff::Float64` : The initial coefficient value associated with the combination.
+
+# Description
+This function initializes a sparse grid using Tasmanian's `TasmanianSG` for the given subset of dimensions `u`. The grid is configured with a local polynomial basis according to the DDSG parameters.
+
+- The domain is transformed to match the selected dimensions.
+- A unique `DDSGInx` key is generated for `u` and stored in the lookup structures.
+- The grid, coefficients, and metadata are updated within the `DDSG` instance.
+
+"""
+function DDSG_init_u!(self, u, coeff)
+    # Initialize a Tasmanian sparse grid for the current combination
+    grid = Tasmanian.TasmanianSG(length(u), self.dof, self.l_min)
+    makeLocalPolynomialGrid!(grid, order=self.order, rule=self.rule)
+
+    # Match grid to domain dimensions
+    setDomainTransform!(grid, self.domain[u,:])
+
+    # Assign default values to vectors and map vector indices using lookup
+    push!(self.grid, grid)
+    push!(self.coeff, coeff)
+    push!(self.grid_points, 0)
+    push!(self.lookup[length(u)], u => length(self.grid))
+    nothing
+end
+
+"""
+    DDSG_init!(self::DDSG)
+
+Constructs and initializes the DDSG structure, setting up the sparse grid components.
+
+# Arguments
+- `self::DDSG` : The DDSG instance to be initialized.
+
+# Description
+This function populates the DDSG structure by iterating over possible dimension combinations up to `k_max`.
+- If `is_ddsg` is `true`, it iterates through all possible subset sizes `k`, generating grids for each subset of dimensions.
+- If `is_ddsg` is `false`, the DDSG reduces to a standard sparse grid covering all dimensions.
+
+Each subset of dimensions is passed to `DDSG_init_u!`, which initializes the corresponding sparse grid and stores the necessary references.
+
+"""
 function DDSG_init!(self::DDSG)
-
-    if !self.is_ddsg
-
-        k = self.dim
-        u = Tuple(1:k)
-        domain_loc = self.domain
-                
-        # Initialize a Tasmanian sparse grid for the current combination
-        grid_u = Tasmanian.TasmanianSG(k, self.dof, self.l_min)
-        makeLocalPolynomialGrid!(grid_u, order=self.order, rule=self.rule)
-        setDomainTransform!(grid_u, domain_loc)  # Match grid to domain dimensions
-        #enableAcceleration(grid_u,"none")
-
-        #print(grid_u)
-        #print(domain_loc)
-        
-        # Assign default values to vectors and map vector indices using lookup
-        push!(self.grid, grid_u)
-        push!(self.coeff, 1.0)
-        push!(self.grid_points, 0.0)
-        push!(self.rlookup, u)
-        self.lookup[k][u] = length(self.grid)
+    # Otherwise, loop over each possible combination length up to k_max and
+    # fill the DDSG accordingly
+    if self.is_ddsg
+        map(k->map(u->DDSG_init_u!(self, u, 0.0), combinations(1:self.dim,k)), 1:self.k_max)
+    # If the DDSG instance is equivalent to a classic sparse grid case, load the
+    # sole combination u = 1:self.dim
     else
-        # Loop over each possible combination length up to k_max
-        for k in 1:self.k_max
-            for u in combinations(1:self.dim, k)
-                # Slice the domain by the selected combination and convert to a tuple for dictionary key
-                domain_loc = self.domain[u, :]
-                u = Tuple(u)
-                
-                # Initialize a Tasmanian sparse grid for the current combination
-                grid_u = Tasmanian.TasmanianSG(k, self.dof, self.l_min)
-                makeLocalPolynomialGrid!(grid_u, order=self.order, rule=self.rule)
-                setDomainTransform!(grid_u, domain_loc)  # Match grid to domain dimensions
-                
-                # Assign default values to vectors and map vector indices using lookup
-                push!(self.grid, grid_u)
-                push!(self.coeff, 0.0)
-                push!(self.grid_points, 0.0)
-                push!(self.rlookup, u)
-                self.lookup[k][u] = length(self.grid)
+        DDSG_init_u!(
+            self,
+            1:self.dim,
+            1.0
+        )
+    end
+    nothing
+end
+
+# # Method to print DDSG instance details
+# function DDSG_print(self::DDSG)
+#     println("\n=== DDSG Object Details START ===")
+#     println("Dimension (dim): ", self.dim)
+#     println("Degrees of freedom (dof): ", self.dof)
+#     println("Level min (l_min): ", self.l_min)
+#     println("Level max (l_max): ", self.l_max)
+#     println("Polynomial order (order): ", self.order)
+#     println("Rule (rule): ", self.rule)
+#     println("Domain (domain): ", self.domain)
+#     println("Domain centroid (centroid): ", self.centroid)
+#     println("Maximum expansion order (k_max): ", self.k_max)
+#     println("Anchor point (X0): ", self.X0)
+#     println("Function values at anchor point (Y0): ", self.Y0)
+#     println("DD coefficient for 0-order (coeff0): ", self.coeff0)
+#     println("Is DDSG (is_ddsg): ", self.is_ddsg)
+#     println("Grid details:")
+#     for k in 1:length(self.lookup)
+#         println("- Order (k): ", k)
+#         for (u, inx) in self.lookup[k]
+#             println("-- Index (inx): ", inx)
+#             println("-- Index (u): ", u)
+#             println("-- DD coefficient (coeff[lookup[k][u]]): ", self.coeff[inx])
+#             println("-- Grid points (grid_points[lookup[k][u]]): ", self.grid_points[inx])
+#             println(self.grid[inx])
+#         end
+#     end
+#     println("=== DDSG Object Details END ===")
+# end
+
+
+# # Function to print matrix with fixed number of decimal places
+# function ppnice(matrix, digits=4)
+#     for row in eachrow(matrix)
+#         for element in row
+#             @printf("%.*f  ", digits, element)
+#         end
+#         println()  # Newline after each row
+#     end
+# end
+
+"""
+    DDSG_refine!(grid, refinement_tol, refinement_type, scale_corr_vec)
+
+Performs adaptive sparse grid refinement based on surplus coefficients.
+
+# Arguments
+- `grid` : The Tasmanian sparse grid to be refined.
+- `refinement_tol::Float64` : The tolerance threshold for surplus-based refinement.
+- `refinement_type::String` : The refinement strategy to use (e.g., `"classic"`).
+- `scale_corr_vec::Union{Vector{Float64}, Nothing}` : An optional scale correction vector for adjusting refinement.
+
+# Description
+This function refines the given sparse grid using a **surplus-based refinement strategy**:
+- If `scale_corr_vec` is `nothing`, the grid is refined using standard surplus-based selection.
+- If `scale_corr_vec` is provided, it applies a scale correction to modify the refinement behavior.
+
+The function modifies the `grid` **in place**, ensuring that refinement follows the specified tolerance and refinement type.
+
+# Notes
+- The `output=-1` parameter ensures that all outputs are considered for refinement.
+- `scale_corr_mat` is constructed by repeating `scale_corr_vec` across all loaded points to apply a consistent scaling across dimensions.
+"""
+function DDSG_refine!(grid, refinement_tol, refinement_type, scale_corr_vec)
+    if isnothing(scale_corr_vec)
+        setSurplusRefinement!(grid, refinement_tol, output=-1, refinement_type=refinement_type)
+    else
+        scale_corr_mat = repeat(scale_corr_vec, 1, getNumLoaded(grid))
+        setSurplusRefinement!(grid, refinement_tol, output=-1, refinement_type=refinement_type, scale_correction=scale_corr_mat')
+    end
+end
+
+"""
+    evaluate_at_̄x_xᵥ(F, X0, X, v_inx)
+
+Evaluates the function `F` at modified grid points by replacing selected dimensions in the anchor point `X0`.
+
+# Arguments
+- `F::Function` : The function to evaluate, mapping input points to output values.
+- `X0::Vector{Float64}` : The anchor point in the domain, representing the reference point for decomposition.
+- `X::Matrix{Float64}` : The matrix of needed points to be substituted into `X0` for evaluation.
+- `v_inx::Vector{Int}` : The indices of the dimensions in `X0` that should be replaced with `X`.
+
+# Description
+This function constructs the modified input matrix `X_full` by:
+1. Initializing `X_full` as a repetition of `X0`, ensuring the correct shape.
+2. Replacing the dimensions indexed by `v_inx` with corresponding columns from `X`.
+3. Evaluating the function `F` at the modified grid points and returning the result.
+
+# Returns
+- A vector or matrix containing function evaluations `F(̄x - xᵥ)`, where `xᵥ` represents the replaced values.
+
+# Notes
+- The function is typically used in the DDSG framework to compute higher-order decomposition terms.
+- The input `X` should have the same number of columns as the intended number of evaluation points.
+"""
+function evaluate_at_̄x_xᵥ(F, X0, X, v_inx)
+    # Build x = ̄x \ xᵥ
+    # Initialize x = ̄x
+    N = size(X,2)
+    X_full = repeat(X0, 1, N)
+    # Replace the v-indexed values in x
+    @inbounds X_full[v_inx, :] .= X
+    # Return F(̄x \ xᵥ)
+    return F(X_full)
+end
+
+@doc raw"""
+    update_ddsg_coefficients!(self::DDSG)
+
+Updates the DDSG decomposition coefficients using the inclusion-exclusion principle.
+
+# Arguments
+- `self::DDSG` : The DDSG instance whose decomposition coefficients are being updated.
+
+# Description
+This function updates the coefficients stored in `self.coeff` and `self.coeff0` by applying the **inclusion-exclusion principle**. It iterates over all stored combinations of dimensions in `self.lookup` and modifies the corresponding coefficients in the hierarchical decomposition.
+
+### **Steps**
+1. **Iterate over all stored combinations**:
+   - Loops through `self.lookup`, which contains all `k`-dimensional subsets `u`.
+2. **For each subset `u`**, update coefficients for its non-empty subsets `v ⊆ u`:
+   - Iterates over all non-empty subsets `v` of `u`.
+   - Uses **alternating signs** based on the length difference `|u| - |v|`.
+   - Updates `self.coeff[inx]` accordingly.
+3. **Update the coefficient for the empty subset `∅`**:
+   - The base coefficient `self.coeff0` is adjusted using the same alternating-sign rule.
+4. **Final adjustment for `u = ∅`**:
+   - Ensures `self.coeff0` is updated properly.
+
+The coefficient update follows the formula:
+\[
+\text{coeff}[v] += (-1)^{|u| - |v|}
+\]
+which ensures a **hierarchical decomposition** where higher-order terms account for lower-order interactions.
+
+# Notes
+- This function **modifies `self.coeff` and `self.coeff0` in place**.
+- It ensures that the **DDSG decomposition remains consistent** with the dimensional decomposition framework.
+- The final `nothing` return value explicitly signifies that the function modifies the DDSG instance in place without returning a value.
+
+"""
+function update_ddsg_coefficients!(self)
+    # For all dimensions up to the cut
+    for len_u in 1:self.k_max
+        # For all k-dimension tuples u, k ≥ 1
+        for (u, _) in self.lookup[len_u]
+            for len_v in len_u:-1:1
+                # For all v ⊆ u, v ≠ ∅, update the relevant coefficients
+                # stored in ddsg.coeff
+                for v in combinations(u,len_v)
+                    inx = self.lookup[len_v][v]
+                    self.coeff[inx] += (-1)^(len_u-len_v)
+                end
             end
-        end
-
-    end
-end
-
-# Method to print DDSG instance details
-function DDSG_print(self::DDSG)
-    println("\n=== DDSG Object Details START ===")
-    println("Dimension (dim): ", self.dim)
-    println("Degrees of freedom (dof): ", self.dof)
-    println("Level min (l_min): ", self.l_min)
-    println("Level max (l_max): ", self.l_max)
-    println("Polynomial order (order): ", self.order)
-    println("Rule (rule): ", self.rule)
-    println("Domain (domain): ", self.domain)
-    println("Domain centroid (centroid): ", self.centroid)
-    println("Maximum expansion order (k_max): ", self.k_max)
-    println("Anchor point (X0): ", self.X0)
-    println("Function values at anchor point (Y0): ", self.Y0)
-    println("DD coefficient for 0-order (coeff0): ", self.coeff0)
-    println("Is DDSG (is_ddsg): ", self.is_ddsg)
-    println("Grid details:")
-    for k in 1:length(self.lookup)
-        println("- Order (k): ", k)
-        for (u, inx) in self.lookup[k]
-            println("-- Index (inx): ", inx)
-            println("-- Index (u): ", u)
-            println("-- DD coefficient (coeff[lookup[k][u]]): ", self.coeff[inx])
-            println("-- Grid points (grid_points[lookup[k][u]]): ", self.grid_points[inx])
-            println(self.grid[inx])
+            # For v = ∅, update the relevant coefficient coeff0
+            self.coeff0 += (-1)^len_u
         end
     end
-    println("=== DDSG Object Details END ===")
+    # For u = ∅
+    self.coeff0 += (-1)^0
+    nothing
 end
 
+"""
+    DDSG_build!(
+        self::DDSG; 
+        F::Function, 
+        X0::Vector{Float64},
+        refinement_tol::Float64,
+        refinement_type::String="classic",
+        scale_corr_vec::Union{Vector{Float64},Nothing}=nothing
+    )
 
-# Function to print matrix with fixed number of decimal places
-function ppnice(matrix, digits=4)
-    for row in eachrow(matrix)
-        for element in row
-            @printf("%.*f  ", digits, element)
-        end
-        println()  # Newline after each row
-    end
-end
+Constructs the DDSG interpolant by evaluating the function at required points and refining the sparse grids.
 
+# Arguments
+- `self::DDSG` : The DDSG instance being built.
+- `F::Function` : The target function to approximate, mapping input points to output values.
+- `X0::Vector{Float64}` : The anchor point in the domain, used for dimensional decomposition.
+- `refinement_tol::Float64` : The refinement tolerance for adaptive sparse grid refinement.
+- `refinement_type::String="classic"` : The refinement strategy used to refine the sparse grid.
+- `scale_corr_vec::Union{Vector{Float64}, Nothing}=nothing` : An optional scale correction vector for refining the sparse grid.
 
-# Function to build the DDSG instance, iterating over grids and updating points
+# Description
+This function constructs the DDSG approximation by:
+1. **Computing the anchor evaluation** `F(X0)`, which serves as the base component of the decomposition.
+2. **Evaluating all component functions** `F(X̄ \\ xᵥ)`, corresponding to different sparse grid levels.
+3. **Refining the sparse grids** iteratively based on surplus coefficients.
+4. **Updating DDSG coefficients** using the combinatorial inclusion-exclusion principle to ensure proper decomposition.
+5. **Handling the case where DDSG reduces to a standard sparse grid**, setting appropriate coefficients.
+
+The process involves:
+- Iterating over all dimensional combinations stored in `lookup`, fetching grid structures, and computing function values at needed points.
+- Replacing the corresponding dimensions in `X0` to evaluate function values for subspaces.
+- Refining the sparse grid adaptively based on the surplus refinement strategy.
+- Updating decomposition coefficients in `coeff` using combinatorial rules.
+
+# Notes
+- If `self.is_ddsg` is `true`, the function applies the hierarchical decomposition approach.
+- If `self.is_ddsg` is `false`, the DDSG reduces to a standard sparse grid and assigns the last coefficient to `1.0`.
+"""
 function DDSG_build!(
-    self::DDSG; 
-    F::Function, 
-    X0::Vector{Float64},
-    refinement_tol::Float64,
-    refinement_type::String="classic",
-    scale_corr_vec::Union{Vector{Float64},Nothing}=nothing)
-    
-    #t_build = 0
-
-    self.X0 = X0
-    self.Y0 = vec(F(reshape(X0, :, 1)))
-
-    #println("\n=== DDSG Build Start ===")
-    for k in 1:length(self.lookup)
-       # println("-- Order (k): $k")
-
-        for (u, inx) in self.lookup[k]
-
-            u_inx  = collect(u)
-            println("    Index (u): $u")
-
+    self::DDSG,
+    F::Function,
+    X0::Vector{Float64};
+    refinement_tol=0.,
+    refinement_type="classic",
+    scale_corr_vec=Vector{Float64}()
+)
+    # Set ̄x
+    self.X0 = copy(X0)
+    # Compute F(̄x), the first term of the summation
+    self.Y0 = F(X0)
+    # Compute all the higher-dimension terms F(̄x \ xᵥ) for all possible v ⊆
+    # {1,…, k_max}.
+    for k in 1:self.k_max
+        # For all v, inx contains the position of the associated grid in
+        # self.grid, self.grid_points and self.coeff.
+        for (v, inx) in self.lookup[k]
             # Load the grid
             grid = self.grid[inx]
             self.grid_points[inx] = 0
-
             # Refinement based on surplus coefficients
-            for l in (self.l_min):self.l_max
-     
-                if getNumNeeded(grid) < 1
-                    break
-                end
-
-                #println("l $l l_max $(self.l_max) points-$(getNumNeeded(grid)) ")
-
-                # Get and prepare needed points for the grid
+            for l in (self.l_min):(self.l_max)
+                ((getNumNeeded(grid) < 1) && break)
+                # Get and prepare needed points for the v-grid
                 X = getNeededPoints(grid)
-
-                # println(" x_points ",X)
-
-                N = size(X,2)
-
-                X_full = repeat(self.X0, 1, N)
-
-                X_full[u_inx,:] = X
-
-                # for row in eachrow(X_full)
-                #     println(join(round.(row, digits=3), "  "))
-                # end
-
-                # readline()
-
-                #println(" -> to be evaluated X $(round.(X_full,digits=3))")
-
-                #println("-- Level $l  size $(size(X_full))  normX $(norm(X_full)) normY $(norm(Y_val)) ")
-
-                #println("    Points needed refinement level $l: $N")
-                #t_build = t_build - time()
-                Y_val = F(X_full)
-                #t_build = t_build + time()
-
-
+                # Compute F(̄x \ xᵥ)
+                Y_val = evaluate_at_̄x_xᵥ(F, self.X0, X, v)
+                # Load the associated values on the v-grid.
                 loadNeededPoints!(grid, Y_val)
-
-                #println("-+ Level $l  size $(size(X_full))  meanX $(mean(X_full)) meanY $(mean(Y_val)) ")
-
-                self.grid_points[inx]+=N
-
-                #println(grid)
-                if isnothing(scale_corr_vec)
-                    # output=-1 refine a selects which output to use for refinement sequence and local polynomial grids accept -1 to indicate all outputs
-                    setSurplusRefinement!(grid, refinement_tol, output=-1, refinement_type=refinement_type)
-                else 
-                    scale_corr_mat = repeat(scale_corr_vec, 1, getNumLoaded(grid))
-                    # if size(scale_corr_mat, 2) < getNumLoaded(grid)
-                    #     scale_corr_mat = repeat(Float64.(scale_corr), 1, getNumLoaded(grid))
-                    # end
-                    setSurplusRefinement!(grid, refinement_tol, output=-1, refinement_type=refinement_type, scale_correction=scale_corr_mat')
-                end
-             
+                # Increment the number of the v-grid points
+                self.grid_points[inx]+=size(X,2)
+                # Adaptive sparse refinement
+                DDSG_refine!(grid, refinement_tol, refinement_type, scale_corr_vec)
             end
         end
-
-        #println(" t_build. inside ... $t_build")
     end
-
-    if self.is_ddsg 
-
-        for k in 1:length(self.lookup)
-            for (u, _) in self.lookup[k]
-                len_u = length(u)
-                #println("- u=$u")
-                
-                for i in len_u:-1:1
-                    V = combinations(u,i)
-                    len_u_less_len_v = len_u - i
-                    for v in V
-                        inx = self.lookup[i][Tuple(v)]
-                        #println("  v=$v")
-                        self.coeff[inx]+= (-1)^len_u_less_len_v
-                    end
-                end
-
-                # for v=()
-                len_u_less_len_v = len_u - 0
-                self.coeff0+= (-1)^len_u_less_len_v
-
-            end
-        end
-
-        # for u=()
-        len_u_less_len_v = 0 - 0
-        self.coeff0+= (-1)^len_u_less_len_v
-
+    if self.is_ddsg
+        update_ddsg_coefficients!(self)
     else
-        self.coeff0=0
-        self.coeff[end]=1
+        self.coeff0=0.0
+        self.coeff[end]=1.0
     end
-
+    nothing
 end
 
-function DDSG_evaluate!(ddsg::DDSG; Y::AbstractVecOrMat{Float64}, X::AbstractVecOrMat{Float64})
+"""
+    DDSG_evaluate!(ddsg::DDSG; Y::AbstractVecOrMat{Float64}, X::AbstractVecOrMat{Float64})
 
-  
+Evaluates the DDSG interpolant at given input points `X` and stores the result in `Y`.
 
-    is_batch = false
-    if X isa AbstractMatrix
-        is_batch = true
-    end
+# Arguments
+- `ddsg::DDSG` : The DDSG instance to be evaluated.
+- `Y::AbstractVecOrMat{Float64}` : The output storage for the evaluation results.
+- `X::AbstractVecOrMat{Float64}` : The input points where the DDSG interpolant is evaluated.
 
+# Description
+This function evaluates the DDSG approximation at specified input points `X` and stores the results in `Y`. It supports **both single-point evaluation and batch evaluation**:
+
+1. **Detects whether `X` is a batch (matrix) or a single-point vector**.
+2. **Handles the case where DDSG reduces to a standard sparse grid**:
+   - If `ddsg.is_ddsg == false`, it evaluates the function directly using the last sparse grid stored in `ddsg.grid`.
+3. **Evaluates the full DDSG decomposition**:
+   - Initializes `Y` with the function value at the anchor point `ddsg.Y0`, scaled by `ddsg.coeff0`.
+   - Iterates over all component functions in `ddsg.rlookup`, evaluating them at their respective dimensions.
+   - Aggregates contributions using the DDSG decomposition coefficients.
+
+# Behavior
+- If `X` is a **matrix**, `Y` is updated column-wise using batch evaluations.
+- If `X` is a **vector**, `Y` is updated using standard evaluation.
+- Uses `evaluateBatch!` for batched evaluations to optimize performance.
+- Uses `evaluate(grid, vec(X_partial))` for single-point evaluation.
+
+# Notes
+- The function modifies `Y` **in place**, avoiding unnecessary allocations.
+- Ensures compatibility with both **standard sparse grids** and **DDSG hierarchical decompositions**.
+- The coefficient `ddsg.coeff0` is applied to the base function evaluation before summing contributions from hierarchical terms.
+"""
+function DDSG_evaluate!(Y::AbstractVecOrMat{Float64}, ddsg::DDSG, X::AbstractVecOrMat{Float64})
+    is_batch = X isa AbstractMatrix
     if !ddsg.is_ddsg
-
         if is_batch
             evaluateBatch!(Y, ddsg.grid[end], X) 
-            #Y. = evaluateBatch( ddsg.grid[end], X) 
-            #println("----evaluateBatch! eval ",norm(X),"  ",norm(Y))
-            #readline()
         else
-            Y .= evaluate(ddsg.grid[end],vec(X))
+            Y .= evaluate(ddsg.grid[end], X)
         end
-
     else
         if is_batch
             for j in 1:size(Y, 2)
@@ -370,339 +504,91 @@ function DDSG_evaluate!(ddsg::DDSG; Y::AbstractVecOrMat{Float64}, X::AbstractVec
         else
             Y .= ddsg.Y0
         end
-
         Y .= Y .* ddsg.coeff0
-
-        for (inx, u) in enumerate(ddsg.rlookup)
-
-            # Load the grid
-            grid = ddsg.grid[inx]
-            u_inx = collect(u)
-
-            if is_batch
-                X_partial = X[u_inx,:]
-                Y_buffer  = zeros(size(Y))
-                evaluateBatch!(Y_buffer, grid, X_partial) 
-            else
-                X_partial = X[u_inx]
-                Y_buffer  = evaluate(grid,vec(X_partial))
+        Y_buffer = similar(Y)
+        for k in 1:ddsg.k_max
+            X_partial = similar(X, k, size(X,2))
+            for (u, inx) in ddsg.lookup[k]
+                if is_batch
+                    X_partial .= X[u,:]
+                    evaluateBatch!(Y_buffer, ddsg.grid[inx], X_partial)
+                else
+                    X_partial .= X[u]
+                    Y_buffer .= evaluate(ddsg.grid[inx], X_partial)
+                end
+                @. Y += Y_buffer * ddsg.coeff[inx]
             end
-
-            Y .= Y .+ Y_buffer * ddsg.coeff[inx]
         end
-
     end
-
-    # println(X," ",size(X))
-    # println(Y," ",size(Y))
-    # println(ddsg.domain," ",size(ddsg.domain))
-
-
-    # Y_copy = copy(Y)  # Create a copy of the original matrix
-
-    # # a = minimum(Y[end,:])
-    # # b = minimum(X[end,:])
-    # # print(a," ", b, "\n")
-   
-    # for i in 1:(size(Y, 1) - 1)  # Iterate over all rows except the last one
-    #     Y[i, :] .= clamp.(Y[i, :], ddsg.domain[i, 1], ddsg.domain[i, 2])  # Apply clipping row-wise
-    # end
-
-
-
-        
-    # if any(Y .!= Y_copy) 
-
-    #     println("Y_base: \n",Y_copy,size(Y_copy))
-    #     println("Y: \n",Y,size(Y))
-
-    #     readline()
-    # end
-
-
-
 end
 
-function DDSG_evaluate(ddsg::DDSG; X::AbstractVecOrMat{Float64})
-    Y = zeros(Float64,ddsg.dof,size(X,2))
-    DDSG_evaluate!(ddsg,Y=Y,X=X)
+"""
+    DDSG_evaluate(ddsg::DDSG; X::AbstractVecOrMat{Float64}) -> Matrix{Float64}
+
+Evaluates the DDSG interpolant at given input points `X` and returns the computed values.
+
+# Arguments
+- `ddsg::DDSG` : The DDSG instance to be evaluated.
+- `X::AbstractVecOrMat{Float64}` : The input points where the DDSG interpolant is evaluated.
+
+# Returns
+- `Y::Matrix{Float64}` : The evaluation results, where each column corresponds to the function evaluation at a given input point.
+
+# Description
+This function computes the DDSG approximation at specified input points `X` and returns the results in a newly allocated matrix `Y`. It serves as a **non-mutating wrapper** around `DDSG_evaluate!`, which performs in-place evaluations.
+
+### **Steps:**
+1. Initializes an output matrix `Y` of shape `(ddsg.dof, size(X,2))`, where:
+   - `ddsg.dof` is the number of degrees of freedom (output variables).
+   - `size(X,2)` is the number of input points to evaluate.
+2. Calls `DDSG_evaluate!` to populate `Y` with the evaluation results.
+3. Returns `Y`.
+
+# Notes
+- This function is useful when an explicit return value is needed instead of modifying a preallocated output.
+- Internally, it delegates to `DDSG_evaluate!`, ensuring consistency in how evaluations are performed.
+"""
+function DDSG_evaluate(ddsg::DDSG, X::AbstractVecOrMat{Float64})
+    Y = zeros(ddsg.dof,size(X,2))
+    DDSG_evaluate!(Y,ddsg,X)
     return Y
 end
 
 function DDSG_differentiate!(ddsg::DDSG; J::Matrix{Float64}, x::Vector{Float64})
-
     if !ddsg.is_ddsg
         differentiate!(J,ddsg.grid[end],x)
     else
-        for (inx, u) in enumerate(ddsg.rlookup)
-            grid = ddsg.grid[inx]
-            u_inx = collect(u)
-            J_buffer = similar(J, length(u_inx), ddsg.dof)
-            x_partial = x[u_inx]
-
-            differentiate!(J_buffer,grid,x_partial)
-            J[u_inx,:] .+= J_buffer * ddsg.coeff[inx]
+        for k in 1:self.k_max
+            for (u,inx) in ddsg.lookup[k]
+                grid = ddsg.grid[inx]
+                J_buffer = similar(J, k, ddsg.dof)
+                x_partial = x[u]
+                differentiate!(J_buffer,grid,x_partial)
+                J[u_inx,:] .+= J_buffer * ddsg.coeff[inx]
+            end
         end
     end
 end
 
 function DDSG_nodes(ddsg::DDSG)
-
     N = sum(ddsg.grid_points)
-
     # Initialize an empty matrix to store the cumulative horizontal concatenation
     X_loc_total = Float64[]  # Start with an empty matrix
-
-    for (inx, u) in enumerate(ddsg.rlookup)
-        # Load the grid
-        grid = ddsg.grid[inx]
-        u_inx = collect(u)
-        X_partial = getPoints(grid)
-
-        # Repeat ddsg.X0 to match the size of X_partial
-        X_loc = repeat(ddsg.X0, 1, size(X_partial, 2))
-        X_loc[u_inx, :] .= X_partial
-
-        # Concatenate X_loc horizontally with X_loc_total
-        if length(X_loc_total) == 0
-            X_loc_total = X_loc
-        else
-            X_loc_total = hcat(X_loc_total, X_loc)
-        end
-    end
-
-    return X_loc_total  # Return the concatenated result
-end
-
-function  DDSG_values(ddsg::DDSG)
-
-    N = sum(ddsg.grid_points)
-
-    # Initialize an empty matrix to store the cumulative horizontal concatenation
-    X_loc_total = Float64[]  # Start with an empty matrix
-
-    for (inx, u) in enumerate(ddsg.rlookup)
-        # Load the grid
-        grid = ddsg.grid[inx]
-        u_inx = collect(u)
-        X_partial = getLoadedValues(grid)
-
-        X_loc_total = hcat(X_loc_total, X_loc)
-    end
-
-    return X_loc_total  # Return the concatenated result
-end
-
-function DDSG_test_unit(;dim,k_max, c,
-    dof=10, l_min=2, l_max=8, tol=1e-6, num_points=1000)
-
-    F_poly = (X_in; c, dof) -> begin
-        if ndims(X_in) == 1
-            X_in = reshape(X_in, :, 1)
-        end
-        result = Matrix{Float64}(undef, dof, size(X_in,2))
-        for j in 1:size(X_in,2)
-            for i in 1:dof 
-                temp = sin.(  X_in[:, j] )
-                result[i,j] =  sum(temp)^Int(c)
-
+    for k in 1:ddsg.k_max
+        for (u, inx) in ddsg.lookup[k]
+            # Load the grid
+            grid = ddsg.grid[inx]
+            X_partial = getPoints(grid)
+            # Repeat ddsg.X0 to match the size of X_partial
+            X_loc = repeat(ddsg.X0, 1, size(X_partial, 2))
+            X_loc[u, :] .= X_partial
+            # Concatenate X_loc horizontally with X_loc_total
+            if length(X_loc_total) == 0
+                X_loc_total = X_loc
+            else
+                X_loc_total = hcat(X_loc_total, X_loc)
             end
         end
-        return result
     end
-
-
-    F = X->F_poly(X,c=c,dof=dof)
-
-    if true
-        grid = DDSG(dim=dim, dof=dof,l_min=l_min,l_max=l_max, k_max=k_max)
-        DDSG_init!(grid)
-
-        DDSG_build!(grid,F=F,X0=grid.centroid,refinement_tol=tol) 
-        Random.seed!(1234)
-        X_sample = Matrix{Float64}(undef, dim, num_points)
-        for i in 1:num_points
-            X_sample[:, i] .= grid.domain[:, 1] .+ (grid.domain[:, 2] - grid.domain[:, 1]) .* rand(dim)
-        end
-
-        Y = DDSG_evaluate(grid,X=X_sample)
-        num_points = sum(grid.grid_points)
-    else
-        domain = zeros(dim,2)
-        domain[:,2].=1.0
-        grid = TasmanianSG(dim, dof, l_min)
-        makeLocalPolynomialGrid!(grid, order=1, rule="localp")
-        setDomainTransform!(grid, domain)  # Match grid to domain dimensions
-
-        # Refinement based on surplus coefficients
-        for l in (l_min):l_max
-            if getNumNeeded(grid) < 1
-                break
-            end
-            X = getNeededPoints(grid)
-            N = size(X,2)
-            Y_val = F(X)
-            loadNeededPoints!(grid, Y_val)
-            println("-+ Level $l  size $(size(X))  meanX $(mean(X)) meanY $(mean(Y_val)) ")
-            setSurplusRefinement!(grid, tol, refinement_type="classic")
-        end
-        Random.seed!(1234)
-        X_sample = Matrix{Float64}(undef, dim, num_points)
-        for i in 1:num_points
-            X_sample[:, i] .= domain[:, 1] .+ (domain[:, 2] - domain[:, 1]) .* rand(dim)
-        end
-
-        Y = Tasmanian.evaluateBatch(grid,X_sample)
-        num_points = getNumLoaded(grid)
-    end
-
-    Y_exact = F(X_sample)
-
-    return norm(Y - Y_exact)/norm(Y_exact), num_points
-end
-
-function DDSG_test1(;dim,k_max,l_vec,c)
-
-    err_vec = []
-    pts_vec = []
-    tim_vec = []
-
-    for l_max in l_vec
-
-        if k_max == -1
-            k_max_loc = dim
-        else
-            k_max_loc = k_max
-        end
-
-        time_taken = @elapsed begin
-            (err,pts) = DDSG_test_unit(
-                dim=dim, 
-                k_max=k_max_loc, 
-                c=c, 
-                dof=10,
-                l_min=l_max, # Non adaptive
-                l_max=l_max)
-        end
-
-        push!(tim_vec,time_taken)
-        push!(err_vec,err)
-        push!(pts_vec,pts)
-    end
-
-    println("Dim=$dim k_max=$k_max c=$c" )
-    println("tim_vec=$tim_vec")
-    println("err_vec=$err_vec")
-    println("pts_vec=$pts_vec")
-    println("l_vec=$l_vec")
-
-    println("")
-end
-
-
-function DDSG_test2(;l,k_max,dim_vec,c)
-
-    err_vec = []
-    pts_vec = []
-    tim_vec = []
-
-    for dim in dim_vec
-
-        if k_max == -1
-            k_max_loc = dim
-        else
-            k_max_loc = k_max
-        end
-
-        time_taken = @elapsed begin
-            (err,pts) = DDSG_test_unit(
-                dim=dim, 
-                k_max=k_max_loc, 
-                c=c, 
-                dof=10,
-                l_min=l, # Non adaptive
-                l_max=l)
-        end
-
-        push!(tim_vec,time_taken)
-        push!(err_vec,err)
-        push!(pts_vec,pts)
-    end
-
-    println("l=$l k_max=$k_max c=$c" )
-    println("tim_vec=$tim_vec")
-    println("err_vec=$err_vec")
-    println("pts_vec=$pts_vec")  
-    println("dim_vec=$dim_vec")
-
-    println("")
-end
-
-function ex2()
-    dim =  2       
-    outs = 1       
-    iDepth = 2
-    tol = 1e-6   
-    K = 7  # max refinement steps
-    tsg = Tasmanian.TasmanianSG(dim,outs,iDepth)
-    which_basis = 1 #1= linear basis functions -> Check the manual for other options
-    Tasmanian.makeLocalPolynomialGrid!(tsg,order=which_basis,rule="localp")
-
-    negbox = x-> x*2 - 1
-    
-    # sparse grid points from that object
-    spPoints = getPoints(tsg)
-    
-    # test fun 
-    tfun(x,y) = exp(-x^2) * cos(y)
-
-    Random.seed!(2)
-    N = 1000
-    randPnts = negbox.(rand(2,N))
-    # truth
-    truth = [tfun(randPnts[1,i], randPnts[2,i]) for i in 1:N]
-
-    # values on sparse grid
-    spVals = [tfun(spPoints[1,i], spPoints[2,i]) for i in 1:size(spPoints,2)]
-    # load points needed for such values
-    loadNeededPoints!(tsg,spVals)
-
-    # evaluate interpolation
-    res = evaluateBatch(tsg,randPnts)
-
-    numpoints = size(spPoints,2)
-
-    @info("error on initial grid:    $(round(maximum(abs,res .- truth),digits = 5)), with $numpoints points")
-
-    # refinefment loop
-    #        anim = @animate for k in 1:K
-    for k in 1:K
-        setSurplusRefinement!(tsg, tol, refinement_type="classic")
-        if Tasmanian.getNumNeeded(tsg) > 0
-            spPoints = getNeededPoints(tsg)   # additional set of points required after refinement
-            spVals = [tfun(spPoints[1,i], spPoints[2,i])::Float64 for i in 1:size(spPoints,2)]
-            # load points needed for such values
-            loadNeededPoints!(tsg, spVals)
-            numpoints =+ size(spPoints,2)
-            
-            # evaluate interpolation
-            res = evaluateBatch(tsg,randPnts)
-        pred = Tasmanian.evaluateBatch(tsg,Array(spPoints))  
-            @info("refinement level $k error: $(round(maximum(abs,res .- truth),digits = 5)), with $numpoints points")
-            
-            # plot
-            zerone = (-1.1,1.1)
-            #=
-        plot(scatter(spPoints[1, :],spPoints[2, :],title="level $k grid:\n $numpoints points",m=(:black,1,:+),aspect_ratio=:equal,xlims=zerone,ylims=zerone),
-             scatter3d(randPnts[1, :],randPnts[2, :],res[:],title="max error: $(round(maximum(abs,res .- truth),digits = 5))",m=(:red,1),xlims=zerone,ylims=zerone,zlims=(0,1)),
-             scatter3d(spPoints[1, :],spPoints[2, :],pred[:],title="grid prediction",m=(:red,1,0.2),zlims=(0,1),xlims=zerone,ylims=zerone,zgrid=:black),
-             layout=(1,3),leg=false
-        )
-            =#
-        end
-    end
-    #if save 
-    #    gif(anim,joinpath(dirname(@__FILE__),"ex2.gif"),fps=1)
-    #end
-    return nothing
+    return X_loc_total  # Return the concatenated result
 end
