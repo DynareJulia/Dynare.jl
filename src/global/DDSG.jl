@@ -1,16 +1,4 @@
 using Combinatorics
-using AxisArrays: AxisArray
-using DualNumbers
-using Distributions
-using FiniteDiff
-using LinearAlgebra
-import NLsolve
-using NonlinearSolve
-using Roots
-using Tasmanian
-using Printf
-
-export DDSG_test1, DDSG_test2
 
 """
     mutable struct DDSG
@@ -421,7 +409,7 @@ function DDSG_build!(
     # Set ̄x
     self.X0 = copy(X0)
     # Compute F(̄x), the first term of the summation
-    self.Y0 = F(X0)
+    self.Y0 = vec(F(X0))
     # Compute all the higher-dimension terms F(̄x \ xᵥ) for all possible v ⊆
     # {1,…, k_max}.
     for k in 1:self.k_max
@@ -507,14 +495,11 @@ function DDSG_evaluate!(Y::AbstractVecOrMat{Float64}, ddsg::DDSG, X::AbstractVec
         Y .= Y .* ddsg.coeff0
         Y_buffer = similar(Y)
         for k in 1:ddsg.k_max
-            X_partial = similar(X, k, size(X,2))
             for (u, inx) in ddsg.lookup[k]
                 if is_batch
-                    X_partial .= X[u,:]
-                    evaluateBatch!(Y_buffer, ddsg.grid[inx], X_partial)
+                    evaluateBatch!(Y_buffer, ddsg.grid[inx], X[u,:])
                 else
-                    X_partial .= X[u]
-                    Y_buffer .= evaluate(ddsg.grid[inx], X_partial)
+                    Y_buffer .= evaluate(ddsg.grid[inx], X[u])
                 end
                 @. Y += Y_buffer * ddsg.coeff[inx]
             end
@@ -554,17 +539,17 @@ function DDSG_evaluate(ddsg::DDSG, X::AbstractVecOrMat{Float64})
     return Y
 end
 
-function DDSG_differentiate!(ddsg::DDSG; J::Matrix{Float64}, x::Vector{Float64})
+function DDSG_differentiate!(J::Matrix{Float64}, ddsg::DDSG, x::Vector{Float64})
     if !ddsg.is_ddsg
         differentiate!(J,ddsg.grid[end],x)
     else
-        for k in 1:self.k_max
+        for k in 1:ddsg.k_max
             for (u,inx) in ddsg.lookup[k]
                 grid = ddsg.grid[inx]
                 J_buffer = similar(J, k, ddsg.dof)
                 x_partial = x[u]
                 differentiate!(J_buffer,grid,x_partial)
-                J[u_inx,:] .+= J_buffer * ddsg.coeff[inx]
+                J[u,:] .+= J_buffer * ddsg.coeff[inx]
             end
         end
     end
@@ -591,4 +576,174 @@ function DDSG_nodes(ddsg::DDSG)
         end
     end
     return X_loc_total  # Return the concatenated result
+end
+
+"""
+    ddsg_ti_step!(newgrid, oldgrid, sgws)
+
+Updates grid points by solving the nonlinear problem at newly needed grid locations.
+
+# Arguments
+- `newgrid` : The ddsg grid that needs new function values.
+- `oldgrid` : The previous iteration's grid.
+- `sgws::Vector{SparsegridsWs}` : The workspace containing all model and solver settings.
+
+# Effect
+- Returns the policy function values.
+"""
+function ddsg_ti_step!(states, oldPol, oldgrid, sgws)
+    # Extract necessary data from sgws
+    ws = sgws[1]
+    @unpack system_variables, lb, ub, sgoptions, J, fx, sgmodel = ws
+    @unpack mcp, method, solver, ftol, show_trace = sgoptions
+    @unpack exogenous, parameters = sgmodel
+
+    # Ensure solver is set
+    solver = isnothing(solver) ? (mcp ? NLsolver : NonlinearSolver) : solver
+
+    # Retrieve points requiring function values
+    nstates = size(states, 2)
+
+    # Initialize exogenous variables (assuming no autocorrelated shocks)
+    fill!(exogenous, 0.0)
+
+    # Solve the nonlinear problem
+    polGuess = oldPol(states)
+    SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
+    return polGuess
+end
+
+make_updatedPol(f,g,w) = x->(1-w)*f(x)+w*g(x,f)
+
+"""
+    ddsg_time_iteration(oldDDSG, oldPol, sgws, scaleCorr, surplThreshold, dimRef, 
+                               typeRefinement, maxiter, tol_ti, savefreq, timings, X_sample)
+
+Performs the time iteration loop to refine the sparse grid and compute the policy function until convergence.
+
+# Arguments
+- `oldDDSG` : Sparse grid structure.
+- `oldPol` : Policy function.
+- `sgws::Vector{SparsegridsWs}` : Workspace structures for each thread.
+- `scaleCorr::Vector{Float64}` : Scale correction vector.
+- `surplThreshold::Float64` : Surplus threshold for adaptive refinement.
+- `typeRefinement::String` : Type of refinement (e.g., "classic").
+- `maxiter::Int` : Maximum number of iterations.
+- `maxIterEarlyStopping::Int` : Number of iterations after which TI stops after TI convergence measure starts increasing
+- `tol_ti::Float64` : Convergence criterion.
+- `polUpdateWeight::Float64` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
+- `savefreq::Int` : Frequency for saving the grid.
+- `timings::Vector{Millisecond}` : Storage for iteration timings.
+
+# Returns
+- `grid::DDSG` : Updated DDSG.
+- `average_time::Float64` : Average iteration time.
+- `iter::Int` : Number of iterations
+"""
+function ddsg_time_iteration!(
+    oldDDSG, oldPol, sgws, scaleCorr, surplThreshold,
+    typeRefinement, maxiter, maxIterEarlyStopping,
+    tol_ti, polUpdateWeight, savefreq
+)
+    # Initialize timing variables
+    total_time = 0
+    context.timings["sparsegrids"] = Vector{Millisecond}()
+    timings = context.timings["sparsegrids"]
+    iter = 1
+    iterEarlyStopping = 0
+    previousMetric = Inf
+
+    while iter <= maxiter && iterEarlyStopping <= maxIterEarlyStopping
+        tin = now()
+
+        # Reset Jacobian for each workspace
+        map(s -> fill!(s.J, 0.0), sgws)
+
+        # Set new policy function
+        newPol = (X,f) -> ddsg_ti_step!(X, f, oldDDSG, sgws)
+
+        # Build the associated grid
+        newDDSG = DDSG(oldDDSG.dim, oldDDSG.dof, oldDDSG.l_min, oldDDSG.l_max, oldDDSG.k_max; order=oldDDSG.order, rule=oldDDSG.rule, domain=copy(oldDDSG.domain))
+        DDSG_init!(newDDSG)
+        DDSG_build!(newDDSG, X->newPol(X,oldPol), newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
+
+        # Compute error
+        metric = get_ddsg_metric(oldDDSG, newDDSG, length(sgws[1].system_variables))
+        # Update the policy function
+        # updatedPol = make_updatedPol(oldPol, newPol, polUpdateWeight)
+        # updatedDDSG = DDSG(newDDSG.dim, newDDSG.dof, newDDSG.l_min, newDDSG.l_max, newDDSG.k_max; order=newDDSG.order, rule=newDDSG.rule, domain=copy(newDDSG.domain))
+        # DDSG_init!(updatedDDSG)
+        # DDSG_build!(updatedDDSG, updatedPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
+        oldPol = make_updatedPol(oldPol, newPol, polUpdateWeight)
+        updatedDDSG = DDSG(newDDSG.dim, newDDSG.dof, newDDSG.l_min, newDDSG.l_max, newDDSG.k_max; order=newDDSG.order, rule=newDDSG.rule, domain=copy(newDDSG.domain))
+        DDSG_init!(updatedDDSG)
+        DDSG_build!(updatedDDSG, oldPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
+
+        oldDDSG = makeCopy(updatedDDSG)
+        iteration_walltime = now() - tin
+
+        # Verify that the metric decreased w.r.t the previous iteration and
+        # adjust early-stopping indicators accordingly
+        if previousMetric > metric
+            iterEarlyStopping = 0
+        else
+            iterEarlyStopping += 1
+        end
+        previousMetric = metric
+
+        # Store iteration timing
+        iter > 1 && (total_time += iteration_walltime.value)
+        push!(timings, iteration_walltime)
+
+        # Logging iteration details
+        println("Iteration: $iter, Grid pts: $(countPoints(oldDDSG)), Metric: $metric, Computing time: $(iteration_walltime)")
+
+        # Save grid state periodically
+        if (mod(iter + 1, savefreq) == 0)
+            # save_grid(grid0, iter)
+        end
+
+        # Convergence check
+        if metric < tol_ti
+            break
+        end
+
+        iter += 1
+    end
+
+    # Compute average iteration time
+    average_time = total_time / max(iter - 1, 1)  # Avoid division by zero
+    println("Last grid points: $(countPoints(oldDDSG))")
+    println("Average iteration time (except first one): $average_time")
+
+    return oldDDSG, average_time, iter
+end
+
+function get_ddsg_metric(oldDDSG, newDDSG, gridOut)
+    # Get the points and the number of points from grid1
+    aPoints = interpolationPoints(newDDSG)
+    aNumTot = size(aPoints,2)
+
+    # Evaluate the grid points on both grid structures
+    polGuessNew = interpolate(newDDSG, Matrix(aPoints))
+    polGuessOld = interpolate(oldDDSG, Matrix(aPoints))
+
+    # 1) Compute the Sup-Norm
+    metricAux = zeros(gridOut)
+
+    for imet in 1:gridOut
+        @views metricAux[imet] = maximum(abs.(polGuessOld[imet, :] - polGuessNew[imet, :]))
+    end
+    metricSup = maximum(metricAux)
+
+    # 2) Compute the L2-Norm
+    metricL2 = 0.0
+
+    for imetL2 in 1:gridOut
+        @views metricL2 += sum(abs.(polGuessOld[imetL2, :] - polGuessNew[imetL2, :]).^2)
+    end
+    metricL2 = (metricL2/(aNumTot*gridOut))^0.5
+    metric = min(metricL2, metricSup)
+
+    return metric 
 end

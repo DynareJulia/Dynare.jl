@@ -393,4 +393,3 @@ mutable struct SparsegridsResults
             quantile_probability, solver, surplThreshold)
     end
 end    
-

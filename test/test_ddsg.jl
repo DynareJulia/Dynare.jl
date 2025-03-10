@@ -1,8 +1,78 @@
 # %%
-using Dynare
+import Pkg; Pkg.activate("./Dynare.jl/")
+include("../src/Dynare.jl")
+using .Dynare
 using Test
 using Tasmanian
 using Statistics
+# %%
+context=Dynare.dynare("rbc.mod", "stoponerror")
+# %%
+α     = 1/3;
+β     = 0.99;
+ρ     = 0.95;
+σ     = 0.01;
+ss_l  = 1/3;
+ss_k  = ss_l*(β*α)^(1/(1-α));
+ss_y  = ss_k^α*ss_l^(1-α);
+ss_c  = ss_y-ss_k;
+ss_rk = α*ss_y/ss_k;
+θ = (1-α)*(1-ss_l)*ss_y/(ss_l*ss_c);
+# %%
+c_pol(K,Z) = (1-α*β)*exp(Z)*K^α*ss_l^(1-α)
+k_pol(K,Z) = α*β*exp(Z)*K^α*ss_l^(1-α)
+y_pol(K,Z) = c_pol(K,Z)+k_pol(K,Z)
+# %%
+initialPolGuess = Dynare.UserPolicyGuess(
+    function (x)
+        Z = x[1]
+        K = x[2]
+        return [
+            0.15,
+            0.05,
+            0.20,
+            1.
+        ]
+    end,
+    ["z", "k"],
+    ["c","k","y","rk"]
+)
+# %%
+# Test of the user-provided initial policy guess
+# initialPolGuess = Dynare.UserPolicyGuess(
+#     function (x)
+#         Z = x[1]
+#         K = x[2]
+#         return [
+#             c_pol(K,Z),
+#             k_pol(K,Z),
+#             y_pol(K,Z),
+#             α*y_pol(K,Z)/K
+#         ]
+#     end,
+#     ["z", "k"],
+#     ["c","k","y","rk"]
+# )
+# %%
+# RBC Model
+(ddsg, sgws) = Dynare.DDSGapproximation(tol_ti=1e-6,gridDepth=3,ftol=1e-8, polUpdateWeight=1.,initialPolGuess=initialPolGuess, maxRef=0, k_max=1, surplThreshold=0.0);
+# %%
+_vals = range(-2*σ/sqrt(1-ρ^2), 2*σ/sqrt(1-ρ^2), length=100)
+K_vals = range(ss_k * 0.1, ss_k * 1.9, length=100) 
+# %%
+using Plots
+using LaTeXStrings
+c_theoretical = [c_pol(K, Z) for Z in Z_vals, K in K_vals]
+pol_ddsg_1 = x->Dynare.interpolate(ddsg, x)
+i_c = context.symboltable["c"].orderintype
+i_c = findall(i_c .== context.models[1].i_dyn)[1]
+c_ddsg_1 = [pol_ddsg_1([K, Z])[i_c] for Z in Z_vals, K in K_vals]
+plot(K_vals, c_theoretical[50, :], label="Theoretical", title="Consumption Policy")
+plot!(K_vals, c_ddsg_1[50, :], label="DDSG (K = 1)", linestyle=:dash)
+ylabel!(L"C_t \mid Z_t = Z")
+# %%
+# RBC Model
+# (ddsg, sgws) = Dynare.DDSGapproximation(tol_ti=1e-6,gridDepth=3, polUpdateWeight=0., maxRef=0, k_max=1, surplThreshold=0.);
 # %%
 @testset "DDSG" begin
     @testset "Constructors" begin
@@ -154,187 +224,4 @@ using Statistics
         end
     end
 end
-# # %%
-# # LHS Graph: Plotting 
-# nb_ddsg = Vector{Int}()
-# errors_ddsg = Vector{Float64}()
-# nb_sg = Vector{Int}()
-# errors_sg = Vector{Float64}()
-# # %%
-# c = 1
-# num_points = 1000
-# F_poly(X::AbstractVector{Float64}; c)::Vector{Float64} = [sum(sin, X)^c]
-# F_poly(X::AbstractMatrix{Float64}; c)::Matrix{Float64} = reduce(hcat, [F_poly(col;c=c) for col in eachcol(X)])
-# F(X::Vector{Float64}) = F_poly(X, c=c)
-# F(X::Matrix{Float64}) = F_poly(X, c=c)
-# dim = 20
-# k_max = 1
-# dof = 1
-# X_sample = Matrix{Float64}(undef, dim, num_points)
-# for i in 1:num_points
-#     X_sample[:, i] .= ddsg.domain[:, 1] .+ (ddsg.domain[:, 2] - ddsg.domain[:, 1]).*rand(dim)
-# end
-# Y_exact = F(X_sample)
-# for l in 1:5
-#     ddsg = Dynare.DDSG(dim, dof, l, l, k_max)
-#     Dynare.DDSG_init!(ddsg)
-#     Dynare.DDSG_build!(
-#         ddsg,
-#         F,
-#         ddsg.centroid
-#     )
-#     # %%
-#     Y_ddsg = Dynare.DDSG_evaluate(ddsg, X_sample)
-#     push!(errors_ddsg, mean(@. abs((Y_ddsg - Y_exact)/Y_exact)))
-#     push!(nb_ddsg, sum(ddsg.grid_points))
-#     # %%
-#     sg = Tasmanian.TasmanianSG(dim, dof, l)
-#     Tasmanian.makeLocalPolynomialGrid!(sg)
-#     Tasmanian.setDomainTransform!(sg, ddsg.domain)  # Match grid to domain dimensions
-#     # Refinement based on surplus coefficients
-#     X = Tasmanian.getNeededPoints(sg)
-#     N = size(X,2)
-#     Y_val = F(X)
-#     Tasmanian.loadNeededPoints!(sg, Y_val)
-#     Y_sg = Tasmanian.evaluateBatch(sg,X_sample)
-#     # %%
-#     push!(errors_sg, mean(@. abs((Y_sg - Y_exact)/Y_exact)))
-#     push!(nb_sg, Tasmanian.getNumPoints(sg))
-# end
-# # %%
-# using LaTeXStrings
-# lhs = plot(nb_sg, errors_sg, color = :black, label=L"SG",
-#      markershape=:star6, markersize=5, linewidth = 4)
-# plot!(nb_ddsg, errors_ddsg, color = :blue, label=L"DDSG~(\mathcal{K} = 1)",
-#       markershape=:circle, markersize=5, linewidth = 4)
-# plot!(xscale=:log10, yscale=:log10, minorgrid=true)
-# xlabel!("Number of Grid Points")
-# ylabel!("Error")
-
-# # %%
-# # RHS Graph: Plotting 
-# nb_ddsg = Matrix{Int}(undef, 5, 3)
-# errors_ddsg = Matrix{Float64}(undef, 5, 3)
-# nb_sg = Vector{Int}()
-# errors_sg = Vector{Float64}()
-# # %%
-# c = 3
-# num_points = 1000
-# F_poly(X::AbstractVector{Float64}; c)::Vector{Float64} = [sum(sin, X)^c]
-# F_poly(X::AbstractMatrix{Float64}; c)::Matrix{Float64} = reduce(hcat, [F_poly(col;c=c) for col in eachcol(X)])
-# F(X::Vector{Float64}) = F_poly(X, c=c)
-# F(X::Matrix{Float64}) = F_poly(X, c=c)
-# dim = 20
-# dof = 1
-# X_sample = Matrix{Float64}(undef, dim, num_points)
-# for i in 1:num_points
-#     X_sample[:, i] .= ddsg.domain[:, 1] .+ (ddsg.domain[:, 2] - ddsg.domain[:, 1]).*rand(dim)
-# end
-# Y_exact = F(X_sample)
-# # %%
-# for l in 1:5
-#     for k_max in 1:3
-#         ddsg = Dynare.DDSG(dim, dof, l, l, k_max)
-#         Dynare.DDSG_init!(ddsg)
-#         Dynare.DDSG_build!(
-#             ddsg,
-#             F,
-#             ddsg.centroid
-#         )
-#         # %%
-#         Y_ddsg = Dynare.DDSG_evaluate(ddsg, X_sample)
-#         errors_ddsg[l,k_max] = mean(@. abs((Y_ddsg - Y_exact)/Y_exact))
-#         nb_ddsg[l,k_max] =  sum(ddsg.grid_points)
-#     end
-#     # %%
-#     sg = Tasmanian.TasmanianSG(dim, dof, l)
-#     Tasmanian.makeLocalPolynomialGrid!(sg)
-#     Tasmanian.setDomainTransform!(sg, ddsg.domain)  # Match grid to domain dimensions
-#     # Refinement based on surplus coefficients
-#     X = Tasmanian.getNeededPoints(sg)
-#     N = size(X,2)
-#     Y_val = F(X)
-#     Tasmanian.loadNeededPoints!(sg, Y_val)
-#     Y_sg = Tasmanian.evaluateBatch(sg,X_sample)
-#     # %%
-#     push!(errors_sg, mean(@. abs((Y_sg - Y_exact)/Y_exact)))
-#     push!(nb_sg, Tasmanian.getNumPoints(sg))
-# end
-# # %%
-# using LaTeXStrings
-# rhs = plot(nb_sg, errors_sg, color = :black, label=L"SG",
-#      markershape=:star6, markersize=5, linewidth = 4)
-# plot!(nb_ddsg[:,1], errors_ddsg[:,1], color = :blue, label=L"DDSG~(\mathcal{K} = 1)",
-#       markershape=:circle, markersize=5, linewidth = 4)
-# plot!(nb_ddsg[:,2], errors_ddsg[:,2], color = :red, label=L"DDSG~(\mathcal{K} = 2)",
-#       markershape=:xcross, markersize=5, linewidth = 4, linestyle = :dash)
-# plot!(nb_ddsg[:,3], errors_ddsg[:,3], color = :green, label=L"DDSG~(\mathcal{K} = 3)",
-#       markershape=:rect, markersize=5, linewidth = 4, linestyle = :dot)
-# plot!(xscale=:log10, yscale=:log10, minorgrid=true)
-# xlabel!("Number of Grid Points")
-# # %%
-# plot(lhs, rhs, layout=(1, 2), link=:y)
-# savefig("analytical_DDSG.pdf")
-# # %%
-# using Profile, Profile.Allocs
-# Profile.Allocs.clear()  # Clear old profiling data
-# Profile.Allocs.@profile Dynare.DDSG_evaluate(ddsg, X_sample)
-# # %%
-# --track-allocation=user
-# # %%
-# # # F_poly(X::Vector{Float64}; c)::Vector{Float64} = [sum(sin, X)^c]
-# # # F_poly(X::Matrix{Float64}; c)::Matrix{Float64} = reduce(hcat, [F_poly(col;c=c) for col in eachcol(X)])
-# # F_poly(X::Vector{Float64}; c)::Vector{Float64} = [sum(sin, X)^c]
-# # F_poly(X::Matrix{Float64}; c)::Matrix{Float64} = reduce(hcat, [F_poly(col;c=c) for col in eachcol(X)])
-# # # %%
-# # dim = 3
-# # k_max = 2
-# # c = 1
-# # dof = 1
-# # l = 2
-# # l_min = l
-# # l_max = l
-# # num_points = 2
-# # F(X::Vector{Float64}) = F_poly(X, c=c)
-# # F(X::Matrix{Float64}) = F_poly(X, c=c)
-# # # %%
-# # ddsg = Dynare.DDSG(dim, dof, l, l, k_max)
-# # Dynare.DDSG_init!(ddsg)
-# # # %%
-# # Dynare.DDSG_build!(
-# #     ddsg,
-# #     F,
-# #     ddsg.centroid
-# # )
-# # # %%
-# # v = [3]
-# # X = zeros(1,5)
-# # X[1,:] .= [0.5,0.0,1.0,0.25,0.75]
-# # Dynare.evaluate_at_̄x_xᵥ(F, ddsg.X0, X, v)
-# # # %%
-# # @code_warntype Dynare.evaluate_at_̄x_xᵥ(F, ddsg.X0, X, v)
-# # # %%
-# # @code_warntype Dynare.DDSG_build!(
-# #     ddsg,
-# #     F,
-# #     ddsg.centroid
-# # )
-# # # %%
-# # @code_warntype Dynare.DDSG_refine!(ddsg.grid[2], 0., "classic", [])
-# # # %%
-
-# # # %%
-# # X_sample = Matrix{Float64}(undef, dim, num_points)
-# # for i in 1:num_points
-# #     X_sample[:, i] .= grid.domain[:, 1] .+ (grid.domain[:, 2] - grid.domain[:, 1]) .* rand(dim)
-# # end
-
-# # # Y = DDSG_evaluate(grid,X=X_sample)
-# # # num_points = sum(grid.grid_points)
-# # #
-
-# # # @code_warntype Dynare.DDSG_build!(
-# # #     ddsg,
-# # #     F=F,
-# # #     X0=ddsg.centroid,
-# # #     refinement_tol = 0.
+# %%
