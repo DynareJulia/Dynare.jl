@@ -204,7 +204,7 @@ Simulates the dynamic system over a given number of periods and replications usi
 """
 function simulate!(;
     context::Context = context, 
-    grid::TasmanianSG = grid, 
+    grid::Union{TasmanianSG,DDSG} = grid, 
     periods = 1000, 
     replications = 1, 
     sgws = sgws
@@ -311,7 +311,7 @@ Computes the approximation error of the simulation by evaluating system equation
 """
 function simulation_approximation_error!(; 
     context::Context, 
-    grid::TasmanianSG, 
+    grid::Union{TasmanianSG,DDSG}, 
     drawsnbr=11000, 
     burnin=1000,
     quantile_probability=0.999, 
