@@ -591,7 +591,7 @@ Updates grid points by solving the nonlinear problem at newly needed grid locati
 # Effect
 - Returns the policy function values.
 """
-function ddsg_ti_step!(states, oldPol, oldgrid, sgws)
+function ddsg_ti_step!(states, oldgrid, sgws)
     # Extract necessary data from sgws
     ws = sgws[1]
     @unpack system_variables, lb, ub, sgoptions, J, fx, sgmodel = ws
@@ -608,22 +608,19 @@ function ddsg_ti_step!(states, oldPol, oldgrid, sgws)
     fill!(exogenous, 0.0)
 
     # Solve the nonlinear problem
-    polGuess = oldPol(states)
+    polGuess = interpolate(oldgrid, states)
     SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
     return polGuess
 end
 
-make_updatedPol(f,g,w) = x->(1-w)*f(x)+w*g(x,f)
-
 """
-    ddsg_time_iteration(oldDDSG, oldPol, sgws, scaleCorr, surplThreshold, dimRef, 
+    ddsg_time_iteration(oldDDSG, sgws, scaleCorr, surplThreshold,
                                typeRefinement, maxiter, tol_ti, savefreq, timings, X_sample)
 
 Performs the time iteration loop to refine the sparse grid and compute the policy function until convergence.
 
 # Arguments
 - `oldDDSG` : Sparse grid structure.
-- `oldPol` : Policy function.
 - `sgws::Vector{SparsegridsWs}` : Workspace structures for each thread.
 - `scaleCorr::Vector{Float64}` : Scale correction vector.
 - `surplThreshold::Float64` : Surplus threshold for adaptive refinement.
@@ -641,7 +638,7 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `iter::Int` : Number of iterations
 """
 function ddsg_time_iteration!(
-    oldDDSG, oldPol, sgws, scaleCorr, surplThreshold,
+    oldDDSG, sgws, scaleCorr, surplThreshold,
     typeRefinement, maxiter, maxIterEarlyStopping,
     tol_ti, polUpdateWeight, savefreq
 )
@@ -660,25 +657,20 @@ function ddsg_time_iteration!(
         map(s -> fill!(s.J, 0.0), sgws)
 
         # Set new policy function
-        newPol = (X,f) -> ddsg_ti_step!(X, f, oldDDSG, sgws)
+        newPol = X -> ddsg_ti_step!(X, oldDDSG, sgws)
 
         # Build the associated grid
         newDDSG = DDSG(oldDDSG.dim, oldDDSG.dof, oldDDSG.l_min, oldDDSG.l_max, oldDDSG.k_max; order=oldDDSG.order, rule=oldDDSG.rule, domain=copy(oldDDSG.domain))
         DDSG_init!(newDDSG)
-        DDSG_build!(newDDSG, X->newPol(X,oldPol), newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
+        DDSG_build!(newDDSG, newPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
 
         # Compute error
         metric = get_ddsg_metric(oldDDSG, newDDSG, length(sgws[1].system_variables))
         # Update the policy function
-        # updatedPol = make_updatedPol(oldPol, newPol, polUpdateWeight)
-        # updatedDDSG = DDSG(newDDSG.dim, newDDSG.dof, newDDSG.l_min, newDDSG.l_max, newDDSG.k_max; order=newDDSG.order, rule=newDDSG.rule, domain=copy(newDDSG.domain))
-        # DDSG_init!(updatedDDSG)
-        # DDSG_build!(updatedDDSG, updatedPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
-        oldPol = make_updatedPol(oldPol, newPol, polUpdateWeight)
         updatedDDSG = DDSG(newDDSG.dim, newDDSG.dof, newDDSG.l_min, newDDSG.l_max, newDDSG.k_max; order=newDDSG.order, rule=newDDSG.rule, domain=copy(newDDSG.domain))
         DDSG_init!(updatedDDSG)
-        DDSG_build!(updatedDDSG, oldPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
-
+        updatedPol = X -> polUpdateWeight*newPol(X)+(1-polUpdateWeight)*interpolate(oldDDSG,X)
+        DDSG_build!(updatedDDSG, updatedPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
         oldDDSG = makeCopy(updatedDDSG)
         iteration_walltime = now() - tin
 

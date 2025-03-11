@@ -550,7 +550,7 @@ function DDSGapproximation(;context::Context=context,
 
     # Time-iteration
     ddsg, average_time, iter = ddsg_time_iteration!(
-        ddsg, polGuess, sgws, scaleCorr, surplThreshold, typeRefinement,
+        ddsg, sgws, scaleCorr, surplThreshold, typeRefinement,
         maxiter, maxIterEarlyStopping, tol_ti, polUpdateWeight, savefreq
     )
 

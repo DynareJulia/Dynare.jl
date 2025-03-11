@@ -23,22 +23,22 @@ c_pol(K,Z) = (1-α*β)*exp(Z)*K^α*ss_l^(1-α)
 k_pol(K,Z) = α*β*exp(Z)*K^α*ss_l^(1-α)
 y_pol(K,Z) = c_pol(K,Z)+k_pol(K,Z)
 # %%
-initialPolGuess = Dynare.UserPolicyGuess(
-    function (x)
-        Z = x[1]
-        K = x[2]
-        return [
-            0.15,
-            0.05,
-            0.20,
-            1.
-        ]
-    end,
-    ["z", "k"],
-    ["c","k","y","rk"]
-)
+# initialPolGuess = Dynare.UserPolicyGuess(
+#     function (x)
+#         Z = x[1]
+#         K = x[2]
+#         return [
+#             0.15,
+#             0.05,
+#             0.20,
+#             1.
+#         ]
+#     end,
+#     ["z", "k"],
+#     ["c","k","y","rk"]
+# )
 # %%
-# Test of the user-provided initial policy guess
+# # Test of the user-provided initial policy guess
 # initialPolGuess = Dynare.UserPolicyGuess(
 #     function (x)
 #         Z = x[1]
@@ -55,9 +55,12 @@ initialPolGuess = Dynare.UserPolicyGuess(
 # )
 # %%
 # RBC Model
-(ddsg, sgws) = Dynare.DDSGapproximation(tol_ti=1e-6,gridDepth=3,ftol=1e-8, polUpdateWeight=1.,initialPolGuess=initialPolGuess, maxRef=0, k_max=1, surplThreshold=0.0);
+(ddsg, sgws) = Dynare.DDSGapproximation(tol_ti=1e-6,gridDepth=3,ftol=1e-8, polUpdateWeight=1., maxRef=0, k_max=1, surplThreshold=0.0);
+# (ddsg, sgws) = Dynare.DDSGapproximation(tol_ti=1e-6,gridDepth=3, polUpdateWeight=1., maxRef=0, k_max=1, surplThreshold=0.0, show_trace=false);
 # %%
-_vals = range(-2*σ/sqrt(1-ρ^2), 2*σ/sqrt(1-ρ^2), length=100)
+# (SG_grid, sgws) = Dynare.sparsegridapproximation(tol_ti=1e-6,gridDepth=3,maxRef=0, polUpdateWeight=1., surplThreshold=0.0);
+# %%
+Z_vals = range(-2*σ/sqrt(1-ρ^2), 2*σ/sqrt(1-ρ^2), length=100)
 K_vals = range(ss_k * 0.1, ss_k * 1.9, length=100) 
 # %%
 using Plots

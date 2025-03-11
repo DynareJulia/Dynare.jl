@@ -701,6 +701,7 @@ function forward_looking_equation_derivatives!(J, grid, dyn_endogenous, weight, 
 
     # Compute policy function Jacobian
     tmp_state_variables .= dyn_endogenous[dynamic_state_variables .+ endogenous_nbr]
+    fill!(policy_jacobian, 0.0)
     derivate!(policy_jacobian, grid, tmp_state_variables)
 
     # Compute future policy Jacobian
@@ -1136,10 +1137,10 @@ function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, met
     # Partition workload among available threads
     chunks = Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1) |> collect
     tasks = []
-    chunk = 1:ns
-    i = 1
-    # for (i, chunk) in enumerate(chunks)
-        # push!(tasks, Threads.@spawn begin
+    # chunk = 1:ns
+    # i = 1
+    for (i, chunk) in enumerate(chunks)
+        push!(tasks, Threads.@spawn begin
             if solver == PATHSolver
                 # PATHsolver is not thread-safe
                 Threads.nthreads() == 1 || error("PATHSolver is not thread-safe! Run with `JULIA_NUM_THREADS=1`.")
@@ -1151,8 +1152,8 @@ function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, met
             else
                 error("Unknown non-linear solver! The available options are PATHSolver, NonLinearSolver and NLsolve")
             end
-        # end)
-    # end
+        end)
+    end
 
     fetch.(tasks)
 
