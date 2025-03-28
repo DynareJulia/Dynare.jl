@@ -1,9 +1,9 @@
 include("blocks.jl")
 include("block_firstorder.jl")
 include("monomial.jl")
-include("helper_functions.jl")
 include("SG.jl")
 include("DDSG.jl")
+include("helper_functions.jl")
 
 using AxisArrays: AxisArray
 using DualNumbers
@@ -15,65 +15,21 @@ using NonlinearSolve
 using Roots
 using Tasmanian
 
-export sparsegridapproximation, simulate!, simulation_approximation_error!, DDSGapproximation
+export SGapproximation, simulate!, simulation_approximation_error!, DDSGapproximation, DDSGOptions, SGOptions, UserPolicyGuess
 
 """
-    sparsegridapproximation(; context::Context, ...)
+    SGapproximation(; context::Context, ...)
 
 Performs adaptive sparse grid approximation for solving high-dimensional 
 dynamic stochastic models.
 
 # Arguments
 - `context::Context`: Dynare model context with system equations.
-- `dimRef = -1`: Outputs that are considered in the refinement process (-1 implies that all outputs are considered)
-- `ftol = 1e-5`: Convergence tolerance for the nonlinear solver,
-- `iterRefStart = 25`: Iteration at which the refinement starts,
-- `gridDepth = 2`: Initial sparse grid depth,
-- `gridOrder = 1`: Polynomial order for interpolation,
-- `gridRule = "localp": Type of base functions`,
-- `maxiter = 300`: Maximum iterations for time iteration,
-- `maxRef = 1`: Number of maximum refinements
-- `maxRefLevel = gridDepth + maxRef`: Maximum Level of ASG,
-- `mcp = false`: Enables handling of occasionally binding constraints using a Mixed Complementarity Problem (MCP) solver,
-- `method = NewtonRaphson()`: Solver for nonlinear system,
-- `savefreq = 10`: Frequency for grid saving,
-- `scaleCorrInclude = []`: Specifies which policy variables should have scale correction applied,
-- `scaleCorrExclude = []`: Specifies which policy variables should be excluded from scale correction,
-- `show_trace = false`: Enables detailed solver iteration logs for debugging nonlinear convergence issues,
-- `solver = mcp ? NLsolver : NonlinearSolver`: Specifies the nonlinear solver for equilibrium equations, supporting standard (NonlinearSolve) or mixed complementarity (NLsolve) problems,
-- `surplThreshold= 1e-3`: Threshold for grid refinement,
-- `tol_ti = 1e-4`: Convergence criterion for time iteration,
-- `polUpdateWeight = 0.5` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
-- `maxIterEarlyStopping = 1` : Number of iterations after which TI stops after TI convergence measure starts increasing
-- `drawsnbr = 10000`: Number of random draws for the error computation,
-- `typeRefinement = "classic"`,
-- `initialPolGuess::UserPolicyGuess = `
+
 """
-function sparsegridapproximation(; context::Context=context,
-                                 dimRef = -1,
-                                 ftol = 1e-5,
-                                 iterRefStart = 25,
-                                 gridDepth = 2,
-                                 gridOrder = 1,
-                                 gridRule = "localp",
-                                 maxiter = 300,
-                                 maxRef = 1,
-                                 maxRefLevel = gridDepth + maxRef,
-                                 mcp = false,
-                                 method = NewtonRaphson(),
-                                 savefreq = 10,
-                                 scaleCorrInclude = [],
-                                 scaleCorrExclude = [],
-                                 show_trace = false,
-                                 solver = mcp ? NLsolver : NonlinearSolver,
-                                 surplThreshold= 1e-3,
-                                 tol_ti = 1e-4,
-                                 polUpdateWeight = 0.5,
-                                 maxIterEarlyStopping = 0,
-                                 drawsnbr = 10000,
-                                 typeRefinement = "classic",
-                                 initialPolGuess::UserPolicyGuess = UserPolicyGuess(),
-                                 )
+function SGapproximation(opts::SGOptions; context::Context=context)
+    # Extract all option fields
+    @unpack dimRef, ftol, iterRefStart, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess = opts
 
     # Extract model information
     model, endogenous_nbr, exogenous_nbr, params, steadystate,
@@ -107,25 +63,28 @@ function sparsegridapproximation(; context::Context=context,
     scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables])
 
     # Set the solver configuration options for sparse grid approximation.
-    sgoptions = SGOptions(mcp, method, solver, ftol, show_trace)
+    sgsolveroptions = SGSolverOptions(mcp, method, solver, ftol, show_trace)
 
     # Initialize sparse grid workspace
     sgws_ = initialize_sparsegrid_workspace(monomial, dynamic_state_variables, system_variables,
                                             bmcps, ids, lb, ub, backward_block, forward_block,
                                             preamble_block, system_block, n_nodes, gridDim,
-                                            gridOut, endogenous_nbr, sgmodel, sgoptions)
+                                            gridOut, endogenous_nbr, sgmodel, sgsolveroptions)
 
     # Handle multithreading
+    sgws=Vector{SparsegridsWs}(undef, Threads.nthreads())
     if Threads.nthreads() > 1
         BLAS.set_num_threads(1)
-        sgws = [deepcopy(sgws_) for _ in 1:Threads.nthreads()]
+        for i in 1:Threads.nthreads()
+            sgws[i] = deepcopy(sgws_)
+        end
     else
-        sgws = [sgws_]
+        sgws[1] = sgws_
     end
-    
+
     # Get a guess for the policy function using first-order perturbation
     polGuess = initialize_policy_approximation(context, sgws[1], aNum, aPoints, initialPolGuess)
-    
+
     # Load the values of the policy function guess on the grid
     loadNeededPoints!(grid, polGuess)
 
@@ -205,9 +164,9 @@ Simulates the dynamic system over a given number of periods and replications usi
 function simulate!(;
     context::Context = context, 
     grid::Union{TasmanianSG,DDSG} = grid, 
-    periods = 1000, 
-    replications = 1, 
-    sgws = sgws
+    periods::Int = 1000,
+    replications::Int = 1,
+    sgws::SparsegridsWs = sgws
 )
     model = context.models[1]
     params = context.work.params
@@ -217,48 +176,50 @@ function simulate!(;
     @unpack dynamic_state_variables, preamble_block, system_variables = sgws
     @unpack steadystate = sgws.sgmodel
 
-    # Initialize necessary structures
-    perfect_foresight_ws = PerfectForesightWs(context, periods)
-    shocks = perfect_foresight_ws.shocks
-    initial_values = get_dynamic_initialvalues(context)
+    # Precompute Cholesky of innovation covariance
     chol_sigma_e_L = cholesky(Sigma_e).L
 
-    # Allocate arrays
-    exogenous_shocks = reshape(perfect_foresight_ws.x, exogenous_nbr, periods)
-    Y = Array{Float64}(undef, periods, endogenous_nbr + exogenous_nbr, replications)
+    # Retrieve the user-specified innovation paths
+    exogenous_shocks = reshape(PerfectForesightWs(context, periods).x, exogenous_nbr, periods)
+    shock_flag = !isempty(exogenous_shocks)
+
+    # Useful buffer arrays
     y = Vector{Float64}(undef, 3 * endogenous_nbr)
-    random_shocks = Matrix{Float64}(undef, exogenous_nbr, periods)
     sv_buffer = Vector{Float64}(undef, length(dynamic_state_variables))
     pv_buffer = Vector{Float64}(undef, length(system_variables))
+    random_shocks = Matrix{Float64}(undef, exogenous_nbr, periods)
 
+    # Allocate the output array
+    Y = Array{Float64}(undef, periods, endogenous_nbr + exogenous_nbr, replications)
+
+    # Retrieve useful variables for future function calls
     ws = DynamicWs(context)
     T = ws.temporary_values
+    initial_values = get_dynamic_initialvalues(context)
 
-    @inbounds for r in 1:replications
-        # Generate shocks
-        mul!(random_shocks, chol_sigma_e_L, randn(exogenous_nbr, periods))
-        if !isempty(shocks)
-            random_shocks .+= exogenous_shocks
+    for r in 1:replications
+        # Generate the full shock path
+        randn!(random_shocks)
+        mul!(random_shocks, chol_sigma_e_L, random_shocks)
+        if shock_flag
+            @. random_shocks += exogenous_shocks
         end
 
-        # Initialize state
-        y[1:endogenous_nbr] .= initial_values
+        # Initialize endogenous state
+        copyto!(y, 1, initial_values, 1, endogenous_nbr)
 
         for p in 1:periods
+            # Compute endogenous variables
+            preamble_block.set_endogenous_variables!(T, y, view(random_shocks,:,p), params, steadystate)
+            @views copyto!(sv_buffer, y[dynamic_state_variables])
+
+            # Evaluate policy function
+            interpolate!(pv_buffer, grid, sv_buffer)
+
+            # Shift state
+            circshift!(y, -endogenous_nbr)
             @views begin
-                # Compute endogenous variables
-                preamble_block.set_endogenous_variables!(T, y, random_shocks[:, p], params, steadystate)
-
-                # Store dynamic state variables
-                sv_buffer .= y[dynamic_state_variables]
-
-                # Evaluate policy function
-                interpolate!(pv_buffer, grid, sv_buffer)
-
-                # Update state variables
-                circshift!(y, -endogenous_nbr)
                 y[system_variables] .= pv_buffer
-
                 # Store results
                 Y[p, 1:endogenous_nbr, r] .= y[1:endogenous_nbr]
                 Y[p, endogenous_nbr .+ (1:exogenous_nbr), r] .= random_shocks[:, p]
@@ -267,8 +228,7 @@ function simulate!(;
     end
 
     # Retrieve variable names
-    symboltable = context.symboltable
-    varnames = vcat(Symbol.(get_endogenous(symboltable)), Symbol.(get_exogenous(symboltable)))
+    varnames = vcat(Symbol.(get_endogenous(context.symboltable)), Symbol.(get_exogenous(context.symboltable)))
 
     return AxisArray(Y, Undated(1):Undated(periods), varnames, 1:replications)
 end
@@ -309,194 +269,59 @@ Computes the approximation error of the simulation by evaluating system equation
 - Uses `quantile(abs.(errors[i, :]), quantile_probability)` for error reporting.
 - Modifies `context.results.model_results[1].sparsegrids` in place.
 """
-function simulation_approximation_error!(; 
-    context::Context, 
-    grid::Union{TasmanianSG,DDSG}, 
-    drawsnbr=11000, 
-    burnin=1000,
-    quantile_probability=0.999, 
-    sgws
+function simulation_approximation_error!(;
+    context::Context,
+    grid::Union{TasmanianSG,DDSG},
+    drawsnbr::Int = 11000,
+    replications::Int = 100,
+    sgws::SparsegridsWs
 )
     # Extract workspace parameters
     @unpack dynamic_state_variables, system_block, system_variables = sgws
     @unpack endogenous_nbr = sgws.sgmodel
-    equations = system_block.equations
 
     # Simulate system dynamics
-    Y = simulate!(context = context, grid = grid, periods = drawsnbr + 1, replications = 1, sgws = sgws)
+    Y = simulate!(context = context, grid = grid, periods = drawsnbr + 1, replications = replications, sgws = sgws)
 
     # Initialize error storage
     num_equations = length(system_variables)
-    errors = zeros(num_equations, drawsnbr)
+    errors = zeros(num_equations, drawsnbr, replications)
 
     # Identify variable indices
     state_vars_tminus1 = filter(x -> x < endogenous_nbr, dynamic_state_variables)
     state_vars_t = filter(x -> x > endogenous_nbr, dynamic_state_variables)
-    
+    state_vars_t_adjusted = state_vars_t .- endogenous_nbr  # precompute once
+
     num_state_vars = length(dynamic_state_variables)
     num_state_vars_tminus1 = length(state_vars_tminus1)
 
-    # Allocate buffer for state variable inputs
-    x = zeros(num_state_vars)
+    # Allocate reusable buffers
+    x = Vector{Float64}(undef, num_state_vars)
+    policy = Vector{Float64}(undef, num_equations)
 
     # Compute equation errors across all simulation periods
-    @inbounds for i in 2:size(Y, 1)  # Skip first period (used for initialization)
-        @views begin
-            x[1:num_state_vars_tminus1] .= Y[i-1, state_vars_tminus1]  # Use t-1 values
-            x[num_state_vars_tminus1 + 1:num_state_vars] .= Y[i, state_vars_t .- endogenous_nbr]  # Use t values
-            
-            sysOfEqs!(errors[:, i-1], Y[i, system_variables], x, grid, sgws)
+    for r in 1:replications
+        for t in 2:size(Y, 1)
+            @inbounds for i in 1:num_state_vars_tminus1
+                x[i] = Y[t-1, state_vars_tminus1[i], r]
+            end
+            @inbounds for i in 1:(num_state_vars - num_state_vars_tminus1)
+                x[num_state_vars_tminus1 + i] = Y[t, state_vars_t_adjusted[i], r]
+            end
+            @inbounds for i in 1:num_equations
+                policy[i] = Y[t, system_variables[i], r]
+            end
+            @inbounds sysOfEqs!(view(errors, :, t-1, r), policy, x, grid, sgws)
         end
     end
-
-    # Compute per-equation quantile and mean errors
-    equation_quantile_errors = zeros(num_equations)
-    equation_average_errors = zeros(num_equations)
-
-    println("\nMaximum approximation error by equation:")
-    @inbounds for i in 1:num_equations
-        equation_quantile_errors[i] = quantile(abs.(errors[i, :]), quantile_probability)
-        println("Equation $(equations[i]): absolute error $(100 * quantile_probability)% quantile: $(equation_quantile_errors[i])")
-    end
-
-    println("\nMean approximation error by equation:")
-    @inbounds for i in 1:num_equations
-        equation_average_errors[i] = mean(abs.(errors[i, :]))
-        println("Equation $(equations[i]): mean absolute error: $(equation_average_errors[i])")
-    end
-
-    # Compute overall statistics
-    average_error = mean(abs.(errors[:,burnin+1:end]))
-    quantile_error = quantile(abs.(vec(errors[:,burnin+1:end])), quantile_probability)
-    max_error = maximum(abs.(errors[:,burnin+1:end]))
-
-    println("Overall absolute error $(100 * quantile_probability)% quantile: $(quantile_error)")
-    println("Overall mean absolute error: $(average_error)")
-    println("Overall max error: $max_error")
-
-    # Store results in the context
-    results = context.results.model_results[1].sparsegrids
-    results.average_error = average_error
-    results.max_error = max_error
-    results.drawsnbr = drawsnbr
-    results.burnin = burnin
-    results.equation_average_errors = equation_average_errors
-    results.equation_quantile_errors = equation_quantile_errors
-    results.quantile_probability = quantile_probability
-    results.quantile_error = quantile_error
 
     return errors
 end
 
-"""
-    DDSGapproximation(; 
-        context::Context=context,
-        k_max = 1,
-        ftol = 1e-5,
-        gridDepth = 2,
-        gridOrder = 1,
-        gridRule = "localp",
-        maxiter = 300,
-        maxRef = 0,
-        maxRefLevel = gridDepth + maxRef,
-        mcp = false,
-        method = NewtonRaphson(),
-        savefreq = 10,
-        scaleCorrInclude = [],
-        scaleCorrExclude = [],
-        show_trace = false,
-        solver = mcp ? NLsolver : NonlinearSolver,
-        surplThreshold= 1e-3,
-        tol_ti = 1e-4,
-        polUpdateWeight = 0.5,
-        maxIterEarlyStopping = 0,
-        drawsnbr = 10000,
-        typeRefinement = "classic",
-        initialPolGuess::UserPolicyGuess = UserPolicyGuess()
-    )
+function DDSGapproximation(opts::DDSGOptions; context::Context = context)
+    # Extract all option fields
+    @unpack k_max, ftol, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess = opts
 
-Performs adaptive sparse grid approximation using **Dimensionally Decomposed Sparse Grids (DDSG)** 
-for solving high-dimensional dynamic stochastic models.
-
-# Arguments
-- `context::Context`: Dynare model context with system equations.
-- `k_max::Int`: Maximum order of interaction terms in DDSG decomposition.
-- `ftol::Float64`: Function tolerance for solver convergence.
-- `gridDepth::Int`: Initial depth of the sparse grid.
-- `gridOrder::Int`: Polynomial interpolation order.
-- `gridRule::String`: Type of basis functions used in sparse grids (e.g., `"localp"`).
-- `maxiter::Int`: Maximum number of iterations for the time iteration process.
-- `maxRef::Int`: Maximum number of refinement levels for the sparse grid.
-- `maxRefLevel::Int`: Effective maximum grid refinement level (`gridDepth + maxRef`).
-- `mcp::Bool`: Whether to use a **Mixed Complementarity Problem (MCP)** solver for constraints.
-- `method`: Nonlinear solver method (e.g., `NewtonRaphson()`).
-- `savefreq::Int`: Frequency for saving grid states during iterations.
-- `scaleCorrInclude::Vector{Int}`: Indices of policy variables for which scale correction is applied.
-- `scaleCorrExclude::Vector{Int}`: Indices of policy variables to be excluded from scale correction.
-- `show_trace::Bool`: Enables verbose solver output for debugging.
-- `solver`: Solver type (`NLsolver` for MCP problems, `NonlinearSolver` otherwise).
-- `surplThreshold::Float64`: Surplus threshold for grid refinement.
-- `tol_ti::Float64`: Convergence tolerance for time iteration.
-- `polUpdateWeight::Float64`: Weight factor for updating the policy function during iteration.
-- `maxIterEarlyStopping::Int`: Number of iterations before early stopping if convergence slows.
-- `drawsnbr::Int`: Number of Monte Carlo draws for error estimation.
-- `typeRefinement::String`: Type of refinement strategy applied to the sparse grid.
-- `initialPolGuess::UserPolicyGuess`: Initial policy function guess.
-
-# Returns
-- `ddsg::DDSG`: The DDSG sparse grid approximation of the policy function.
-- `sgws::SparsegridsWs`: The workspace storing model variables, parameters, and solver configurations.
-
-# Process
-1. **Model Extraction**  
-   - Extracts **state-space representation**, endogenous/exogenous variables, and constraints.
-   - Computes bounds (`lb`, `ub`) and **Mixed Complementarity Problem (MCP) conditions**.
-
-2. **Sparse Grid Initialization**  
-   - Constructs an **initial sparse grid** using model-defined domain boundaries.
-   - Uses **monomial quadrature** to approximate integrals in stochastic models.
-
-3. **First-Order Approximation & Policy Function Initialization**  
-   - Computes an initial policy function guess using **first-order perturbation**.
-   - Constructs `DDSG` grid representation and initializes the approximation.
-
-4. **Time Iteration Process**  
-   - Calls `ddsg_time_iteration!`, iteratively refining the policy function until convergence.
-   - Performs **adaptive refinement** based on the surplus error threshold.
-
-5. **Results Storage**  
-   - Stores **iteration count, grid depth, solver tolerance, and refinement parameters** 
-     in `context.results.model_results[1].sparsegrids`.
-
-# Usage Context
-This function is used for **solving high-dimensional dynamic models** where standard **sparse grids** 
-are computationally expensive. **DDSG decomposes interactions between dimensions**, significantly reducing 
-the number of required interpolation nodes while maintaining accuracy.
-"""
-function DDSGapproximation(;context::Context=context,
-    k_max = 1,
-    ftol = 1e-5,
-    gridDepth = 2,
-    gridOrder = 1,
-    gridRule = "localp",
-    maxiter = 300,
-    maxRef = 0,
-    maxRefLevel = gridDepth + maxRef,
-    mcp = false,
-    method = NewtonRaphson(),
-    savefreq = 10,
-    scaleCorrInclude = [],
-    scaleCorrExclude = [],
-    show_trace = false,
-    solver = mcp ? NLsolver : NonlinearSolver,
-    surplThreshold= 1e-3,
-    tol_ti = 1e-4,
-    polUpdateWeight = 0.5,
-    maxIterEarlyStopping = 0,
-    drawsnbr = 10000,
-    typeRefinement = "classic",
-    initialPolGuess::UserPolicyGuess = UserPolicyGuess(),
-)
     # Extract model information
     model, endogenous_nbr, exogenous_nbr, params, steadystate,
     dynamic_state_variables, endogenous_variables, predetermined_variables, system_variables,
@@ -523,35 +348,47 @@ function DDSGapproximation(;context::Context=context,
     scaleCorr = make_scaleCorr(scaleCorrInclude, scaleCorrExclude, endogenous_variables[system_variables])
 
     # Set the solver configuration options for sparse grid approximation.
-    sgoptions = SGOptions(mcp, method, solver, ftol, show_trace)
+    sgsolveroptions = SGSolverOptions(mcp, method, solver, ftol, show_trace)
 
     # Initialize sparse grid workspace
     sgws_ = initialize_sparsegrid_workspace(monomial, dynamic_state_variables, system_variables,
                                             bmcps, ids, lb, ub, backward_block, forward_block,
                                             preamble_block, system_block, n_nodes, gridDim,
-                                            gridOut, endogenous_nbr, sgmodel, sgoptions)
+                                            gridOut, endogenous_nbr, sgmodel, sgsolveroptions)
 
     # Handle multithreading
+    sgws=Vector{SparsegridsWs}(undef, Threads.nthreads())
     if Threads.nthreads() > 1
         BLAS.set_num_threads(1)
-        sgws = [deepcopy(sgws_) for _ in 1:Threads.nthreads()]
+        for i in 1:Threads.nthreads()
+            sgws[i] = deepcopy(sgws_)
+        end
     else
-        sgws = [sgws_]
+        sgws[1] = sgws_
     end
 
-    # Guess for the policy function 
+    # Guess for the policy function
     M, N, _ = block_first_order_approximation(context, sgws[1])
     polGuess = X -> guess_policy(context, size(X,2), X, sgws[1], M, N, initialPolGuess)
 
     # Initialization
-    ddsg = DDSG(gridDim, gridOut, gridDepth, maxRefLevel, k_max; order=gridOrder, rule=gridRule, domain=gridDomain)
+    ddsg = DDSG(gridDim, gridOut, gridDepth, gridDepth+maxRef, k_max; order=gridOrder, rule=gridRule, domain=gridDomain)
     DDSG_init!(ddsg)
     DDSG_build!(ddsg, polGuess, ddsg.centroid; refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
 
     # Time-iteration
     ddsg, average_time, iter = ddsg_time_iteration!(
-        ddsg, sgws, scaleCorr, surplThreshold, typeRefinement,
-        maxiter, maxIterEarlyStopping, tol_ti, polUpdateWeight, savefreq
+        ddsg,
+        scaleCorr,
+        surplThreshold,
+        typeRefinement,
+        maxiter,
+        maxIterEarlyStopping,
+        tol_ti,
+        polUpdateWeight,
+        savefreq,
+        context,
+        sgws
     )
 
     # Save the results
@@ -570,14 +407,3 @@ function DDSGapproximation(;context::Context=context,
     results.surplThreshold = surplThreshold
     return (ddsg, sgws[1])
 end
-
-# function plot_policy_function(plot_variables, vstate, state, grid, state_variables, system_variables; N=50, context=context)
-#     sv_buffer = repeat(state, 1, N)
-#     k = findfirst(state_variables .== context.symboltable[vstate].orderintype)
-#     kp = [findfirst(context.symboltable[v].orderintype .== system_variables) for v in plot_variables]
-#     gridDomain = getDomainTransform(grid)
-#     x = range(gridDomain[k,1], gridDomain[k, 2], N)
-#     sv_buffer[k, :] .= x
-#     Y = evaluateBatch(grid, sv_buffer)
-#     return x, Y
-# end

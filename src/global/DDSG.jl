@@ -129,6 +129,30 @@ mutable struct DDSG
     end
 end
 
+Base.@kwdef struct DDSGOptions
+    k_max::Int = 1
+    ftol::Float64 = 1e-5
+    gridDepth::Int = 2
+    gridOrder::Int = 1
+    gridRule::String = "localp"
+    maxiter::Int = 300
+    maxRef::Int = 0
+    mcp::Bool = false
+    method::NonlinearSolve.GeneralizedFirstOrderAlgorithm = NewtonRaphson()
+    savefreq::Int = 10
+    scaleCorrInclude::Vector{String} = Vector{String}()
+    scaleCorrExclude::Vector{String} = Vector{String}()
+    show_trace::Bool = false
+    solver::Dynare.SGSolver = NonlinearSolver
+    surplThreshold::Float64 = 0.
+    tol_ti::Float64 = 1e-4
+    polUpdateWeight::Float64 = 0.5
+    maxIterEarlyStopping::Int = 0
+    drawsnbr::Int = 10000
+    typeRefinement::String = "classic"
+    initialPolGuess::UserPolicyGuess = UserPolicyGuess()
+end
+
 """
     DDSG_init_u!(self, u, coeff)
 
@@ -196,47 +220,6 @@ function DDSG_init!(self::DDSG)
     nothing
 end
 
-# # Method to print DDSG instance details
-# function DDSG_print(self::DDSG)
-#     println("\n=== DDSG Object Details START ===")
-#     println("Dimension (dim): ", self.dim)
-#     println("Degrees of freedom (dof): ", self.dof)
-#     println("Level min (l_min): ", self.l_min)
-#     println("Level max (l_max): ", self.l_max)
-#     println("Polynomial order (order): ", self.order)
-#     println("Rule (rule): ", self.rule)
-#     println("Domain (domain): ", self.domain)
-#     println("Domain centroid (centroid): ", self.centroid)
-#     println("Maximum expansion order (k_max): ", self.k_max)
-#     println("Anchor point (X0): ", self.X0)
-#     println("Function values at anchor point (Y0): ", self.Y0)
-#     println("DD coefficient for 0-order (coeff0): ", self.coeff0)
-#     println("Is DDSG (is_ddsg): ", self.is_ddsg)
-#     println("Grid details:")
-#     for k in 1:length(self.lookup)
-#         println("- Order (k): ", k)
-#         for (u, inx) in self.lookup[k]
-#             println("-- Index (inx): ", inx)
-#             println("-- Index (u): ", u)
-#             println("-- DD coefficient (coeff[lookup[k][u]]): ", self.coeff[inx])
-#             println("-- Grid points (grid_points[lookup[k][u]]): ", self.grid_points[inx])
-#             println(self.grid[inx])
-#         end
-#     end
-#     println("=== DDSG Object Details END ===")
-# end
-
-
-# # Function to print matrix with fixed number of decimal places
-# function ppnice(matrix, digits=4)
-#     for row in eachrow(matrix)
-#         for element in row
-#             @printf("%.*f  ", digits, element)
-#         end
-#         println()  # Newline after each row
-#     end
-# end
-
 """
     DDSG_refine!(grid, refinement_tol, refinement_type, scale_corr_vec)
 
@@ -292,7 +275,30 @@ This function constructs the modified input matrix `X_full` by:
 - The function is typically used in the DDSG framework to compute higher-order decomposition terms.
 - The input `X` should have the same number of columns as the intended number of evaluation points.
 """
-function evaluate_at_̄x_xᵥ(F, X0, X, v_inx)
+function evaluate_at_̄x_xᵥ(
+    oldDDSG::DDSG,
+    X0::Vector{Float64},
+    X::Matrix{Float64},
+    v_inx::Vector{Int};
+    polUpdateWeight::Float64=polUpdateWeight,
+    ws::SparsegridsWs=ws
+)
+    # Build x = ̄x \ xᵥ
+    # Initialize x = ̄x
+    N = size(X,2)
+    X_full = repeat(X0, 1, N)
+    # Replace the v-indexed values in x
+    @inbounds X_full[v_inx, :] .= X
+    # Return F(̄x \ xᵥ)
+    return polUpdateWeight*ddsg_ti_step!(X_full, oldDDSG; ws=ws)+(1-polUpdateWeight)*interpolate(oldDDSG, X_full)
+end
+
+function evaluate_at_̄x_xᵥ(
+    F::Function,
+    X0::Vector{Float64},
+    X::Matrix{Float64},
+    v_inx::Vector{Int}
+)
     # Build x = ̄x \ xᵥ
     # Initialize x = ̄x
     N = size(X,2)
@@ -444,6 +450,61 @@ function DDSG_build!(
     nothing
 end
 
+function DDSG_update!(
+    self::DDSG,
+    oldDDSG::DDSG;
+    refinement_tol=0.,
+    refinement_type="classic",
+    scale_corr_vec=Vector{Float64}(),
+    polUpdateWeight::Float64=polUpdateWeight,
+    sgws::Vector{SparsegridsWs}=sgws
+)
+    # Set ̄x
+    self.X0 = copy(oldDDSG.centroid)
+    # Compute F(̄x), the first term of the summation
+    self.Y0 = vec(polUpdateWeight*ddsg_ti_step!(reshape(oldDDSG.centroid,:,1), oldDDSG; ws=sgws[1])+(1-polUpdateWeight)*interpolate(oldDDSG, reshape(oldDDSG.centroid,:,1)))
+    # Compute all the higher-dimension terms F(̄x \ xᵥ) for all possible v ⊆
+    # {1,…, k_max}.
+    for k in 1:self.k_max
+        array_k = self.lookup[k]
+        for (v, inx) in array_k
+            # Load the grid
+            grid = self.grid[inx]
+            self.grid_points[inx] = 0
+
+            # Refinement based on surplus coefficients
+            for l in self.l_min:self.l_max
+                if getNumNeeded(grid) < 1
+                    break
+                end
+
+                # Get and prepare needed points for the v-grid
+                X = getNeededPoints(grid)
+
+                # Compute F(̄x \ xᵥ)
+                Y_val = evaluate_at_̄x_xᵥ(oldDDSG, self.X0, X, v; polUpdateWeight, ws=sgws[1])
+
+                # Load the associated values on the v-grid
+                loadNeededPoints!(grid, Y_val)
+
+                # Track number of points added
+                self.grid_points[inx] += size(X, 2)
+
+                # Adaptive sparse refinement
+                DDSG_refine!(grid, refinement_tol, refinement_type, scale_corr_vec)
+            end
+        end
+    end
+    if self.is_ddsg
+        update_ddsg_coefficients!(self)
+    else
+        self.coeff0=0.0
+        self.coeff[end]=1.0
+    end
+    nothing
+end
+
+
 """
     DDSG_evaluate!(ddsg::DDSG; Y::AbstractVecOrMat{Float64}, X::AbstractVecOrMat{Float64})
 
@@ -476,35 +537,48 @@ This function evaluates the DDSG approximation at specified input points `X` and
 - Ensures compatibility with both **standard sparse grids** and **DDSG hierarchical decompositions**.
 - The coefficient `ddsg.coeff0` is applied to the base function evaluation before summing contributions from hierarchical terms.
 """
-function DDSG_evaluate!(Y::AbstractVecOrMat{Float64}, ddsg::DDSG, X::AbstractVecOrMat{Float64})
-    is_batch = X isa AbstractMatrix
+function DDSG_evaluate!(Y::Matrix{Float64}, ddsg::DDSG, X::Matrix{Float64})
     if !ddsg.is_ddsg
-        if is_batch
             evaluateBatch!(Y, ddsg.grid[end], X) 
-        else
-            Y .= evaluate(ddsg.grid[end], X)
-        end
     else
-        if is_batch
-            for j in 1:size(Y, 2)
-                Y[:,j] .= ddsg.Y0
-            end
-        else
-            Y .= ddsg.Y0
+        for j in 1:size(Y, 2)
+            @views Y[:,j] .= ddsg.Y0
         end
-        Y .= Y .* ddsg.coeff0
+        @. Y *= ddsg.coeff0
         Y_buffer = similar(Y)
+        X_buffer = Matrix{Float64}(undef, ddsg.k_max, size(X,2))
         for k in 1:ddsg.k_max
             for (u, inx) in ddsg.lookup[k]
-                if is_batch
-                    evaluateBatch!(Y_buffer, ddsg.grid[inx], X[u,:])
-                else
-                    Y_buffer .= evaluate(ddsg.grid[inx], X[u])
+                @inbounds @views for i in 1:k
+                    X_buffer[i, :] .= X[u[i], :]
                 end
-                @. Y += Y_buffer * ddsg.coeff[inx]
+                evaluateBatch!(Y_buffer, ddsg.grid[inx], view(X_buffer,1:k,:))
+                mul!(Y, I, Y_buffer, ddsg.coeff[inx], 1.0)  # Y ← Y + coeff * Y_buffer
             end
         end
     end
+    nothing
+end
+
+function DDSG_evaluate!(Y::Vector{Float64}, ddsg::DDSG, X::Vector{Float64})
+    if !ddsg.is_ddsg
+        Y .= evaluate(ddsg.grid[end], X)
+    else
+        Y .= ddsg.Y0
+    end
+    @. Y *= ddsg.coeff0
+    Y_buffer = similar(Y)
+    X_buffer = Vector{Float64}(undef, ddsg.k_max)
+    for k in 1:ddsg.k_max
+        for (u, inx) in ddsg.lookup[k]
+            @inbounds @views for i in 1:k
+                X_buffer[i] = X[u[i]]
+            end
+            Y_buffer .= evaluate(ddsg.grid[inx], view(X_buffer,1:k))
+            mul!(Y, I, Y_buffer, ddsg.coeff[inx], 1.0)  # Y ← Y + coeff * Y_buffer
+        end
+    end
+    nothing
 end
 
 """
@@ -533,8 +607,39 @@ This function computes the DDSG approximation at specified input points `X` and 
 - This function is useful when an explicit return value is needed instead of modifying a preallocated output.
 - Internally, it delegates to `DDSG_evaluate!`, ensuring consistency in how evaluations are performed.
 """
-function DDSG_evaluate(ddsg::DDSG, X::AbstractVecOrMat{Float64})
+function DDSG_evaluate(ddsg::DDSG, X::Matrix{Float64})
     Y = zeros(ddsg.dof,size(X,2))
+    DDSG_evaluate!(Y,ddsg,X)
+    return Y
+end
+
+"""
+    DDSG_evaluate(ddsg::DDSG; X::Vector{Float64}) -> Vector{Float64}
+
+Evaluates the DDSG interpolant at given input points `X` and returns the computed values.
+
+# Arguments
+- `ddsg::DDSG` : The DDSG instance to be evaluated.
+- `X::Vector{Float64}` : The input points where the DDSG interpolant is evaluated.
+
+# Returns
+- `Y::Vector{Float64}` : The evaluation results, where each column corresponds to the function evaluation at a given input point.
+
+# Description
+This function computes the DDSG approximation at specified input points `X` and returns the results in a newly allocated matrix `Y`. It serves as a **non-mutating wrapper** around `DDSG_evaluate!`, which performs in-place evaluations.
+
+### **Steps:**
+1. Initializes an output vector `Y` of size `ddsg.dof`, where:
+   - `ddsg.dof` is the number of degrees of freedom (output variables).
+2. Calls `DDSG_evaluate!` to populate `Y` with the evaluation results.
+3. Returns `Y`.
+
+# Notes
+- This function is useful when an explicit return value is needed instead of modifying a preallocated output.
+- Internally, it delegates to `DDSG_evaluate!`, ensuring consistency in how evaluations are performed.
+"""
+function DDSG_evaluate(ddsg::DDSG, X::Vector{Float64})
+    Y = zeros(ddsg.dof)
     DDSG_evaluate!(Y,ddsg,X)
     return Y
 end
@@ -578,39 +683,72 @@ function DDSG_nodes(ddsg::DDSG)
     return X_loc_total  # Return the concatenated result
 end
 
-"""
-    ddsg_ti_step!(newgrid, oldgrid, sgws)
-
-Updates grid points by solving the nonlinear problem at newly needed grid locations.
-
-# Arguments
-- `newgrid` : The ddsg grid that needs new function values.
-- `oldgrid` : The previous iteration's grid.
-- `sgws::Vector{SparsegridsWs}` : The workspace containing all model and solver settings.
-
-# Effect
-- Returns the policy function values.
-"""
-function ddsg_ti_step!(states, oldgrid, sgws)
+function ddsg_ti_step!(
+    states::Matrix{Float64},
+    oldgrid::DDSG;
+    ws::SparsegridsWs=ws
+)
     # Extract necessary data from sgws
-    ws = sgws[1]
-    @unpack system_variables, lb, ub, sgoptions, J, fx, sgmodel = ws
-    @unpack mcp, method, solver, ftol, show_trace = sgoptions
-    @unpack exogenous, parameters = sgmodel
-
-    # Ensure solver is set
-    solver = isnothing(solver) ? (mcp ? NLsolver : NonlinearSolver) : solver
-
-    # Retrieve points requiring function values
-    nstates = size(states, 2)
+    @unpack sgsolveroptions, J, sgmodel = ws
+    @unpack method, ftol, show_trace = sgsolveroptions
+    @unpack exogenous = sgmodel
 
     # Initialize exogenous variables (assuming no autocorrelated shocks)
     fill!(exogenous, 0.0)
 
     # Solve the nonlinear problem
-    polGuess = interpolate(oldgrid, states)
-    SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
+    polGuess = DDSG_evaluate(oldgrid, states)
+    DDSG_NLsolve!(polGuess, J, states, oldgrid, ws, method, ftol, show_trace)
     return polGuess
+end
+
+"""
+    DDSG_NLsolve!(X, J, states, parameters, oldgrid, sgws, solver, method, ftol, show_trace)
+
+Solves the nonlinear system using the specified solver.
+
+# Arguments
+- `polGuess::Matrix{Float64}` : Solution matrix to update.
+- `lb::Vector{Float64}` : Lower bounds.
+- `ub::Vector{Float64}` : Upper bounds.
+- `fx::Vector{Float64}` : Function evaluation vector.
+- `J::Matrix{Float64}` : Jacobian matrix.
+- `states::Matrix{Float64}` : State variables for solving.
+- `parameters` : Model parameters.
+- `oldgrid` : Previous iteration’s grid.
+- `sgws::Vector{SparsegridsWs}` : Workspace structure for each thread.
+- `solver` : The selected nonlinear solver.
+- `method` : Solver method (e.g., Newton-Raphson).
+- `ftol::Float64` : Function tolerance for solver convergence.
+- `show_trace::Bool` : Enables solver debugging output.
+
+# Effect
+- Updates `polGuess` with the computed solution values.
+
+# Returns
+- `polGuess::Matrix{Float64}` : Updated solution matrix.
+"""
+function DDSG_NLsolve!(polGuess::Matrix{Float64}, J::Matrix{Float64}, states::Matrix{Float64}, oldgrid::DDSG, ws::SparsegridsWs, method, ftol::Float64, show_trace)
+    ns = size(states, 2)  # Number of state variable instances
+
+    # Partition workload among available threads
+    NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, ws, ftol, show_trace, 1:ns)
+
+    return nothing
+end
+
+function ddsg_update_step!(
+    oldDDSG::DDSG,
+    typeRefinement::String,
+    surplThreshold::Float64,
+    scaleCorr::Vector{Float64},
+    polUpdateWeight::Float64,
+    sgws::Vector{SparsegridsWs}
+)
+    newDDSG = DDSG(oldDDSG.dim, oldDDSG.dof, oldDDSG.l_min, oldDDSG.l_max, oldDDSG.k_max; order=oldDDSG.order, rule=oldDDSG.rule, domain=copy(oldDDSG.domain))
+    DDSG_init!(newDDSG)
+    DDSG_update!(newDDSG, oldDDSG; refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr, polUpdateWeight=polUpdateWeight, sgws=sgws)
+    return newDDSG
 end
 
 """
@@ -638,9 +776,17 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `iter::Int` : Number of iterations
 """
 function ddsg_time_iteration!(
-    oldDDSG, sgws, scaleCorr, surplThreshold,
-    typeRefinement, maxiter, maxIterEarlyStopping,
-    tol_ti, polUpdateWeight, savefreq
+    oldDDSG::DDSG,
+    scaleCorr::Vector{Float64},
+    surplThreshold::Float64,
+    typeRefinement::String,
+    maxiter::Int,
+    maxIterEarlyStopping::Int,
+    tol_ti::Float64,
+    polUpdateWeight::Float64,
+    savefreq::Int,
+    context::Context,
+    sgws::Vector{SparsegridsWs}
 )
     # Initialize timing variables
     total_time = 0
@@ -653,24 +799,13 @@ function ddsg_time_iteration!(
     while iter <= maxiter && iterEarlyStopping <= maxIterEarlyStopping
         tin = now()
 
-        # Reset Jacobian for each workspace
-        map(s -> fill!(s.J, 0.0), sgws)
-
-        # Set new policy function
-        newPol = X -> ddsg_ti_step!(X, oldDDSG, sgws)
-
         # Build the associated grid
-        newDDSG = DDSG(oldDDSG.dim, oldDDSG.dof, oldDDSG.l_min, oldDDSG.l_max, oldDDSG.k_max; order=oldDDSG.order, rule=oldDDSG.rule, domain=copy(oldDDSG.domain))
-        DDSG_init!(newDDSG)
-        DDSG_build!(newDDSG, newPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
+        newDDSG = ddsg_update_step!(oldDDSG, typeRefinement, surplThreshold, scaleCorr, 1., sgws)
 
         # Compute error
         metric = get_ddsg_metric(oldDDSG, newDDSG, length(sgws[1].system_variables))
         # Update the policy function
-        updatedDDSG = DDSG(newDDSG.dim, newDDSG.dof, newDDSG.l_min, newDDSG.l_max, newDDSG.k_max; order=newDDSG.order, rule=newDDSG.rule, domain=copy(newDDSG.domain))
-        DDSG_init!(updatedDDSG)
-        updatedPol = X -> polUpdateWeight*newPol(X)+(1-polUpdateWeight)*interpolate(oldDDSG,X)
-        DDSG_build!(updatedDDSG, updatedPol, newDDSG.centroid;refinement_type=typeRefinement, refinement_tol=surplThreshold, scale_corr_vec=scaleCorr)
+        updatedDDSG = ddsg_update_step!(oldDDSG, typeRefinement, surplThreshold, scaleCorr, polUpdateWeight, sgws)
         oldDDSG = makeCopy(updatedDDSG)
         iteration_walltime = now() - tin
 

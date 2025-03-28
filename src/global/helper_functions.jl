@@ -8,6 +8,7 @@ import NLsolve
 using NonlinearSolve
 using Roots
 using Tasmanian
+using SciMLBase
 
 """
     interpolate(grid, X)
@@ -322,7 +323,7 @@ end
                                     bmcps, ids, lb, ub, backward_block, forward_block, 
                                     preamble_block, system_block, grid, nodesnbr, 
                                     gridDim, gridOut, dynamic_state_variables, 
-                                    endogenous_nbr, sgmodel, sgoptions)
+                                    endogenous_nbr, sgmodel, sgsolveroptions)
 
 Initializes all matrices, vectors, and workspace structures needed for sparse grid approximation.
 
@@ -344,7 +345,7 @@ Initializes all matrices, vectors, and workspace structures needed for sparse gr
 - `gridOut::Int` : Number of policy function outputs.
 - `endogenous_nbr::Int` : Number of endogenous variables.
 - `sgmodel::SGModel` : Sparse grid model.
-- `sgoptions::SGOptions` : Solver configuration.
+- `sgsolveroptions::SGSolverOptions` : Solver configuration.
 
 # Returns
 - `SparsegridsWs` instance containing all required structures.
@@ -355,7 +356,7 @@ function initialize_sparsegrid_workspace(monomial, dynamic_state_variables, syst
                                          forward_block, preamble_block,
                                          system_block,  n_nodes, gridDim,
                                          gridOut, endogenous_nbr,
-                                         sgmodel, sgoptions)
+                                         sgmodel, sgsolveroptions)
 
     # Precompute lengths
     n_system = length(system_variables)
@@ -401,7 +402,7 @@ function initialize_sparsegrid_workspace(monomial, dynamic_state_variables, syst
                          policy_jacobian, evalPt, 
                          future_policy_jacobian, 
                          dyn_endogenous_vector, M1, policyguess, tmp_state_variables,
-                         sev, sgmodel, sgoptions)
+                         sev, sgmodel, sgsolveroptions)
 end
 
 """
@@ -759,22 +760,17 @@ function forward_looking_equation_residuals!(forward_residuals, policy, state, g
     # Unpack necessary variables
     @unpack monomial, forward_block, dyn_endogenous_vector, sgmodel = sgws
     @unpack dyn_endogenous, exogenous, parameters, steadystate, tempterms = sgmodel
-
     # Reset variables
     fill!(exogenous, 0.0)
     fill!(forward_residuals, 0.0)
-
     # Number of integration nodes
     n_nodes = length(monomial.nodes)
-
     for i in 1:n_nodes
         try
-
             # Compute residuals for forward-looking equations
             @views forward_block.get_residuals!(
                 tempterms, forward_residuals[:, i], dyn_endogenous_vector[i], exogenous, parameters, steadystate
             )
-
         catch err
             @error "Forward-looking residual computation failed at node $i." 
                     exception=err
@@ -784,12 +780,10 @@ function forward_looking_equation_residuals!(forward_residuals, policy, state, g
                     exogenous=exogenous 
                     parameters=parameters 
                     steadystate=steadystate
-
             # Optionally, rethrow the error or recover
             rethrow()
         end
     end
-
     return nothing
 end
 
@@ -848,7 +842,13 @@ Computes the residuals of the system of equations.
 # Returns
 - `nothing`
 """
-function sysOfEqs!(residuals, policy, state, grid, sgws)
+function sysOfEqs!(
+    residuals,
+    policy,
+    state,
+    grid::Union{TasmanianSG, DDSG},
+    sgws::SparsegridsWs
+)
     # Unpack required variables
     @unpack dynamic_state_variables, system_variables, bmcps, backward_block, forward_block, 
             dyn_endogenous_vector, sgmodel = sgws
@@ -1019,9 +1019,9 @@ function NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, ftol
     # Define system function and Jacobian once
     f!(r, x, state) = sysOfEqs!(r, x, state, oldgrid, sgws)
     JA!(Jx, x, state) = sysOfEqs_derivatives_update!(Jx, x, state, oldgrid, sgws)
-
+    fill!(J,0.0)
     # Create reusable NonlinearFunction object
-    nlf = NonlinearFunction(f!, jac=JA!, jac_prototype=J)
+    nlf = NonlinearFunction{true, SciMLBase.FullSpecialize}(f!, jac=JA!, jac_prototype=J)
 
     # Set show_trace as a `Val` to optimize performance
     show_trace = Val(show_trace)
@@ -1029,10 +1029,6 @@ function NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws, ftol
     for i in chunk
         @views state = states[:, i]
         @views x = polGuess[:, i]
-
-        resid = zeros(size(polGuess,1))
-        f!(resid,x,state)
-        JA!(J,x,state)
 
         # Define and solve the nonlinear problem
         nlp = NonlinearProblem(nlf, x, state)
@@ -1100,65 +1096,3 @@ function NLsolve_solve!(X, lb, ub, fx, J, states, oldgrid, sgws, ftol, show_trac
     return nothing
 end
 
-"""
-    SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver, method, ftol, show_trace)
-
-Solves the nonlinear system using the specified solver.
-
-# Arguments
-- `polGuess::Matrix{Float64}` : Solution matrix to update.
-- `lb::Vector{Float64}` : Lower bounds.
-- `ub::Vector{Float64}` : Upper bounds.
-- `fx::Vector{Float64}` : Function evaluation vector.
-- `J::Matrix{Float64}` : Jacobian matrix.
-- `states::Matrix{Float64}` : State variables for solving.
-- `parameters` : Model parameters.
-- `oldgrid` : Previous iteration’s grid.
-- `sgws::Vector{SparsegridsWs}` : Workspace structure for each thread.
-- `solver` : The selected nonlinear solver.
-- `method` : Solver method (e.g., Newton-Raphson).
-- `ftol::Float64` : Function tolerance for solver convergence.
-- `show_trace::Bool` : Enables solver debugging output.
-
-# Effect
-- Updates `polGuess` with the computed solution values.
-
-# Returns
-- `polGuess::Matrix{Float64}` : Updated solution matrix.
-"""
-function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
-    ns = size(states, 2)  # Number of state variable instances
-
-    # Get BLAS to work on a single thread to avoid conflicts with the non-linear
-    # solvers
-    previous_blas_threads = BLAS.get_num_threads()
-    BLAS.set_num_threads(1)
-
-    # Partition workload among available threads
-    chunks = Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1) |> collect
-    tasks = []
-    # chunk = 1:ns
-    # i = 1
-    for (i, chunk) in enumerate(chunks)
-        push!(tasks, Threads.@spawn begin
-            if solver == PATHSolver
-                # PATHsolver is not thread-safe
-                Threads.nthreads() == 1 || error("PATHSolver is not thread-safe! Run with `JULIA_NUM_THREADS=1`.")
-                PATHsolver_solve!(polGuess, lb, ub, states, fx, J, oldgrid, sgws[1], show_trace, chunk)
-            elseif solver == NonlinearSolver
-                NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws[i], ftol, show_trace, chunk)
-            elseif solver == NLsolver
-                NLsolve_solve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws[i], ftol, show_trace, chunk)
-            else
-                error("Unknown non-linear solver! The available options are PATHSolver, NonLinearSolver and NLsolve")
-            end
-        end)
-    end
-
-    fetch.(tasks)
-
-    # Get BLAS to use the number of threads before SG_NLsolve! call
-    BLAS.set_num_threads(previous_blas_threads)
-    
-    return polGuess
-end

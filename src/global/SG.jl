@@ -1,4 +1,58 @@
 """
+    SGOptions
+
+Struct to hold the options for the sparse-grid approximation
+
+# Arguments
+- `dimRef = -1`: Outputs that are considered in the refinement process (-1 implies that all outputs are considered)
+- `ftol = 1e-5`: Convergence tolerance for the nonlinear solver,
+- `iterRefStart = 25`: Iteration at which the refinement starts,
+- `gridDepth = 2`: Initial sparse grid depth,
+- `gridOrder = 1`: Polynomial order for interpolation,
+- `gridRule = "localp": Type of base functions`,
+- `maxiter = 300`: Maximum iterations for time iteration,
+- `maxRef = 0`: Maximum number of refinements
+- `mcp = false`: Enables handling of occasionally binding constraints using a Mixed Complementarity Problem (MCP) solver,
+- `method = NewtonRaphson()`: Solver for nonlinear system,
+- `savefreq = 10`: Frequency for grid saving,
+- `scaleCorrInclude = []`: Specifies which policy variables should have scale correction applied,
+- `scaleCorrExclude = []`: Specifies which policy variables should be excluded from scale correction,
+- `show_trace = false`: Enables detailed solver iteration logs for debugging nonlinear convergence issues,
+- `solver = mcp ? NLsolver : NonlinearSolver`: Specifies the nonlinear solver for equilibrium equations, supporting standard (NonlinearSolve) or mixed complementarity (NLsolve) problems,
+- `surplThreshold= 1e-3`: Threshold for grid refinement,
+- `tol_ti = 1e-4`: Convergence criterion for time iteration,
+- `polUpdateWeight = 0.5` : Weight of the current-step policy function when computing the updated policy function. The weight of the previous-step policy function is `1-polUpdateWeight`
+- `maxIterEarlyStopping = 1` : Number of iterations after which TI stops after TI convergence measure starts increasing
+- `drawsnbr = 10000`: Number of random draws for the error computation,
+- `typeRefinement = "classic"`,
+- `initialPolGuess::UserPolicyGuess = UserPolicyGuess()`
+"""
+Base.@kwdef struct SGOptions
+    dimRef::Int = -1
+    ftol::Float64 = 1e-5
+    iterRefStart::Int = 25
+    gridDepth::Int = 2
+    gridOrder::Int = 1
+    gridRule::String = "localp"
+    maxiter::Int = 300
+    maxRef::Int = 0
+    mcp::Bool = false
+    method::NonlinearSolve.GeneralizedFirstOrderAlgorithm = NewtonRaphson()
+    savefreq::Int = 10
+    scaleCorrInclude::Vector{String} = Vector{String}()
+    scaleCorrExclude::Vector{String} = Vector{String}()
+    show_trace::Bool = false
+    solver::Dynare.SGSolver = NonlinearSolver
+    surplThreshold::Float64 = 0.
+    tol_ti::Float64 = 1e-4
+    polUpdateWeight::Float64 = 0.5
+    maxIterEarlyStopping::Int = 0
+    drawsnbr::Int = 10000
+    typeRefinement::String = "classic"
+    initialPolGuess::UserPolicyGuess = UserPolicyGuess()
+end
+
+"""
     initialize_sparse_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain)
 
 Creates and initializes a sparse grid with the specified parameters.
@@ -58,7 +112,7 @@ end
 
 """
     sparse_grid_time_iteration(grid, grid0, polGuess, sgws, scaleCorr, surplThreshold, dimRef, 
-                               typeRefinement, maxiter, maxRefLevel, iterRefStart, tol_ti, savefreq, timings, X_sample)
+                               typeRefinement, maxiter, maxRef, iterRefStart, tol_ti, savefreq, timings, X_sample)
 
 Performs the time iteration loop to refine the sparse grid and compute the policy function until convergence.
 
@@ -72,7 +126,7 @@ Performs the time iteration loop to refine the sparse grid and compute the polic
 - `dimRef::Int` : Refinement dimension indicator.
 - `typeRefinement::String` : Type of refinement (e.g., "classic").
 - `maxiter::Int` : Maximum number of iterations.
-- `maxRefLevel::Int` : Maximum refinement level.
+- `maxRef::Int` : Maximum refinement level.
 - `iterRefStart::Int` : Iteration at which refinement starts.
 - `maxIterEarlyStopping::Int` : Number of iterations after which TI stops after TI convergence measure starts increasing
 - `tol_ti::Float64` : Convergence criterion.
@@ -184,8 +238,8 @@ Updates grid points by solving the nonlinear problem at newly needed grid locati
 function ti_step!(newgrid, oldgrid, polGuess, sgws)
     # Extract necessary data from sgws
     ws = sgws[1]
-    @unpack system_variables, lb, ub, sgoptions, J, fx, sgmodel = ws
-    @unpack mcp, method, solver, ftol, show_trace = sgoptions
+    @unpack system_variables, lb, ub, sgsolveroptions, J, fx, sgmodel = ws
+    @unpack mcp, method, solver, ftol, show_trace = sgsolveroptions
     @unpack exogenous, parameters = sgmodel
 
     # Ensure solver is set
@@ -318,4 +372,64 @@ function policy_update!(gridOld, gridNew, polGuessOld, polGuessNew, gridOut, pol
 
     #return metric, polGuessNew, copyGrid(gridNew)
     return metric, polGuessNew, makeCopy(gridNew)
+end
+
+"""
+    SG_NLsolve!(X, lb, ub, fx, J, states, parameters, oldgrid, sgws, solver, method, ftol, show_trace)
+
+Solves the nonlinear system using the specified solver.
+
+# Arguments
+- `polGuess::Matrix{Float64}` : Solution matrix to update.
+- `lb::Vector{Float64}` : Lower bounds.
+- `ub::Vector{Float64}` : Upper bounds.
+- `fx::Vector{Float64}` : Function evaluation vector.
+- `J::Matrix{Float64}` : Jacobian matrix.
+- `states::Matrix{Float64}` : State variables for solving.
+- `parameters` : Model parameters.
+- `oldgrid` : Previous iteration’s grid.
+- `sgws::Vector{SparsegridsWs}` : Workspace structure for each thread.
+- `solver` : The selected nonlinear solver.
+- `method` : Solver method (e.g., Newton-Raphson).
+- `ftol::Float64` : Function tolerance for solver convergence.
+- `show_trace::Bool` : Enables solver debugging output.
+
+# Effect
+- Updates `polGuess` with the computed solution values.
+
+# Returns
+- `polGuess::Matrix{Float64}` : Updated solution matrix.
+"""
+function SG_NLsolve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws, solver, method, ftol, show_trace)
+    ns = size(states, 2)  # Number of state variable instances
+
+    # Get BLAS to work on a single thread to avoid conflicts with the non-linear
+    # solvers
+    previous_blas_threads = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
+
+    # Partition workload among available threads
+    chunks = Iterators.partition(1:ns, (ns ÷ Threads.nthreads()) + 1) |> collect
+    tasks = []
+    for (i, chunk) in enumerate(chunks)
+        push!(tasks, Threads.@spawn begin
+            if solver == PATHSolver
+                # PATHsolver is not thread-safe
+                Threads.nthreads() == 1 || error("PATHSolver is not thread-safe! Run with `JULIA_NUM_THREADS=1`.")
+                PATHsolver_solve!(polGuess, lb, ub, states, fx, J, oldgrid, sgws[1], show_trace, chunk)
+            elseif solver == NonlinearSolver
+                NonlinearSolver_solve!(polGuess, states, J, oldgrid, method, sgws[i], ftol, show_trace, chunk)
+            elseif solver == NLsolver
+                NLsolve_solve!(polGuess, lb, ub, fx, J, states, oldgrid, sgws[i], ftol, show_trace, chunk)
+            else
+                error("Unknown non-linear solver! The available options are PATHSolver, NonLinearSolver and NLsolve")
+            end
+        end)
+    end
+
+    fetch.(tasks)
+
+    # Get BLAS to use the number of threads before SG_NLsolve! call
+    BLAS.set_num_threads(previous_blas_threads)
+    return polGuess
 end

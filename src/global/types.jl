@@ -154,7 +154,7 @@ function SGIndices(endogenous_nbr::Int, forward_variables, dynamic_state_variabl
 end 
 
 """
-    SGOptions(mcp, method, solver, ftol, show_trace)
+    SGSolverOptions(mcp, method, solver, ftol, show_trace)
 
 Stores solver configuration options for sparse grid approximation.
 
@@ -173,7 +173,7 @@ Stores solver configuration options for sparse grid approximation.
 # Purpose
 Encapsulates solver settings in a structured way, ensuring cleaner function calls and easier debugging.
 """
-struct SGOptions
+struct SGSolverOptions
     mcp::Bool          # Use Mixed Complementarity Problem (MCP) solver?
     method             # Nonlinear solver method (e.g., Newton-Raphson)
     solver             # Solver type (e.g., NLsolve or NonlinearSolve)
@@ -300,7 +300,7 @@ Workspace structure for sparse grid approximation, storing essential model varia
   Struct holding the state-dependent values used in evaluations.
 - `sgmodel::SGModel`  
   Sparse grid model containing parameters and steady-state values.
-- `sgoptions::SGOptions`  
+- `sgsolveroptions::SGSolverOptions`
   Configuration settings for nonlinear solver and sparse grid approximation.
 
 # Purpose
@@ -339,7 +339,7 @@ struct SparsegridsWs
     tmp_state_variables::Vector{Float64}
     sev::Sev
     sgmodel::SGModel
-    sgoptions::SGOptions
+    sgsolveroptions::SGSolverOptions
 end
 
 mutable struct SparsegridsResults
