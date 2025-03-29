@@ -285,7 +285,7 @@ function simulation_approximation_error!(;
 
     # Initialize error storage
     num_equations = length(system_variables)
-    errors = zeros(num_equations, drawsnbr, replications)
+    errorMat = zeros(num_equations, drawsnbr, replications)
 
     # Identify variable indices
     state_vars_tminus1 = filter(x -> x < endogenous_nbr, dynamic_state_variables)
@@ -298,6 +298,7 @@ function simulation_approximation_error!(;
     # Allocate reusable buffers
     x = Vector{Float64}(undef, num_state_vars)
     policy = Vector{Float64}(undef, num_equations)
+    error = Vector{Float64}(undef, num_equations)
 
     # Compute equation errors across all simulation periods
     for r in 1:replications
@@ -311,11 +312,12 @@ function simulation_approximation_error!(;
             @inbounds for i in 1:num_equations
                 policy[i] = Y[t, system_variables[i], r]
             end
-            sysOfEqs!(errors[:, t-1, r], policy, x, grid, sgws)
+            sysOfEqs!(error, policy, x, grid, sgws)
+            errorMat[:,t-1,r] .= error
         end
     end
 
-    return errors
+    return errorMat
 end
 
 function DDSGapproximation(opts::DDSGOptions; context::Context = context)
