@@ -552,7 +552,7 @@ function DDSG_evaluate!(Y::Matrix{Float64}, ddsg::DDSG, X::Matrix{Float64})
                 @inbounds @views for i in 1:k
                     X_buffer[i, :] .= X[u[i], :]
                 end
-                evaluateBatch!(Y_buffer, ddsg.grid[inx], view(X_buffer,1:k,:))
+                evaluateBatch!(Y_buffer, ddsg.grid[inx], X_buffer[1:k,:])
                 mul!(Y, I, Y_buffer, ddsg.coeff[inx], 1.0)  # Y ← Y + coeff * Y_buffer
             end
         end
@@ -574,7 +574,7 @@ function DDSG_evaluate!(Y::Vector{Float64}, ddsg::DDSG, X::Vector{Float64})
             @inbounds @views for i in 1:k
                 X_buffer[i] = X[u[i]]
             end
-            Y_buffer .= evaluate(ddsg.grid[inx], view(X_buffer,1:k))
+            Y_buffer .= evaluate(ddsg.grid[inx], X_buffer[1:k])
             mul!(Y, I, Y_buffer, ddsg.coeff[inx], 1.0)  # Y ← Y + coeff * Y_buffer
         end
     end

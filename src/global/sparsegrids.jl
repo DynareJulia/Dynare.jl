@@ -311,7 +311,7 @@ function simulation_approximation_error!(;
             @inbounds for i in 1:num_equations
                 policy[i] = Y[t, system_variables[i], r]
             end
-            @inbounds sysOfEqs!(view(errors, :, t-1, r), policy, x, grid, sgws)
+            sysOfEqs!(errors[:, t-1, r], policy, x, grid, sgws)
         end
     end
 
