@@ -1122,8 +1122,6 @@ function transform_variance(T::TransformVariables.TransformTuple, m, var)
 end
 
 transform_std(::TransformVariables.Identity, x, std) = std
-transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = exp.(x).*std
-transform_std(::TransformVariables.ScaledShiftedLogistic{<:Real}, x, std) = logistic.(x).*(1-logistic.(x)).*std
 
 # inverse transformation of standard errors using delta approach
 function inverse_transform_std(T::TransformVariables.TransformTuple, x, std)
@@ -1146,8 +1144,6 @@ function inverse_transform_variance(T::TransformVariables.TransformTuple, m, var
 end
 
 inverse_transform_std(::TransformVariables.Identity, x, std) = std
-inverse_transform_std(::TransformVariables.ShiftedExp{true, Int64}, x, std) = std./x
-inverse_transform_std(::TransformVariables.ScaledShiftedLogistic{<:Real}, x, std) = std./((1 .- x).*x)
 
 function find(names::Vector, s)
     for (i, n) in enumerate(names)
