@@ -60,4 +60,4 @@ context = @dynare "models/initialization/neoclassical1" "stoponerror"
 context = @dynare "models/initialization/neoclassical5" "stoponerror"
 using PATHSolver
 context = @dynare "models/irreversible/irbc2a" "stoponerror"
-@test all(Matrix(simulation("i"))[10:52] .≈ 0)
+@test all(Matrix(simulation("i"))[10:50] .≈ 0)

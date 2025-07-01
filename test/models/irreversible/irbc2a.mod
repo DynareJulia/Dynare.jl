@@ -42,6 +42,7 @@ end;
 
 steady;
 
-perfect_foresight_setup(periods=400);
+// Simulate only 50 periods, so as to stay below the computational limits for PATH without a license
+perfect_foresight_setup(periods=50);
 perfect_foresight_solver(lmmcp);
 
