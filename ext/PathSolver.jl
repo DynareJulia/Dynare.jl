@@ -322,6 +322,11 @@ function solve_path!(f!, JA!, JJ::SparseMatrixCSC, lb, ub, initial_values; kwarg
         constraint_names = F_name,
         kwargs...,
     )
+    if status == PATHSolver.MCP_LicenseError
+        error("Your problem is too large for using PATH without a license, or your license is invalid.")
+    elseif status != PATHSolver.MCP_Solved
+        error("PATH MCP solver failed with the following error code: ", status)
+    end
 
     return Int(status), z, info
 end
