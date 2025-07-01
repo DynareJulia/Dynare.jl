@@ -80,15 +80,17 @@ The results are in the ``context`` structure.
   - You need to load PATHSolver before running Dynare (once per Julia
     session)
 ```
+    pkg"add PATHSolver"
     using PATHSolver
     context = @dynare ...
 ```
 1. PARDISO is high-performance solver for very large sparse linear
    systems. It can be used with perfect foresight simulation of very
-   large models. You need to load MKL and Pardiso before running
+   large models. You need to load Pardiso before running
    Dynare (once per Julia session)
 ```
-   using MKL, Pardiso
+   pkg"add Pardiso"
+   using Pardiso
    context = @dynare ...
 ```
 

@@ -1,7 +1,7 @@
 module PardisoSolver
 
 using SparseArrays
-using Dynare, MKL, Pardiso
+using Dynare, Pardiso
 
 ps = MKLPardisoSolver()
 
