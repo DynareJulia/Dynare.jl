@@ -1,6 +1,6 @@
 name = "Dynare"
 uuid = "5203de40-99df-439e-afbc-014de65cb9ef"
-authors = ["michel "]
+authors = ["Michel Juillard", "Dynare Team <dev@dynare.org>"]
 version = "0.10.1"
 
 [deps]
