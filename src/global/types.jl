@@ -11,8 +11,6 @@ struct BlockIndices
     expressions::Vector{Expr}
 end
 
-BlockIndices = BlockIndices
-
 struct Block{F1 <: Function, F2 <: Function, F3 <: Function}
     assignment::Bool
     forward::Bool
