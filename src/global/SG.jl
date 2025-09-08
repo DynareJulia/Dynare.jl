@@ -26,6 +26,8 @@ Struct to hold the options for the sparse-grid approximation
 - `drawsnbr = 10000`: Number of random draws for the error computation,
 - `typeRefinement = "classic"`,
 - `initialPolGuess::UserPolicyGuess = UserPolicyGuess()`
+- `quadrature = :smolyakgh`
+- `smolyak_level` = 15`
 """
 Base.@kwdef struct SGOptions
     dimRef::Int = -1
@@ -50,6 +52,8 @@ Base.@kwdef struct SGOptions
     drawsnbr::Int = 10000
     typeRefinement::String = "classic"
     initialPolGuess::UserPolicyGuess = UserPolicyGuess()
+    quadrature::Symbol = :smolyakgh
+    smolyak_level::Int = 15
 end
 
 """

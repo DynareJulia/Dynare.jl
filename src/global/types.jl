@@ -56,6 +56,11 @@ struct MonomialPowerIntegration
     weights::Vector{Float64}
 end
 
+struct SmolyakGHIntegration
+    nodes   :: Vector{Vector{Float64}} # d × M (columns are nodes)
+    weights :: Vector{Float64} # length M
+end
+
 struct BlockIndices
     equation_pointers::Vector{Int}
     variable_pointers::Vector{Int}
@@ -311,7 +316,7 @@ The `SparsegridsWs` structure acts as a **workspace** for sparse grid-based time
 4. **Configuration settings for solvers and sparse grids**.
 """
 struct SparsegridsWs
-    monomial::MonomialPowerIntegration
+    monomial::Union{MonomialPowerIntegration,SmolyakGHIntegration}
     dynamic_state_variables::Vector{Int}
     system_variables::Vector{Int} 
     bmcps::Vector{Vector{Int}}

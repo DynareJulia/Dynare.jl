@@ -1,6 +1,7 @@
 include("blocks.jl")
 include("block_firstorder.jl")
 include("monomial.jl")
+include("smolyak_gh.jl")
 include("SG.jl")
 include("DDSG.jl")
 include("helper_functions.jl")
@@ -29,7 +30,8 @@ dynamic stochastic models.
 """
 function SGapproximation(opts::SGOptions; context::Context=context)
     # Extract all option fields
-    @unpack dimRef, ftol, iterRefStart, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess = opts
+    @unpack dimRef, ftol, iterRefStart, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess,
+    quadrature, smolyak_level = opts
 
     # Extract model information
     model, endogenous_nbr, exogenous_nbr, params, steadystate,
@@ -53,7 +55,9 @@ function SGapproximation(opts::SGOptions; context::Context=context)
     grid0, aPoints, aNum = initialize_sparse_grid(gridDim, gridOut, gridDepth, gridOrder, gridRule, gridDomain)
 
     # Constructs a monomial quadrature rule
-    monomial = MonomialPowerIntegration(exogenous_nbr)
+    monomial = (quadrature == :smolyakgh) ?
+               SmolyakGHIntegration(exogenous_nbr, smolyak_level) :
+               MonomialPowerIntegration(exogenous_nbr)
     n_nodes = length(monomial.nodes)
     
     # Make a deep copy of the initial grid to perform the time iteration on
@@ -322,7 +326,8 @@ end
 
 function DDSGapproximation(opts::DDSGOptions; context::Context = context)
     # Extract all option fields
-    @unpack k_max, ftol, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess = opts
+    @unpack k_max, ftol, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess,
+    quadrature, smolyak_level = opts
 
     # Extract model information
     model, endogenous_nbr, exogenous_nbr, params, steadystate,
@@ -343,7 +348,9 @@ function DDSGapproximation(opts::DDSGOptions; context::Context = context)
     gridDomain = get_grid_domain(context.work.limits, ids, context, gridDim)
 
     # Constructs a monomial quadrature rule
-    monomial = MonomialPowerIntegration(exogenous_nbr)
+    monomial = (quadrature == :smolyakgh) ?
+               SmolyakGHIntegration(exogenous_nbr, smolyak_level) :
+               MonomialPowerIntegration(exogenous_nbr)
     n_nodes = length(monomial.nodes)
 
     # Scale correction in the refinement process:

@@ -151,6 +151,8 @@ Base.@kwdef struct DDSGOptions
     drawsnbr::Int = 10000
     typeRefinement::String = "classic"
     initialPolGuess::UserPolicyGuess = UserPolicyGuess()
+    quadrature::Symbol = :smolyakgh
+    smolyak_level::Int = 15
 end
 
 """
