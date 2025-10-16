@@ -10,7 +10,7 @@ using AxisArrayTables
 @noinline function parseJSON(modfilename::String)
     modelstring::String =
         open(f -> read(f, String), modfilename * "/model/json/modfile.json")
-    modeljson = JSON.parse(modelstring)
+    modeljson = JSON.parse(modelstring, dicttype=Dict{String, Any})
     return modeljson
 end
 

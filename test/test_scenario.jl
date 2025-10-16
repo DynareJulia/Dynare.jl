@@ -1,6 +1,6 @@
-using AxisArrayTables
+using .AxisArrayTables
 using Dynare
-using ExtendedDates
+using .ExtendedDates
 #using JLD2
 using LinearAlgebra
 using Serialization

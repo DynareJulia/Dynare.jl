@@ -1,3 +1,27 @@
+0.10.4
+======
+- fix compatibility issue with Julia 1.12
+
+0.10.3
+======
+- Bump DynarePreprocessor_jll compat to ~7.0.0
+
+0.10.2
+======
+- Gracefully handle errors with PATH solver (in particular license problems)
+- Fix the testsuite so that it can run without a PATH license
+- Remove various unused dependencies
+
+
+0.10.1
+======
+- bump compat restrictions for NonlinearSolve, LinearSolve, MCMCChains, Pardiso, MKL
+- tighten compat constraint on Julia to ⩾ 1.10
+
+0.10.0
+======
+- fix precompilation issue with TransformVariables package
+
 0.9.18
 ======
 - fix MCP parsing
