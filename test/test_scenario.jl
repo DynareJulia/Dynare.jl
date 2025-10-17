@@ -1,6 +1,7 @@
-using .AxisArrayTables
 using Dynare
-using .ExtendedDates
+using Dynare.AxisArrayTables
+using Dynare.ExtendedDates
+
 #using JLD2
 using LinearAlgebra
 using Serialization
