@@ -1,6 +1,7 @@
 [deps]
 AxisArrayTables = "af8da316-43a4-49f0-bd76-7de0cd630fd6"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+Dynare = "5203de40-99df-439e-afbc-014de65cb9ef"
 ExtendedDates = "78f5a1cc-aa73-4dda-b6b2-4d6b1976988f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PATHSolver = "f5f7c340-0bb3-5c69-969a-41884d311d1b"
