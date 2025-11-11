@@ -31,7 +31,7 @@ SteadyOptions type
     maxit::Int64 - maximum number of iterations [50]
     tolf::Float64 - tolerance criterium for equations error [1e-8]
     tolx::Float64 - norm difference in x between two successive iterates under which convergence is declared.  [0]
-    solve_algo::NonLinearSolveAlgos - algorithm for nonlinear equations solver [trustregion]
+    solve_algo::NonLinearSolveAlgos - algorithm for nonlinear equations solver ["NonlinearSolve"]
     homotopy_mode::HomotopyModes - homotopy mode [None] 
     homotopy_steps::Int64 - homotopy steps [10]
     nocheck::Bool - don't check steady state values provided by the user [false]
@@ -105,16 +105,19 @@ function steadystate!(; context::Context=context,
                       homotopy_mode = SimultaneousFixedSteps,
                       homotopy_steps = 0,
                       maxit = 50,
+                      linear_solve_algo = nothing,
+                      method = TrustRegion(),
                       nocheck = false,
-                      nonlinear_solve_algo = TrustRegion(),
+                      nonlinear_solve_algo = "NonlinearSolve",
+                      show_trace = false,
                       tolf = cbrt(eps()),
-                      tolx = 0.0
+                      tolx = cbrt(eps())
                       )
     model = context.models[1]
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
     work = context.work
-    
+
     set_or_zero!(trends.endogenous_steady_state,
                  work.initval_endogenous,
                  model.endogenous_nbr)
@@ -130,7 +133,7 @@ function steadystate!(; context::Context=context,
                      model.exogenous_nbr)
     end
     if homotopy_steps == 0
-        compute_steady_state!(context, maxit = maxit, nocheck = nocheck, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
+        compute_steady_state!(context, maxit = maxit, nocheck = nocheck, linear_solve_algo = linear_solve_algo, method = method, nonlinear_solve_algo = nonlinear_solve_algo, show_trace = show_trace, tolf = tolf, tolx = tolx)
     else
         homotopy_steady!(context, homotopy_mode, homotopy_steps, maxit = maxit, nonlinear_solve_algo, tolf = tolf)
     end
@@ -179,7 +182,7 @@ function check_steadystate_model(context::Context, nocheck)
     end 
 end 
 
-function compute_steady_state!(context::Context; maxit = 50, nocheck = false, nonlinear_solve_algo = TrustRegion(), tolf = cbrt(eps()))
+function compute_steady_state!(context::Context; maxit = 50, linear_solve_algo = nothing, method = TrustRegion(), nocheck = false, nonlinear_solve_algo = "NonlinearSolve", show_trace = false, tolf = cbrt(eps()), tolx = cbrt(eps()))
     model = context.models[1]
     modfileinfo = context.modfileinfo
     trends = context.results.model_results[1].trends
@@ -189,6 +192,7 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, no
     isempty(trends.endogenous_steady_state) && (trends.endogenous_steady_state = Vector{Float64}(undef, endogenous_nbr))
     isempty(trends.exogenous_steady_state) && (trends.exogenous_steady_state = Vector{Float64}(undef, exogenous_nbr))
     if check_steadystate_model(context, nocheck)
+        
         evaluate_steady_state!(trends.endogenous_steady_state,
                                trends.exogenous_steady_state,
                                work.params)
@@ -220,7 +224,14 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, no
             (x0 .= Float64.(trends.endogenous_steady_state))
         if !nocheck
             trends.endogenous_steady_state .=
-                solve_steady_state!(context, x0, exogenous, maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
+                solve_steady_state!(context, x0, exogenous,
+                                    maxit = maxit,
+                                    linear_solve_algo = linear_solve_algo,
+                                    method = method,
+                                    nonlinear_solve_algo = nonlinear_solve_algo,
+                                    show_trace = show_trace,
+                                    tolf = tolf,
+                                    tolx = tolx)
         end
         # terminal steady state
         if modfileinfo.has_endval
@@ -230,7 +241,14 @@ function compute_steady_state!(context::Context; maxit = 50, nocheck = false, no
             !isempty(trends.endogenous_terminal_steady_state) &&
                 (x0 .= Float64.(trends.endogenous_terminal_steady_state))
             !nocheck && (trends.endogenous_terminal_steady_state .=
-                solve_steady_state!(context, x0, exogenous, maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf))
+                         solve_steady_state!(context, x0, exogenous,
+                                             maxit = maxit,
+                                             linear_solve_algo = linear_solve_algo,
+                                             method = method,
+                                             nonlinear_solve_algo = nonlinear_solve_algo,
+                                             show_trace = show_trace,
+                                             tolf = tolf,
+                                             tolx = tolx))
         end
     end
 end
@@ -238,7 +256,7 @@ end
     
 """
     steadystate_display(steady_state, context; title_complement = "")
-
+    
 Display the steady state of the model
 """
 function steadystate_display(steady_state::AbstractVector{<:Real},
@@ -295,49 +313,72 @@ function solve_steady_state!(context::Context,
                              x0::AbstractVector{<:Real},
                              exogenous::AbstractVector{<:Real};
                              maxit = 50,
-                             nonlinear_solve_algo = TrustRegion(),
-                             tolf = cbrt(eps()))
-    @show "OK1"
-    try
-            return solve_steady_state_!(context, x0, exogenous; maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
-        catch e
-            if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
-                i = 1
-                while i <= maxit
-                    x00 = rand(0.95:0.01:1.05, length(x0)).*x0
-                    try
-                        return solve_steady_state_!(context, x00, exogenous, maxit = maxit, nonlinear_solve_algo = nonlinear_solve_algo, tolf = tolf)
-                    catch
-                    end
-                    i += 1
-                end
-                if i > maxit
-                    rethrow(e)
-                end
-            else
-                rethrow(e)
-            end
-        end        
+                             linear_solve_algo = nothing,
+                             method = TrustRegion(),
+                             nonlinear_solve_algo = "NonlinearSolve",
+                             show_trace = false,
+                             tolf = cbrt(eps()),
+                             tolx = cbrt(eps()))
+   try
+       return solve_steady_state_!(context, x0, exogenous,
+                                   maxit = maxit,
+                                   linear_solve_algo = linear_solve_algo,
+                                   method = method,
+                                   nonlinear_solve_algo = nonlinear_solve_algo,
+                                   show_trace = show_trace,
+                                   tolf = tolf,
+                                   tolx = tolx)
+   catch e
+       @show e
+       if !isempty(x0) && isa(e, Dynare.DynareSteadyStateComputationFailed)
+           i = 1
+           while i <= maxit
+               x00 = rand(0.95:0.01:1.05, length(x0)).*x0
+               try
+                   return solve_steady_state_!(context, x00, exogenous,
+                                               linear_solve_algo = linear_solve_algo,
+                                               maxit = maxit,
+                                               method = method,
+                                               nonlinear_solve_algo = nonlinear_solve_algo,
+                                               show_trace = show_trace,
+                                               tolf = tolf,
+                                               tolx = tolx)
+               catch
+               end
+               i += 1
+           end
+           if i > maxit
+               rethrow(e)
+           end
+       else
+           rethrow(e)
+       end
+   end        
 end
 using LinearSolve
 """
     solve_steady_state_!(context::Context;
                          x0::Vector{Float64},
                          exogenous::AbstractVector{<:Real};
+                         linear_solve_algo = nothing,
                          maxit = 50,
-                         nonlinear_solve_algo = TrustRegion(),
-                         show_trace = false,
-                         tolf = cbrt(eps()))
+                         method = TrustRegion(),
+                         show_trace = show_trace,
+                         tolf = cbrt(eps()),
+                         tolx = cbrt(eps()))
 
 Solve the static model to obtain the steady state
 """
 function solve_steady_state_!(context::Context,
                               x0::AbstractVector{<:Real},
                               exogenous::AbstractVector{<:Real};
+                              linear_solve_algo = nothing,
                               maxit = 50,
-                              nonlinear_solve_algo = TrustRegion(),
-                              tolf = cbrt(eps()))
-    @show "OK2"
+                              method = TrustRegion(),
+                              nonlinear_solve_algo = "NonlinearSolve",
+                              show_trace = false,
+                              tolf = cbrt(eps()),
+                              tolx = tolx)
     ws = StaticWs(context)
     model = context.models[1]
     work = context.work
@@ -355,28 +396,17 @@ function solve_steady_state_!(context::Context,
                               work.params)
 
     results = context.results.model_results[1]
-    j!(A, x0, params)
-    display(Matrix(A))
-    lp = LinearProblem(A, residuals)
-    dy1 = LinearSolve.solve(lp)
-    dy2 = LinearSolve.solve(lp, PardisoJL())
-    @show norm(dy1-dy2)
-
-    # of = OnceDifferentiable(f!, J!, vec(x0), residuals, A)
-    # result = nlsolve(of, x0; method = :robust_trust_region, show_trace = false, ftol = tolf, iterations = maxit)
-    fj = NonlinearFunction(f!, jac = j!, jac_prototype = A)
-    @show x0
-    prob = NonlinearProblem(fj, x0, params)
-    
-    result = NonlinearSolve.solve(prob, nonlinear_solve_algo, show_trace=Val(true), abstol = tolf)
-#    result = NonlinearSolve.solve(prob, show_trace=Val(true), abstol = tolf)
-
-    @debug result
-    @show result.retcode
-    if result.retcode == ReturnCode.Success
-        return result.u
-    else
-        @debug "Steady state computation failed with\n $result"
+    try
+        return dynare_nonlinear_solvers(f!, j!, A, [], [], x0, exogenous, work.params,
+                                        linear_solve_algo = linear_solve_algo,
+                                        maxit = maxit,
+                                        method = method,
+                                        solve_algo = nonlinear_solve_algo,
+                                        show_trace = show_trace,
+                                        tolf = tolf,
+                                        tolx = tolx)
+    catch e
+        @debug "Steady state computation failed"
         throw(DynareSteadyStateComputationFailed())
     end
 end

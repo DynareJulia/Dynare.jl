@@ -34,14 +34,15 @@ end;
 // display the steady-state
 steady;
 
-// initial conditionls
+// initial conditions
 histval;
 k(0) = 0.5*((1-beta*(1-delta))/(beta*alpha))^(1/(alpha-1));
 end;
 
 // computing the simulation
-perfect_foresight_setup(periods=200);
-perfect_foresight_solver;
+//perfect_foresight_setup(periods=200);
+//perfect_foresight_solver;
+perfect_foresight!(periods=200);
 // ploting results
 plot(simulation("k"))
 plot(simulation("c"))

@@ -1,5 +1,7 @@
 using Pardiso
 using Dynare
+using Pardiso
+using PATHSolver
 using Test
 
 # CSV.write fails with AxisArrays

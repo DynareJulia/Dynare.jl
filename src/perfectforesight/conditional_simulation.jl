@@ -4,7 +4,6 @@ function set_future_information!(y::Vector{Float64}, x::Vector{Float64}, context
     exogenous_nbr = m.exogenous_nbr
     flips = context.work.scenario[infoperiod]
     symboltable = context.symboltable
-    
     for (period, f1) in flips
         p = length(infoperiod:period)
         for (s, f2) in f1
@@ -27,12 +26,14 @@ function perfectforesight_core_conditional!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
-    solve_algo,
-    linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs,
     flipinfo::FlipInformation,
     infoperiod;
+    linear_solve_algo = nothing,
     maxit = 50,
+    method = TrustRegion(),
+    nonlinear_solve_algo = "NonlinearSolve",
+    show_trace = true,
     tolf = 1e-5,
     tolx = 1e-5
 
@@ -74,7 +75,7 @@ function perfectforesight_core_conditional!(
         flipinfo.ix_stack
     )
 
-    J! = make_pf_jacobian(
+    j! = make_pf_jacobian(
         DFunctions.dynamic_derivatives!,
         initialvalues,
         terminalvalues,
@@ -92,62 +93,31 @@ function perfectforesight_core_conditional!(
         flipinfo,
         nzval1
     )
-
-    df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
+    
     @debug "$(now()): start nlsolve"
 
     set_future_information!(y0, exogenous, context, periods, infoperiod)
     flip!(y0, exogenous, flipinfo.ix_stack)
-    f!(residuals, y0)
-    show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
-    if linear_solve_algo == pardiso
-        @show "Pardiso"
-        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
-            error("You must load Pardiso with 'using MKL, Pardiso'")
-        end
-        ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
-    else
-        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
-    end
-    fj = NonlinearFunction(f!, jac = j!, jac_prototype = JJ)
-    
-    prob = NonlinearProblem(fj, y0, params)
-    @debug "$(now()): start nlsolve"
-    show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
-    #=
-    if linear_solve_algo == pardiso
-        @show "Pardiso"
-        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
-            error("You must load Pardiso with 'using MKL, Pardiso'")
-        end
-        ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
-        #=
-        elseif linear_solve_algo == mumps
-        @show "MUMPS"
-        #=
-        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
-        error("You must load Pardiso with 'using MKL, Pardiso'")
-        en=#
-        MPI.Init()
-        ls!(x, A, b) = linear_solver!(MumpsLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls!)
-        =#
-    else
-#        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
-        #        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
-        # res = NonlinearSolve.solve(prob, solve_algo, show_trace=Val(false), abstol = tolf)
-    end
-    =#
-    @show solve_algo
-    res = NonlinearSolve.solve(prob, solve_algo, show_trace = Val(show_trace), abstol = tolf)
-
-    print_nlsolver_results(res)
     @debug "$(now()): end nlsolve"
-    flip!(res.zero, exogenous, flipinfo.ix_stack)
-    make_simulation_results!(context::Context, res.zero, exogenous, terminalvalues, periods)
+    let res
+        try
+            residuals = similar(y0)
+            f!(residuals, y0, work.params)
+            res = dynare_nonlinear_solvers(f!, j!, JJ, [], [], y0, exogenous, work.params,
+                                           linear_solve_algo = linear_solve_algo,
+                                           maxit = maxit,
+                                           method = method,
+                                           solve_algo = nonlinear_solve_algo,
+                                           show_trace = show_trace,
+                                           tolf = tolf,
+                                           tolx = tolx)
+        catch e
+            @show e
+        end
+
+        flip!(res, exogenous, flipinfo.ix_stack)
+        make_simulation_results!(context::Context, res, exogenous, terminalvalues, periods)
+    end
 end
 
 function make_pf_residuals(
@@ -163,7 +133,7 @@ function make_pf_residuals(
     permutations::Vector{Tuple{Int64,Int64}},
     ix_stack::SparseVector{Int, Int}
         ) where T <: Real
-    function f!(residuals::AbstractVector{T}, y::AbstractVector{T})
+    function f!(residuals, y, params)
         flip!(y, exogenous, ix_stack)
         get_residuals!(
             residuals,
@@ -185,7 +155,7 @@ function make_pf_residuals(
     return f!
 end
 
-function flip!(y, x, ix_stack::SparseVector{Int, Int})
+function flip!(y, x, ix_stack)
     I, J = findnz(ix_stack)
     for (iy, ix) in zip(I, J)
         y[iy], x[ix] = x[ix], y[iy]
@@ -213,6 +183,7 @@ function make_pf_jacobian(
     function J!(
         A::SparseArrays.SparseMatrixCSC{Float64,Int64},
         y::AbstractVector{Float64},
+        params
     )
         updateJacobian!(
             A,

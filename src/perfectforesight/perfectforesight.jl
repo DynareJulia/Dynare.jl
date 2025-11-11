@@ -1,13 +1,20 @@
 include("makeA.jl")
 
 @enum PerfectForesightAlgo trustregionA
-#@enum LinearSolveAlgo ilu pardiso mumps
 @enum LinearSolveAlgo ilu pardiso
 @enum InitializationAlgo initvalfile steadystate firstorder linearinterpolation
 
+struct DynarePerfectForesightSimulationFailed <: Exception end
+function Base.showerror(io::IO, e::DynarePerfectForesightSimulationFailed)
+    print("""
+    Dynare couldn't compute the perfectf foresight simulation.
+    Either there is no solution or the guess values
+    are too far from the solution
+     """)
+end
+
 abstract type LinearSolver end
 struct IluLS <: LinearSolver end
-#struct MumpsLS <: LinearSolver end
 struct PardisoLS <: LinearSolver end
     
 function linear_solver!(::IluLS,
@@ -16,17 +23,6 @@ function linear_solver!(::IluLS,
                         b::AbstractVector{Float64})
     x .= A\b
 end
-
-#=
-using MUMPS, MPI
-function linear_solver!(::MumpsLS,
-                        x::AbstractVector{Float64},
-                        A::AbstractMatrix{Float64},
-                        b::AbstractVector{Float64})
-    x = MUMPS.solve(A, b)
-    return x
-end
-=#
 
 abstract type NonLinearSolver end
 struct PathNLS <: NonLinearSolver end
@@ -38,11 +34,13 @@ mutable struct PerfectForesightOptions
     display::Bool
     homotopy::Bool
     initialization_algo::InitializationAlgo
-    solve_algo
+    solve_algo::String
     linear_solve_algo::LinearSolveAlgo
     maxit::Int
     mcp::Bool
+    method
     periods::Int
+    show_trace::Bool
     tolf::Float64
     tolx::Float64
 end
@@ -53,18 +51,18 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
     display = true
     homotopy = false
     initialization_algo = steadystate
-    solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))
+    solve_algo = "NonlinearSolve"
     linear_solve_algo = ilu
     maxit = 50
     mcp = false
+    method = TrustRegion(radius_update_scheme=RadiusUpdateSchemes.NLsolve)
     periods =  context.work.perfect_foresight_setup["periods"]
+    show_trace = false
     tolf = 1e-5
     tolx = 1e-5
     if haskey(field, "options")
         for (k, v) in pairs(field["options"])
-            if k == "stack_solve_algo"
-                algo = v::Int64
-            elseif k == "noprint"
+            if k == "noprint"
                 display = false
             elseif k == "print"
                 display = true
@@ -74,8 +72,6 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
                 mcp = true
             elseif k == "no_homotopy"
                 homotopy = false
-            elseif k == "solve_algo"
-                linear_solve_algo = v
             elseif k == "maxit"
                maxit = v
             elseif k == "tolf"
@@ -88,7 +84,7 @@ function PerfectForesightOptions(context::Context, field::Dict{String,Any})
     return PerfectForesightOptions(algo, datafile, display, homotopy,
                                    initialization_algo, solve_algo,
                                    linear_solve_algo, maxit, mcp,
-                                   periods, tolf, tolx)
+                                   method, periods, show_trace, tolf, tolx)
 end
 
 struct FlipInformation
@@ -241,13 +237,15 @@ end
  - `periods::Int`: number of periods in the simulation [required]
  - `context::Context=context`: context in which the simulation is computed
  - `display::Bool=true`: whether to display the results
- - `solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking()))`: nonlinear solver algorithm
+ - `solve_algo = one of "NLsolve", "NonlinearSolve", "PATHSolver"
  - `linear_solve_algo::LinearSolveAlgo=ilu`: algorithm used for the solution of the linear
    problem. Either `ilu` or `pardiso`. `ilu` is the sparse linear solver used by default in Julia.
    To use the Pardiso solver, write `using Pardiso` before running Dynare.
  - `maxit::Int=50` maximum number of iterations
+ - `method`: solver method inside `solve_algo` package
  - `mcp::Bool=false`L whether to solve a mixed complementarity problem with
    occasionally binding constraints
+ - `show_trace::Bool=false`: whether to show solver iterations
  - `tolf::Float64=1e-5`: tolerance for the norm of residualts
  - `tolx::Float64=1e-5`: tolerance for the norm of the change in the result
 """
@@ -257,20 +255,20 @@ function perfect_foresight!(;context::Context = context,
                             display::Bool = true,
                             homotopy::Bool = false,
                             initialization_algo::InitializationAlgo = steadystate,
-                            solve_algo = NewtonRaphson(linesearch = LineSearchesJL(method = NonlinearSolve.BackTracking())),
+                            solve_algo = "NonlinearSolve",
                             linear_solve_algo::LinearSolveAlgo = ilu,
                             maxit::Int = 50,
                             mcp::Bool = false,
+                            method = TrustRegion(radius_update_scheme=RadiusUpdateSchemes.NLsolve),
                             periods::Int,
+                            show_trace::Bool = false,
                             tolf::Float64 = 1e-5,
                             tolx::Float64 = 1e-5)
 
     options = PerfectForesightOptions(algo, datafile, display,
                                       homotopy, initialization_algo,
-                                      solve_algo,
-                                      linear_solve_algo, maxit,
-                                      mcp, periods, tolf, tolx)
-
+                                      solve_algo, linear_solve_algo, maxit,
+                                      mcp, method, periods, show_trace, tolf, tolx)
     scenario = context.work.scenario
     check_scenario(scenario)
     if isempty(scenario) || length(scenario) == 1
@@ -397,11 +395,14 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             guess_values,
             initial_values,
             terminal_values,
-            options.linear_solve_algo,
             dynamic_ws,
             perfect_foresight_ws.flipinfo,
             1,
+            linear_solve_algo = nothing,
             maxit = options.maxit,
+            method = options.method,
+            nonlinear_solve_algo = options.solve_algo,
+            show_trace = options.show_trace,
             tolf = options.tolf,
             tolx = options.tolx
         )
@@ -413,10 +414,12 @@ function _perfect_foresight!(context::Context, options::PerfectForesightOptions)
             guess_values,
             initial_values,
             terminal_values,
-            options.solve_algo,
-            options.linear_solve_algo,
             dynamic_ws,
+            linear_solve_algo = options.linear_solve_algo,
             maxit = options.maxit,
+            method = options.method,
+            nonlinear_solve_algo = "NonlinearSolve",
+            show_trace = false,
             tolf = options.tolf,
             tolx = options.tolx
         )
@@ -571,10 +574,12 @@ function perfectforesight_core!(
     y0::AbstractVector{Float64},
     initialvalues::Vector{<:Real},
     terminalvalues::Vector{<:Real},
-    solve_algo,
-    linear_solve_algo::LinearSolveAlgo,
     dynamic_ws::DynamicWs;
     maxit = 50,
+    nonlinear_solve_algo = "NonlinearSolve",
+    linear_solve_algo = nothing,
+    method = TrustRegion(),
+    show_trace = true,
     tolf = 1e-5,
     tolx = 1e-5
 )
@@ -636,62 +641,17 @@ function perfectforesight_core!(
         j!(JJt, y, p)
         JJ .= transpose(JJt)
     end
-                   
-    f!(residuals, y0, params)
-    j!(JJ, y0, params)
-    serialize("test.jls", JJ)
-    JJt = copy(transpose(JJ))
-    jj!(JJt, y0, params)
-    lp = LinearProblem(JJ, residuals)
-    lp3 = LinearProblem(JJt, residuals)
-    dy0 = JJ\residuals
-    @show residuals[1:20]
-    @show lp
-    dy1 = LinearSolve.solve(lp)
-    @show lp
-    @show residuals[1:20]
-    dy2 = LinearSolve.solve(lp, PardisoJL())
-    @show lp
-    @show residuals[1:20]
-    dy3 = LinearSolve.solve(lp3, PardisoJL())
-    @show norm(dy1-dy2)
-    @show norm(dy1-dy3)
-    @show norm(dy1-dy0)
-    
-    #    df = OnceDifferentiable(f!, J!, y0, residuals, JJ)
-    fj = NonlinearFunction(f!, jac = j!, jac_prototype = JJ)
-    
-    prob = NonlinearProblem(fj, y0, params)
-    @debug "$(now()): start nlsolve"
-    show_trace = (("JULIA_DEBUG" => "Dynare") in ENV) ? true : false
-    if linear_solve_algo == pardiso
-        @show "Pardiso"
-        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
-            error("You must load Pardiso with 'using MKL, Pardiso'")
-        end
-        ls1!(x, A, b) = linear_solver!(PardisoLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls1!)    
-        #=
-        elseif linear_solve_algo == mumps
-        @show "MUMPS"
-        #=
-        if isnothing(Base.get_extension(Dynare, :PardisoSolver))
-        error("You must load Pardiso with 'using MKL, Pardiso'")
-        en=#
-        MPI.Init()
-        ls!(x, A, b) = linear_solver!(MumpsLS(), x, A, b)
-        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls!)
-        =#
-    else
-#        ls2!(x, A, b) = linear_solver!(IluLS(), x, A, b)
-        #        res = nlsolve(df, y0, method = :robust_trust_region, show_trace = show_trace, ftol = tolf, xtol = tolx, iterations= maxit, linsolve = ls2!)
-        # res = NonlinearSolve.solve(prob, solve_algo, show_trace=Val(false), abstol = tolf)
-    end
-    @show solve_algo
-    res = NonlinearSolve.solve(prob, solve_algo, show_trace = Val(show_trace), abstol = tolf)
-    print_nlsolver_results(res)
+
+    results = dynare_nonlinear_solvers(f!, j!, JJ, [], [], y0, exogenous, work.params,
+                                       linear_solve_algo = linear_solve_algo,
+                                       maxit = maxit,
+                                       method = method,
+                                       solve_algo = nonlinear_solve_algo,
+                                       show_trace = show_trace,
+                                       tolf = tolf,
+                                       tolx = tolx)
     @debug "$(now()): end nlsolve"
-    make_simulation_results!(context::Context, res.u, exogenous, terminalvalues, periods)
+    make_simulation_results!(context::Context, results, exogenous, terminalvalues, periods)
 end
 
 function make_pf_residuals(
@@ -706,7 +666,7 @@ function make_pf_residuals(
             temp_vec::AbstractVector{T},
             permutations::Vector{Tuple{Int64,Int64}},
         ) where T <: Real
-    function f!(residuals::AbstractVector{T}, y::AbstractVector{T}, params)
+    function f!(residuals::AbstractVector{T}, y::AbstractVector{T}, params::AbstractVector{T})
         get_residuals!(
             residuals,
             vec(y),
@@ -785,8 +745,9 @@ function get_residuals!(
     temp_vec::AbstractVector{Float64};
     permutations::Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[],
 )
+    
     n = m.endogenous_nbr
-
+    
     rx = 1:m.exogenous_nbr
     @views get_residuals_1!(
         residuals,
@@ -946,10 +907,7 @@ function print_nlsolver_results(r)
     @info @sprintf "Results of Nonlinear Solver Algorithm"
     @info @sprintf " * Algorithm: %s" r.alg
     @info @sprintf " * Inf-norm of residuals: %f" norm(r.resid)
-#    @info @sprintf " * Iterations: %d" r.iterations
     @info @sprintf " * Convergence: %s" r.retcode
-#    @info @sprintf "   * |x - x'| < %.1e: %s" r.xtol r.x_converged
-#    @info @sprintf "   * |f(x)| < %.1e: %s" r.ftol r.f_converged
     @info @sprintf " * Function Calls (f): %d" r.stats.nf
     return
 end
@@ -1057,6 +1015,7 @@ end
 function _recursive_perfect_foresight!(context::Context, infoperiod, initial_values, options)
     datafile = options.datafile
     periods = options.periods - infoperiod + 1
+    
     m = context.models[1]
     ncol = m.n_bkwrd + m.n_current + m.n_fwrd + 2 * m.n_both
     tmp_nbr =  m.dynamic_tmp_nbr::Vector{Int64}
@@ -1122,11 +1081,14 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
             guess_values,
             initial_values,
             terminal_values,
-            options.linear_solve_algo,
             dynamic_ws,
             perfect_foresight_ws.flipinfo,
             infoperiod,
+            linear_solve_algo = options.linear_solve_algo,
             maxit = options.maxit,
+            method = options.method,
+            nonlinear_solve_algo = options.solve_algo,
+            show_trace = options.show_trace,
             tolf = options.tolf,
             tolx = options.tolx
         )
@@ -1138,6 +1100,7 @@ function _recursive_perfect_foresight!(context::Context, infoperiod, initial_val
             guess_values,
             initial_values,
             terminal_values,
+            options.solve_algo,
             options.linear_solve_algo,
             dynamic_ws,
             maxit = options.maxit,
