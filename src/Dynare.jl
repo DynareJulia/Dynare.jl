@@ -6,6 +6,7 @@ using Reexport
 using LoggingExtras
 using NLsolve
 using NonlinearSolve
+using Parameters
 using Printf
 using SparseArrays
 using Tasmanian
