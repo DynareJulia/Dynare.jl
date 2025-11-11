@@ -39,3 +39,7 @@ end
 
 # sparsegrids
 function mcp_sg_core!(::DefaultNLS)
+end
+
+function mcp_solve!(::DefaultNLS)
+end

@@ -7,71 +7,12 @@ using SparseArrays
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
 
-BlockIndices = BlockIndices_1
-
-struct Block_1{F1 <: Function, F2 <: Function, F3 <: Function}
-    assignment::Bool
-    forward::Bool
-    jacobian::SparseMatrixCSC{Float64, Int}
-    assigment_fcn::F1
-    jacobian_fcn::F2
-    residual_fcn::F3
-    indices::BlockIndices
-end
-
-abstract type AbstractBlock end
-abstract type AbstractPreambleBlock <: AbstractBlock end
-abstract type AbstractAssignmentBlock <: AbstractPreambleBlock end
-
-struct LinearAssignmentBlock_1 <: AbstractAssignmentBlock
-    equations::Vector{Int}
-    variables::Vector{Int}
-    expressions::Vector{Expr}
-    jacobian::SparseMatrixCSC{Float64, Int}
-    set_endogenous_variables!::Function
-end
-
-struct NonlinearAssignmentBlock_2 <: AbstractAssignmentBlock
-    equations::Vector{Int}
-    variables::Vector{Int}
-    expressions::Vector{Expr}
-    jacobian::SparseMatrixCSC{Float64, Int}
-    set_endogenous_variables!::Function
-    update_jacobian::Function
-end
-
-struct PreambleBlock_2 <: AbstractPreambleBlock
-    equations::Vector{Int}
-    variables::Vector{Int}
-    expressions::Vector{Expr}
-    jacobian::SparseMatrixCSC{Float64, Int}
-    get_residuals!::Function
-    update_jacobian!::Function
-end
-
-struct ForwardBlock_2 <: AbstractBlock
-    equations::Vector{Int}
-    variables::Vector{Int}
-    expressions::Vector{Expr}
-    jacobian::SparseMatrixCSC{Float64, Int}
-    get_residuals!::Function
-    update_jacobian!::Function
-end
-
-struct BackwardBlock_2 <: AbstractBlock    
-    equations::Vector{Int}
-    variables::Vector{Int}
-    expressions::Vector{Expr}
-    jacobian::SparseMatrixCSC{Float64, Int}
-    get_residuals!::Function
-    update_jacobian!::Function
-end
-
-LinearAssignmentBlock = LinearAssignmentBlock_1
-NonlinearAssignmentBlock = NonlinearAssignmentBlock_2
-PreambleBlock = PreambleBlock_2
-ForwardBlock = ForwardBlock_2
-BackwardBlock = BackwardBlock_2
+#=
+AssignmentBlock = AssignmentBlock_5
+PreambleBlock = PreambleBlock_1
+ForwardBlock = ForwardBlock_1
+BackwardBlock = BackwardBlock_1
+=#
 
 function get_dynamic_incidence_matrix(context)
     #Get Jacobian
@@ -534,28 +475,21 @@ function make_block_functions(context)
     system_variables = [matching[e] for e in system_expressions_eqs]
     sort!(system_variables)
 
-    preamble_jacobian, preamble_jacobian_expressions = make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
-                                        context.models[1].dynamic_g1_sparse_rowval,
-                                        preamble_eqs,
-                                        endogenous_nbr)
+    preamble_jacobian, preamble_jacobian_expressions =
+        make_assignment_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                 context.models[1].dynamic_g1_sparse_rowval,
+                                 preamble_eqs,
+                                 endogenous_nbr)
     
     steadystate = context.results.model_results[1].trends.endogenous_steady_state
+    preamble_block = AssignmentBlock(preamble_eqs,
+                                     predetermined_variables .- endogenous_nbr,
+                                     preamble_expressions,
+                                     preamble_jacobian,
+                                     make_assignment_function(:preamble_block, preamble_expressions),
+                                     isempty(preamble_eqs) ? true : is_block_linear(preamble_eqs, context),
+                                    )
 
-    if is_block_linear(preamble_eqs, context)
-        preamble_block = LinearAssignmentBlock_1(preamble_eqs,
-                                                 predetermined_variables .- endogenous_nbr,
-                                                 preamble_expressions,
-                                                 preamble_jacobian,
-                                                 make_assignment_function(:set_endogenous_variables!, preamble_expressions),
-                                                 )
-    else
-        preamble_block = NonlinearAssignmentBlock_1(preamble_eqs,
-                                                    predetermined_variables .- endogenous_nbr,
-                                                    preamble_expressions,
-                                                    preamble_jacobian,
-                                                    )
-    end
-    
     forward_jacobian, forward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
                                       forward_expressions_eqs)
@@ -570,14 +504,26 @@ function make_block_functions(context)
     backward_jacobian, backward_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
                                       context.models[1].dynamic_g1_sparse_rowval,
                                       backward_expressions_eqs)
-    backward_block = BackwardBlock(preamble_eqs,
+    backward_block = BackwardBlock(backward_expressions_eqs,
                                    predetermined_variables .- endogenous_nbr,
                                    backward_expressions,
                                    backward_jacobian,
                                    make_residuals_function(:get_residuals!, backward_expressions),
                                    make_evaluate_block_jacobian_(:update_jacobian!, backward_jacobian_expressions)
                                    )
+                                       
+    system_jacobian, system_jacobian_expressions = make_residual_jacobian(context.models[1].dynamic_g1_sparse_colptr,
+                                                                          context.models[1].dynamic_g1_sparse_rowval,
+                                                                          system_expressions_eqs)
     
+    system_block = SimultaneousBlock(system_expressions_eqs,
+                                   predetermined_variables .- endogenous_nbr,
+                                   system_expressions,
+                                   system_jacobian,
+                                   make_residuals_function(:get_residuals!, system_expressions),
+                                   make_evaluate_block_jacobian_(:update_jacobian!, system_jacobian_expressions)
+                                   )
+                                       
     ws = DynamicWs(context)
     T = ws.temporary_values
     x = context.results.model_results[1].trends.exogenous_steady_state
@@ -585,6 +531,8 @@ function make_block_functions(context)
     steady_state = context.results.model_results[1].trends.endogenous_steady_state
     preamble_evaluate_jacobian = make_evaluate_block_jacobian(preamble_jacobian_expressions, T, x, params, steady_state)
     preamble_evaluate_jacobian(preamble_jacobian, repeat(steady_state, 3))
+    # preamble is an assignment block
+    lmul!(-1, preamble_jacobian)
 
     forward_evaluate_jacobian = make_evaluate_block_jacobian(forward_jacobian_expressions, T, x, params, steady_state)
     
@@ -593,9 +541,7 @@ function make_block_functions(context)
     backward_evaluate_jacobian = make_evaluate_block_jacobian(backward_jacobian_expressions, T, x, params, steady_state)
     backward_evaluate_jacobian(backward_jacobian, repeat(steady_state, 3))
     return (states, predetermined_variables, system_variables,
-            forward_equations_nbr, backward_equations_nbr,
-            forward_expressions_eqs, backward_expressions_eqs,
-            backward_block, forward_block, preamble_block)
+            backward_block, forward_block, preamble_block, system_block)
 end
 
 #=
