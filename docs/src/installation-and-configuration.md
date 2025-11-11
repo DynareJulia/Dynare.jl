@@ -28,14 +28,16 @@ reduce the memory consumption, use the Pardiso package
 (https://github.com/JuliaSparse/Pardiso.jl) and type
 
 ```
-using MKL, Pardiso
+pkg"add Pardiso"
+using Pardiso
 ```
 
 ### PATHSolver
-If youw want to solve perfect foresight models with occasionally
+If you want to solve perfect foresight models with occasionally
 binding constraints use the PATHSolver package
 (https://github.com/chkwon/PATHSolver.jl) and type
 ```
+pkg"add PATHSolver"
 using PATHSolver
 ```
 
