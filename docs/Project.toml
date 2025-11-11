@@ -1,6 +1,7 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
+Dynare = "5203de40-99df-439e-afbc-014de65cb9ef"
 
 [compat]
 Documenter = "1.2"
