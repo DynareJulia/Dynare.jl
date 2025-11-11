@@ -1,6 +1,5 @@
 # %%
 using Test
-using Tasmanian
 using Statistics
 # %%
 @testset "DDSG" begin
@@ -141,7 +140,7 @@ using Statistics
             X_sample = rand(dim, num_points)
             Y_ddsg = Dynare.DDSG_evaluate(ddsg, X_sample)
             Y_exact = F(X_sample)
-            @test sum(ddsg.grid_points) == reduce(+,[Tasmanian.getNumPoints(g) for g in ddsg.grid])
+            @test sum(ddsg.grid_points) == reduce(+,[Dynare.Tasmanian.getNumPoints(g) for g in ddsg.grid])
             @test mean(@. abs((Y_ddsg - Y_exact)/Y_exact)) < 1e-4
         end
         @testset "Build Helper Functions" begin

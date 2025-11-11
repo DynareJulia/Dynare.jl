@@ -95,5 +95,5 @@ end;
   limits!("a_@{j}", min = -0.8*sigE/(1 - rho), max = 0.8*sigE/(1 - rho));
 @#endfor
 
-(grid, ws) = sparsegridapproximation(scaleCorrExclude=["lambda"], method=@{METHOD}, tol_ti=0.0005);
+(grid, ws) = SGapproximation(SGOptions(scaleCorrExclude=["lambda"], method=@{METHOD}, tol_ti=0.0005));
 

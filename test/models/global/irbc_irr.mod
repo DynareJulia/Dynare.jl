@@ -100,4 +100,4 @@ end;
 limits!("lambda", min = 0.0, max = Inf);
 
 // use high tolerance to speed up test
-(grid, state_variables, policy_variables) = sparsegridapproximation(scaleCorrExclude=["lambda"], mcp = true, tol_ti=0.00025);
+(grid, ws) = SGapproximation(SGOptions(scaleCorrExclude=["lambda"], mcp = true, tol_ti=0.00025));
