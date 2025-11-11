@@ -345,6 +345,32 @@ struct SparsegridsWs
     sgsolveroptions::SGSolverOptions
 end
 
+"""
+    SparsegridsResults
+
+## Fields
+ -  average_error::Float64
+ -  max_error::Float64
+ -  iteration_number::Int
+ -  average_iteration_time::Float64
+ -  drawsnbr::Int
+ -  burnin::Int
+ -  equation_average_errors::Vector{Float64}
+ -  equation_quantile_errors::Vector{Float64}
+ -  ftol::Float64
+ -  grid::TasmanianSG
+ -  gridDepth::Int
+ -  gridOrder::Int
+ -  gridRule::String
+ -  iterRefStart::Int
+ -  maxRef::Int
+ -  mcp::Bool
+ -  method::NonlinearSolve.GeneralizedFirstOrderAlgorithm
+ -  quantile_error::Float64
+ -  quantile_probability::Float64
+ -  solver::SGSolver
+ -  surplThreshold::Float64
+"""
 mutable struct SparsegridsResults
     average_error::Float64
     max_error::Float64

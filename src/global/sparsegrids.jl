@@ -16,8 +16,6 @@ using NonlinearSolve
 using Roots
 using Tasmanian
 
-export SGapproximation, simulate!, simulation_approximation_error!, DDSGapproximation, DDSGOptions, SGOptions, UserPolicyGuess
-
 """
     SGapproximation(opts::SGOptions; context::Context, ...)
 
@@ -324,6 +322,16 @@ function simulation_approximation_error!(;
     return errorMat
 end
 
+"""
+    DDSGapproximation(opts::DDSGOptions; context::Context, ...)
+
+Performs dimensional decomposition adaptive sparse grid approximation for solving high-dimensional 
+dynamic stochastic models.
+
+# Arguments
+- `context::Context`: Dynare model context with system equations.
+
+"""
 function DDSGapproximation(opts::DDSGOptions; context::Context = context)
     # Extract all option fields
     @unpack k_max, ftol, gridDepth, gridOrder, gridRule, maxiter, maxRef, mcp, method, savefreq, scaleCorrInclude, scaleCorrExclude, show_trace, solver, surplThreshold, tol_ti, polUpdateWeight, maxIterEarlyStopping, drawsnbr, typeRefinement, initialPolGuess,

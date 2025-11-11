@@ -129,6 +129,34 @@ mutable struct DDSG
     end
 end
 
+"""
+ struct DDSGOptions
+
+# Fields
+ - k_max::Int = 1
+ - ftol::Float64 = 1e-5
+ - gridDepth::Int = 2
+ - gridOrder::Int = 1
+ - gridRule::String = "localp"
+ - maxiter::Int = 300
+ - maxRef::Int = 0
+ - mcp::Bool = false
+ - method::NonlinearSolve.GeneralizedFirstOrderAlgorithm = NewtonRaphson()
+ - savefreq::Int = 10
+ - scaleCorrInclude::Vector{String} = Vector{String}()
+ - scaleCorrExclude::Vector{String} = Vector{String}()
+ - show_trace::Bool = false
+ - solver::Dynare.SGSolver = NonlinearSolver
+ - surplThreshold::Float64 = 0.
+ - tol_ti::Float64 = 1e-4
+ - polUpdateWeight::Float64 = 0.5
+ - maxIterEarlyStopping::Int = 0
+ - drawsnbr::Int = 10000
+ - typeRefinement::String = "classic"
+ - initialPolGuess::UserPolicyGuess = UserPolicyGuess()
+ - quadrature::Symbol = :smolyakgh
+ - smolyak_level::Int = 15
+"""
 Base.@kwdef struct DDSGOptions
     k_max::Int = 1
     ftol::Float64 = 1e-5

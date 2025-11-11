@@ -71,7 +71,7 @@ export @dynare, dynare
 include("macros.jl")
 export limits!, @limits
 include("global/sparsegrids.jl")
-export sparsegridapproximation
+export SGapproximation, simulate!, simulation_approximation_error!, DDSGapproximation, DDSGOptions, SGOptions, SparsegridsResults, UserPolicyGuess
 include("mcp.jl")
 
 macro dynare(modfile_arg::String, args...)
