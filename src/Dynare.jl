@@ -10,7 +10,6 @@ using Parameters
 using Printf
 using SparseArrays
 using Tasmanian
-using Documenter
 
 Base.@kwdef struct CommandLineOptions
     compilemodule::Bool = true
@@ -57,11 +56,6 @@ export smoother
 include("optimal_policy.jl")
 include("perturbations.jl")
 export localapproximation!
-# traits used for PathSolver extension
-abstract type NonLinearSolver end
-struct PathNLS <: NonLinearSolver end
-struct DefaultNLS <: NonLinearSolver end
-
 include("perfectforesight/perfectforesight.jl")
 export perfect_foresight!, scenario!
 include("estimation/priorprediction.jl")
