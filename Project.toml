@@ -1,7 +1,7 @@
 name = "Dynare"
 uuid = "5203de40-99df-439e-afbc-014de65cb9ef"
-authors = ["Michel Juillard", "Dynare Team <dev@dynare.org>"]
 version = "0.10.4"
+authors = ["Michel Juillard", "Dynare Team <dev@dynare.org>"]
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -112,7 +112,7 @@ Reexport = "1"
 Roots = "2"
 RuntimeGeneratedFunctions = "0.5"
 SpecialFunctions = "2"
-StatsFuns = "0.9.15, 1"
+StatsFuns = "0.9.15, 1, 2"
 StatsPlots = "0.15"
 Suppressor = "0.2.0"
 Tasmanian = "0.1"
