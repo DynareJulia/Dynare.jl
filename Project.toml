@@ -1,7 +1,7 @@
 name = "Dynare"
 uuid = "5203de40-99df-439e-afbc-014de65cb9ef"
-authors = ["Michel Juillard", "Dynare Team <dev@dynare.org>"]
 version = "0.10.4"
+authors = ["Michel Juillard", "Dynare Team <dev@dynare.org>"]
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
@@ -101,7 +101,7 @@ NLsolve = "4"
 NonlinearSolve = "3, 4"
 Optim = "1"
 PATHSolver = "1"
-Parameters = "0.12"
+Parameters = "0.12, 0.13"
 Pardiso = "0.5, 1"
 Plots = "1.40.5"
 PolynomialMatrixEquations = "0.2.0"
